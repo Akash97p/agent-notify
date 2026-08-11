@@ -26,7 +26,7 @@
 - [x] Pause and Start with Windows tray toggles
 - [x] Single-instance mutex plus reliable show-center signal
 - [x] Tray Getting Started, Copy SKILL.md, and Save SKILL.md actions
-- [ ] Settings UI
+- [x] Native Settings UI for general, toast lifetime, and initial sound controls
 - [ ] Reliable “Open Agent” terminal/tab activation across virtual desktops
 
 ## CLI and agent integration

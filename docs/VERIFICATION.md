@@ -147,6 +147,7 @@ The installed CLI returned `agentnotify 1.0.0`. The Windows uninstall registry e
 - Dashboard status changes feed back into the toast manager.
 - Active attention rows are queried and restored at startup.
 - Normal setup finish launches the tray app and offline guide when the default checkboxes remain enabled.
+- Native Settings window opens from the tray and validates port, retention, stack size, placement, lifetimes, pause/DND, and the initial sound toggle.
 
 These were code-reviewed and built, but the automation did not capture the user’s desktop because doing so could expose unrelated private screen content.
 

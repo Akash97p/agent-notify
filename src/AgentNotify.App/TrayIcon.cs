@@ -21,7 +21,7 @@ public sealed class TrayIcon : IDisposable
 
     public TrayIcon(Icon icon, string logsDir,
         Func<bool> isPaused, Func<bool> isStartupEnabled,
-        Action onShowCenter, Action onOpenGettingStarted, Action onCopySkill, Action onSaveSkill,
+        Action onShowCenter, Action onOpenSettings, Action onOpenGettingStarted, Action onCopySkill, Action onSaveSkill,
         Action onTogglePause, Action onToggleStartup, Action onExit)
     {
         _isPaused = isPaused;
@@ -53,12 +53,13 @@ public sealed class TrayIcon : IDisposable
             catch { }
         });
         var gettingStarted = new WinForms.ToolStripMenuItem("Getting started", null, (_, _) => onOpenGettingStarted());
+        var settings = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onOpenSettings());
         var copySkill = new WinForms.ToolStripMenuItem("Copy agent SKILL.md", null, (_, _) => onCopySkill());
         var saveSkill = new WinForms.ToolStripMenuItem("Download agent SKILL.md…", null, (_, _) => onSaveSkill());
         var exit = new WinForms.ToolStripMenuItem("Exit", null, (_, _) => onExit());
 
         _menu = new WinForms.ContextMenuStrip();
-        _menu.Items.AddRange([_centerItem, new WinForms.ToolStripSeparator(),
+        _menu.Items.AddRange([_centerItem, settings, new WinForms.ToolStripSeparator(),
             gettingStarted, copySkill, saveSkill, new WinForms.ToolStripSeparator(),
             _pauseItem, _startupItem, new WinForms.ToolStripSeparator(), openLogs, new WinForms.ToolStripSeparator(), exit]);
         _menu.Opening += (_, _) => RefreshChecks();
