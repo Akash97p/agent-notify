@@ -36,7 +36,7 @@ Command:
 Result:
 
 ```text
-Passed: 330
+Passed: 353
 Failed: 0
 Skipped: 0
 ```
@@ -95,6 +95,10 @@ Contract tests verify encrypted URL use, HTTPS and terminal hook-path validation
 
 Contract tests verify HTTPS homeserver and private-network policy, encrypted access-token/room-ID use, bearer-header authentication, percent-encoded room targeting, stable idempotent transaction paths, plain `m.text` content, explicit empty mention metadata and legacy mention neutralization, route redaction, 48 KiB serialized UTF-8 bounds, bounded event-ID acknowledgement parsing, and retry/permanent status policy. The production handler validates every resolved address before connecting and preserves platform TLS validation. End-to-end encrypted rooms are deliberately unsupported. No real homeserver or credential was assumed; real-server and human Settings smoke remain unverified.
 
+### ntfy
+
+Contract tests verify hosted/self-hosted HTTPS policy, private-network consent, encrypted topic and `tk_` token handling, bearer authentication, exclusion of credentials and topic from the URL, explicit anonymous-topic consent, priority/tag mapping, route redaction, stable sequence IDs, 4096-byte UTF-8 truncation, bounded message acknowledgement parsing, and retry/permanent status classification. The production handler validates every resolved address before connecting and preserves platform TLS validation. No ntfy server, topic, or credential was contacted; real-server and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -123,7 +127,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-978f1ef11a48fa562d844791fcb5599af44a7091fad76f87860c2a25d5697a4d  AgentNotifySetup.exe
+f00e6e47fc3ff5827a79df3ad009ac0eafb192a6c6dcdf301ed198801d2c78cb  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

@@ -70,4 +70,6 @@ The Mattermost adapter stores its token-bearing webhook URL as an encrypted secr
 
 The Matrix adapter encrypts both the access token and exact room ID, uses bearer-header authentication rather than the deprecated query parameter, and derives a stable non-secret transaction ID for idempotent retries. Homeservers require HTTPS, standard certificate validation, and explicit consent for private addressing. Plain-text `m.room.message` events carry an empty `m.mentions` object and neutralize legacy `@` matching. End-to-end encrypted rooms are not supported and must not be configured.
 
+The ntfy adapter encrypts the topic and optional access token, publishes JSON to the server base URL so neither appears in the request URL, and requires explicit consent when no token is configured. Self-hosted private servers require separate network consent and standard TLS validation. Stable sequence IDs make retries update rather than duplicate a notification; message bytes are capped at 4096 so ntfy does not silently convert oversized notification text into an attachment. Users must understand that unauthenticated ntfy.sh topics are public.
+
 Never extend the current bearer token directly to an internet-facing API.
