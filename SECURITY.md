@@ -64,4 +64,6 @@ The Teams adapter stores the complete signed Workflows trigger URL as an encrypt
 
 The Zoho Cliq adapter stores the complete `zapikey` URL as an encrypted secret, recognizes only the nine official regional Cliq hosts, validates exact channel/bot message paths, and rejects unknown query parameters. Message formatting controls are escaped; redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
 
+The Google Chat adapter stores the complete `key`/`token` webhook URL as an encrypted secret and accepts only the exact official `chat.googleapis.com/v1/spaces/{space}/messages` shape. Unknown query parameters are rejected before sending. User-controlled Chat formatting and mention delimiters are neutralized, serialized payloads are bounded below Google's 32,000-byte limit, and redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
+
 Never extend the current bearer token directly to an internet-facing API.

@@ -40,6 +40,7 @@ public partial class App : System.Windows.Application
     private SlackChannelAdapter? _slackAdapter;
     private TeamsChannelAdapter? _teamsAdapter;
     private ZohoCliqChannelAdapter? _zohoCliqAdapter;
+    private GoogleChatChannelAdapter? _googleChatAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -129,10 +130,11 @@ public partial class App : System.Windows.Application
         _slackAdapter = new SlackChannelAdapter();
         _teamsAdapter = new TeamsChannelAdapter();
         _zohoCliqAdapter = new ZohoCliqChannelAdapter();
+        _googleChatAdapter = new GoogleChatChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -333,6 +335,7 @@ public partial class App : System.Windows.Application
         _slackAdapter?.Dispose();
         _teamsAdapter?.Dispose();
         _zohoCliqAdapter?.Dispose();
+        _googleChatAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
