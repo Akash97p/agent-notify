@@ -68,6 +68,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadSmtpConfiguration(profile);
         LoadTelegramConfiguration(profile);
         LoadDiscordConfiguration(profile);
+        LoadSlackConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -100,6 +101,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         DiscordWebhookBox.Clear();
         DiscordUsernameBox.Text = "AgentNotify";
         DiscordThreadBox.Clear();
+        SlackWebhookBox.Clear();
+        SlackThreadBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -125,6 +128,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "smtp" => await SaveSmtpProviderAsync(existing),
             "telegram" => await SaveTelegramProviderAsync(existing),
             "discord" => await SaveDiscordProviderAsync(existing),
+            "slack" => await SaveSlackProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -307,6 +311,45 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveSlackProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(SlackWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the Slack incoming-webhook URL.");
+        var threadTimestamp = string.IsNullOrWhiteSpace(SlackThreadBox.Text)
+            ? null
+            : SlackThreadBox.Text.Trim();
+        if (threadTimestamp is not null)
+        {
+            var separator = threadTimestamp.IndexOf('.');
+            if (separator is < 10 or > 20 || separator != threadTimestamp.LastIndexOf('.') ||
+                !threadTimestamp[..separator].All(char.IsAsciiDigit) ||
+                threadTimestamp[(separator + 1)..].Length != 6 ||
+                !threadTimestamp[(separator + 1)..].All(char.IsAsciiDigit))
+                throw new ArgumentException("Slack thread timestamp must look like 1712345678.123456.");
+        }
+
+        var config = JsonSerializer.Serialize(new
+        {
+            webhookUrlSecretName = "webhook_url",
+            threadTimestamp
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(SlackWebhookBox.Password))
+            changes["webhook_url"] = SlackWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(
+            existing?.Id,
+            ProviderNameBox.Text,
+            "slack",
+            ProviderEnabledBox.IsChecked == true,
+            config,
+            existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        SlackWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -329,6 +372,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "smtp" => 1,
             "telegram" => 2,
             "discord" => 3,
+            "slack" => 4,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -345,6 +389,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "smtp" => "Email",
                 "telegram" => "Telegram",
                 "discord" => "Discord",
+                "slack" => "Slack",
                 _ => "Webhook"
             };
     }
@@ -355,11 +400,13 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var smtp = kind == "smtp";
         var telegram = kind == "telegram";
         var discord = kind == "discord";
-        WebhookFields.Visibility = smtp || telegram || discord ? Visibility.Collapsed : Visibility.Visible;
+        var slack = kind == "slack";
+        WebhookFields.Visibility = smtp || telegram || discord || slack ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord ? Visibility.Collapsed : Visibility.Visible;
+        SlackFields.Visibility = slack ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -435,6 +482,22 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             DiscordUsernameBox.Text = "AgentNotify";
             DiscordThreadBox.Clear();
+        }
+    }
+
+    private void LoadSlackConfiguration(ProviderProfile profile)
+    {
+        SlackWebhookBox.Clear();
+        if (profile.Kind != "slack")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            SlackThreadBox.Text = GetJsonString(document.RootElement, "threadTimestamp");
+        }
+        catch (JsonException)
+        {
+            SlackThreadBox.Clear();
         }
     }
 
