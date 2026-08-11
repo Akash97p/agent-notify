@@ -28,6 +28,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F04 — Delivery persistence and encrypted secrets
 
+- Status: implemented with transactional schema v1, atomic outbox claiming, DPAPI current-user envelopes, bounded inputs, redacted summaries, and durable/concurrency repository tests.
 - Add versioned SQLite migrations for provider profiles, encrypted secret values, routing rules, outbox messages, and delivery attempts.
 - Add a DPAPI current-user secret protector with versioned ciphertext envelopes and test-only portable implementation.
 - Ensure all DTOs, diagnostics, exports, and logs redact credentials.

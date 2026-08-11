@@ -211,6 +211,8 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
+The SQLite database also contains versioned, currently dormant delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. Outbound delivery remains disabled until a provider profile and route are explicitly enabled.
+
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
 
 ## Security and privacy
@@ -263,7 +265,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 101 passing tests.
+The current release build completes with zero warnings. The test suite has 112 passing tests.
 
 ### Build the single-file installer
 

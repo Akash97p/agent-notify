@@ -44,6 +44,8 @@ Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the
 
 Provider profiles, routes, outbox state, and delivery attempts may be stored in SQLite. Credentials must first be encrypted with a versioned secret envelope backed by Windows DPAPI in current-user scope. Plaintext secrets must exist only for the minimum time required to configure or call a provider, and must never appear in list responses, exports, exception messages, notification metadata, analytics, or logs.
 
+The implemented envelope prefix is `dpapi-user:v1:` and protection uses application-specific optional entropy. The DPAPI implementation is Windows-only by design; portable tests use an injected AES-GCM protector, not a production fallback. See Microsoft’s [ProtectedData documentation](https://learn.microsoft.com/dotnet/api/system.security.cryptography.protecteddata.protect).
+
 DPAPI protects data at rest from other users and casual file disclosure. It does not defend against malware already executing as the same Windows user. Backups containing encrypted credentials may not be decryptable under another user profile or machine; migration/export tooling must omit secrets by default and require re-entry.
 
 Every outbound adapter must use TLS by default, validate certificates, bound response bodies and timeouts, redact sensitive URLs/headers, and apply provider-specific retry and idempotency rules. Generic endpoints and self-hosted services require explicit destination validation so a compromised local caller cannot turn AgentNotify into an unrestricted network proxy.

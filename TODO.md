@@ -9,6 +9,8 @@
 - [x] Random local bearer token and authenticated `/v1` routes
 - [x] Notification types, priorities, statuses, context, metadata, and logical keys
 - [x] User-defined type IDs with configurable label, accent, priority, lifetime, and safe fallback
+- [x] Versioned SQLite provider/route/outbox/attempt schema
+- [x] DPAPI current-user encrypted provider secrets with redacted summaries
 - [x] SQLite history behind `INotificationRepository`
 - [x] Concurrent-safe keyed deduplication inside the single broker
 - [x] Request/body validation, rate limiting, and malformed JSON handling
@@ -56,7 +58,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 101 passed, 0 failed, 0 skipped
+- [x] Automated tests: 112 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
