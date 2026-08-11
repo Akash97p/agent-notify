@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentNotify.Api/AgentNotify.Api.csproj" />
+    <Project Path="src/AgentNotify.App/AgentNotify.App.csproj" />
+    <Project Path="src/AgentNotify.Cli/AgentNotify.Cli.csproj" />
+    <Project Path="src/AgentNotify.Contracts/AgentNotify.Contracts.csproj" />
+    <Project Path="src/AgentNotify.Core/AgentNotify.Core.csproj" />
+    <Project Path="src/AgentNotify.Setup/AgentNotify.Setup.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentNotify.Tests/AgentNotify.Tests.csproj" />
+  </Folder>
+</Solution>

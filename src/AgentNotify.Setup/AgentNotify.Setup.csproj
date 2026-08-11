@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>AgentNotifySetup</AssemblyName>
+    <RootNamespace>AgentNotify.Setup</RootNamespace>
+    <ApplicationIcon>..\..\an.ico</ApplicationIcon>
+    <Description>AgentNotify per-user installer.</Description>
+    <AssemblyTitle>AgentNotify Installer</AssemblyTitle>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildProjectDirectory)\..\..\artifacts\payload</PayloadDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\an.ico" Link="Resources\an.ico" />
+    <EmbeddedResource Include="$(PayloadDir)\AgentNotify.Tray.exe" LogicalName="Payload.AgentNotify.Tray.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\AgentNotify.Tray.exe')" />
+    <EmbeddedResource Include="$(PayloadDir)\agentnotify.exe" LogicalName="Payload.agentnotify.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\agentnotify.exe')" />
+    <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="Payload.SKILL.md" />
+    <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="Payload.GettingStarted.html" />
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="Payload.LICENSE.txt" />
+  </ItemGroup>
+
+  <Target Name="RequirePayload" BeforeTargets="BeforeBuild" Condition="'$(RequirePayload)' == 'true'">
+    <Error Condition="!Exists('$(PayloadDir)\AgentNotify.Tray.exe')" Text="Missing installer payload: $(PayloadDir)\AgentNotify.Tray.exe. Run scripts/package.sh." />
+    <Error Condition="!Exists('$(PayloadDir)\agentnotify.exe')" Text="Missing installer payload: $(PayloadDir)\agentnotify.exe. Run scripts/package.sh." />
+  </Target>
+</Project>

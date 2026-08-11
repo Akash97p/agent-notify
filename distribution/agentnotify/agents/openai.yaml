@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentNotify"
+  short_description: "Notify people when coding agents need attention"
+  default_prompt: "Use $agentnotify to alert me when you need input or finish important work."

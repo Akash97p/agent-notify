@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v agentnotify.exe >/dev/null 2>&1; then
+  exec agentnotify.exe "$@"
+fi
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -x "$ROOT/artifacts/payload/agentnotify.exe" ]]; then
+  exec "$ROOT/artifacts/payload/agentnotify.exe" "$@"
+fi
+
+echo "agentnotify.exe is not on this WSL shell's PATH." >&2
+echo "Install AgentNotify, then open a new WSL shell so Windows PATH changes are imported." >&2
+exit 1

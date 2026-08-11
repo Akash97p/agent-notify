@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>AgentNotify.Tray</AssemblyName>
+    <RootNamespace>AgentNotify.App</RootNamespace>
+    <Description>AgentNotify — human-attention broker for coding agents (tray app).</Description>
+    <AssemblyTitle>AgentNotify Tray</AssemblyTitle>
+    <ApplicationIcon>..\..\an.ico</ApplicationIcon>
+    <StartupObject>AgentNotify.App.App</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentNotify.Api\AgentNotify.Api.csproj" />
+    <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\an.ico" Link="Resources\an.ico" />
+    <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Resources.SKILL.md" />
+    <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="AgentNotify.Resources.GettingStarted.html" />
+  </ItemGroup>
+
+</Project>

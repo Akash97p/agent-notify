@@ -1,0 +1,37 @@
+# Build output
+bin/
+obj/
+artifacts/
+*.user
+
+# Visual Studio
+.vs/
+.vscode/
+*.suo
+*.user
+
+# Test results
+TestResults/
+*.trx
+coverage*.json
+coverage*.xml
+
+# Local runtime state — never commit machine secrets or data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Local AgentNotify runtime data (config may contain the auth token)
+local/
+logs/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Signing credentials must never be committed
+*.pfx
+*.p12
+*.snk

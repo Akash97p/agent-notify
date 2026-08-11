@@ -1,0 +1,111 @@
+<Window x:Class="AgentNotify.Setup.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Install AgentNotify" Width="760" Height="650"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
+        WindowStyle="None" Background="#0B1020">
+    <Window.Resources>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Margin" Value="0,5,0,5"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#6D4AFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="24,11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="Background" Value="#7C5CFF"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.45"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Background" Value="#1B263B"/>
+            <Setter Property="Padding" Value="15,9"/>
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="#26334B" BorderThickness="1" CornerRadius="13" Background="#0E1526">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="82"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#111A2E" CornerRadius="12,12,0,0" MouseLeftButtonDown="OnDragWindow">
+                <Grid Margin="16,0,8,0">
+                    <TextBlock Text="AgentNotify Setup" Foreground="#CBD5E1" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    <Button HorizontalAlignment="Right" Width="34" Height="30" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets"
+                            Background="Transparent" Foreground="#94A3B8" BorderThickness="0" Click="OnClose"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="42,28,42,24">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Source="/Resources/an.ico" Width="72" Height="72" Margin="0,0,20,0"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="AgentNotify" Foreground="White" FontWeight="Bold" FontSize="32"/>
+                            <TextBlock Text="Human attention broker for coding agents" Foreground="#9BA8C2" FontSize="15"/>
+                            <TextBlock Text="Version 1.0.0 · Kabani Tech Private Limited" Foreground="#7C8BA6" FontSize="12" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Text="Install location" Foreground="#DCE4F3" FontWeight="SemiBold" Margin="0,26,0,7"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="InstallPath" Padding="12,9" Background="#0A1020" Foreground="#DCE4F3" BorderBrush="#2C3A56" CaretBrush="White"/>
+                        <Button Grid.Column="1" Content="Browse" Style="{StaticResource GhostButton}" Margin="9,0,0,0" Click="OnBrowse"/>
+                    </Grid>
+
+                    <StackPanel Margin="0,14,0,0">
+                        <CheckBox x:Name="StartWithWindows" Content="Start AgentNotify when I sign in" IsChecked="True"/>
+                        <CheckBox x:Name="DesktopShortcut" Content="Create a desktop shortcut"/>
+                        <CheckBox x:Name="LaunchAfterInstall" Content="Launch AgentNotify after installation" IsChecked="True"/>
+                        <CheckBox x:Name="OpenGuide" Content="Open the getting-started guide when setup closes" IsChecked="True"/>
+                    </StackPanel>
+
+                    <Border Background="#151D2F" BorderBrush="#2C3A56" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,20,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Open-source license and warranty notice" Foreground="#F1F5F9" FontWeight="SemiBold"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#9EABC1" Margin="0,7,0,8"
+                                       Text="AgentNotify is licensed under the permissive MIT License. The software is provided “AS IS”, without warranty of any kind, express or implied. Kabani Tech Private Limited, Akash P, and contributors are not liable for claims, damages, or other liability arising from its use."/>
+                            <Button Content="Read full MIT License" HorizontalAlignment="Left" Style="{StaticResource GhostButton}" Click="OnLicense"/>
+                        </StackPanel>
+                    </Border>
+                    <CheckBox x:Name="AcceptTerms" Margin="0,14,0,0" Checked="OnAcceptanceChanged" Unchecked="OnAcceptanceChanged">
+                        <TextBlock TextWrapping="Wrap" Text="I have read and accept the MIT License and understand the no-warranty notice."/>
+                    </CheckBox>
+
+                    <ProgressBar x:Name="Progress" Height="5" Margin="0,20,0,0" Minimum="0" Maximum="100" Value="0" Foreground="#7C5CFF" Background="#202B42"/>
+                    <TextBlock x:Name="StatusText" Text="Ready to install" Foreground="#93A4C2" Margin="0,9,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" BorderBrush="#202B42" BorderThickness="0,1,0,0" Background="#0C1322" CornerRadius="0,0,12,12">
+                <Grid Margin="42,0">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Publisher: Kabani Tech Private Limited" Foreground="#8491A8" FontSize="11"/>
+                        <Button Content="Author: Akash P · github.com/Akash97p" HorizontalAlignment="Left" Padding="0" Margin="0,3,0,0"
+                                Background="Transparent" BorderThickness="0" Foreground="#A5B4FC" Cursor="Hand" Click="OnAuthor"/>
+                    </StackPanel>
+                    <Button x:Name="InstallButton" HorizontalAlignment="Right" VerticalAlignment="Center" Content="Install AgentNotify"
+                            Style="{StaticResource ActionButton}" IsEnabled="False" Click="OnInstall"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AgentNotify — Getting Started</title>
+  <style>
+    :root { --bg:#090d16; --panel:#111827; --panel2:#172033; --line:#26334b; --text:#f5f7ff; --muted:#9ba8c2; --violet:#8b5cf6; --cyan:#38bdf8; --green:#34d399; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(circle at 15% 5%,#242056 0,transparent 34%),radial-gradient(circle at 92% 15%,#08374c 0,transparent 30%),var(--bg); font:15px/1.6 Inter,"Segoe UI",system-ui,sans-serif; }
+    .shell { width:min(1060px,calc(100% - 32px)); margin:0 auto; padding:54px 0 72px; }
+    header { display:grid; grid-template-columns:1fr auto; gap:24px; align-items:center; margin-bottom:34px; }
+    .eyebrow { color:#c4b5fd; text-transform:uppercase; letter-spacing:.16em; font-size:12px; font-weight:750; }
+    h1 { margin:7px 0 9px; font-size:clamp(36px,7vw,68px); line-height:1; letter-spacing:-.055em; }
+    .gradient { background:linear-gradient(100deg,#fff 20%,#c4b5fd 56%,#67e8f9); color:transparent; background-clip:text; }
+    .lead { max-width:690px; margin:0; color:#c2cbe0; font-size:18px; }
+    .status { display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #235943; border-radius:999px; background:#0c2b20; color:#a7f3d0; white-space:nowrap; }
+    .dot { width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 16px var(--green); }
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:18px; }
+    .card { grid-column:span 6; padding:26px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(150deg,rgba(23,32,51,.96),rgba(13,19,32,.96)); box-shadow:0 24px 70px rgba(0,0,0,.25); }
+    .card.wide { grid-column:1/-1; }
+    .step { display:inline-grid; place-items:center; width:30px; height:30px; margin-bottom:12px; border-radius:9px; background:#2b2058; color:#ddd6fe; font-weight:800; }
+    h2 { margin:0 0 8px; font-size:20px; letter-spacing:-.02em; }
+    p { margin:0 0 16px; color:var(--muted); }
+    code { font-family:"Cascadia Code","SFMono-Regular",Consolas,monospace; }
+    pre { overflow:auto; margin:15px 0 0; padding:16px 18px; border:1px solid #293854; border-radius:13px; background:#080c14; color:#dbeafe; font-size:13px; line-height:1.55; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:17px; }
+    button,.button { appearance:none; border:0; border-radius:10px; padding:11px 15px; color:white; background:linear-gradient(110deg,#7c3aed,#4f46e5); font:inherit; font-weight:700; cursor:pointer; text-decoration:none; }
+    button.secondary,.button.secondary { border:1px solid #34425f; background:#1a253a; color:#dbe5f8; }
+    button:hover,.button:hover { filter:brightness(1.12); transform:translateY(-1px); }
+    .types { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+    .type { padding:9px 10px; border:1px solid #293752; border-radius:10px; color:#cbd5e1; background:#101725; font:12px "Cascadia Code",Consolas,monospace; }
+    .note { margin-top:18px; padding:13px 15px; border-left:3px solid var(--cyan); border-radius:7px; background:#0c2230; color:#b9ddec; }
+    footer { margin-top:30px; padding-top:20px; border-top:1px solid #202b3e; color:#77839d; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; font-size:13px; }
+    footer a { color:#a5b4fc; }
+    #toast { position:fixed; right:22px; bottom:22px; padding:12px 16px; border:1px solid #32664f; border-radius:11px; background:#0c2b20; color:#a7f3d0; opacity:0; transform:translateY(12px); transition:.2s; pointer-events:none; }
+    #toast.show { opacity:1; transform:none; }
+    @media (max-width:760px) { header { grid-template-columns:1fr; } .status { width:max-content; } .card { grid-column:1/-1; } .types { grid-template-columns:repeat(2,1fr); } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Human attention broker</div>
+        <h1 class="gradient">AgentNotify</h1>
+        <p class="lead">Your coding agents can now ask for input, report blockers, and announce completed work without getting lost in another terminal or virtual desktop.</p>
+      </div>
+      <div class="status"><span class="dot"></span> Installed and ready</div>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <div class="step">1</div>
+        <h2>Send a notification</h2>
+        <p>Open PowerShell, Command Prompt, or a new WSL shell and run:</p>
+        <pre><code>agentnotify.exe send ^
+  --type input_required ^
+  --priority high ^
+  --title "Need your decision" ^
+  --message "Choose option A or B."</code></pre>
+        <div class="note">In Bash/WSL, replace each <code>^</code> with <code>\</code>, or put the command on one line.</div>
+      </article>
+
+      <article class="card">
+        <div class="step">2</div>
+        <h2>Teach your coding agent</h2>
+        <p>Download or copy the agent skill, then place it in your agent’s skills directory. For Codex: <code>~/.codex/skills/agentnotify/SKILL.md</code>.</p>
+        <div class="actions">
+          <button onclick="copySkill()">Copy SKILL.md</button>
+          <button class="secondary" onclick="downloadSkill()">Download SKILL.md</button>
+        </div>
+        <p style="margin-top:16px">You can always find the same actions by right-clicking the AgentNotify tray icon.</p>
+      </article>
+
+      <article class="card wide">
+        <div class="step">3</div>
+        <h2>Use the right signal</h2>
+        <p>Action-required types stay visible; completion and informational notifications dismiss automatically.</p>
+        <div class="types">
+          <div class="type">input_required</div><div class="type">permission_required</div><div class="type">blocked</div><div class="type">error</div>
+          <div class="type">completed</div><div class="type">success</div><div class="type">warning</div><div class="type">info</div>
+        </div>
+        <pre><code>agentnotify.exe health
+agentnotify.exe list --unresolved
+agentnotify.exe resolve NOTIFICATION_ID</code></pre>
+      </article>
+    </section>
+
+    <footer>
+      <span>Published by Kabani Tech Private Limited · Author <a href="https://github.com/Akash97p">Akash P</a></span>
+      <span>Open source under the MIT License · Provided “as is”, without warranty</span>
+    </footer>
+  </main>
+  <div id="toast" role="status">Copied to clipboard</div>
+  <script>
+    const skillText = __AGENTNOTIFY_SKILL_JSON__;
+    function flash(message) { const el=document.getElementById('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>el.classList.remove('show'),2200); }
+    async function copySkill() {
+      try { await navigator.clipboard.writeText(skillText); flash('SKILL.md copied'); }
+      catch (_) { const area=document.createElement('textarea'); area.value=skillText; area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); flash('SKILL.md copied'); }
+    }
+    function downloadSkill() { const blob=new Blob([skillText],{type:'text/markdown;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='SKILL.md'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); flash('SKILL.md downloaded'); }
+  </script>
+</body>
+</html>
