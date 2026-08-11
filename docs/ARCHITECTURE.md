@@ -49,6 +49,10 @@ A second process opens the named event created by the first process, signals it,
 
 When the visible limit is reached, new notifications are queued instead of silently replacing an existing toast. Auto-expiry changes the notification status to `dismissed`, placing it in Recent history. Sticky attention types remain active until dismissed or resolved. Clicking a toast body opens the dashboard without implicitly resolving it.
 
+### Sound delivery
+
+The portable Core layer validates and imports WAV/MP3 files into a managed per-user directory using content-addressed safe names. Typed configuration selects a global file or per-type override. The WPF sound service plays on the UI dispatcher, respects pause/DND policy and volume, and isolates missing/invalid media failures from notification persistence and API responses.
+
 ### Installer
 
 `AgentNotify.Setup` is a WPF per-user installer. `scripts/package.sh` first publishes the tray app and CLI as self-contained single files, then embeds them, the MIT License, the skill, and the offline guide into the self-contained setup executable.

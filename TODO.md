@@ -28,6 +28,7 @@
 - [x] Single-instance mutex plus reliable show-center signal
 - [x] Tray Getting Started, Copy SKILL.md, and Save SKILL.md actions
 - [x] Native Settings UI for general, toast lifetime, and initial sound controls
+- [x] Managed global/per-type WAV/MP3 sounds with preview, volume, pause, and DND policy
 - [ ] Reliable “Open Agent” terminal/tab activation across virtual desktops
 
 ## CLI and agent integration
@@ -55,7 +56,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 96 passed, 0 failed, 0 skipped
+- [x] Automated tests: 101 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

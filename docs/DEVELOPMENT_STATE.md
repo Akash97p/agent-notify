@@ -29,8 +29,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 2. Completed on `chore/github-release-pages`: portable PowerShell packaging, CI/tagged-release workflows, checksum generation, and a locally buildable GitHub Pages documentation site. No remote was created.
 3. Completed on `feature/settings-window`: native tray-opened Settings window with validated general, toast placement/lifetime, pause/DND, and initial sound controls. Build/tests passed; human visual inspection remains pending.
 4. Completed on `feature/custom-notification-types`: backward-compatible string IDs, custom definition editor, accent/label/default priority/lifetime/enabled settings, legacy normalization, safe fallback, CLI/API/SQLite runtime smoke, and 96 passing tests. Human Settings visual inspection remains pending.
-5. Next: sound profiles with global/per-type selection, preview, mute, and safe local file handling.
-6. Delivery foundation: SQLite profiles/routes/outbox/attempts, DPAPI secret protection, dispatcher, retries, diagnostics, test-send.
+5. Completed on `feature/notification-sounds`: managed WAV/MP3 import, global/per-type selection, preview, volume, pause/DND policy, safe fallback, platform-neutral file store, and 101 passing tests. Human audio/UI verification with a real user-selected file remains pending.
+6. Next: delivery foundation with SQLite profiles/routes/outbox/attempts, DPAPI secret protection, dispatcher, retries, diagnostics, and test-send.
 7. Channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action

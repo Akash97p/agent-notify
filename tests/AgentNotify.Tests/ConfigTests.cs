@@ -80,6 +80,28 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void SoundProfiles_AreSanitizedAndResolvePerTypeOverride()
+    {
+        var c = new AgentNotifyConfig
+        {
+            SoundVolume = 4,
+            DefaultSoundFile = @"C:\outside\global.MP3",
+            TypeSoundFiles = new()
+            {
+                ["input-required"] = @"..\attention.wav",
+                ["bad type!"] = "ignored.mp3",
+                ["info"] = "ignored.exe"
+            }
+        };
+        c.ApplyDefaults();
+        Assert.Equal(1, c.SoundVolume);
+        Assert.Equal("global.MP3", c.DefaultSoundFile);
+        Assert.Equal("attention.wav", c.SoundFileFor(NotificationTypes.InputRequired));
+        Assert.Equal("global.MP3", c.SoundFileFor(NotificationTypes.Info));
+        Assert.Single(c.TypeSoundFiles);
+    }
+
+    [Fact]
     public void ConfigStore_Load_MissingFile_ReturnsDefaults()
     {
         var dir = NewTempDir();

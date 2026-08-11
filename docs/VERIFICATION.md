@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 96
+Passed: 101
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, SQLite CRUD/query/prune/custom identifiers, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite CRUD/query/prune/custom identifiers, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Skill
 
@@ -71,7 +71,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-48221f1ec236408e8b0fbb492366e2f13e1f94929fe8bf23439edf3b4ca94a8d  AgentNotifySetup.exe
+01aa8c596f20c5cbcb5a20aa0a9933911a07bf85a2f1104d5213cb65fa3d6515  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
@@ -81,6 +81,10 @@ The portable `scripts/package.ps1` implementation and WSL wrapper generated a ma
 ### Custom notification type smoke
 
 The packaged tray and CLI accepted `--type deployment-waiting`, normalized and persisted `deployment_waiting`, returned the same identifier through `get`, displayed a fallback toast, and resolved the row. The Settings definition editor and configured accent/label rendering are compiled and covered by configuration tests but still require a human visual pass.
+
+### Sound verification boundary
+
+Automated tests prove WAV/MP3 extension and size validation, safe content-addressed import, duplicate reuse, managed-path resolution, configuration sanitization, and per-type fallback. WPF media playback compiles and is isolated from the API path, but audible playback/preview remains a human check because no user-selected audio file was assumed or modified during automation.
 
 Windows version-resource inspection confirmed for setup, tray, and CLI:
 

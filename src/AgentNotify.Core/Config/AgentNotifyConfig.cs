@@ -37,6 +37,11 @@ public sealed class AgentNotifyConfig
     /// <summary>Reserved; V1 does not play sounds.</summary>
     public bool SoundsEnabled { get; set; }
 
+    public double SoundVolume { get; set; } = 0.8;
+    public string? DefaultSoundFile { get; set; }
+    public Dictionary<string, string> TypeSoundFiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool PlayCriticalSoundsDuringDoNotDisturb { get; set; }
+
     /// <summary>Kestrel max request body size in bytes.</summary>
     public long MaxRequestBodyBytes { get; set; } = 64 * 1024;
 
@@ -97,6 +102,14 @@ public sealed class AgentNotifyConfig
         if (MaxRequestBodyBytes <= 0) MaxRequestBodyBytes = 64 * 1024;
         if (RateLimitPerSecond <= 0) RateLimitPerSecond = 30;
         if (MaxMetadataBytes <= 0) MaxMetadataBytes = 8192;
+        SoundVolume = Math.Clamp(SoundVolume, 0, 1);
+        DefaultSoundFile = NormalizeSoundFile(DefaultSoundFile);
+        TypeSoundFiles ??= new(StringComparer.OrdinalIgnoreCase);
+        TypeSoundFiles = TypeSoundFiles
+            .Select(x => new KeyValuePair<string, string?>(NotificationTypes.Normalize(x.Key) ?? "", NormalizeSoundFile(x.Value)))
+            .Where(x => x.Key.Length > 0 && x.Value is not null)
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Last().Value!, StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(ToastLocation))
             ToastLocation = "BottomRight";
         if (ToastDurations is null || ToastDurations.Count == 0)
@@ -125,4 +138,19 @@ public sealed class AgentNotifyConfig
 
     private static bool IsHexColor(string? value) => value is { Length: 7 } && value[0] == '#' &&
         value[1..].All(Uri.IsHexDigit);
+
+    public string? SoundFileFor(string type)
+    {
+        var id = NotificationTypes.Normalize(type);
+        return id is not null && TypeSoundFiles.TryGetValue(id, out var file) ? file : DefaultSoundFile;
+    }
+
+    private static string? NormalizeSoundFile(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var file = Path.GetFileName(value.Trim());
+        var extension = Path.GetExtension(file);
+        return extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) || extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
+            ? file : null;
+    }
 }

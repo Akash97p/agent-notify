@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
     private ToastStackManager? _toasts;
     private NotificationCenter? _center;
     private SettingsWindow? _settings;
+    private NotificationSoundService? _sounds;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -112,7 +113,11 @@ public partial class App : System.Windows.Application
             Created = n =>
             {
                 _toasts?.Show(n);
-                _ = Dispatcher.InvokeAsync(() => _center?.RefreshAsync());
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    _sounds?.PlayFor(n.Type, n.Priority);
+                    _ = _center?.RefreshAsync();
+                });
             },
             Updated = n =>
             {
@@ -144,6 +149,7 @@ public partial class App : System.Windows.Application
 
     private void WireUi()
     {
+        _sounds = new NotificationSoundService(_config, _configStore!.SoundsDir, _logger);
         _toasts = new ToastStackManager(_config, _logger, Dispatcher);
         _toasts.DismissRequested += id =>
         {
@@ -210,7 +216,7 @@ public partial class App : System.Windows.Application
     {
         if (_settings is null)
         {
-            _settings = new SettingsWindow(_config, _configStore!, restartRequired =>
+            _settings = new SettingsWindow(_config, _configStore!, _sounds!, restartRequired =>
             {
                 _logger.Info("Settings updated");
                 _tray?.ShowMessage("AgentNotify", restartRequired
@@ -273,6 +279,7 @@ public partial class App : System.Windows.Application
     {
         _pruneTimer?.Stop();
         _toasts?.Dispose();
+        _sounds?.Dispose();
         _settings?.Close();
         _tray?.Dispose();
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
