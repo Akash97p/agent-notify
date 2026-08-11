@@ -211,7 +211,7 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
-The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, or Slack profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
+The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, Slack, or Microsoft Teams Workflows profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
 
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
 
@@ -265,7 +265,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 227 passing tests.
+The current release build completes with zero warnings. The test suite has 241 passing tests.
 
 ### Build the single-file installer
 
@@ -312,7 +312,7 @@ Content-Type: application/json
 - The binaries and installer are x64 Windows builds.
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, and Slack webhook delivery are configurable; the remaining provider adapters are roadmap work.
+- Generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, and Microsoft Teams Workflows delivery are configurable; the remaining provider adapters are roadmap work.
 
 ## Roadmap
 

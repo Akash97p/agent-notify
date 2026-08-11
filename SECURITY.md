@@ -60,4 +60,6 @@ The Discord adapter stores the full token-bearing webhook URL as an encrypted se
 
 The Slack adapter stores the complete channel-bound webhook URL as an encrypted secret and accepts only exact incoming-webhook paths on Slack or GovSlack's official hook hosts. It disables redirects, cookies, proxies, Markdown, automatic link-name expansion, and private/mixed DNS results. Slack control-sequence delimiters are encoded; acknowledgements are bounded and reduced to stable status codes without logging response content.
 
+The Teams adapter stores the complete signed Workflows trigger URL as an encrypted secret. It accepts only the current global Power Platform host suffix, expected trigger path, and required signature parameters; legacy connector/retired Logic Apps URLs are rejected. Adaptive Card text and fields are bounded, Markdown and mention tags are escaped, and redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
+
 Never extend the current bearer token directly to an internet-facing API.

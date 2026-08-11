@@ -38,6 +38,7 @@ public partial class App : System.Windows.Application
     private TelegramChannelAdapter? _telegramAdapter;
     private DiscordChannelAdapter? _discordAdapter;
     private SlackChannelAdapter? _slackAdapter;
+    private TeamsChannelAdapter? _teamsAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -125,10 +126,11 @@ public partial class App : System.Windows.Application
         _telegramAdapter = new TelegramChannelAdapter();
         _discordAdapter = new DiscordChannelAdapter();
         _slackAdapter = new SlackChannelAdapter();
+        _teamsAdapter = new TeamsChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -327,6 +329,7 @@ public partial class App : System.Windows.Application
         _telegramAdapter?.Dispose();
         _discordAdapter?.Dispose();
         _slackAdapter?.Dispose();
+        _teamsAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
