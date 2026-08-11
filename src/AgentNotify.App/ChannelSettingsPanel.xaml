@@ -15,7 +15,7 @@
                         <TextBlock Text="Outbound provider" FontSize="18" FontWeight="Bold"/>
                         <TextBlock Text="Secrets stay encrypted. Blank secret fields preserve stored values." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Profile name"/><TextBox x:Name="ProviderNameBox"/>
-                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/></ComboBox>
+                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/></ComboBox>
                         <CheckBox x:Name="ProviderEnabledBox" Content="Enable this provider"/>
                         <StackPanel x:Name="WebhookFields">
                             <TextBlock Text="HTTPS endpoint URL (encrypted)"/><PasswordBox x:Name="EndpointBox" Padding="9,7" Margin="0,0,0,12"/>
@@ -78,6 +78,14 @@
                             <TextBlock Text="Access token (encrypted)"/><PasswordBox x:Name="MatrixTokenBox" Padding="9,7" Margin="0,0,0,12"/>
                             <TextBlock Text="Room ID beginning with ! (encrypted)"/><PasswordBox x:Name="MatrixRoomBox" Padding="9,7" Margin="0,0,0,12"/>
                             <TextBlock Text="The access-token account must already be joined and permitted to post. Encrypted rooms are not supported yet; mention metadata is explicitly empty." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        </StackPanel>
+                        <StackPanel x:Name="NtfyFields" Visibility="Collapsed">
+                            <TextBlock Text="ntfy server HTTPS base URL"/><TextBox x:Name="NtfyServerBox" Text="https://ntfy.sh"/>
+                            <TextBlock Text="Topic (encrypted)"/><PasswordBox x:Name="NtfyTopicBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <TextBlock Text="Access token (optional, encrypted)"/><PasswordBox x:Name="NtfyTokenBox" Padding="9,7" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="NtfyClearTokenBox" Content="Remove stored access token"/>
+                            <CheckBox x:Name="NtfyAnonymousBox" Content="Allow unauthenticated publishing (topic may be publicly readable/writable)"/>
+                            <TextBlock Text="A protected self-hosted topic with a dedicated token is recommended. ntfy.sh topics are public unless account access control protects them." Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <CheckBox x:Name="AllowPrivateBox" Content="Allow private/loopback destinations (link-local metadata remains blocked)"/>
                         <TextBlock x:Name="StoredSecretsText" Foreground="#9CA3AF" TextWrapping="Wrap"/>

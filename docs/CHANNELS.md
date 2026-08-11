@@ -248,6 +248,30 @@ Homeserver subpaths and custom HTTPS ports are supported. URI credentials, queri
 
 End-to-end encrypted rooms are intentionally unsupported: AgentNotify does not possess or manage Matrix device/session keys, so a plaintext event sent to an encrypted room would not provide correct secure delivery. HTTP 408, 425, 429, 5xx, network failures, and malformed success acknowledgements retry; redirects and other 4xx responses are permanent. See the Matrix v1.19 Client-Server specification for [sending room events](https://spec.matrix.org/v1.19/client-server-api/#put_matrixclientv3roomsroomidsendeventtypetxnid), [access-token handling](https://spec.matrix.org/v1.19/client-server-api/#using-access-tokens), [mentions](https://spec.matrix.org/v1.19/client-server-api/#user-and-room-mentions), and [transaction identifiers](https://spec.matrix.org/v1.19/client-server-api/#transaction-identifiers).
 
+## ntfy
+
+Implementation status: adapter and native Settings fields complete; real-server and human UI smoke pending.
+
+Enter an HTTPS ntfy server base URL, topic, and preferably a dedicated access token. The topic and token are DPAPI current-user encrypted. AgentNotify publishes the official JSON form to the server base URL with the topic in the body, so sensitive or high-entropy topic names do not appear in URLs, proxy access logs, or sanitized diagnostics.
+
+```json
+{
+  "serverBaseUrl": "https://ntfy.example.org",
+  "allowPrivateNetwork": false,
+  "allowUnauthenticatedTopic": false,
+  "topicSecretName": "topic",
+  "accessTokenSecretName": "access_token"
+}
+```
+
+Current ntfy `tk_` access tokens are sent through the `Authorization: Bearer` header. Publishing without a token is rejected unless **Allow unauthenticated publishing** is explicitly selected. This warning matters especially for ntfy.sh: unprotected topics are public and anyone who guesses or learns the topic can subscribe or publish. A long random topic reduces guessing but is not equivalent to access control.
+
+Self-hosted URL subpaths and custom HTTPS ports are supported. Private or loopback servers require separate private-network consent. HTTP, URI credentials, queries, fragments, unsafe base paths, link-local/cloud-metadata addresses, and any DNS result outside the selected policy are rejected. Certificate and hostname validation cannot be disabled.
+
+AgentNotify maps low/normal/high/critical to ntfy priorities 2/3/4/5, supplies conservative fixed emoji tags, disables Markdown, and includes a stable non-secret sequence ID so a retry updates the prior notification rather than duplicating it. The message is capped at 4096 UTF-8 bytes to avoid ntfy's documented conversion of longer messages into attachments. Route-level message redaction is honored.
+
+A successful response must contain a bounded JSON message ID and, when present, the `message` event kind. HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry; redirects and other 4xx responses are permanent. See ntfy's official [publishing documentation](https://docs.ntfy.sh/publish/), [API limits](https://docs.ntfy.sh/publish/#limitations), and [access-control documentation](https://docs.ntfy.sh/config/#access-control).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

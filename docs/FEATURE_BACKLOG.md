@@ -69,7 +69,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C08 | Google Chat | Incoming webhook | Adapter and Settings integration implemented; real-webhook smoke pending |
 | C09 | Mattermost | Incoming webhook | Adapter and Settings integration implemented; real-server smoke pending |
 | C10 | Matrix | Client-server API message send | Unencrypted-room adapter and Settings integration implemented; E2EE/real-server smoke pending |
-| C11 | ntfy | HTTP publish API | High; supports hosted or self-hosted servers |
+| C11 | ntfy | HTTP publish API | Adapter and Settings integration implemented for hosted/self-hosted servers; real-server smoke pending |
 | C12 | Gotify | REST message API | High; self-hosted server and app token required |
 | C13 | Pushover | Official message API | High; application and user tokens required |
 | C14 | Pushbullet | Official push API | Medium; provider lifecycle/limits need release verification |

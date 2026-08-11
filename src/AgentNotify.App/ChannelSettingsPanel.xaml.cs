@@ -75,6 +75,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadGoogleChatConfiguration(profile);
         LoadMattermostConfiguration(profile);
         LoadMatrixConfiguration(profile);
+        LoadNtfyConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -119,6 +120,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MatrixHomeserverBox.Clear();
         MatrixTokenBox.Clear();
         MatrixRoomBox.Clear();
+        NtfyServerBox.Text = "https://ntfy.sh";
+        NtfyTopicBox.Clear();
+        NtfyTokenBox.Clear();
+        NtfyClearTokenBox.IsChecked = false;
+        NtfyAnonymousBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -150,6 +156,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "google_chat" => await SaveGoogleChatProviderAsync(existing),
             "mattermost" => await SaveMattermostProviderAsync(existing),
             "matrix" => await SaveMatrixProviderAsync(existing),
+            "ntfy" => await SaveNtfyProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -471,6 +478,40 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MatrixTokenBox.Clear(); MatrixRoomBox.Clear(); return saved;
     }
 
+    private async Task<ProviderProfile> SaveNtfyProviderAsync(ProviderProfile? existing)
+    {
+        var hasTopic = existing?.SecretNames.Contains("topic", StringComparer.Ordinal) == true;
+        var hasToken = existing?.SecretNames.Contains("access_token", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(NtfyServerBox.Text))
+            throw new ArgumentException("Enter the ntfy server HTTPS base URL.");
+        if (string.IsNullOrWhiteSpace(NtfyTopicBox.Password) && !hasTopic)
+            throw new ArgumentException("Enter the ntfy topic.");
+        var willHaveToken = !string.IsNullOrWhiteSpace(NtfyTokenBox.Password) ||
+                            hasToken && NtfyClearTokenBox.IsChecked != true;
+        if (!willHaveToken && NtfyAnonymousBox.IsChecked != true)
+            throw new ArgumentException("Enter an ntfy access token or explicitly allow unauthenticated publishing.");
+        var config = JsonSerializer.Serialize(new
+        {
+            serverBaseUrl = NtfyServerBox.Text.Trim(),
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            allowUnauthenticatedTopic = NtfyAnonymousBox.IsChecked == true,
+            topicSecretName = "topic",
+            accessTokenSecretName = "access_token"
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(NtfyTopicBox.Password)) changes["topic"] = NtfyTopicBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(NtfyTokenBox.Password)) changes["access_token"] = NtfyTokenBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "ntfy",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = NtfyClearTokenBox.IsChecked == true ? new[] { "access_token" } : [];
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        NtfyTopicBox.Clear(); NtfyTokenBox.Clear(); NtfyClearTokenBox.IsChecked = false;
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -499,6 +540,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "google_chat" => 7,
             "mattermost" => 8,
             "matrix" => 9,
+            "ntfy" => 10,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -521,6 +563,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "google_chat" => "Google Chat",
                 "mattermost" => "Mattermost",
                 "matrix" => "Matrix",
+                "ntfy" => "ntfy",
                 _ => "Webhook"
             };
     }
@@ -537,7 +580,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var googleChat = kind == "google_chat";
         var mattermost = kind == "mattermost";
         var matrix = kind == "matrix";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix ? Visibility.Collapsed : Visibility.Visible;
+        var ntfy = kind == "ntfy";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -547,6 +591,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         GoogleChatFields.Visibility = googleChat ? Visibility.Visible : Visibility.Collapsed;
         MattermostFields.Visibility = mattermost ? Visibility.Visible : Visibility.Collapsed;
         MatrixFields.Visibility = matrix ? Visibility.Visible : Visibility.Collapsed;
+        NtfyFields.Visibility = ntfy ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -695,6 +740,25 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         if (profile.Kind != "matrix") return;
         try { using var document = JsonDocument.Parse(profile.ConfigJson); MatrixHomeserverBox.Text = GetJsonString(document.RootElement, "homeserverBaseUrl"); }
         catch (JsonException) { MatrixHomeserverBox.Clear(); }
+    }
+
+    private void LoadNtfyConfiguration(ProviderProfile profile)
+    {
+        NtfyTopicBox.Clear(); NtfyTokenBox.Clear(); NtfyClearTokenBox.IsChecked = false;
+        if (profile.Kind != "ntfy") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            NtfyServerBox.Text = GetJsonString(root, "serverBaseUrl");
+            NtfyAnonymousBox.IsChecked = root.TryGetProperty("allowUnauthenticatedTopic", out var anonymous) &&
+                                         anonymous.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            NtfyServerBox.Text = "https://ntfy.sh";
+            NtfyAnonymousBox.IsChecked = false;
+        }
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

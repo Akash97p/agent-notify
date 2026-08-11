@@ -43,6 +43,7 @@ public partial class App : System.Windows.Application
     private GoogleChatChannelAdapter? _googleChatAdapter;
     private MattermostChannelAdapter? _mattermostAdapter;
     private MatrixChannelAdapter? _matrixAdapter;
+    private NtfyChannelAdapter? _ntfyAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -135,10 +136,11 @@ public partial class App : System.Windows.Application
         _googleChatAdapter = new GoogleChatChannelAdapter();
         _mattermostAdapter = new MattermostChannelAdapter();
         _matrixAdapter = new MatrixChannelAdapter();
+        _ntfyAdapter = new NtfyChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -342,6 +344,7 @@ public partial class App : System.Windows.Application
         _googleChatAdapter?.Dispose();
         _mattermostAdapter?.Dispose();
         _matrixAdapter?.Dispose();
+        _ntfyAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
