@@ -77,6 +77,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadMatrixConfiguration(profile);
         LoadNtfyConfiguration(profile);
         LoadGotifyConfiguration(profile);
+        LoadPushoverConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -128,6 +129,14 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         NtfyAnonymousBox.IsChecked = false;
         GotifyServerBox.Clear();
         GotifyTokenBox.Clear();
+        PushoverTokenBox.Clear();
+        PushoverUserKeyBox.Clear();
+        PushoverDeviceBox.Clear();
+        PushoverClearDeviceBox.IsChecked = false;
+        PushoverSoundBox.Clear();
+        PushoverEmergencyBox.IsChecked = false;
+        PushoverRetryBox.Text = "60";
+        PushoverExpireBox.Text = "3600";
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -161,6 +170,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "matrix" => await SaveMatrixProviderAsync(existing),
             "ntfy" => await SaveNtfyProviderAsync(existing),
             "gotify" => await SaveGotifyProviderAsync(existing),
+            "pushover" => await SavePushoverProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -539,6 +549,68 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SavePushoverProviderAsync(ProviderProfile? existing)
+    {
+        var hasToken = existing?.SecretNames.Contains("application_token", StringComparer.Ordinal) == true;
+        var hasUserKey = existing?.SecretNames.Contains("user_key", StringComparer.Ordinal) == true;
+        var hasDevice = existing?.SecretNames.Contains("device", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(PushoverTokenBox.Password) && !hasToken)
+            throw new ArgumentException("Enter the 30-character Pushover application API token.");
+        if (string.IsNullOrWhiteSpace(PushoverUserKeyBox.Password) && !hasUserKey)
+            throw new ArgumentException("Enter the 30-character Pushover user or delivery-group key.");
+        if (!string.IsNullOrWhiteSpace(PushoverTokenBox.Password) && !IsPushoverKey(PushoverTokenBox.Password.Trim()))
+            throw new ArgumentException("The Pushover application token must be 30 alphanumeric characters.");
+        if (!string.IsNullOrWhiteSpace(PushoverUserKeyBox.Password) && !IsPushoverKey(PushoverUserKeyBox.Password.Trim()))
+            throw new ArgumentException("The Pushover user/group key must be 30 alphanumeric characters.");
+        if (!int.TryParse(PushoverRetryBox.Text, out var retry) || retry < 30)
+            throw new ArgumentException("Emergency retry must be at least 30 seconds.");
+        if (!int.TryParse(PushoverExpireBox.Text, out var expire) || expire is < 1 or > 10_800)
+            throw new ArgumentException("Emergency expiry must be between 1 and 10800 seconds.");
+        var sound = PushoverSoundBox.Text.Trim();
+        if (sound.Length > 64 || sound.Any(character =>
+                !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))
+            throw new ArgumentException("Pushover sound names may contain only letters, digits, underscore, and hyphen.");
+        var enteredDevice = PushoverDeviceBox.Password.Trim();
+        if (enteredDevice.Length > 0 && (enteredDevice.Length > 25 || enteredDevice.Any(character =>
+                !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-')))
+            throw new ArgumentException("Pushover device names are at most 25 characters using letters, digits, underscore, and hyphen.");
+
+        var config = JsonSerializer.Serialize(new
+        {
+            applicationTokenSecretName = "application_token",
+            userKeySecretName = "user_key",
+            deviceSecretName = "device",
+            sound,
+            criticalAsEmergency = PushoverEmergencyBox.IsChecked == true,
+            emergencyRetrySeconds = retry,
+            emergencyExpireSeconds = expire
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(PushoverTokenBox.Password))
+            changes["application_token"] = PushoverTokenBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(PushoverUserKeyBox.Password))
+            changes["user_key"] = PushoverUserKeyBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(PushoverDeviceBox.Password))
+            changes["device"] = PushoverDeviceBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "pushover",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = hasDevice && enteredDevice.Length == 0 && PushoverClearDeviceBox.IsChecked == true
+                ? new[] { "device" }
+                : [];
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        PushoverTokenBox.Clear();
+        PushoverUserKeyBox.Clear();
+        PushoverDeviceBox.Clear();
+        PushoverClearDeviceBox.IsChecked = false;
+        return saved;
+    }
+
+    private static bool IsPushoverKey(string value) =>
+        value.Length == 30 && value.All(char.IsAsciiLetterOrDigit);
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -569,6 +641,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "matrix" => 9,
             "ntfy" => 10,
             "gotify" => 11,
+            "pushover" => 12,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -593,6 +666,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "matrix" => "Matrix",
                 "ntfy" => "ntfy",
                 "gotify" => "Gotify",
+                "pushover" => "Pushover",
                 _ => "Webhook"
             };
     }
@@ -611,7 +685,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var matrix = kind == "matrix";
         var ntfy = kind == "ntfy";
         var gotify = kind == "gotify";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify ? Visibility.Collapsed : Visibility.Visible;
+        var pushover = kind == "pushover";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -623,7 +698,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MatrixFields.Visibility = matrix ? Visibility.Visible : Visibility.Collapsed;
         NtfyFields.Visibility = ntfy ? Visibility.Visible : Visibility.Collapsed;
         GotifyFields.Visibility = gotify ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
+        PushoverFields.Visibility = pushover ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -802,6 +878,38 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             GotifyServerBox.Text = GetJsonString(document.RootElement, "serverBaseUrl");
         }
         catch (JsonException) { GotifyServerBox.Clear(); }
+    }
+
+    private void LoadPushoverConfiguration(ProviderProfile profile)
+    {
+        PushoverTokenBox.Clear();
+        PushoverUserKeyBox.Clear();
+        PushoverDeviceBox.Clear();
+        PushoverClearDeviceBox.IsChecked = false;
+        if (profile.Kind != "pushover") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            PushoverSoundBox.Text = GetJsonString(root, "sound");
+            PushoverEmergencyBox.IsChecked = root.TryGetProperty("criticalAsEmergency", out var emergency) &&
+                                               emergency.ValueKind == JsonValueKind.True;
+            PushoverRetryBox.Text = root.TryGetProperty("emergencyRetrySeconds", out var retry) &&
+                                    retry.TryGetInt32(out var retrySeconds)
+                ? retrySeconds.ToString()
+                : "60";
+            PushoverExpireBox.Text = root.TryGetProperty("emergencyExpireSeconds", out var expire) &&
+                                     expire.TryGetInt32(out var expireSeconds)
+                ? expireSeconds.ToString()
+                : "3600";
+        }
+        catch (JsonException)
+        {
+            PushoverSoundBox.Clear();
+            PushoverEmergencyBox.IsChecked = false;
+            PushoverRetryBox.Text = "60";
+            PushoverExpireBox.Text = "3600";
+        }
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

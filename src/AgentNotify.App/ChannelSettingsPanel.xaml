@@ -15,7 +15,7 @@
                         <TextBlock Text="Outbound provider" FontSize="18" FontWeight="Bold"/>
                         <TextBlock Text="Secrets stay encrypted. Blank secret fields preserve stored values." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Profile name"/><TextBox x:Name="ProviderNameBox"/>
-                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/><ComboBoxItem Content="Gotify push" Tag="gotify"/></ComboBox>
+                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/><ComboBoxItem Content="Gotify push" Tag="gotify"/><ComboBoxItem Content="Pushover" Tag="pushover"/></ComboBox>
                         <CheckBox x:Name="ProviderEnabledBox" Content="Enable this provider"/>
                         <StackPanel x:Name="WebhookFields">
                             <TextBlock Text="HTTPS endpoint URL (encrypted)"/><PasswordBox x:Name="EndpointBox" Padding="9,7" Margin="0,0,0,12"/>
@@ -91,6 +91,17 @@
                             <TextBlock Text="Gotify server HTTPS base URL (without /message)"/><TextBox x:Name="GotifyServerBox"/>
                             <TextBlock Text="Application token (encrypted)"/><PasswordBox x:Name="GotifyTokenBox" Padding="9,7" Margin="0,0,0,12"/>
                             <TextBlock Text="Messages are sent as text/plain. Markdown, remote images, click URLs, and actions are not enabled for agent-provided content." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        </StackPanel>
+                        <StackPanel x:Name="PushoverFields" Visibility="Collapsed">
+                            <TextBlock Text="Application API token (encrypted)"/><PasswordBox x:Name="PushoverTokenBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <TextBlock Text="User or delivery-group key (encrypted)"/><PasswordBox x:Name="PushoverUserKeyBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <TextBlock Text="Device name (optional, encrypted)"/><PasswordBox x:Name="PushoverDeviceBox" Padding="9,7" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="PushoverClearDeviceBox" Content="Remove stored device restriction"/>
+                            <TextBlock Text="Sound name (blank uses the account default; built-in or account custom)"/><TextBox x:Name="PushoverSoundBox"/>
+                            <CheckBox x:Name="PushoverEmergencyBox" Content="Send critical notifications as repeating emergency alerts"/>
+                            <TextBlock Text="Emergency retry interval in seconds (minimum 30)"/><TextBox x:Name="PushoverRetryBox" Text="60"/>
+                            <TextBlock Text="Emergency expiry in seconds (1–10800)"/><TextBox x:Name="PushoverExpireBox" Text="3600"/>
+                            <TextBlock Text="Emergency alerts repeat until acknowledged or expired. AgentNotify validates the returned receipt; receipt-status tracking is planned." Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <CheckBox x:Name="AllowPrivateBox" Content="Allow private/loopback destinations (link-local metadata remains blocked)"/>
                         <TextBlock x:Name="StoredSecretsText" Foreground="#9CA3AF" TextWrapping="Wrap"/>
