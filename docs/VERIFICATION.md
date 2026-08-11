@@ -36,7 +36,7 @@ Command:
 Result:
 
 ```text
-Passed: 311
+Passed: 330
 Failed: 0
 Skipped: 0
 ```
@@ -91,6 +91,10 @@ Contract tests verify encrypted webhook use, strict official host/port/path/key/
 
 Contract tests verify encrypted URL use, HTTPS and terminal hook-path validation, self-hosted subpaths and custom ports, rejection of query/fragment/user-info and malformed tokens, explicit private-network consent while always rejecting link-local metadata, optional silent delivery, route redaction, Markdown and Mattermost/Slack-compatible mention neutralization, 16,383-character surrogate-safe truncation, bounded `ok` acknowledgement handling, oversized/malformed success handling, network sanitization, and retry/permanent HTTP classification. The production handler validates every resolved address immediately before connecting and preserves platform TLS hostname/certificate validation. No Mattermost server or credential was assumed and no external message was sent; real-server and human Settings interoperability remain explicitly unverified.
 
+### Matrix
+
+Contract tests verify HTTPS homeserver and private-network policy, encrypted access-token/room-ID use, bearer-header authentication, percent-encoded room targeting, stable idempotent transaction paths, plain `m.text` content, explicit empty mention metadata and legacy mention neutralization, route redaction, 48 KiB serialized UTF-8 bounds, bounded event-ID acknowledgement parsing, and retry/permanent status policy. The production handler validates every resolved address before connecting and preserves platform TLS validation. End-to-end encrypted rooms are deliberately unsupported. No real homeserver or credential was assumed; real-server and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -119,7 +123,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-c119204aa5981dd5ed9ddc33c7186c03461ef81208bcff1d9cd2e3166fba1317  AgentNotifySetup.exe
+978f1ef11a48fa562d844791fcb5599af44a7091fad76f87860c2a25d5697a4d  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

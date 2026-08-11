@@ -68,4 +68,6 @@ The Google Chat adapter stores the complete `key`/`token` webhook URL as an encr
 
 The Mattermost adapter stores its token-bearing webhook URL as an encrypted secret, requires HTTPS and an exact terminal `/hooks/{token}` path, and keeps platform certificate validation enabled for self-hosted servers. Public destinations are the default; private or loopback servers require explicit consent, while link-local/cloud-metadata and non-unicast ranges remain blocked. Mattermost and Slack-compatible mention controls are neutralized, Markdown is escaped, acknowledgements are bounded, and redirects, proxies, and any DNS result outside the configured destination policy are rejected.
 
+The Matrix adapter encrypts both the access token and exact room ID, uses bearer-header authentication rather than the deprecated query parameter, and derives a stable non-secret transaction ID for idempotent retries. Homeservers require HTTPS, standard certificate validation, and explicit consent for private addressing. Plain-text `m.room.message` events carry an empty `m.mentions` object and neutralize legacy `@` matching. End-to-end encrypted rooms are not supported and must not be configured.
+
 Never extend the current bearer token directly to an internet-facing API.
