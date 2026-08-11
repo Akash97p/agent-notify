@@ -1,5 +1,17 @@
 # AgentNotify
 
+<p align="center">
+  <img src="an.png" alt="AgentNotify app icon" width="180" height="180">
+</p>
+
+<p align="center">
+  <strong>The local human-attention and notification broker for coding agents.</strong><br>
+  <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
+  <a href="docs/INSTALLATION.md">Installation</a> ·
+  <a href="docs/API.md">API</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
 AgentNotify is a local Windows human-attention broker for autonomous coding agents. Agents send a small authenticated request; AgentNotify displays a dedicated non-activating WPF toast, preserves the event in local history, and makes unresolved requests visible from the system tray.
 
 It is designed for people running several agents across terminals, repositories, windows, and virtual desktops who need a reliable answer to: “Which agents are waiting for me?”
@@ -92,6 +104,8 @@ For Codex, place the file at:
 ```
 
 The source skill is at [distribution/agentnotify/SKILL.md](distribution/agentnotify/SKILL.md). It tells an agent when to notify, how to avoid notification spam, how to use stable deduplication keys, and how to resolve an attention request.
+
+See [Agent setup and skills](docs/AGENT_SKILLS.md) for Agent Skills-compatible tools and a portable instruction snippet for agents that use project rules or system prompts instead.
 
 ## Notification model
 
@@ -203,9 +217,31 @@ Uninstall removes application binaries, shortcuts, startup registration, and the
 
 Read [SECURITY.md](SECURITY.md) before proposing network transports or external delivery channels.
 
-## Build and test from WSL
+## Build it yourself
 
-WPF must be built with a Windows .NET SDK, not Linux `dotnet`. This workspace uses .NET SDK 10.0.302 at `/mnt/d/dev/dotnet/dotnet.exe`.
+### Prerequisites
+
+- Windows 11 x64.
+- Windows .NET SDK 10.0.302 or a compatible .NET 10 SDK with the Windows Desktop workload.
+- Git.
+- WSL is recommended for the supplied Bash scripts, but it is not required for ordinary `dotnet` builds.
+
+Clone the repository when it is published:
+
+```powershell
+git clone https://github.com/Akash97p/agent-notify.git
+cd agent-notify
+```
+
+Build and test directly from PowerShell:
+
+```powershell
+dotnet restore AgentNotify.slnx
+dotnet build AgentNotify.slnx --configuration Release
+dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release
+```
+
+WPF must be built with a Windows .NET SDK, not Linux `dotnet`. From WSL, point the scripts at the Windows `dotnet.exe` if it is not installed at the repository default:
 
 ```bash
 cd /home/akash/projects/agent-notify
@@ -216,12 +252,12 @@ cd /home/akash/projects/agent-notify
 Override the SDK path when necessary:
 
 ```bash
-AGENTNOTIFY_DOTNET_EXE=/mnt/d/tools/dotnet/dotnet.exe ./scripts/build.sh
+AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
 The current release build completes with zero warnings. The test suite has 87 passing tests.
 
-## Build the single-file installer
+### Build the single-file installer
 
 ```bash
 ./scripts/package.sh
@@ -234,6 +270,8 @@ artifacts/AgentNotifySetup.exe
 ```
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
+
+When this repository is pushed to GitHub, tagged releases can publish the same installer and its SHA-256 checksum through the repository’s release workflow. Building locally never requires a GitHub account or a remote repository.
 
 ## API
 
@@ -280,6 +318,7 @@ The transport design will keep the local broker as the source of truth and add o
 - Agent heartbeat/status, richer SDKs, and an optional MCP server.
 - Safer terminal/tab activation and virtual-desktop awareness.
 - ARM64 packages, signed releases, automatic updates, and migration tooling.
+- Native macOS menu-bar and Linux desktop editions built around portable broker contracts.
 
 External channels will be disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
