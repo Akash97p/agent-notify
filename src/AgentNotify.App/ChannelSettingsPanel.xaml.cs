@@ -70,6 +70,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadDiscordConfiguration(profile);
         LoadSlackConfiguration(profile);
         LoadTeamsConfiguration(profile);
+        LoadZohoCliqConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -105,6 +106,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         SlackWebhookBox.Clear();
         SlackThreadBox.Clear();
         TeamsWebhookBox.Clear();
+        ZohoCliqWebhookBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -132,6 +134,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "discord" => await SaveDiscordProviderAsync(existing),
             "slack" => await SaveSlackProviderAsync(existing),
             "teams" => await SaveTeamsProviderAsync(existing),
+            "zoho_cliq" => await SaveZohoCliqProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -370,6 +373,23 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveZohoCliqProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(ZohoCliqWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the Zoho Cliq webhook URL generated from Webhook Tokens.");
+        var config = JsonSerializer.Serialize(new { webhookUrlSecretName = "webhook_url" }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(ZohoCliqWebhookBox.Password))
+            changes["webhook_url"] = ZohoCliqWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "zoho_cliq",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        ZohoCliqWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -394,6 +414,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "discord" => 3,
             "slack" => 4,
             "teams" => 5,
+            "zoho_cliq" => 6,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -412,6 +433,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "discord" => "Discord",
                 "slack" => "Slack",
                 "teams" => "Microsoft Teams",
+                "zoho_cliq" => "Zoho Cliq",
                 _ => "Webhook"
             };
     }
@@ -424,13 +446,15 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var discord = kind == "discord";
         var slack = kind == "slack";
         var teams = kind == "teams";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams ? Visibility.Collapsed : Visibility.Visible;
+        var zohoCliq = kind == "zoho_cliq";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
         SlackFields.Visibility = slack ? Visibility.Visible : Visibility.Collapsed;
         TeamsFields.Visibility = teams ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams ? Visibility.Collapsed : Visibility.Visible;
+        ZohoCliqFields.Visibility = zohoCliq ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -528,6 +552,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void LoadTeamsConfiguration(ProviderProfile profile)
     {
         TeamsWebhookBox.Clear();
+    }
+
+    private void LoadZohoCliqConfiguration(ProviderProfile profile)
+    {
+        ZohoCliqWebhookBox.Clear();
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

@@ -165,6 +165,24 @@ Messages use Microsoft's documented `type: message` envelope with one Adaptive C
 
 Any 2xx response succeeds, including asynchronous `202 Accepted`. HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Microsoft's [Teams webhook trigger](https://learn.microsoft.com/en-us/connectors/teams/#when-a-teams-webhook-request-is-received) and [trigger URL migration guidance](https://learn.microsoft.com/en-us/troubleshoot/power-platform/power-automate/flow-run-issues/triggers-troubleshoot#changes-to-http-or-teams-webhook-trigger-flows).
 
+## Zoho Cliq
+
+Implementation status: adapter and native Settings fields complete across all documented Cliq data centers; real-webhook and human UI smoke pending.
+
+Generate a Webhook Token in **Bots & Tools**, choose a channel or bot message endpoint, and paste the complete generated URL into Settings. The `zapikey` query value authenticates the request, so AgentNotify stores the entire URL only as a DPAPI current-user encrypted secret.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url"
+}
+```
+
+The `zoho_cliq` adapter accepts only exact official Cliq hosts for the United States, Europe, India, Australia, China, Japan, Saudi Arabia, United Kingdom, and Canada. It supports documented v2 `channelsbyname`, `channels`, and `bots` message paths. The query must contain `zapikey`; only the optional documented `bot_unique_name` parameter may accompany it. URI credentials, custom ports, fragments, unrecognized parameters, and malformed destination identifiers are rejected.
+
+Messages are plain bounded text. Cliq Markdown control characters are escaped, route-level message redaction is honored, and content is truncated without splitting surrogate pairs at the documented 5000-character channel/bot limit. Redirects, cookies, proxies, decompression, private/mixed DNS results, and response-body reads are disabled.
+
+HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Zoho's official [Webhook Tokens](https://www.zoho.com/cliq/help/platform/webhook-tokens.html), [message API](https://www.zoho.com/cliq/help/restapi/v2/messages/), and [data-center list](https://www.zoho.com/cliq/help/restapi/v3/introduction/#multiple-data-centers).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
