@@ -64,7 +64,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C03 | Telegram | Official Bot API `sendMessage` | Adapter and Settings integration implemented; real-bot smoke pending |
 | C04 | Discord | Incoming webhook | Adapter and Settings integration implemented; real-webhook smoke pending |
 | C05 | Slack | Incoming webhook | Adapter and Settings integration implemented; real-webhook smoke pending |
-| C06 | Microsoft Teams | Teams Workflows webhook | High, but workflow ownership/lifecycle must be documented |
+| C06 | Microsoft Teams | Teams Workflows webhook | Global-cloud adapter and Settings integration implemented; real-workflow/sovereign-cloud smoke pending |
 | C07 | Zoho Cliq | Incoming webhook/bot endpoint | High; region-specific endpoint validation required |
 | C08 | Google Chat | Incoming webhook | High; space webhook URL is a secret |
 | C09 | Mattermost | Incoming webhook | High; self-hosted URL allowlist and TLS policy required |

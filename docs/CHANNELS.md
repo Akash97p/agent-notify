@@ -147,6 +147,24 @@ Messages set `mrkdwn: false` and `link_names: 0`. User-controlled `&`, `<`, and 
 
 HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx responses are permanent. Slack documents webhook setup, secret handling, thread replies, and errors in [Sending messages using incoming webhooks](https://api.slack.com/messaging/webhooks), and documents `Retry-After` behavior in [Rate limits](https://api.slack.com/apis/rate-limits).
 
+## Microsoft Teams Workflows
+
+Implementation status: adapter and native Settings fields complete for current global-cloud workflow URLs; real-workflow, sovereign-cloud, and human UI smoke pending.
+
+In Teams, create a Workflows template that receives a webhook and posts to a channel or chat, then copy the current trigger URL into Settings. The signed URL is a credential and may exceed 255 characters, so AgentNotify stores the complete value only as a DPAPI current-user encrypted secret and accepts up to 8192 characters.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url"
+}
+```
+
+The `teams` adapter accepts only the post-migration global Power Platform host suffix `*.environment.api.powerplatform.com`, the expected `/powerautomate/automations/direct/workflows/.../triggers/manual/paths/invoke` path, and a signed query containing `api-version`, `sp`, `sv`, and `sig`. Legacy Office 365 connectors and retired `logic.azure.com` URLs are rejected. Sovereign-cloud endpoints require a future explicit allowlist rather than weakening host validation.
+
+Messages use Microsoft's documented `type: message` envelope with one Adaptive Card 1.2 attachment. Title, optional route-approved message, priority, type, agent, and project are bounded independently. User Markdown is escaped and `<at>` tags are encoded; the adapter supplies no Teams mention entities or actions. Redirects, cookies, proxies, decompression, private/mixed DNS results, and response-body reads are disabled.
+
+Any 2xx response succeeds, including asynchronous `202 Accepted`. HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Microsoft's [Teams webhook trigger](https://learn.microsoft.com/en-us/connectors/teams/#when-a-teams-webhook-request-is-received) and [trigger URL migration guidance](https://learn.microsoft.com/en-us/troubleshoot/power-platform/power-automate/flow-run-issues/triggers-troubleshoot#changes-to-http-or-teams-webhook-trigger-flows).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

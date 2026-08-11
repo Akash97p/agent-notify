@@ -69,6 +69,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadTelegramConfiguration(profile);
         LoadDiscordConfiguration(profile);
         LoadSlackConfiguration(profile);
+        LoadTeamsConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -103,6 +104,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         DiscordThreadBox.Clear();
         SlackWebhookBox.Clear();
         SlackThreadBox.Clear();
+        TeamsWebhookBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -129,6 +131,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "telegram" => await SaveTelegramProviderAsync(existing),
             "discord" => await SaveDiscordProviderAsync(existing),
             "slack" => await SaveSlackProviderAsync(existing),
+            "teams" => await SaveTeamsProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -350,6 +353,23 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveTeamsProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(TeamsWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the current Microsoft Teams Workflows webhook URL.");
+        var config = JsonSerializer.Serialize(new { webhookUrlSecretName = "webhook_url" }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(TeamsWebhookBox.Password))
+            changes["webhook_url"] = TeamsWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "teams",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        TeamsWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -373,6 +393,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "telegram" => 2,
             "discord" => 3,
             "slack" => 4,
+            "teams" => 5,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -390,6 +411,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "telegram" => "Telegram",
                 "discord" => "Discord",
                 "slack" => "Slack",
+                "teams" => "Microsoft Teams",
                 _ => "Webhook"
             };
     }
@@ -401,12 +423,14 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var telegram = kind == "telegram";
         var discord = kind == "discord";
         var slack = kind == "slack";
-        WebhookFields.Visibility = smtp || telegram || discord || slack ? Visibility.Collapsed : Visibility.Visible;
+        var teams = kind == "teams";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
         SlackFields.Visibility = slack ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack ? Visibility.Collapsed : Visibility.Visible;
+        TeamsFields.Visibility = teams ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -499,6 +523,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             SlackThreadBox.Clear();
         }
+    }
+
+    private void LoadTeamsConfiguration(ProviderProfile profile)
+    {
+        TeamsWebhookBox.Clear();
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

@@ -36,7 +36,7 @@ Command:
 Result:
 
 ```text
-Passed: 227
+Passed: 241
 Failed: 0
 Skipped: 0
 ```
@@ -75,6 +75,10 @@ Contract tests verify encrypted webhook use, strict official host/port/path/id/t
 
 Contract tests verify encrypted webhook use, strict Slack/GovSlack host/port/path/token/query validation, optional thread timestamp, `mrkdwn` and automatic link-name suppression, control-sequence encoding, route message redaction, 4000-character surrogate-safe truncation, token omission from JSON, bounded `ok` acknowledgement handling, oversized/malformed success handling, network sanitization, and retry/permanent HTTP classification. The production handler pins connections to public DNS results for the selected official hook host and disables redirects, cookies, proxies, and decompression. No webhook credential was assumed and no external Slack message was sent; real-webhook interoperability remains explicitly unverified.
 
+### Microsoft Teams Workflows
+
+Contract tests verify encrypted signed-URL use, current global Power Platform host/path/query validation, rejection of HTTP/foreign/unsigned/retired shapes, Adaptive Card 1.2 envelope construction, route message redaction, Markdown and mention-tag escaping, bounded surrogate-safe text, token omission from JSON, network sanitization, and retry/permanent HTTP classification. The production handler validates every public DNS result before connecting and disables redirects, cookies, proxies, decompression, and response-body reads. No workflow credential was assumed and no external Teams card was sent; real-workflow and sovereign-cloud interoperability remain explicitly unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -103,7 +107,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-ab9ae7be4efd08a17dd981c83d7960856ae39c232a5c4139bc9cf018211a79dd  AgentNotifySetup.exe
+65ed7361559d45e6dd810a12b9001b456e24d16d1147e301685ba5690fdc5060  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
