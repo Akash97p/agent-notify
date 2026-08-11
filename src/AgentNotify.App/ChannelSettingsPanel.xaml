@@ -15,7 +15,7 @@
                         <TextBlock Text="Outbound provider" FontSize="18" FontWeight="Bold"/>
                         <TextBlock Text="Secrets stay encrypted. Blank secret fields preserve stored values." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Profile name"/><TextBox x:Name="ProviderNameBox"/>
-                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/><ComboBoxItem Content="Gotify push" Tag="gotify"/><ComboBoxItem Content="Pushover" Tag="pushover"/></ComboBox>
+                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/><ComboBoxItem Content="Gotify push" Tag="gotify"/><ComboBoxItem Content="Pushover" Tag="pushover"/><ComboBoxItem Content="Pushbullet" Tag="pushbullet"/></ComboBox>
                         <CheckBox x:Name="ProviderEnabledBox" Content="Enable this provider"/>
                         <StackPanel x:Name="WebhookFields">
                             <TextBlock Text="HTTPS endpoint URL (encrypted)"/><PasswordBox x:Name="EndpointBox" Padding="9,7" Margin="0,0,0,12"/>
@@ -102,6 +102,13 @@
                             <TextBlock Text="Emergency retry interval in seconds (minimum 30)"/><TextBox x:Name="PushoverRetryBox" Text="60"/>
                             <TextBlock Text="Emergency expiry in seconds (1–10800)"/><TextBox x:Name="PushoverExpireBox" Text="3600"/>
                             <TextBlock Text="Emergency alerts repeat until acknowledged or expired. AgentNotify validates the returned receipt; receipt-status tracking is planned." Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        </StackPanel>
+                        <StackPanel x:Name="PushbulletFields" Visibility="Collapsed">
+                            <TextBlock Text="Personal access token (encrypted)"/><PasswordBox x:Name="PushbulletTokenBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <TextBlock Text="Destination"/><ComboBox x:Name="PushbulletTargetTypeBox"><ComboBoxItem Content="All devices on this account" Tag="all"/><ComboBoxItem Content="One device ID" Tag="device"/><ComboBoxItem Content="Owned channel tag" Tag="channel"/><ComboBoxItem Content="Email (may fall back to email delivery)" Tag="email"/></ComboBox>
+                            <TextBlock Text="Device ID, channel tag, or email (encrypted; blank for all devices)"/><PasswordBox x:Name="PushbulletTargetBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <CheckBox x:Name="PushbulletQuotaBox" Content="I understand that free accounts are limited to 500 pushes per month and test sends consume quota"/>
+                            <TextBlock Text="The token grants full access to the Pushbullet account. AgentNotify sends plain note pushes only—never files or active links—and uses a stable retry GUID." Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <CheckBox x:Name="AllowPrivateBox" Content="Allow private/loopback destinations (link-local metadata remains blocked)"/>
                         <TextBlock x:Name="StoredSecretsText" Foreground="#9CA3AF" TextWrapping="Wrap"/>

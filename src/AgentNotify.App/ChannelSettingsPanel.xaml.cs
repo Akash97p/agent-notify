@@ -19,6 +19,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         ProviderKindBox.SelectedIndex = 0;
         SmtpSecurityBox.SelectedIndex = 0;
         GoogleChatReplyPolicyBox.SelectedIndex = 0;
+        PushbulletTargetTypeBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -78,6 +79,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadNtfyConfiguration(profile);
         LoadGotifyConfiguration(profile);
         LoadPushoverConfiguration(profile);
+        LoadPushbulletConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -137,6 +139,10 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         PushoverEmergencyBox.IsChecked = false;
         PushoverRetryBox.Text = "60";
         PushoverExpireBox.Text = "3600";
+        PushbulletTokenBox.Clear();
+        PushbulletTargetBox.Clear();
+        PushbulletTargetTypeBox.SelectedIndex = 0;
+        PushbulletQuotaBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -171,6 +177,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "ntfy" => await SaveNtfyProviderAsync(existing),
             "gotify" => await SaveGotifyProviderAsync(existing),
             "pushover" => await SavePushoverProviderAsync(existing),
+            "pushbullet" => await SavePushbulletProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -611,6 +618,79 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private static bool IsPushoverKey(string value) =>
         value.Length == 30 && value.All(char.IsAsciiLetterOrDigit);
 
+    private async Task<ProviderProfile> SavePushbulletProviderAsync(ProviderProfile? existing)
+    {
+        var hasToken = existing?.SecretNames.Contains("access_token", StringComparer.Ordinal) == true;
+        var hasTarget = existing?.SecretNames.Contains("target", StringComparer.Ordinal) == true;
+        var targetType = (PushbulletTargetTypeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+        var previousTargetType = ReadConfigString(existing?.ConfigJson, "targetType", "all");
+        var enteredTarget = PushbulletTargetBox.Password.Trim();
+        if (string.IsNullOrWhiteSpace(PushbulletTokenBox.Password) && !hasToken)
+            throw new ArgumentException("Enter the Pushbullet personal access token.");
+        if (!string.IsNullOrWhiteSpace(PushbulletTokenBox.Password) && !IsPushbulletToken(PushbulletTokenBox.Password.Trim()))
+            throw new ArgumentException("The Pushbullet token must be 16–256 printable characters without spaces.");
+        if (PushbulletQuotaBox.IsChecked != true)
+            throw new ArgumentException("Acknowledge the Pushbullet monthly quota before saving.");
+        if (targetType != "all" && enteredTarget.Length == 0 &&
+            (!hasTarget || !string.Equals(previousTargetType, targetType, StringComparison.Ordinal)))
+            throw new ArgumentException("Enter the selected Pushbullet device ID, channel tag, or email target.");
+        ValidatePushbulletTarget(targetType, enteredTarget);
+
+        var config = JsonSerializer.Serialize(new
+        {
+            accessTokenSecretName = "access_token",
+            targetType,
+            targetSecretName = "target",
+            quotaAcknowledged = true
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(PushbulletTokenBox.Password))
+            changes["access_token"] = PushbulletTokenBox.Password.Trim();
+        if (enteredTarget.Length > 0)
+            changes["target"] = enteredTarget;
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "pushbullet",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = targetType == "all" && hasTarget ? new[] { "target" } : [];
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        PushbulletTokenBox.Clear();
+        PushbulletTargetBox.Clear();
+        return saved;
+    }
+
+    private static bool IsPushbulletToken(string value) =>
+        value.Length is >= 16 and <= 256 && value.All(character => character is >= '!' and <= '~');
+
+    private static void ValidatePushbulletTarget(string targetType, string value)
+    {
+        if (targetType == "all" || value.Length == 0) return;
+        if (targetType == "email")
+        {
+            if (value.Length > 254 || value.IndexOfAny(['\r', '\n']) >= 0 ||
+                !System.Net.Mail.MailAddress.TryCreate(value, out var address) ||
+                !string.Equals(address.Address, value, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Enter one valid email address without a display name.");
+            return;
+        }
+        if (targetType is not ("device" or "channel") || value.Length > 128 || value.Any(character =>
+                !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))
+            throw new ArgumentException("Device IDs and channel tags may contain only letters, digits, underscore, and hyphen.");
+    }
+
+    private static string ReadConfigString(string? configJson, string name, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(configJson)) return fallback;
+        try
+        {
+            using var document = JsonDocument.Parse(configJson);
+            var value = GetJsonString(document.RootElement, name);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+        catch (JsonException) { return fallback; }
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -642,6 +722,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "ntfy" => 10,
             "gotify" => 11,
             "pushover" => 12,
+            "pushbullet" => 13,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -667,6 +748,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "ntfy" => "ntfy",
                 "gotify" => "Gotify",
                 "pushover" => "Pushover",
+                "pushbullet" => "Pushbullet",
                 _ => "Webhook"
             };
     }
@@ -686,7 +768,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var ntfy = kind == "ntfy";
         var gotify = kind == "gotify";
         var pushover = kind == "pushover";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover ? Visibility.Collapsed : Visibility.Visible;
+        var pushbullet = kind == "pushbullet";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -699,7 +782,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         NtfyFields.Visibility = ntfy ? Visibility.Visible : Visibility.Collapsed;
         GotifyFields.Visibility = gotify ? Visibility.Visible : Visibility.Collapsed;
         PushoverFields.Visibility = pushover ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover ? Visibility.Collapsed : Visibility.Visible;
+        PushbulletFields.Visibility = pushbullet ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -909,6 +993,33 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             PushoverEmergencyBox.IsChecked = false;
             PushoverRetryBox.Text = "60";
             PushoverExpireBox.Text = "3600";
+        }
+    }
+
+    private void LoadPushbulletConfiguration(ProviderProfile profile)
+    {
+        PushbulletTokenBox.Clear();
+        PushbulletTargetBox.Clear();
+        if (profile.Kind != "pushbullet") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            var targetType = GetJsonString(root, "targetType");
+            PushbulletTargetTypeBox.SelectedIndex = targetType switch
+            {
+                "device" => 1,
+                "channel" => 2,
+                "email" => 3,
+                _ => 0
+            };
+            PushbulletQuotaBox.IsChecked = root.TryGetProperty("quotaAcknowledged", out var quota) &&
+                                               quota.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            PushbulletTargetTypeBox.SelectedIndex = 0;
+            PushbulletQuotaBox.IsChecked = false;
         }
     }
 

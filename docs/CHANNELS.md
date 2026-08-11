@@ -318,6 +318,27 @@ The optional sound may be a documented built-in sound or a custom sound name upl
 
 A 2xx response succeeds only when bounded JSON contains `status: 1`, a request identifier, and an emergency receipt when required. In accordance with Pushover's retry guidance, any 4xx—including the monthly-quota 429—is permanent because replaying the same request will not work. Network failures, 5xx, and malformed successes retry through the durable outbox. Pushover does not expose a message idempotency key, so an ambiguous timeout after acceptance can duplicate a notification. See the official [Pushover Message API](https://pushover.net/api).
 
+## Pushbullet
+
+Implementation status: note adapter and native Settings fields complete; real-account and human UI smoke pending.
+
+Create or copy a personal access token from Pushbullet Account Settings. The token grants full access to that account, so AgentNotify stores it only as a DPAPI current-user encrypted secret and sends it only through the documented `Access-Token` header. A profile can broadcast to all account devices or target one device ID, one owned channel tag, or one email address. Target values are also encrypted. Email is an explicit mode because Pushbullet may fall back to sending ordinary email when the address has no push-capable account/device.
+
+```json
+{
+  "accessTokenSecretName": "access_token",
+  "targetType": "all",
+  "targetSecretName": "target",
+  "quotaAcknowledged": true
+}
+```
+
+AgentNotify sends JSON only to `https://api.pushbullet.com/v2/pushes`. It creates a plain `note` with a title and route-redacted body. It never uses link/file push types, uploads content, or accepts agent-provided remote URLs, source device IDs, or OAuth client targets. Requests and responses are bounded to 32 KiB; the title/body have smaller conservative UTF-8 bounds to keep escaped Unicode within that envelope.
+
+Every push includes a stable 32-character GUID derived from the durable outbox ID. Pushbullet describes same-GUID creates as “mostly idempotent,” so this reduces but does not eliminate duplicates after an ambiguous network failure. A successful response must be a bounded active `note` push with a non-empty Pushbullet identifier.
+
+The user must acknowledge the documented free-account limit of 500 pushes per month before saving a profile; the **Send test** action also consumes a push. HTTP 408, 425, 429 rate limits, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx authentication/target errors are permanent; a monthly-limit error returned as one of those client errors will not be retried. See the official [Pushbullet API overview and Pushes documentation](https://docs.pushbullet.com/v18/).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

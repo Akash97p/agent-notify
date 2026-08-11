@@ -46,6 +46,7 @@ public partial class App : System.Windows.Application
     private NtfyChannelAdapter? _ntfyAdapter;
     private GotifyChannelAdapter? _gotifyAdapter;
     private PushoverChannelAdapter? _pushoverAdapter;
+    private PushbulletChannelAdapter? _pushbulletAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -141,10 +142,11 @@ public partial class App : System.Windows.Application
         _ntfyAdapter = new NtfyChannelAdapter();
         _gotifyAdapter = new GotifyChannelAdapter();
         _pushoverAdapter = new PushoverChannelAdapter();
+        _pushbulletAdapter = new PushbulletChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter, _gotifyAdapter, _pushoverAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter, _gotifyAdapter, _pushoverAdapter, _pushbulletAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -351,6 +353,7 @@ public partial class App : System.Windows.Application
         _ntfyAdapter?.Dispose();
         _gotifyAdapter?.Dispose();
         _pushoverAdapter?.Dispose();
+        _pushbulletAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
