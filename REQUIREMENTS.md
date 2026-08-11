@@ -169,3 +169,19 @@ activation, virtual-desktop and terminal-tab awareness, per-agent sounds/icons, 
 snooze, quiet hours, agent heartbeat/status, webhooks, acknowledgement callbacks, response
 buttons, coalescing, per-project rules, email, WhatsApp Business, Teams, Slack, Discord, SMS,
 mobile push, LAN with a separate stronger-auth design, signed updates, ARM64, and MSIX.
+
+## 11. Post-V1 product requirements
+
+The current working V1 is the compatibility baseline. New development must add:
+
+- a native tray-opened Settings UI;
+- built-in and user-defined notification types with configurable presentation, lifetime, priority, and sound;
+- global and per-type WAV/MP3 sound profiles with preview and quiet-hour behavior;
+- SQLite-backed provider profiles, routes, durable outbox entries, and delivery attempts;
+- Windows DPAPI current-user encryption for every provider credential stored in SQLite;
+- opt-in outbound channels with test-send, redaction, bounded retries, timeouts, rate/cost controls, and diagnostics;
+- generic webhook, SMTP, Telegram, chat, push, SMS, and official WhatsApp delivery, followed by additional providers listed in `docs/FEATURE_BACKLOG.md`;
+- a repository-hosted documentation/wiki site and reproducible GitHub release automation; and
+- portable boundaries that allow future native macOS and Linux implementations.
+
+Local desktop delivery and history remain the source of truth. An outbound failure must never make local notification creation fail.

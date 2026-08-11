@@ -72,3 +72,5 @@
 - [ ] MCP server and richer language SDKs
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
+
+The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. Durable branch and decision state lives in `docs/DEVELOPMENT_STATE.md`.

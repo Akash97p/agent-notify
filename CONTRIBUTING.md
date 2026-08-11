@@ -26,6 +26,12 @@ Build the distributable installer with:
 
 The output is `artifacts/AgentNotifySetup.exe`. Generated artifacts, user configuration, tokens, databases, and logs must never be committed.
 
+## Branch workflow
+
+`main` is the stable release line and `dev` is the integration branch. Do not commit directly to either branch for ordinary work. Create a focused branch from `dev` using `feature/`, `fix/`, `docs/`, `test/`, or `chore/`, verify it, and merge it back to `dev` with a non-fast-forward merge. See `AGENTS.md` for the exact local workflow and quality gates.
+
+Commits should use a short imperative Conventional Commit subject, for example `feat: add SMTP test delivery`. Keep migrations, tests, security notes, and user documentation in the same branch as the feature they support.
+
 ## Pull request expectations
 
 - Keep changes small enough to review and explain the user-visible behavior.
@@ -35,6 +41,7 @@ The output is `artifacts/AgentNotifySetup.exe`. Generated artifacts, user config
 - Update `README.md`, API/agent docs, `TODO.md`, and verification notes when behavior changes.
 - Run the full build, tests, skill validator, and packaging smoke checks.
 - Do not log authentication tokens, notification metadata, or message bodies unnecessarily.
+- Encrypt outbound provider credentials with the project secret-protection abstraction; never persist plaintext secrets.
 
 ## Style
 

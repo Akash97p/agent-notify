@@ -29,6 +29,7 @@ logs/
 # OS / editor noise
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 *.swp
 
 # Signing credentials must never be committed
