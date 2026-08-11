@@ -227,6 +227,27 @@ Messages use the webhook's configured destination and identity—AgentNotify doe
 
 A 2xx response succeeds only when it is `204 No Content` or contains Mattermost's bounded plain-text `ok` acknowledgement. HTTP 408, 425, 429, 5xx, network failures, and malformed success acknowledgements retry; redirects and other 4xx responses are permanent. See Mattermost's official [Incoming webhooks](https://developers.mattermost.com/integrate/webhooks/incoming/) documentation for setup, payload fields, acknowledgement, mention behavior, silent mode, and post limits.
 
+## Matrix
+
+Implementation status: adapter and native Settings fields complete for unencrypted rooms; end-to-end encryption, real-server, and human UI smoke pending.
+
+Configure the homeserver's HTTPS client base URL, a dedicated account access token, and the exact room ID beginning with `!`. The token and room ID are DPAPI current-user encrypted. The account must already be joined and allowed to send messages.
+
+```json
+{
+  "homeserverBaseUrl": "https://matrix.example.org",
+  "allowPrivateNetwork": false,
+  "accessTokenSecretName": "access_token",
+  "roomIdSecretName": "room_id"
+}
+```
+
+The `matrix` adapter uses `PUT /_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}` with `Authorization: Bearer`; it never places the token in a query string. A stable SHA-256-derived transaction ID makes dispatcher retries idempotent without exposing the notification or outbox ID. The body contains `msgtype: m.text`, route-redacted text, and an explicit empty `m.mentions` object. ASCII `@` is neutralized as defense for older clients and servers that still inspect the body for mentions.
+
+Homeserver subpaths and custom HTTPS ports are supported. URI credentials, queries, fragments, unsafe base paths, unconsented private addresses, and all link-local/cloud-metadata or non-unicast ranges are rejected. Platform TLS certificate validation remains mandatory. Serialized JSON is bounded to 48 KiB, leaving space beneath Matrix's 65,536-byte complete-event limit. A successful response must contain a bounded `$`-prefixed event ID.
+
+End-to-end encrypted rooms are intentionally unsupported: AgentNotify does not possess or manage Matrix device/session keys, so a plaintext event sent to an encrypted room would not provide correct secure delivery. HTTP 408, 425, 429, 5xx, network failures, and malformed success acknowledgements retry; redirects and other 4xx responses are permanent. See the Matrix v1.19 Client-Server specification for [sending room events](https://spec.matrix.org/v1.19/client-server-api/#put_matrixclientv3roomsroomidsendeventtypetxnid), [access-token handling](https://spec.matrix.org/v1.19/client-server-api/#using-access-tokens), [mentions](https://spec.matrix.org/v1.19/client-server-api/#user-and-room-mentions), and [transaction identifiers](https://spec.matrix.org/v1.19/client-server-api/#transaction-identifiers).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

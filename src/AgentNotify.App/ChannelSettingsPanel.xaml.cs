@@ -74,6 +74,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadZohoCliqConfiguration(profile);
         LoadGoogleChatConfiguration(profile);
         LoadMattermostConfiguration(profile);
+        LoadMatrixConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -115,6 +116,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         GoogleChatReplyPolicyBox.SelectedIndex = 0;
         MattermostWebhookBox.Clear();
         MattermostSilentBox.IsChecked = false;
+        MatrixHomeserverBox.Clear();
+        MatrixTokenBox.Clear();
+        MatrixRoomBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -145,6 +149,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "zoho_cliq" => await SaveZohoCliqProviderAsync(existing),
             "google_chat" => await SaveGoogleChatProviderAsync(existing),
             "mattermost" => await SaveMattermostProviderAsync(existing),
+            "matrix" => await SaveMatrixProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -450,6 +455,22 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveMatrixProviderAsync(ProviderProfile? existing)
+    {
+        var hasToken = existing?.SecretNames.Contains("access_token", StringComparer.Ordinal) == true;
+        var hasRoom = existing?.SecretNames.Contains("room_id", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(MatrixHomeserverBox.Text)) throw new ArgumentException("Enter the Matrix homeserver HTTPS base URL.");
+        if (string.IsNullOrWhiteSpace(MatrixTokenBox.Password) && !hasToken) throw new ArgumentException("Enter the Matrix access token.");
+        if (string.IsNullOrWhiteSpace(MatrixRoomBox.Password) && !hasRoom) throw new ArgumentException("Enter the Matrix room ID.");
+        var config = JsonSerializer.Serialize(new { homeserverBaseUrl = MatrixHomeserverBox.Text.Trim(), allowPrivateNetwork = AllowPrivateBox.IsChecked == true, accessTokenSecretName = "access_token", roomIdSecretName = "room_id" }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(MatrixTokenBox.Password)) changes["access_token"] = MatrixTokenBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(MatrixRoomBox.Password)) changes["room_id"] = MatrixRoomBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "matrix", ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0) await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        MatrixTokenBox.Clear(); MatrixRoomBox.Clear(); return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -477,6 +498,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "zoho_cliq" => 6,
             "google_chat" => 7,
             "mattermost" => 8,
+            "matrix" => 9,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -498,6 +520,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "zoho_cliq" => "Zoho Cliq",
                 "google_chat" => "Google Chat",
                 "mattermost" => "Mattermost",
+                "matrix" => "Matrix",
                 _ => "Webhook"
             };
     }
@@ -513,7 +536,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var zohoCliq = kind == "zoho_cliq";
         var googleChat = kind == "google_chat";
         var mattermost = kind == "mattermost";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost ? Visibility.Collapsed : Visibility.Visible;
+        var matrix = kind == "matrix";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -522,6 +546,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         ZohoCliqFields.Visibility = zohoCliq ? Visibility.Visible : Visibility.Collapsed;
         GoogleChatFields.Visibility = googleChat ? Visibility.Visible : Visibility.Collapsed;
         MattermostFields.Visibility = mattermost ? Visibility.Visible : Visibility.Collapsed;
+        MatrixFields.Visibility = matrix ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -662,6 +687,14 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             MattermostSilentBox.IsChecked = false;
         }
+    }
+
+    private void LoadMatrixConfiguration(ProviderProfile profile)
+    {
+        MatrixTokenBox.Clear(); MatrixRoomBox.Clear();
+        if (profile.Kind != "matrix") return;
+        try { using var document = JsonDocument.Parse(profile.ConfigJson); MatrixHomeserverBox.Text = GetJsonString(document.RootElement, "homeserverBaseUrl"); }
+        catch (JsonException) { MatrixHomeserverBox.Clear(); }
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)
