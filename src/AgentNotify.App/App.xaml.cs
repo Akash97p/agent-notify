@@ -25,6 +25,7 @@ public partial class App : System.Windows.Application
     private TrayIcon? _tray;
     private ToastStackManager? _toasts;
     private NotificationCenter? _center;
+    private SettingsWindow? _settings;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -165,6 +166,7 @@ public partial class App : System.Windows.Application
             isPaused: () => _config.PauseNotifications,
             isStartupEnabled: StartupRegistrar.IsEnabled,
             onShowCenter: () => _center.ShowAndActivate(),
+            onOpenSettings: ShowSettings,
             onOpenGettingStarted: () => RunTrayAction("Getting started", AgentResources.OpenGettingStarted),
             onCopySkill: () => RunTrayAction("Agent skill", () =>
             {
@@ -202,6 +204,23 @@ public partial class App : System.Windows.Application
             if (pruned > 0) _logger.Info($"Hourly prune: {pruned}");
         };
         _pruneTimer.Start();
+    }
+
+    private void ShowSettings()
+    {
+        if (_settings is null)
+        {
+            _settings = new SettingsWindow(_config, _configStore!, restartRequired =>
+            {
+                _logger.Info("Settings updated");
+                _tray?.ShowMessage("AgentNotify", restartRequired
+                    ? "Settings saved. Restart AgentNotify to apply the new API port."
+                    : "Settings saved.");
+            });
+            _settings.Closed += (_, _) => _settings = null;
+        }
+        _settings.Show();
+        _settings.Activate();
     }
 
     private async Task RestoreAttentionToastsAsync()
@@ -254,6 +273,7 @@ public partial class App : System.Windows.Application
     {
         _pruneTimer?.Stop();
         _toasts?.Dispose();
+        _settings?.Close();
         _tray?.Dispose();
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { (_api as IDisposable)?.Dispose(); } catch { }

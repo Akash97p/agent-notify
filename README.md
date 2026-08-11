@@ -131,6 +131,7 @@ An optional `key` identifies one logical unresolved condition. A new active noti
 The tray menu provides:
 
 - Notification Center
+- Settings…
 - Getting started
 - Copy agent SKILL.md
 - Download agent SKILL.md…
@@ -302,7 +303,7 @@ Content-Type: application/json
 - The binaries and installer are x64 Windows builds.
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- There is no settings UI; advanced settings are edited in `config.json` while the app is stopped.
+- Provider/channel configuration and per-type sound selection are not yet available in Settings.
 - External delivery providers are roadmap items and are not present in this local-only release.
 
 ## Roadmap

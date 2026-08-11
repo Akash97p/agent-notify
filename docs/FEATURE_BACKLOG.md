@@ -6,6 +6,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F01 — Native Settings window
 
+- Status: initial implementation complete; provider, route, and richer sound sections expand with their foundations.
 - Add a tray action and single-instance WPF Settings window.
 - Provide validated sections for general behavior, toast placement/lifetime, history, startup, sounds, custom types, channels, routes, and diagnostics.
 - Save atomically and make restart requirements explicit.
@@ -105,4 +106,3 @@ Publish small PowerShell, shell, Python, JavaScript, and .NET clients; then eval
 - Accessibility, keyboard navigation, localization, high-contrast support, multi-DPI/multi-monitor verification.
 - Portable core extraction followed by native macOS menu-bar and Linux tray/desktop implementations.
 - Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes.
-
