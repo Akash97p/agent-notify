@@ -57,13 +57,19 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Sounds &amp; channels">
-                <StackPanel Margin="22">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
                     <CheckBox x:Name="SoundsBox" Content="Enable notification sounds"/>
-                    <TextBlock Text="Global and per-type WAV/MP3 selection is the next sound milestone." Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                    <TextBlock Text="Volume (0–100)" FontWeight="SemiBold"/><TextBox x:Name="SoundVolumeBox"/>
+                    <CheckBox x:Name="CriticalSoundDndBox" Content="Allow critical sounds during Do Not Disturb"/>
+                    <TextBlock Text="Global WAV/MP3" FontWeight="SemiBold"/><TextBox x:Name="GlobalSoundBox" IsReadOnly="True"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20"><Button Content="Choose…" Margin="0" Click="ChooseGlobalSound_Click"/><Button Content="Preview" Click="PreviewGlobalSound_Click"/><Button Content="Clear" Click="ClearGlobalSound_Click"/></StackPanel>
+                    <TextBlock Text="Per-type override" FontWeight="SemiBold"/><ComboBox x:Name="SoundTypeBox" SelectionChanged="SoundType_Selected"/>
+                    <TextBox x:Name="TypeSoundBox" IsReadOnly="True"/>
+                    <StackPanel Orientation="Horizontal"><Button Content="Choose…" Margin="0" Click="ChooseTypeSound_Click"/><Button Content="Preview" Click="PreviewTypeSound_Click"/><Button Content="Use global" Click="ClearTypeSound_Click"/></StackPanel>
                     <Border Margin="0,24,0,0" Padding="16" CornerRadius="10" Background="#172033">
                         <TextBlock Text="Outbound channels will appear here after encrypted provider storage and durable delivery are enabled. Local notifications remain the default." TextWrapping="Wrap" Foreground="#C7D2FE"/>
                     </Border>
-                </StackPanel>
+                </StackPanel></ScrollViewer>
             </TabItem>
         </TabControl>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

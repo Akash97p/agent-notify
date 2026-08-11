@@ -24,6 +24,7 @@ public sealed class ConfigStore
     public string ConfigPath => Path.Combine(_configDir, "config.json");
     public string DbPath => Path.Combine(_configDir, "agentnotify.db");
     public string LogsDir => Path.Combine(_configDir, "logs");
+    public string SoundsDir => Path.Combine(_configDir, "sounds");
 
     /// <summary>Loads configuration. Returns defaults when the file is missing or malformed.</summary>
     public AgentNotifyConfig Load()

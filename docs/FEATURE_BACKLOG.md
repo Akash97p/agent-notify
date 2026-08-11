@@ -20,6 +20,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F03 — Sound profiles
 
+- Status: implemented and covered by file/config tests; human playback/UI verification pending.
 - Support global and per-type sound choices, mute, volume, and preview.
 - Accept common formats supported reliably on Windows, beginning with WAV and MP3.
 - Copy approved files into a managed per-user directory; validate size/type and handle missing files safely.

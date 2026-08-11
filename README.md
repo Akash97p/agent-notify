@@ -95,6 +95,8 @@ Both underscore and hyphen spellings are accepted by the CLI, such as `input_req
 
 User-defined types can be created under **Tray → Settings… → Custom types**. Each definition has a stable ID, display name, accent color, default priority, lifetime (`0` is sticky), and enabled state. Agents can then pass the ID through `--type`, for example `--type deployment_waiting`. Deleting or disabling a definition never corrupts history: existing/new events keep the ID and use safe generic presentation defaults.
 
+Under **Settings… → Sounds & channels**, users can import a global WAV/MP3 tone and assign per-type overrides, preview sounds, choose volume, and control critical playback during Do Not Disturb. Imported files are validated, content-addressed, and copied into AgentNotify’s managed per-user sound directory; configuration never depends on the original upload path.
+
 ## Give the skill to a coding agent
 
 Right-click the AgentNotify tray icon and choose either **Copy agent SKILL.md** or **Download agent SKILL.md…**. The post-install getting-started page has the same Copy and Download buttons.
@@ -188,6 +190,7 @@ Runtime state stays under `%LOCALAPPDATA%\AgentNotify`:
 config.json                 port, random bearer token, UI/runtime options
 agentnotify.db              SQLite notification history
 logs/agentnotify-YYYYMMDD.log
+sounds/                     managed user-imported WAV/MP3 files
 resources/SKILL.md
 resources/GettingStarted.html
 ```
@@ -201,6 +204,8 @@ Selected `config.json` defaults:
 | `maxVisibleToasts` | `5` |
 | `historyRetentionDays` | `30` |
 | `pauseNotifications` | `false` |
+| `soundsEnabled` | `false` |
+| `soundVolume` | `0.8` |
 | `maxRequestBodyBytes` | `65536` |
 | `rateLimitPerSecond` | `30` |
 
@@ -258,7 +263,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 96 passing tests.
+The current release build completes with zero warnings. The test suite has 101 passing tests.
 
 ### Build the single-file installer
 
@@ -305,7 +310,7 @@ Content-Type: application/json
 - The binaries and installer are x64 Windows builds.
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Provider/channel configuration and per-type sound selection are not yet available in Settings.
+- Provider/channel configuration is not yet available in Settings.
 - External delivery providers are roadmap items and are not present in this local-only release.
 
 ## Roadmap
