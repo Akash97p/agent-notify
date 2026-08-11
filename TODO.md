@@ -59,7 +59,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 120 passed, 0 failed, 0 skipped
+- [x] Automated tests: 144 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -67,7 +67,7 @@
 
 ## Future delivery channels
 
-- [ ] Generic opt-in webhooks
+- [x] Hardened generic HTTPS webhook adapter (management UI pending)
 - [ ] Email adapter (SMTP/provider API)
 - [ ] Microsoft Teams, Slack, and Discord adapters
 - [ ] Official WhatsApp Business Cloud API adapter

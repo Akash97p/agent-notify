@@ -5,6 +5,7 @@ using AgentNotify.Api;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
+using AgentNotify.Core.Delivery.Channels;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
@@ -32,6 +33,7 @@ public partial class App : System.Windows.Application
     private ProviderProfileService _providerProfiles = null!;
     private DeliveryDispatcher? _deliveryDispatcher;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
+    private WebhookChannelAdapter? _webhookAdapter;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -112,10 +114,11 @@ public partial class App : System.Windows.Application
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync();
         _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
+        _webhookAdapter = new WebhookChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            Array.Empty<IOutboundChannelAdapter>(),
+            [_webhookAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -303,6 +306,7 @@ public partial class App : System.Windows.Application
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { (_api as IDisposable)?.Dispose(); } catch { }
         try { _deliveryDispatcher?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
+        _webhookAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
