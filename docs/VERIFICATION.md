@@ -36,12 +36,16 @@ Command:
 Result:
 
 ```text
-Passed: 101
+Passed: 112
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite CRUD/query/prune/custom identifiers, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds and credential-preserving updates, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+
+### Delivery security foundation
+
+Windows tests successfully round-trip a `dpapi-user:v1` envelope with current-user scope. Repository tests persist a provider secret, confirm the stored value is encrypted and the public profile omits both plaintext and ciphertext, decrypt only through the delivery-only service, preserve credentials on non-secret edits, reject malformed profile shapes and future schema versions, atomically claim a single item across concurrent workers, record schema migration v1, and exercise the route/outbox/attempt lifecycle. Network adapters are deliberately not active in this milestone.
 
 ### Skill
 
@@ -71,7 +75,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-01aa8c596f20c5cbcb5a20aa0a9933911a07bf85a2f1104d5213cb65fa3d6515  AgentNotifySetup.exe
+e88258813ac9311dad028a17d8e7e394413e6c4d123be6d7c8f7ed2a3cb44074  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

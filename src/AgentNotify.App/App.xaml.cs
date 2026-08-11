@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using AgentNotify.Api;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
@@ -27,6 +28,8 @@ public partial class App : System.Windows.Application
     private NotificationCenter? _center;
     private SettingsWindow? _settings;
     private NotificationSoundService? _sounds;
+    private SqliteDeliveryRepository _deliveryRepository = null!;
+    private ProviderProfileService _providerProfiles = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -104,6 +107,9 @@ public partial class App : System.Windows.Application
 
         _repository = new SqliteNotificationRepository(_configStore.DbPath);
         await _repository.InitializeAsync();
+        _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
+        await _deliveryRepository.InitializeAsync();
+        _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
 
         _service = new NotificationService(_repository, _config);
 
