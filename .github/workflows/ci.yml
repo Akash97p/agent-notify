@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore AgentNotify.slnx
+      - name: Build
+        run: dotnet build AgentNotify.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release --no-build --no-restore
+

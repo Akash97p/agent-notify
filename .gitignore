@@ -2,6 +2,7 @@
 bin/
 obj/
 artifacts/
+_site/
 *.user
 
 # Visual Studio
