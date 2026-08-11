@@ -16,6 +16,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     public ChannelSettingsPanel()
     {
         InitializeComponent();
+        ProviderKindBox.SelectedIndex = 0;
+        SmtpSecurityBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -55,12 +57,15 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             return;
         ProviderNameBox.Text = profile.Name;
         ProviderEnabledBox.IsChecked = profile.Enabled;
+        SelectProviderKind(profile.Kind);
+        ProviderKindBox.IsEnabled = false;
         EndpointBox.Clear();
         AuthorizationBox.Clear();
         HmacBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = ReadAllowPrivate(profile.ConfigJson);
+        LoadSmtpConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -70,10 +75,21 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     {
         ProviderList.SelectedItem = null;
         ProviderNameBox.Text = "Webhook";
+        ProviderKindBox.IsEnabled = true;
+        ProviderKindBox.SelectedIndex = 0;
         ProviderEnabledBox.IsChecked = false;
         EndpointBox.Clear();
         AuthorizationBox.Clear();
         HmacBox.Clear();
+        SmtpHostBox.Clear();
+        SmtpPortBox.Text = "587";
+        SmtpSecurityBox.SelectedIndex = 0;
+        SmtpFromBox.Clear();
+        SmtpFromNameBox.Text = "AgentNotify";
+        SmtpRecipientsBox.Clear();
+        SmtpSubjectPrefixBox.Text = "[AgentNotify] ";
+        SmtpUsernameBox.Clear();
+        SmtpPasswordBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -94,6 +110,13 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private async Task<ProviderProfile> SaveProviderAsync()
     {
         var existing = ProviderList.SelectedItem as ProviderProfile;
+        return SelectedProviderKind == "smtp"
+            ? await SaveSmtpProviderAsync(existing)
+            : await SaveWebhookProviderAsync(existing);
+    }
+
+    private async Task<ProviderProfile> SaveWebhookProviderAsync(ProviderProfile? existing)
+    {
         var hasEndpoint = existing?.SecretNames.Contains("endpoint_url", StringComparer.Ordinal) == true;
         if (string.IsNullOrWhiteSpace(EndpointBox.Password) && !hasEndpoint)
             throw new ArgumentException("Enter the webhook HTTPS endpoint.");
@@ -139,6 +162,57 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveSmtpProviderAsync(ProviderProfile? existing)
+    {
+        var hasUsername = existing?.SecretNames.Contains("username", StringComparer.Ordinal) == true;
+        var hasPassword = existing?.SecretNames.Contains("password", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(SmtpUsernameBox.Password) && !hasUsername)
+            throw new ArgumentException("Enter the SMTP username.");
+        if (string.IsNullOrEmpty(SmtpPasswordBox.Password) && !hasPassword)
+            throw new ArgumentException("Enter the SMTP password or app password.");
+        if (!int.TryParse(SmtpPortBox.Text, out var port) || port is < 1 or > 65535)
+            throw new ArgumentException("SMTP port must be between 1 and 65535.");
+        if (string.IsNullOrWhiteSpace(SmtpHostBox.Text))
+            throw new ArgumentException("Enter the SMTP host.");
+        if (string.IsNullOrWhiteSpace(SmtpFromBox.Text))
+            throw new ArgumentException("Enter the From email address.");
+        var recipients = SmtpRecipientsBox.Text
+            .Split([';', ',', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+        if (recipients.Length is 0 or > 10)
+            throw new ArgumentException("Enter one to ten recipient email addresses.");
+        var config = JsonSerializer.Serialize(new
+        {
+            host = SmtpHostBox.Text.Trim(),
+            port,
+            security = (SmtpSecurityBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "start_tls",
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            fromAddress = SmtpFromBox.Text.Trim(),
+            fromName = SmtpFromNameBox.Text.Trim(),
+            recipients,
+            subjectPrefix = SmtpSubjectPrefixBox.Text,
+            usernameSecretName = "username",
+            passwordSecretName = "password"
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(SmtpUsernameBox.Password))
+            changes["username"] = SmtpUsernameBox.Password.Trim();
+        if (!string.IsNullOrEmpty(SmtpPasswordBox.Password))
+            changes["password"] = SmtpPasswordBox.Password;
+        var saved = await _profiles.SaveAsync(
+            existing?.Id,
+            ProviderNameBox.Text,
+            "smtp",
+            ProviderEnabledBox.IsChecked == true,
+            config,
+            existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        SmtpUsernameBox.Clear();
+        SmtpPasswordBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -151,6 +225,61 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return secrets;
     }
 
+    private string SelectedProviderKind =>
+        (ProviderKindBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "webhook";
+
+    private void SelectProviderKind(string kind)
+    {
+        ProviderKindBox.SelectedIndex = string.Equals(kind, "smtp", StringComparison.Ordinal) ? 1 : 0;
+        UpdateProviderFieldVisibility();
+    }
+
+    private void ProviderKind_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized)
+            return;
+        UpdateProviderFieldVisibility();
+        if (ProviderList.SelectedItem is null)
+            ProviderNameBox.Text = SelectedProviderKind == "smtp" ? "Email" : "Webhook";
+    }
+
+    private void UpdateProviderFieldVisibility()
+    {
+        var smtp = SelectedProviderKind == "smtp";
+        WebhookFields.Visibility = smtp ? Visibility.Collapsed : Visibility.Visible;
+        SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void LoadSmtpConfiguration(ProviderProfile profile)
+    {
+        SmtpUsernameBox.Clear();
+        SmtpPasswordBox.Clear();
+        if (profile.Kind != "smtp")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            SmtpHostBox.Text = GetJsonString(root, "host");
+            SmtpPortBox.Text = root.TryGetProperty("port", out var port) && port.TryGetInt32(out var number)
+                ? number.ToString()
+                : "587";
+            var security = GetJsonString(root, "security");
+            SmtpSecurityBox.SelectedIndex = security == "tls" ? 1 : 0;
+            SmtpFromBox.Text = GetJsonString(root, "fromAddress");
+            SmtpFromNameBox.Text = GetJsonString(root, "fromName");
+            SmtpSubjectPrefixBox.Text = GetJsonString(root, "subjectPrefix");
+            SmtpRecipientsBox.Text = root.TryGetProperty("recipients", out var recipients) &&
+                                     recipients.ValueKind == JsonValueKind.Array
+                ? string.Join(Environment.NewLine, recipients.EnumerateArray().Select(value => value.GetString()))
+                : "";
+        }
+        catch (JsonException)
+        {
+            SmtpHostBox.Clear();
+        }
+    }
+
     private async void TestProvider_Click(object sender, RoutedEventArgs e)
     {
         await RunAsync(async () =>
@@ -160,7 +289,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             await ReloadAsync(providerId: profile.Id);
             SetStatus(
                 result.Succeeded
-                    ? $"Test delivered (HTTP {result.StatusCode})."
+                    ? $"Test delivered (provider status {result.StatusCode?.ToString() ?? "ok"})."
                     : $"Test failed: {result.ErrorCode ?? "unspecified"}.",
                 result.Succeeded);
         });
@@ -203,7 +332,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void NewRoute_Click(object sender, RoutedEventArgs e)
     {
         RouteList.SelectedItem = null;
-        RouteNameBox.Text = "Webhook route";
+        RouteNameBox.Text = "Delivery route";
         RouteProviderBox.SelectedIndex = RouteProviderBox.Items.Count > 0 ? 0 : -1;
         RouteEnabledBox.IsChecked = false;
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
@@ -308,4 +437,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             return false;
         }
     }
+
+    private static string GetJsonString(JsonElement root, string propertyName) =>
+        root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? ""
+            : "";
 }

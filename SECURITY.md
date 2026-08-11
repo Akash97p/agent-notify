@@ -52,4 +52,6 @@ Every outbound adapter must use TLS by default, validate certificates, bound res
 
 The generic webhook adapter stores its complete endpoint URL as an encrypted secret, requires HTTPS, disables redirects/cookies/proxies, rejects unsafe headers, and validates every DNS result at socket-connect time. Private destinations require explicit opt-in; link-local/cloud-metadata and non-unicast ranges remain blocked even then. HMAC signing uses a separately encrypted key. See [docs/CHANNELS.md](docs/CHANNELS.md).
 
+The SMTP adapter requires authenticated strict STARTTLS or TLS-on-connect; opportunistic encryption is rejected. It connects a prevalidated destination socket while retaining the configured hostname for certificate validation, checks revocation, permits only TLS 1.2/1.3, and sends only to the profile's explicit recipient allowlist. It never uses notification metadata as an address source or inherits ambient credentials.
+
 Never extend the current bearer token directly to an internet-facing API.

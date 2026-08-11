@@ -23,6 +23,7 @@
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="Payload.SKILL.md" />
     <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="Payload.GettingStarted.html" />
     <EmbeddedResource Include="..\..\LICENSE" LogicalName="Payload.LICENSE.txt" />
+    <EmbeddedResource Include="..\..\THIRD_PARTY_NOTICES.md" LogicalName="Payload.THIRD_PARTY_NOTICES.txt" />
   </ItemGroup>
 
   <Target Name="RequirePayload" BeforeTargets="BeforeBuild" Condition="'$(RequirePayload)' == 'true'">

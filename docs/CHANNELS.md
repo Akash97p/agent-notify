@@ -57,6 +57,35 @@ Security behavior:
 
 This transport follows the long-lived client/custom connection guidance in Microsoft's [HttpClient guidelines](https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines) and validates the socket opened through [`SocketsHttpHandler.ConnectCallback`](https://learn.microsoft.com/en-us/dotnet/api/system.net.http.socketshttphandler.connectcallback).
 
+## SMTP email
+
+Implementation status: adapter and native Settings fields complete; real-server interoperability and visual/accessibility inspection pending.
+
+The `smtp` adapter sends a bounded plain-text email to one to ten explicitly configured recipients. It never discovers recipients from notification metadata and never inherits Windows credentials. SMTP username and password/app-password values are DPAPI-encrypted; server, sender, recipients, and subject prefix are non-secret profile configuration.
+
+```json
+{
+  "host": "smtp.example.com",
+  "port": 587,
+  "security": "start_tls",
+  "allowPrivateNetwork": false,
+  "fromAddress": "agentnotify@example.com",
+  "fromName": "AgentNotify",
+  "recipients": ["owner@example.com"],
+  "subjectPrefix": "[AgentNotify] ",
+  "usernameSecretName": "username",
+  "passwordSecretName": "password"
+}
+```
+
+Choose `start_tls` for port 587 or `tls` for TLS-on-connect, commonly port 465. Opportunistic modes (`auto`, plaintext, or STARTTLS-when-available) are rejected. Certificate validation and revocation checking remain enabled, TLS is restricted to TLS 1.2/1.3, and the server must successfully negotiate encryption before authentication.
+
+DNS is resolved before connecting and every address must pass the same public/private policy as webhooks. The validated addresses are connected directly while the original hostname is retained for TLS certificate validation, closing the usual DNS-rebinding gap. Private/loopback SMTP requires explicit consent; link-local metadata and non-unicast ranges remain blocked.
+
+Each delivery uses a stable Message-ID derived from the outbox ID. SMTP 4xx failures retry; 5xx, authentication, invalid configuration, and TLS-policy failures dead-letter. Network/protocol interruptions retry within the dispatcher's timeout and six-attempt ceiling. Message bodies honor the route's **Include notification message off-device** setting.
+
+AgentNotify uses [MailKit 4.17.0](https://www.nuget.org/packages/MailKit/4.17.0) and its strict `StartTls`/`SslOnConnect` modes. Redistribution notices are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
