@@ -12,7 +12,7 @@
     <Company>Kabani Tech Private Limited</Company>
     <Authors>Akash P</Authors>
     <Copyright>Copyright © 2026 Kabani Tech Private Limited</Copyright>
-    <RepositoryUrl>https://github.com/Akash97p/AgentNotify</RepositoryUrl>
+    <RepositoryUrl>https://github.com/Akash97p/agent-notify</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 </Project>

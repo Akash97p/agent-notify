@@ -26,8 +26,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 ## Active sequence
 
 1. Completed on `docs/foundation-and-onboarding`: README image/build guide, Getting Started title fix and GitHub link, contributor workflow, durable backlog, cross-agent skill guide.
-2. Next: repository automation for repeatable release packaging/checksums and GitHub Pages source, ready for a future user-managed push.
-3. Settings foundation: native tray-opened Settings window and safe configuration editing.
+2. Completed on `chore/github-release-pages`: portable PowerShell packaging, CI/tagged-release workflows, checksum generation, and a locally buildable GitHub Pages documentation site. No remote was created.
+3. Next: Settings foundation with a native tray-opened Settings window and safe configuration editing.
 4. Custom notification definitions: name, presentation, lifetime, priority defaults, and migration from built-ins.
 5. Sound profiles: global/per-type sound selection, preview, mute, and safe local file handling.
 6. Delivery foundation: SQLite profiles/routes/outbox/attempts, DPAPI secret protection, dispatcher, retries, diagnostics, test-send.

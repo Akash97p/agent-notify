@@ -271,7 +271,7 @@ artifacts/AgentNotifySetup.exe
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
 
-When this repository is pushed to GitHub, tagged releases can publish the same installer and its SHA-256 checksum through the repository’s release workflow. Building locally never requires a GitHub account or a remote repository.
+When this repository is pushed to GitHub, tagged releases can publish the same installer and its SHA-256 checksum through the repository’s release workflow. Building locally never requires a GitHub account or a remote repository. See [Releases and GitHub Pages](docs/RELEASING.md).
 
 ## API
 

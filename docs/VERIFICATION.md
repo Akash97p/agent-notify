@@ -68,13 +68,15 @@ Result:
 - Embedded CLI payload: approximately 38 MB.
 - Installer payload/resource validation passed.
 
-Final artifact SHA-256:
+Latest locally packaged artifact SHA-256:
 
 ```text
-2c615db77606285c6bc1bacebf5f1dfd7dc49daca6fcc9dc547c4b52bb494dc1  AgentNotifySetup.exe
+f91873f47b2ad7ccde92698aeab8e59219e2a6dff30dd6429a1d79f760724a83  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
+
+The portable `scripts/package.ps1` implementation and WSL wrapper generated a matching `artifacts/SHA256SUMS.txt`. The static Pages source built locally into `_site`; GitHub-hosted workflows cannot be execution-tested until the owner chooses to push the local repository.
 
 Windows version-resource inspection confirmed for setup, tray, and CLI:
 

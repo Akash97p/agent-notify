@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Verify tag matches product version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = $props.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match project version v$version."
+          }
+      - name: Build, test, and package
+        shell: pwsh
+        run: |
+          dotnet restore AgentNotify.slnx
+          dotnet build AgentNotify.slnx --configuration Release --no-restore
+          dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release --no-build --no-restore
+          ./scripts/package.ps1
+      - name: Publish GitHub release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "artifacts/AgentNotifySetup.exe#AgentNotify Windows x64 installer" `
+            "artifacts/SHA256SUMS.txt#SHA-256 checksums" `
+            "distribution/agentnotify/SKILL.md#AgentNotify agent skill" `
+            --verify-tag --generate-notes --title "AgentNotify $env:GITHUB_REF_NAME"
