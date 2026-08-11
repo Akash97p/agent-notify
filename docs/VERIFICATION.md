@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 289
+Passed: 311
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
@@ -87,6 +87,10 @@ Contract tests cover all nine documented regional hosts, encrypted URL use, chan
 
 Contract tests verify encrypted webhook use, strict official host/port/path/key/token validation, optional thread creation/reuse with both documented reply policies, route message redaction, formatting and user/everyone mention neutralization, serialized UTF-8 payload enforcement below 32,000 bytes, cancellation-aware write spacing, credential omission from JSON, network-error sanitization, and retry/permanent HTTP classification. The production handler validates every public DNS result for `chat.googleapis.com` immediately before connecting and disables redirects, cookies, proxies, decompression, and response-body reads. No Google Chat webhook credential was assumed and no external message was sent; real-webhook and human Settings interoperability remain explicitly unverified.
 
+### Mattermost
+
+Contract tests verify encrypted URL use, HTTPS and terminal hook-path validation, self-hosted subpaths and custom ports, rejection of query/fragment/user-info and malformed tokens, explicit private-network consent while always rejecting link-local metadata, optional silent delivery, route redaction, Markdown and Mattermost/Slack-compatible mention neutralization, 16,383-character surrogate-safe truncation, bounded `ok` acknowledgement handling, oversized/malformed success handling, network sanitization, and retry/permanent HTTP classification. The production handler validates every resolved address immediately before connecting and preserves platform TLS hostname/certificate validation. No Mattermost server or credential was assumed and no external message was sent; real-server and human Settings interoperability remain explicitly unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -115,7 +119,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-87e5b02ec99036cdebcfd27ce1f58e78f48ac7644422b1b8c5cba350be5594c3  AgentNotifySetup.exe
+c119204aa5981dd5ed9ddc33c7186c03461ef81208bcff1d9cd2e3166fba1317  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

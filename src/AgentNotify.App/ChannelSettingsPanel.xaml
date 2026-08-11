@@ -15,7 +15,7 @@
                         <TextBlock Text="Outbound provider" FontSize="18" FontWeight="Bold"/>
                         <TextBlock Text="Secrets stay encrypted. Blank secret fields preserve stored values." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Profile name"/><TextBox x:Name="ProviderNameBox"/>
-                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/></ComboBox>
+                        <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/></ComboBox>
                         <CheckBox x:Name="ProviderEnabledBox" Content="Enable this provider"/>
                         <StackPanel x:Name="WebhookFields">
                             <TextBlock Text="HTTPS endpoint URL (encrypted)"/><PasswordBox x:Name="EndpointBox" Padding="9,7" Margin="0,0,0,12"/>
@@ -67,6 +67,11 @@
                             <TextBlock Text="Thread key (optional; starts or reuses one thread)"/><TextBox x:Name="GoogleChatThreadBox"/>
                             <TextBlock Text="If the thread does not exist"/><ComboBox x:Name="GoogleChatReplyPolicyBox"><ComboBoxItem Content="Start a new thread" Tag="fallback"/><ComboBoxItem Content="Fail delivery" Tag="fail"/></ComboBox>
                             <TextBlock Text="Paste the complete URL copied from the Google Chat space. AgentNotify suppresses user/everyone mentions and keeps the key and token encrypted." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        </StackPanel>
+                        <StackPanel x:Name="MattermostFields" Visibility="Collapsed">
+                            <TextBlock Text="Mattermost incoming-webhook URL (encrypted)"/><PasswordBox x:Name="MattermostWebhookBox" Padding="9,7" Margin="0,0,0,12"/>
+                            <CheckBox x:Name="MattermostSilentBox" Content="Deliver silently (no desktop, push, email, unread, or mention notification)"/>
+                            <TextBlock Text="Self-hosted HTTPS servers and subpath installations are supported. TLS certificate validation is always required; mention controls are suppressed." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <CheckBox x:Name="AllowPrivateBox" Content="Allow private/loopback destinations (link-local metadata remains blocked)"/>
                         <TextBlock x:Name="StoredSecretsText" Foreground="#9CA3AF" TextWrapping="Wrap"/>
