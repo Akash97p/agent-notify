@@ -292,6 +292,32 @@ Title and route-redacted message text are bounded, and AgentNotify maps low/norm
 
 A successful response must contain a positive bounded Gotify message ID. HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry; redirects and other 4xx responses are permanent. Gotify does not document an idempotency key, so an ambiguous timeout after server acceptance can produce a duplicate. See Gotify's official [Push messages](https://gotify.net/docs/pushmsg), [Message Extras](https://gotify.net/docs/msgextras), and [API documentation](https://gotify.net/api-docs).
 
+## Pushover
+
+Implementation status: adapter and native Settings fields complete; real-account, receipt polling, and human UI smoke pending.
+
+Register a dedicated application in Pushover, then enter its 30-character application API token and the destination's 30-character user or delivery-group key. AgentNotify stores both values—and an optional single-device restriction—as DPAPI current-user encrypted secrets. Each installation should use an end-user-owned Pushover application token; AgentNotify does not embed or distribute a shared token.
+
+```json
+{
+  "applicationTokenSecretName": "application_token",
+  "userKeySecretName": "user_key",
+  "deviceSecretName": "device",
+  "sound": "",
+  "criticalAsEmergency": false,
+  "emergencyRetrySeconds": 60,
+  "emergencyExpireSeconds": 3600
+}
+```
+
+Messages are URL-encoded POST bodies sent only to `https://api.pushover.net/1/messages.json`; credentials never appear in the URL. Redirects, cookies, ambient proxies, and decompression are disabled, and every resolved address for the official host must be public. HTML, monospace formatting, supplementary URLs, callbacks, and attachments are deliberately omitted so agent-controlled content stays plain text and cannot create hidden links or remote loads.
+
+AgentNotify maps low/normal/high priorities to Pushover -1/0/1. Critical is high priority by default. If the user explicitly enables emergency behavior, critical maps to priority 2 and includes a locally validated retry interval of at least 30 seconds and expiry of at most 10,800 seconds. Emergency alerts repeat through Pushover until acknowledged or expired. AgentNotify requires the initial API response to contain a receipt but does not yet poll, cancel, or persist receipt state.
+
+The optional sound may be a documented built-in sound or a custom sound name uploaded to the application owner's Pushover account. Blank preserves the user's account default. Title and route-redacted body are bounded to Pushover's 250- and 1,024-Unicode-character limits without splitting surrogate pairs.
+
+A 2xx response succeeds only when bounded JSON contains `status: 1`, a request identifier, and an emergency receipt when required. In accordance with Pushover's retry guidance, any 4xx—including the monthly-quota 429—is permanent because replaying the same request will not work. Network failures, 5xx, and malformed successes retry through the durable outbox. Pushover does not expose a message idempotency key, so an ambiguous timeout after acceptance can duplicate a notification. See the official [Pushover Message API](https://pushover.net/api).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

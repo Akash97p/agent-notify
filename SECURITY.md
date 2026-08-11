@@ -74,4 +74,6 @@ The ntfy adapter encrypts the topic and optional access token, publishes JSON to
 
 The Gotify adapter encrypts the application token and sends it only in `X-Gotify-Key`, never in the query string. Self-hosted servers require HTTPS, normal certificate validation, and explicit private-network consent. Messages are forced to `text/plain`; remote images, click URLs, Android intents, and action extras are intentionally omitted so agent-provided content cannot turn a notification into an external request or executable client action. Gotify has no documented request-idempotency key, so an ambiguous network failure can still produce a duplicate.
 
+The Pushover adapter encrypts the application token, user/group key, and optional device restriction. It posts URL-encoded plain text only to the exact official `api.pushover.net` HTTPS message endpoint, validates every DNS result at connection time, and disables redirects, cookies, proxies, and decompression. Critical-to-emergency mapping is opt-in because it repeats alerts until acknowledgement or expiry. Pushover declares all 4xx responses non-retryable; AgentNotify follows that rule, including quota-related 429 responses. The API has no request idempotency key, so an ambiguous network failure can still produce a duplicate.
+
 Never extend the current bearer token directly to an internet-facing API.

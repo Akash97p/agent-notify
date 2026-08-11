@@ -71,7 +71,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C10 | Matrix | Client-server API message send | Unencrypted-room adapter and Settings integration implemented; E2EE/real-server smoke pending |
 | C11 | ntfy | HTTP publish API | Adapter and Settings integration implemented for hosted/self-hosted servers; real-server smoke pending |
 | C12 | Gotify | REST message API | Adapter and Settings integration implemented; real-server smoke pending |
-| C13 | Pushover | Official message API | High; application and user tokens required |
+| C13 | Pushover | Official message API | Adapter and Settings integration implemented; real-account smoke/receipt polling pending |
 | C14 | Pushbullet | Official push API | Medium; provider lifecycle/limits need release verification |
 | C15 | Twilio SMS | Official Messages API | High; paid account, cost guardrails, sender/recipient allowlists |
 | C16 | WhatsApp | Official Meta WhatsApp Cloud API | High; business setup, templates, consent, and policy constraints |

@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 376
+Passed: 405
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, Matrix/ntfy/Gotify/Pushover encrypted destination and acknowledgement contracts, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
@@ -103,6 +103,10 @@ Contract tests verify hosted/self-hosted HTTPS policy, private-network consent, 
 
 Contract tests verify self-hosted HTTPS policy, reverse-proxy subpaths/custom ports, private-network consent, encrypted application-token projection through `X-Gotify-Key`, token exclusion from URLs, title/message/priority mapping, route redaction, forced plain-text display extras, omission of remote/action extras, bounded message-ID acknowledgement parsing, and retry/permanent status classification. The production handler validates every resolved address before connecting and preserves platform TLS validation. No Gotify server or credential was contacted; real-server and human Settings smoke remain unverified.
 
+### Pushover
+
+Contract tests verify the exact official HTTPS message endpoint, URL-encoded encrypted application/user keys, optional encrypted device restriction, built-in/custom sound projection, route redaction, plain-text-only fields, low/normal/high/critical mapping, explicit emergency retry/expiry fields and mandatory receipt acknowledgement, 1024/250 Unicode-scalar message/title limits, bounded response parsing, provider rejection, permanent 4xx/quota policy, retryable 5xx/network failures, and secret omission from URLs. The production handler permits at most two pooled connections and validates every public DNS result for `api.pushover.net` before connecting. No Pushover account or credential was contacted; real-account, emergency acknowledgement, receipt polling, and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -123,15 +127,15 @@ Command:
 
 Result:
 
-- `artifacts/AgentNotifySetup.exe`: approximately 186 MB, one self-contained file.
-- Embedded tray payload: approximately 85 MB.
-- Embedded CLI payload: approximately 38 MB.
+- `artifacts/AgentNotifySetup.exe`: approximately 193 MB, one self-contained file.
+- Embedded tray payload: approximately 89 MB.
+- Embedded CLI payload: approximately 41 MB.
 - Installer payload/resource validation passed.
 
 Latest locally packaged artifact SHA-256:
 
 ```text
-697dc046a33e6e39ee8162b84e23c86f429cdcc63ce86ac7f32fc269d57c665d  AgentNotifySetup.exe
+9be81ddb14d6a46c304e1c46b23b47f8fb03496a873d8ceea15003e338bf927d  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
