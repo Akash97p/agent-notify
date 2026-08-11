@@ -61,7 +61,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 |---|---|---|---|
 | C01 | Generic webhook | Configurable HTTPS POST, headers, HMAC signature, JSON template | Adapter and management UI implemented and tested |
 | C02 | SMTP email | STARTTLS/TLS, authenticated SMTP, recipient allowlist | Adapter and Settings integration implemented; real-server smoke pending |
-| C03 | Telegram | Official Bot API `sendMessage` | High; bot token and chat destination required |
+| C03 | Telegram | Official Bot API `sendMessage` | Adapter and Settings integration implemented; real-bot smoke pending |
 | C04 | Discord | Incoming webhook | High; webhook URL is a secret |
 | C05 | Slack | Incoming webhook | High; webhook URL is a secret |
 | C06 | Microsoft Teams | Teams Workflows webhook | High, but workflow ownership/lifecycle must be documented |

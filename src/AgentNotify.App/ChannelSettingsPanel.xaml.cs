@@ -66,6 +66,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = ReadAllowPrivate(profile.ConfigJson);
         LoadSmtpConfiguration(profile);
+        LoadTelegramConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -90,10 +91,15 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         SmtpSubjectPrefixBox.Text = "[AgentNotify] ";
         SmtpUsernameBox.Clear();
         SmtpPasswordBox.Clear();
+        TelegramTokenBox.Clear();
+        TelegramChatBox.Clear();
+        TelegramThreadBox.Clear();
+        TelegramSilentBox.IsChecked = false;
+        TelegramProtectBox.IsChecked = true;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
-        StoredSecretsText.Text = "Enter an HTTPS endpoint. New providers start disabled.";
+        StoredSecretsText.Text = "Enter the provider configuration. New providers start disabled.";
         ProviderNameBox.Focus();
     }
 
@@ -110,9 +116,12 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private async Task<ProviderProfile> SaveProviderAsync()
     {
         var existing = ProviderList.SelectedItem as ProviderProfile;
-        return SelectedProviderKind == "smtp"
-            ? await SaveSmtpProviderAsync(existing)
-            : await SaveWebhookProviderAsync(existing);
+        return SelectedProviderKind switch
+        {
+            "smtp" => await SaveSmtpProviderAsync(existing),
+            "telegram" => await SaveTelegramProviderAsync(existing),
+            _ => await SaveWebhookProviderAsync(existing)
+        };
     }
 
     private async Task<ProviderProfile> SaveWebhookProviderAsync(ProviderProfile? existing)
@@ -213,6 +222,49 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveTelegramProviderAsync(ProviderProfile? existing)
+    {
+        var hasToken = existing?.SecretNames.Contains("bot_token", StringComparer.Ordinal) == true;
+        var hasChat = existing?.SecretNames.Contains("chat_id", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(TelegramTokenBox.Password) && !hasToken)
+            throw new ArgumentException("Enter the Telegram bot token.");
+        if (string.IsNullOrWhiteSpace(TelegramChatBox.Password) && !hasChat)
+            throw new ArgumentException("Enter the Telegram chat ID or @channel username.");
+        int? threadId = null;
+        if (!string.IsNullOrWhiteSpace(TelegramThreadBox.Text))
+        {
+            if (!int.TryParse(TelegramThreadBox.Text, out var parsedThreadId) || parsedThreadId <= 0)
+                throw new ArgumentException("Telegram topic/thread ID must be a positive integer.");
+            threadId = parsedThreadId;
+        }
+
+        var config = JsonSerializer.Serialize(new
+        {
+            botTokenSecretName = "bot_token",
+            chatIdSecretName = "chat_id",
+            messageThreadId = threadId,
+            disableNotification = TelegramSilentBox.IsChecked == true,
+            protectContent = TelegramProtectBox.IsChecked == true
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(TelegramTokenBox.Password))
+            changes["bot_token"] = TelegramTokenBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(TelegramChatBox.Password))
+            changes["chat_id"] = TelegramChatBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(
+            existing?.Id,
+            ProviderNameBox.Text,
+            "telegram",
+            ProviderEnabledBox.IsChecked == true,
+            config,
+            existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        TelegramTokenBox.Clear();
+        TelegramChatBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -230,7 +282,12 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
     private void SelectProviderKind(string kind)
     {
-        ProviderKindBox.SelectedIndex = string.Equals(kind, "smtp", StringComparison.Ordinal) ? 1 : 0;
+        ProviderKindBox.SelectedIndex = kind switch
+        {
+            "smtp" => 1,
+            "telegram" => 2,
+            _ => 0
+        };
         UpdateProviderFieldVisibility();
     }
 
@@ -240,14 +297,23 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             return;
         UpdateProviderFieldVisibility();
         if (ProviderList.SelectedItem is null)
-            ProviderNameBox.Text = SelectedProviderKind == "smtp" ? "Email" : "Webhook";
+            ProviderNameBox.Text = SelectedProviderKind switch
+            {
+                "smtp" => "Email",
+                "telegram" => "Telegram",
+                _ => "Webhook"
+            };
     }
 
     private void UpdateProviderFieldVisibility()
     {
-        var smtp = SelectedProviderKind == "smtp";
-        WebhookFields.Visibility = smtp ? Visibility.Collapsed : Visibility.Visible;
+        var kind = SelectedProviderKind;
+        var smtp = kind == "smtp";
+        var telegram = kind == "telegram";
+        WebhookFields.Visibility = smtp || telegram ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
+        TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -277,6 +343,33 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         catch (JsonException)
         {
             SmtpHostBox.Clear();
+        }
+    }
+
+    private void LoadTelegramConfiguration(ProviderProfile profile)
+    {
+        TelegramTokenBox.Clear();
+        TelegramChatBox.Clear();
+        if (profile.Kind != "telegram")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            TelegramThreadBox.Text = root.TryGetProperty("messageThreadId", out var thread) &&
+                                     thread.TryGetInt32(out var threadId)
+                ? threadId.ToString()
+                : "";
+            TelegramSilentBox.IsChecked = root.TryGetProperty("disableNotification", out var silent) &&
+                                          silent.ValueKind == JsonValueKind.True;
+            TelegramProtectBox.IsChecked = !root.TryGetProperty("protectContent", out var protect) ||
+                                           protect.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            TelegramThreadBox.Clear();
+            TelegramSilentBox.IsChecked = false;
+            TelegramProtectBox.IsChecked = true;
         }
     }
 

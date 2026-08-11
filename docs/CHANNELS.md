@@ -2,7 +2,7 @@
 
 Outbound delivery is secondary to AgentNotify's local SQLite notification record. A channel failure never removes or changes the local notification. Every provider and route is disabled until a user explicitly enables it.
 
-Use **Tray icon → Settings → Channels** to create a webhook profile, enter encrypted values, send a test, and add a route. New profiles and routes begin disabled. Password fields never reveal stored values: leave one blank to preserve it, enter a value to replace it, or select the explicit removal checkbox for an optional credential. Route message content is excluded by default and requires explicit opt-in.
+Use **Tray icon → Settings → Channels** to create a provider profile, enter encrypted values, send a test, and add a route. New profiles and routes begin disabled. Password fields never reveal stored values: leave one blank to preserve it, enter a value to replace it, or select the explicit removal checkbox for an optional credential. Route message content is excluded by default and requires explicit opt-in.
 
 ## Generic HTTPS webhook
 
@@ -85,6 +85,28 @@ DNS is resolved before connecting and every address must pass the same public/pr
 Each delivery uses a stable Message-ID derived from the outbox ID. SMTP 4xx failures retry; 5xx, authentication, invalid configuration, and TLS-policy failures dead-letter. Network/protocol interruptions retry within the dispatcher's timeout and six-attempt ceiling. Message bodies honor the route's **Include notification message off-device** setting.
 
 AgentNotify uses [MailKit 4.17.0](https://www.nuget.org/packages/MailKit/4.17.0) and its strict `StartTls`/`SslOnConnect` modes. Redistribution notices are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+
+## Telegram Bot
+
+Implementation status: adapter and native Settings fields complete; real-bot and human UI smoke pending.
+
+Create a bot through Telegram's `@BotFather`, start a private conversation with it or grant it permission in the destination group/channel, and obtain the numeric chat ID or `@channelusername`. AgentNotify stores both the bot token and destination chat as DPAPI current-user encrypted secrets. A forum topic/thread ID is optional.
+
+```json
+{
+  "botTokenSecretName": "bot_token",
+  "chatIdSecretName": "chat_id",
+  "messageThreadId": 42,
+  "disableNotification": false,
+  "protectContent": true
+}
+```
+
+The `telegram` adapter calls only the official `https://api.telegram.org/bot<token>/sendMessage` endpoint. It disables redirects, cookies, ambient proxies, automatic decompression, and link previews; verifies that every DNS result is public immediately before connecting; and bounds a success response to 64 KiB. The bot token is required in Telegram's API URL but is never written to AgentNotify logs, SQLite configuration, notification metadata, or the JSON body.
+
+Messages are sent as plain text without `parse_mode`, so notification content cannot inject Telegram markup. Text is safely truncated to Telegram's 4096-character limit without splitting a UTF-16 surrogate pair. The route's **Include notification message off-device** control is honored. Content protection defaults on; silent delivery is optional.
+
+HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx responses are permanent failures. Telegram's official `sendMessage` parameters and limits are documented in the [Telegram Bot API](https://core.telegram.org/bots/api#sendmessage).
 
 ## Planned adapters
 

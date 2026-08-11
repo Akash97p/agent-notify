@@ -54,4 +54,6 @@ The generic webhook adapter stores its complete endpoint URL as an encrypted sec
 
 The SMTP adapter requires authenticated strict STARTTLS or TLS-on-connect; opportunistic encryption is rejected. It connects a prevalidated destination socket while retaining the configured hostname for certificate validation, checks revocation, permits only TLS 1.2/1.3, and sends only to the profile's explicit recipient allowlist. It never uses notification metadata as an address source or inherits ambient credentials.
 
+The Telegram adapter stores both bot token and chat destination as encrypted secrets and connects only to the official `api.telegram.org` HTTPS endpoint. Redirects, cookies, proxies, private/mixed DNS results, link previews, and markup parsing are disabled. Success responses are bounded, request failures are reduced to stable error codes, and the token is never included in logs or request JSON.
+
 Never extend the current bearer token directly to an internet-facing API.
