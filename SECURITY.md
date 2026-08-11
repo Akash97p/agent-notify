@@ -72,4 +72,6 @@ The Matrix adapter encrypts both the access token and exact room ID, uses bearer
 
 The ntfy adapter encrypts the topic and optional access token, publishes JSON to the server base URL so neither appears in the request URL, and requires explicit consent when no token is configured. Self-hosted private servers require separate network consent and standard TLS validation. Stable sequence IDs make retries update rather than duplicate a notification; message bytes are capped at 4096 so ntfy does not silently convert oversized notification text into an attachment. Users must understand that unauthenticated ntfy.sh topics are public.
 
+The Gotify adapter encrypts the application token and sends it only in `X-Gotify-Key`, never in the query string. Self-hosted servers require HTTPS, normal certificate validation, and explicit private-network consent. Messages are forced to `text/plain`; remote images, click URLs, Android intents, and action extras are intentionally omitted so agent-provided content cannot turn a notification into an external request or executable client action. Gotify has no documented request-idempotency key, so an ambiguous network failure can still produce a duplicate.
+
 Never extend the current bearer token directly to an internet-facing API.

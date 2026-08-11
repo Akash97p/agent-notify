@@ -36,7 +36,7 @@ Command:
 Result:
 
 ```text
-Passed: 353
+Passed: 376
 Failed: 0
 Skipped: 0
 ```
@@ -99,6 +99,10 @@ Contract tests verify HTTPS homeserver and private-network policy, encrypted acc
 
 Contract tests verify hosted/self-hosted HTTPS policy, private-network consent, encrypted topic and `tk_` token handling, bearer authentication, exclusion of credentials and topic from the URL, explicit anonymous-topic consent, priority/tag mapping, route redaction, stable sequence IDs, 4096-byte UTF-8 truncation, bounded message acknowledgement parsing, and retry/permanent status classification. The production handler validates every resolved address before connecting and preserves platform TLS validation. No ntfy server, topic, or credential was contacted; real-server and human Settings smoke remain unverified.
 
+### Gotify
+
+Contract tests verify self-hosted HTTPS policy, reverse-proxy subpaths/custom ports, private-network consent, encrypted application-token projection through `X-Gotify-Key`, token exclusion from URLs, title/message/priority mapping, route redaction, forced plain-text display extras, omission of remote/action extras, bounded message-ID acknowledgement parsing, and retry/permanent status classification. The production handler validates every resolved address before connecting and preserves platform TLS validation. No Gotify server or credential was contacted; real-server and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -127,7 +131,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-f00e6e47fc3ff5827a79df3ad009ac0eafb192a6c6dcdf301ed198801d2c78cb  AgentNotifySetup.exe
+697dc046a33e6e39ee8162b84e23c86f429cdcc63ce86ac7f32fc269d57c665d  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

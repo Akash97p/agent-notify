@@ -76,6 +76,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadMattermostConfiguration(profile);
         LoadMatrixConfiguration(profile);
         LoadNtfyConfiguration(profile);
+        LoadGotifyConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -125,6 +126,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         NtfyTokenBox.Clear();
         NtfyClearTokenBox.IsChecked = false;
         NtfyAnonymousBox.IsChecked = false;
+        GotifyServerBox.Clear();
+        GotifyTokenBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -157,6 +160,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "mattermost" => await SaveMattermostProviderAsync(existing),
             "matrix" => await SaveMatrixProviderAsync(existing),
             "ntfy" => await SaveNtfyProviderAsync(existing),
+            "gotify" => await SaveGotifyProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -512,6 +516,29 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveGotifyProviderAsync(ProviderProfile? existing)
+    {
+        var hasToken = existing?.SecretNames.Contains("application_token", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(GotifyServerBox.Text))
+            throw new ArgumentException("Enter the Gotify server HTTPS base URL.");
+        if (string.IsNullOrWhiteSpace(GotifyTokenBox.Password) && !hasToken)
+            throw new ArgumentException("Enter the Gotify application token.");
+        var config = JsonSerializer.Serialize(new
+        {
+            serverBaseUrl = GotifyServerBox.Text.Trim(),
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            applicationTokenSecretName = "application_token"
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(GotifyTokenBox.Password))
+            changes["application_token"] = GotifyTokenBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "gotify",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0) await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        GotifyTokenBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -541,6 +568,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "mattermost" => 8,
             "matrix" => 9,
             "ntfy" => 10,
+            "gotify" => 11,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -564,6 +592,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "mattermost" => "Mattermost",
                 "matrix" => "Matrix",
                 "ntfy" => "ntfy",
+                "gotify" => "Gotify",
                 _ => "Webhook"
             };
     }
@@ -581,7 +610,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var mattermost = kind == "mattermost";
         var matrix = kind == "matrix";
         var ntfy = kind == "ntfy";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy ? Visibility.Collapsed : Visibility.Visible;
+        var gotify = kind == "gotify";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -592,6 +622,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MattermostFields.Visibility = mattermost ? Visibility.Visible : Visibility.Collapsed;
         MatrixFields.Visibility = matrix ? Visibility.Visible : Visibility.Collapsed;
         NtfyFields.Visibility = ntfy ? Visibility.Visible : Visibility.Collapsed;
+        GotifyFields.Visibility = gotify ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -759,6 +790,18 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             NtfyServerBox.Text = "https://ntfy.sh";
             NtfyAnonymousBox.IsChecked = false;
         }
+    }
+
+    private void LoadGotifyConfiguration(ProviderProfile profile)
+    {
+        GotifyTokenBox.Clear();
+        if (profile.Kind != "gotify") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            GotifyServerBox.Text = GetJsonString(document.RootElement, "serverBaseUrl");
+        }
+        catch (JsonException) { GotifyServerBox.Clear(); }
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

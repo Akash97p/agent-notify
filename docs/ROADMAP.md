@@ -19,7 +19,7 @@ Potential adapters, in rough priority order:
 1. Generic outgoing HTTPS webhooks for self-hosted automation (adapter and management UI implemented).
 2. Email through authenticated TLS SMTP (implemented), followed by provider APIs where they add value.
 3. Telegram Bot API, Discord/Slack webhooks, global-cloud Teams Workflows, Zoho Cliq, Google Chat, Mattermost, and unencrypted Matrix rooms (implemented).
-4. ntfy (implemented), followed by Gotify, Pushover, and other explicit push providers.
+4. ntfy and Gotify (implemented), followed by Pushover and other explicit push providers.
 5. WhatsApp through the official Meta Cloud API and an optional Twilio adapter.
 6. SMS through explicitly selected providers with allowlists and cost limits.
 7. MQTT and selected cloud messaging services for self-hosted/enterprise automation.
