@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
     private DeliveryDispatcher? _deliveryDispatcher;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private WebhookChannelAdapter? _webhookAdapter;
+    private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -114,6 +115,7 @@ public partial class App : System.Windows.Application
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync();
         _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
+        _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _webhookAdapter = new WebhookChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
@@ -237,7 +239,14 @@ public partial class App : System.Windows.Application
     {
         if (_settings is null)
         {
-            _settings = new SettingsWindow(_config, _configStore!, _sounds!, restartRequired =>
+            _settings = new SettingsWindow(
+                _config,
+                _configStore!,
+                _sounds!,
+                _providerProfiles,
+                _deliveryRoutes,
+                _deliveryDispatcher!,
+                restartRequired =>
             {
                 _logger.Info("Settings updated");
                 _tray?.ShowMessage("AgentNotify", restartRequired

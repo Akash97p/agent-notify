@@ -16,7 +16,7 @@ AgentNotify keeps the local broker, notification lifecycle, and history as the s
 
 Potential adapters, in rough priority order:
 
-1. Generic outgoing HTTPS webhooks for self-hosted automation (adapter implemented; management UI pending).
+1. Generic outgoing HTTPS webhooks for self-hosted automation (adapter and management UI implemented).
 2. Email through SMTP, followed by provider APIs where they add value.
 3. Telegram, Discord, Slack, Microsoft Teams Workflows, Zoho Cliq, Google Chat, Mattermost, and Matrix.
 4. ntfy, Gotify, Pushover, and other explicit push providers.

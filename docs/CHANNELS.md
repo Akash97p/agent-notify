@@ -2,11 +2,11 @@
 
 Outbound delivery is secondary to AgentNotify's local SQLite notification record. A channel failure never removes or changes the local notification. Every provider and route is disabled until a user explicitly enables it.
 
-The provider-management UI is the next implementation milestone. Until it lands, the schemas below are contributor documentation and test fixtures—not an instruction to edit the SQLite database manually.
+Use **Tray icon → Settings → Channels** to create a webhook profile, enter encrypted values, send a test, and add a route. New profiles and routes begin disabled. Password fields never reveal stored values: leave one blank to preserve it, enter a value to replace it, or select the explicit removal checkbox for an optional credential. Route message content is excluded by default and requires explicit opt-in.
 
 ## Generic HTTPS webhook
 
-Implementation status: adapter complete; Settings management UI pending.
+Implementation status: adapter and native Settings management UI complete; human visual/accessibility inspection pending.
 
 The `webhook` adapter sends an HTTPS `POST` with `application/json`. Its endpoint URL is always a DPAPI-encrypted secret because real webhook URLs commonly contain credentials in their path or query. The adapter never logs the URL, headers, body, response body, or exception text.
 

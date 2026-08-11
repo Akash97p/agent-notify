@@ -84,6 +84,94 @@ public sealed class DeliveryFoundationTests : IAsyncLifetime
         Assert.Equal(originalEnvelope, (await _repository.GetProviderAsync(profile.Id))!.EncryptedSecrets);
     }
 
+    [Fact]
+    public async Task ProviderSecretPatch_MergesAndExplicitlyRemovesWithoutUiReadback()
+    {
+        var service = CreateProfileService();
+        var profile = await service.SaveAsync(
+            null,
+            "Hook",
+            "webhook",
+            false,
+            "{}",
+            new Dictionary<string, string>
+            {
+                ["endpoint_url"] = "https://example.test/secret-path",
+                ["authorization"] = "old-token",
+                ["hmac_secret"] = "old-hmac"
+            });
+
+        await service.UpdateSecretsAsync(
+            profile.Id,
+            new Dictionary<string, string> { ["authorization"] = "new-token" },
+            ["hmac_secret"]);
+
+        var secrets = await service.GetSecretsForDeliveryAsync(profile.Id);
+        Assert.Equal("https://example.test/secret-path", secrets["endpoint_url"]);
+        Assert.Equal("new-token", secrets["authorization"]);
+        Assert.DoesNotContain("hmac_secret", secrets.Keys);
+        var summary = Assert.Single(await service.ListAsync());
+        Assert.Equal(["authorization", "endpoint_url"], summary.SecretNames);
+    }
+
+    [Fact]
+    public async Task RouteService_NormalizesFiltersAndPreservesCreationTime()
+    {
+        var profile = await CreateProfileService().SaveAsync(
+            null,
+            "Hook",
+            "webhook",
+            false,
+            "{}",
+            new Dictionary<string, string>());
+        var service = new DeliveryRouteService(_repository);
+        var created = await service.SaveAsync(
+            null,
+            " Errors ",
+            profile.Id,
+            true,
+            NotificationPriority.High,
+            "input-required",
+            " Project ",
+            " Codex ",
+            false);
+
+        var updated = await service.SaveAsync(
+            created.Id,
+            "Errors renamed",
+            profile.Id,
+            false,
+            NotificationPriority.Critical,
+            null,
+            null,
+            null,
+            true);
+
+        Assert.Equal(NotificationTypes.InputRequired, created.TypeId);
+        Assert.Equal("Project", created.Project);
+        Assert.Equal("Codex", created.Agent);
+        Assert.Equal(created.CreatedAt, updated.CreatedAt);
+        Assert.Null(updated.TypeId);
+        Assert.True(updated.IncludeMessage);
+    }
+
+    [Fact]
+    public async Task RouteService_RejectsMissingProvider()
+    {
+        var service = new DeliveryRouteService(_repository);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveAsync(
+            null,
+            "Invalid",
+            "missing",
+            true,
+            NotificationPriority.Normal,
+            null,
+            null,
+            null,
+            false));
+    }
+
     [Theory]
     [InlineData("[]")]
     [InlineData("\"text\"")]

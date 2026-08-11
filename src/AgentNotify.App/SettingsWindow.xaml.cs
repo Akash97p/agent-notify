@@ -17,7 +17,14 @@ public partial class SettingsWindow : Window
     private string? _defaultSound;
     private readonly Dictionary<string, string> _typeSounds;
 
-    public SettingsWindow(AgentNotifyConfig config, ConfigStore store, NotificationSoundService sounds, Action<bool> saved)
+    public SettingsWindow(
+        AgentNotifyConfig config,
+        ConfigStore store,
+        NotificationSoundService sounds,
+        AgentNotify.Core.Delivery.ProviderProfileService providerProfiles,
+        AgentNotify.Core.Delivery.DeliveryRouteService routes,
+        AgentNotify.Core.Delivery.DeliveryDispatcher dispatcher,
+        Action<bool> saved)
     {
         InitializeComponent();
         _config = config;
@@ -29,6 +36,7 @@ public partial class SettingsWindow : Window
         _defaultSound = config.DefaultSoundFile;
         _typeSounds = new Dictionary<string, string>(config.TypeSoundFiles, StringComparer.OrdinalIgnoreCase);
         LoadValues();
+        ChannelPanel.Initialize(providerProfiles, routes, dispatcher);
     }
 
     private void LoadValues()
