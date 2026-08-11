@@ -1,6 +1,6 @@
 # Roadmap
 
-AgentNotify V1 is intentionally local-only. The local broker, notification lifecycle, and history remain the source of truth as delivery capabilities expand.
+AgentNotify keeps the local broker, notification lifecycle, and history as the source of truth as opt-in delivery capabilities expand.
 
 ## Near term
 
@@ -16,7 +16,7 @@ AgentNotify V1 is intentionally local-only. The local broker, notification lifec
 
 Potential adapters, in rough priority order:
 
-1. Generic outgoing webhooks for self-hosted automation.
+1. Generic outgoing HTTPS webhooks for self-hosted automation (adapter implemented; management UI pending).
 2. Email through SMTP, followed by provider APIs where they add value.
 3. Telegram, Discord, Slack, Microsoft Teams Workflows, Zoho Cliq, Google Chat, Mattermost, and Matrix.
 4. ntfy, Gotify, Pushover, and other explicit push providers.

@@ -50,4 +50,6 @@ DPAPI protects data at rest from other users and casual file disclosure. It does
 
 Every outbound adapter must use TLS by default, validate certificates, bound response bodies and timeouts, redact sensitive URLs/headers, and apply provider-specific retry and idempotency rules. Generic endpoints and self-hosted services require explicit destination validation so a compromised local caller cannot turn AgentNotify into an unrestricted network proxy.
 
+The generic webhook adapter stores its complete endpoint URL as an encrypted secret, requires HTTPS, disables redirects/cookies/proxies, rejects unsafe headers, and validates every DNS result at socket-connect time. Private destinations require explicit opt-in; link-local/cloud-metadata and non-unicast ranges remain blocked even then. HMAC signing uses a separately encrypted key. See [docs/CHANNELS.md](docs/CHANNELS.md).
+
 Never extend the current bearer token directly to an internet-facing API.

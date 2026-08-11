@@ -211,7 +211,7 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
-The SQLite database also contains versioned, currently dormant delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. Outbound delivery remains disabled until a provider profile and route are explicitly enabled.
+The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The hardened generic HTTPS webhook adapter is implemented, while its Settings management UI is still pending; outbound delivery remains disabled until a provider profile and route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
 
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
 
@@ -265,7 +265,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 120 passing tests.
+The current release build completes with zero warnings. The test suite has 144 passing tests.
 
 ### Build the single-file installer
 
@@ -313,7 +313,7 @@ Content-Type: application/json
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
 - Provider/channel configuration is not yet available in Settings.
-- External delivery providers are roadmap items and are not present in this local-only release.
+- The generic HTTPS webhook adapter is implemented, but provider/route configuration is not exposed in Settings yet.
 
 ## Roadmap
 
@@ -321,7 +321,7 @@ The transport design will keep the local broker as the source of truth and add o
 
 - Email through user-configured SMTP or provider APIs.
 - WhatsApp through the official WhatsApp Business Cloud API.
-- Microsoft Teams, Slack, Discord, and generic webhooks.
+- Microsoft Teams, Slack, Discord, and provider-specific chat webhooks.
 - SMS and mobile push through explicitly configured providers.
 - Quiet hours, schedules, snooze, escalation, grouping, and per-project rules.
 - Response buttons and acknowledgements back to the waiting agent.
