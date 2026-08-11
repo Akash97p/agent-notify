@@ -56,4 +56,6 @@ The SMTP adapter requires authenticated strict STARTTLS or TLS-on-connect; oppor
 
 The Telegram adapter stores both bot token and chat destination as encrypted secrets and connects only to the official `api.telegram.org` HTTPS endpoint. Redirects, cookies, proxies, private/mixed DNS results, link previews, and markup parsing are disabled. Success responses are bounded, request failures are reduced to stable error codes, and the token is never included in logs or request JSON.
 
+The Discord adapter stores the full token-bearing webhook URL as an encrypted secret, accepts only an exact official `discord.com` HTTPS webhook shape, and validates public DNS results at connect time. Redirects, cookies, proxies, response-body reads, and all allowed mentions are disabled. User-controlled Markdown is escaped and the API is called with `wait=true` to obtain delivery confirmation.
+
 Never extend the current bearer token directly to an internet-facing API.

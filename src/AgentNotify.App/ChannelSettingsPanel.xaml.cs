@@ -67,6 +67,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         AllowPrivateBox.IsChecked = ReadAllowPrivate(profile.ConfigJson);
         LoadSmtpConfiguration(profile);
         LoadTelegramConfiguration(profile);
+        LoadDiscordConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -96,6 +97,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TelegramThreadBox.Clear();
         TelegramSilentBox.IsChecked = false;
         TelegramProtectBox.IsChecked = true;
+        DiscordWebhookBox.Clear();
+        DiscordUsernameBox.Text = "AgentNotify";
+        DiscordThreadBox.Clear();
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -120,6 +124,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             "smtp" => await SaveSmtpProviderAsync(existing),
             "telegram" => await SaveTelegramProviderAsync(existing),
+            "discord" => await SaveDiscordProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -265,6 +270,43 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveDiscordProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(DiscordWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the Discord incoming-webhook URL.");
+        var username = DiscordUsernameBox.Text.Trim();
+        if (username.Length is 0 or > 80 || username.Any(char.IsControl))
+            throw new ArgumentException("Discord webhook display name must contain 1 to 80 characters.");
+        var threadId = string.IsNullOrWhiteSpace(DiscordThreadBox.Text)
+            ? null
+            : DiscordThreadBox.Text.Trim();
+        if (threadId is not null &&
+            (threadId.Length is < 5 or > 20 || !threadId.All(char.IsAsciiDigit) || !threadId.Any(c => c != '0')))
+            throw new ArgumentException("Discord thread ID must be a valid numeric snowflake.");
+
+        var config = JsonSerializer.Serialize(new
+        {
+            webhookUrlSecretName = "webhook_url",
+            username,
+            threadId
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(DiscordWebhookBox.Password))
+            changes["webhook_url"] = DiscordWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(
+            existing?.Id,
+            ProviderNameBox.Text,
+            "discord",
+            ProviderEnabledBox.IsChecked == true,
+            config,
+            existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        DiscordWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -286,6 +328,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             "smtp" => 1,
             "telegram" => 2,
+            "discord" => 3,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -301,6 +344,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             {
                 "smtp" => "Email",
                 "telegram" => "Telegram",
+                "discord" => "Discord",
                 _ => "Webhook"
             };
     }
@@ -310,10 +354,12 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var kind = SelectedProviderKind;
         var smtp = kind == "smtp";
         var telegram = kind == "telegram";
-        WebhookFields.Visibility = smtp || telegram ? Visibility.Collapsed : Visibility.Visible;
+        var discord = kind == "discord";
+        WebhookFields.Visibility = smtp || telegram || discord ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram ? Visibility.Collapsed : Visibility.Visible;
+        DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -370,6 +416,25 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             TelegramThreadBox.Clear();
             TelegramSilentBox.IsChecked = false;
             TelegramProtectBox.IsChecked = true;
+        }
+    }
+
+    private void LoadDiscordConfiguration(ProviderProfile profile)
+    {
+        DiscordWebhookBox.Clear();
+        if (profile.Kind != "discord")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            DiscordUsernameBox.Text = GetJsonString(root, "username");
+            DiscordThreadBox.Text = GetJsonString(root, "threadId");
+        }
+        catch (JsonException)
+        {
+            DiscordUsernameBox.Text = "AgentNotify";
+            DiscordThreadBox.Clear();
         }
     }
 
