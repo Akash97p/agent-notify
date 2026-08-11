@@ -272,6 +272,26 @@ AgentNotify maps low/normal/high/critical to ntfy priorities 2/3/4/5, supplies c
 
 A successful response must contain a bounded JSON message ID and, when present, the `message` event kind. HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry; redirects and other 4xx responses are permanent. See ntfy's official [publishing documentation](https://docs.ntfy.sh/publish/), [API limits](https://docs.ntfy.sh/publish/#limitations), and [access-control documentation](https://docs.ntfy.sh/config/#access-control).
 
+## Gotify
+
+Implementation status: adapter and native Settings fields complete; real-server and human UI smoke pending.
+
+Create a dedicated application in Gotify and enter the server's HTTPS base URL and application token. Starting with Gotify 3, application tokens are shown only when created or rotated, so store the value when Gotify presents it. AgentNotify encrypts it with DPAPI and sends it only through the documented `X-Gotify-Key` header.
+
+```json
+{
+  "serverBaseUrl": "https://push.example.org/gotify",
+  "allowPrivateNetwork": false,
+  "applicationTokenSecretName": "application_token"
+}
+```
+
+The base URL can include a reverse-proxy subpath and custom HTTPS port, but must not include the terminal `/message`; AgentNotify appends it. HTTP endpoints, URI credentials, queries, fragments, unsafe paths, unconsented private addresses, and all link-local/cloud-metadata or non-unicast destinations are rejected. TLS certificate and hostname validation remains mandatory.
+
+Title and route-redacted message text are bounded, and AgentNotify maps low/normal/high/critical priorities to 2/5/7/10. The payload explicitly sets Gotify's `client::display.contentType` to `text/plain`. It does not add Markdown, images, click URLs, Android intents, or action extras. This follows Gotify's warning that untrusted Markdown can cause information disclosure by loading remote images.
+
+A successful response must contain a positive bounded Gotify message ID. HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry; redirects and other 4xx responses are permanent. Gotify does not document an idempotency key, so an ambiguous timeout after server acceptance can produce a duplicate. See Gotify's official [Push messages](https://gotify.net/docs/pushmsg), [Message Extras](https://gotify.net/docs/msgextras), and [API documentation](https://gotify.net/api-docs).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
