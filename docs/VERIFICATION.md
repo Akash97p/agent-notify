@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 147
+Passed: 159
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
@@ -58,6 +58,10 @@ Contract tests use an in-memory HTTP handler and verify JSON template expansion,
 ### Channel management UI
 
 The native Channels tab compiles with provider, route, and diagnostics sub-tabs. Service tests prove secret edits merge without plaintext UI readback, explicit optional-secret removal, route filter normalization, creation-time preservation, and missing-provider rejection. The UI starts new profiles/routes disabled, keeps stored password fields blank, requires explicit private-network and message-content consent, confirms cascade deletion, and calls the bounded dispatcher test path. Visual layout, keyboard flow, screen-reader behavior, and a real external webhook test remain human verification items.
+
+### SMTP email
+
+Contract tests with an injected sender verify strict STARTTLS and TLS-on-connect selection, encrypted username/password projection, recipient normalization/deduplication, invalid-address and CRLF-injection rejection, private/link-local destination rules, subject/body construction, route message redaction, and sanitized transport-result propagation. MailKit 4.17.0 compiles into the self-contained Windows target. No SMTP credentials were assumed and no external mail server was contacted; a real-server interoperability test remains explicitly unverified.
 
 ### Skill
 
@@ -87,7 +91,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-dec6e0458087dcb364350c539290728d01f724674bac2b311ebacfc137628674  AgentNotifySetup.exe
+154baa2bff14d2594674af8ceae17ce07ba8d15da47e21871f73af76a2944c1b  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
@@ -158,6 +162,7 @@ Verified installed outputs:
 - generated `GettingStarted.html` with no unreplaced skill placeholder
 - valid `SKILL.md`
 - `LICENSE.txt`
+- `THIRD_PARTY_NOTICES.txt`
 - `uninstall.ps1`
 
 The installed CLI returned `agentnotify 1.0.0`. The Windows uninstall registry entry reported AgentNotify, version 1.0.0, and publisher Kabani Tech Private Limited. Running the registered uninstall script removed the known files and uninstall registration. The temporary test directory was then removed.

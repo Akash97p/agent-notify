@@ -34,8 +34,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 7. Completed on `feature/delivery-dispatcher`: schema v2 outbox idempotency, failure-isolated API persistence hook, single-worker adapter contract, atomic claiming, restart recovery, timeout, bounded jittered retries, dead-letter state, sanitized attempts/logging, exact diagnostics, bounded test-send, and 120 passing tests.
 8. Completed on `feature/channel-webhook`: encrypted endpoint URL, HTTPS-only POST, redirect/cookie/proxy suppression, connect-time DNS/IP policy, explicit private-network consent, safe header/secret-header maps, idempotency key, optional HMAC-SHA-256 signature, bounded JSON templates, status retry classification, response-body avoidance, dispatcher registration, and 144 passing tests.
 9. Completed on `feature/channel-management-ui`: native webhook provider CRUD, encrypted blank-means-preserve secret patching/removal, enable/private-network consent, test-send, validated route CRUD/filters/off-device message consent, destructive confirmations, exact redacted diagnostics, wider Settings layout, and 147 passing tests. Human visual/accessibility inspection remains pending.
-10. Next: SMTP email adapter on `feature/channel-smtp`, then Telegram and the remaining priority list.
-11. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+10. Completed on `feature/channel-smtp`: MailKit 4.17 transport, encrypted mandatory authentication, strict STARTTLS/TLS-on-connect, TLS 1.2/1.3 and revocation policy, connect-by-validated-address with hostname certificate validation, private-network consent, one-to-ten recipient allowlist, plain-text route-redacted messages, stable Message-ID, sanitized SMTP retry classes, native Settings fields, third-party notices, and 159 passing tests. Real-server and human UI smoke remain pending.
+11. Next: Telegram Bot API adapter and provider-specific Settings fields.
+12. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 

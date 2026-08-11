@@ -60,7 +60,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | ID | Channel | Integration approach | Confidence / constraint |
 |---|---|---|---|
 | C01 | Generic webhook | Configurable HTTPS POST, headers, HMAC signature, JSON template | Adapter and management UI implemented and tested |
-| C02 | SMTP email | STARTTLS/TLS, authenticated SMTP, recipient allowlist | High; secrets encrypted, certificate validation required |
+| C02 | SMTP email | STARTTLS/TLS, authenticated SMTP, recipient allowlist | Adapter and Settings integration implemented; real-server smoke pending |
 | C03 | Telegram | Official Bot API `sendMessage` | High; bot token and chat destination required |
 | C04 | Discord | Incoming webhook | High; webhook URL is a secret |
 | C05 | Slack | Incoming webhook | High; webhook URL is a secret |

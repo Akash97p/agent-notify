@@ -17,7 +17,7 @@ internal static class InstallerService
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string EnvironmentKey = @"Environment";
     private static readonly string[] InstalledFiles =
-        ["AgentNotify.Tray.exe", "agentnotify.exe", "SKILL.md", "GettingStarted.html", "LICENSE.txt", "uninstall.ps1"];
+        ["AgentNotify.Tray.exe", "agentnotify.exe", "SKILL.md", "GettingStarted.html", "LICENSE.txt", "THIRD_PARTY_NOTICES.txt", "uninstall.ps1"];
 
     public static string ValidateInstallDirectory(string path)
     {
@@ -53,6 +53,7 @@ internal static class InstallerService
         File.WriteAllText(Path.Combine(directory, "SKILL.md"), skill, new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(directory, "GettingStarted.html"), html, new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(directory, "LICENSE.txt"), ReadTextResource("Payload.LICENSE.txt"), new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(directory, "THIRD_PARTY_NOTICES.txt"), ReadTextResource("Payload.THIRD_PARTY_NOTICES.txt"), new UTF8Encoding(false));
         File.WriteAllText(Path.Combine(directory, "uninstall.ps1"), UninstallScript, new UTF8Encoding(false));
 
         progress.Report(new(58, "Creating shortcuts and command path…"));
@@ -196,7 +197,7 @@ internal static class InstallerService
         $startFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'AgentNotify'
         Remove-Item -Path $startFolder -Recurse -Force
         Remove-Item -Path (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'AgentNotify.lnk') -Force
-        @('AgentNotify.Tray.exe','agentnotify.exe','SKILL.md','GettingStarted.html','LICENSE.txt') | ForEach-Object {
+        @('AgentNotify.Tray.exe','agentnotify.exe','SKILL.md','GettingStarted.html','LICENSE.txt','THIRD_PARTY_NOTICES.txt') | ForEach-Object {
           Remove-Item -LiteralPath (Join-Path $InstallDir $_) -Force
         }
         $self = $MyInvocation.MyCommand.Path

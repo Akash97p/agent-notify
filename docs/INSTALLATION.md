@@ -18,6 +18,7 @@ agentnotify.exe
 GettingStarted.html
 SKILL.md
 LICENSE.txt
+THIRD_PARTY_NOTICES.txt
 uninstall.ps1
 ```
 

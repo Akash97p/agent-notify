@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
     private DeliveryDispatcher? _deliveryDispatcher;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private WebhookChannelAdapter? _webhookAdapter;
+    private SmtpChannelAdapter? _smtpAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -117,10 +118,11 @@ public partial class App : System.Windows.Application
         _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _webhookAdapter = new WebhookChannelAdapter();
+        _smtpAdapter = new SmtpChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter],
+            [_webhookAdapter, _smtpAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,

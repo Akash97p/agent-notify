@@ -211,7 +211,7 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
-The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened HTTPS webhook profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
+The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened HTTPS webhook or authenticated TLS SMTP profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
 
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
 
@@ -265,7 +265,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 147 passing tests.
+The current release build completes with zero warnings. The test suite has 159 passing tests.
 
 ### Build the single-file installer
 
@@ -312,7 +312,7 @@ Content-Type: application/json
 - The binaries and installer are x64 Windows builds.
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Only the generic HTTPS webhook is currently configurable; the remaining provider adapters are roadmap work.
+- Generic HTTPS webhook and authenticated TLS SMTP email are configurable; the remaining provider adapters are roadmap work.
 
 ## Roadmap
 
@@ -334,6 +334,7 @@ External channels will be disabled by default and must add provider-specific sec
 ## Contributing and license
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes. AgentNotify is available under the permissive [MIT License](LICENSE).
+Bundled dependency licenses and attribution are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Publisher: **Kabani Tech Private Limited**
 Author: **Akash P** — [github.com/Akash97p](https://github.com/Akash97p)
