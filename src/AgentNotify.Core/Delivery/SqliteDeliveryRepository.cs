@@ -11,7 +11,7 @@ namespace AgentNotify.Core.Delivery;
 /// </summary>
 public sealed class SqliteDeliveryRepository : IDeliveryRepository
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private const string ProviderColumns =
         "id, name, kind, enabled, config_json, encrypted_secrets, secret_names_json, created_at, updated_at";
     private const string OutboxColumns =
@@ -49,13 +49,12 @@ public sealed class SqliteDeliveryRepository : IDeliveryRepository
         if (version > CurrentSchemaVersion)
             throw new InvalidOperationException(
                 $"The delivery database schema is version {version}, but this build supports up to {CurrentSchemaVersion}.");
-        if (version == CurrentSchemaVersion)
-            return;
-
-        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
-        await using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
+        if (version < 1)
+        {
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
             """
             CREATE TABLE IF NOT EXISTS provider_profiles (
                 id                 TEXT PRIMARY KEY,
@@ -118,8 +117,32 @@ public sealed class SqliteDeliveryRepository : IDeliveryRepository
             INSERT INTO schema_migrations(version, applied_at)
                 VALUES(1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
-        await command.ExecuteNonQueryAsync(ct);
-        await transaction.CommitAsync(ct);
+            await command.ExecuteNonQueryAsync(ct);
+            await transaction.CommitAsync(ct);
+            version = 1;
+        }
+
+        if (version < 2)
+        {
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                DELETE FROM delivery_outbox
+                WHERE rowid NOT IN (
+                    SELECT MIN(rowid)
+                    FROM delivery_outbox
+                    GROUP BY notification_id, route_id
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_notification_route
+                    ON delivery_outbox(notification_id, route_id);
+                INSERT INTO schema_migrations(version, applied_at)
+                    VALUES(2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+                """;
+            await command.ExecuteNonQueryAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
     }
 
     public async Task UpsertProviderAsync(StoredProviderProfile profile, CancellationToken ct = default)
@@ -256,13 +279,22 @@ public sealed class SqliteDeliveryRepository : IDeliveryRepository
         return routes;
     }
 
-    public async Task EnqueueAsync(OutboxItem item, CancellationToken ct = default)
+    public async Task DeleteRouteAsync(string id, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM delivery_routes WHERE id = $id;";
+        command.Parameters.AddWithValue("$id", id);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<bool> EnqueueAsync(OutboxItem item, CancellationToken ct = default)
     {
         await using var connection = Open();
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO delivery_outbox
+            INSERT OR IGNORE INTO delivery_outbox
                 (id, notification_id, route_id, provider_id, payload_json, status,
                  attempt_count, next_attempt_at, created_at, updated_at)
             VALUES
@@ -270,7 +302,7 @@ public sealed class SqliteDeliveryRepository : IDeliveryRepository
                  $count, $next, $created, $updated);
             """;
         BindOutbox(command, item);
-        await command.ExecuteNonQueryAsync(ct);
+        return await command.ExecuteNonQueryAsync(ct) == 1;
     }
 
     public async Task<OutboxItem?> ClaimDueAsync(DateTimeOffset now, CancellationToken ct = default)
@@ -382,6 +414,66 @@ public sealed class SqliteDeliveryRepository : IDeliveryRepository
             });
         }
         return attempts;
+    }
+
+    public async Task<int> RecoverInterruptedAsync(
+        DateTimeOffset abandonedBefore,
+        DateTimeOffset retryAt,
+        CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE delivery_outbox
+            SET status = 'Retry', next_attempt_at = $retryAt, updated_at = $retryAt
+            WHERE status = 'Processing' AND updated_at <= $abandonedBefore;
+            """;
+        command.Parameters.AddWithValue("$abandonedBefore", DatabaseTime(abandonedBefore));
+        command.Parameters.AddWithValue("$retryAt", DatabaseTime(retryAt));
+        return await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<OutboxItem>> ListOutboxAsync(
+        int limit = 100,
+        CancellationToken ct = default)
+    {
+        var items = new List<OutboxItem>();
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT {OutboxColumns}
+            FROM delivery_outbox
+            ORDER BY created_at DESC
+            LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 500));
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            items.Add(ReadOutbox(reader));
+        return items;
+    }
+
+    public async Task<IReadOnlyDictionary<OutboxStatus, int>> CountOutboxByStatusAsync(
+        CancellationToken ct = default)
+    {
+        var counts = Enum.GetValues<OutboxStatus>().ToDictionary(status => status, _ => 0);
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT status, COUNT(*)
+            FROM delivery_outbox
+            GROUP BY status;
+            """;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            if (Enum.TryParse<OutboxStatus>(reader.GetString(0), out var status))
+                counts[status] = reader.GetInt32(1);
+        }
+        return counts;
     }
 
     private SqliteConnection Open()

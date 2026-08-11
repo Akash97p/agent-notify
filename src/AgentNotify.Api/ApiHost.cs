@@ -18,6 +18,11 @@ namespace AgentNotify.Api;
 
 public sealed class ApiCallbacks
 {
+    /// <summary>
+    /// Optional local-only persistence hook invoked after notification storage and before the
+    /// response. Failures are isolated; implementations must never perform network I/O.
+    /// </summary>
+    public Func<Notification, CancellationToken, Task>? PersistOutbound { get; set; }
     public Action<Notification>? Created { get; set; }
     public Action<Notification>? Updated { get; set; }
 }
@@ -134,6 +139,11 @@ public static class ApiHost
                 return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
 
             var notification = result.Value!;
+            if (result.WasCreated)
+                await InvokePersistenceCallbackAsync(
+                    callbacks?.PersistOutbound,
+                    notification,
+                    logger);
             InvokeCallback(
                 result.WasCreated ? callbacks?.Created : callbacks?.Updated,
                 notification,
@@ -218,6 +228,25 @@ public static class ApiHost
             return;
         try { callback(notification); }
         catch (Exception ex) { logger?.Error("Notification UI callback failed", ex); }
+    }
+
+    private static async Task InvokePersistenceCallbackAsync(
+        Func<Notification, CancellationToken, Task>? callback,
+        Notification notification,
+        IAppLogger? logger)
+    {
+        if (callback is null)
+            return;
+        try
+        {
+            // The notification is already committed. Do not let client disconnect cancellation
+            // create a route/outbox gap, and never let queueing failure roll back local success.
+            await callback(notification, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            logger?.Warn("Could not persist outbound delivery work; local notification remains available.");
+        }
     }
 
     private sealed class LogProvider : Microsoft.Extensions.Logging.ILoggerProvider

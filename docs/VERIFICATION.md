@@ -36,16 +36,20 @@ Command:
 Result:
 
 ```text
-Passed: 112
+Passed: 120
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds and credential-preserving updates, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds and credential-preserving updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
-Windows tests successfully round-trip a `dpapi-user:v1` envelope with current-user scope. Repository tests persist a provider secret, confirm the stored value is encrypted and the public profile omits both plaintext and ciphertext, decrypt only through the delivery-only service, preserve credentials on non-secret edits, reject malformed profile shapes and future schema versions, atomically claim a single item across concurrent workers, record schema migration v1, and exercise the route/outbox/attempt lifecycle. Network adapters are deliberately not active in this milestone.
+Windows tests successfully round-trip a `dpapi-user:v1` envelope with current-user scope. Repository tests persist a provider secret, confirm the stored value is encrypted and the public profile omits both plaintext and ciphertext, decrypt only through the delivery-only service, preserve credentials on non-secret edits, reject malformed profile shapes and future schema versions, atomically claim a single item across concurrent workers, record schema migrations v1/v2, and exercise the route/outbox/attempt lifecycle. Network adapters are deliberately not active in this milestone.
+
+### Durable dispatcher
+
+Schema migration v2 adds a unique notification/route key so repeated coordination cannot duplicate delivery. Automated tests prove route filtering, atomic/idempotent enqueue, successful delivery, secret availability only at the adapter boundary, timeout-to-retry, retry exhaustion to dead-letter, interrupted-claim recovery, exact redacted diagnostics, bounded test-send, and isolation of outbox persistence failure from the already-committed local API response. The packaged app currently registers no network adapter, so this milestone causes no outbound traffic by itself.
 
 ### Skill
 
@@ -75,7 +79,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-e88258813ac9311dad028a17d8e7e394413e6c4d123be6d7c8f7ed2a3cb44074  AgentNotifySetup.exe
+fb157b561f7987b0cbb4cfde75c562905b6a86aa839f005a68dc0260deb13696  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

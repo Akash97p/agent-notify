@@ -35,6 +35,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F05 — Routing and durable delivery engine
 
+- Status: core engine implemented; advanced time/attention-state matching remains grouped with F07.
 - Match on type, priority, project, agent, time, and attention state.
 - Persist work before dispatch; use bounded exponential retry with jitter, timeout, idempotency, and dead-letter state.
 - Never block local persistence, the API response, or the WPF dispatcher on network delivery.

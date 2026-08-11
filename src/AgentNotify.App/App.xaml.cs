@@ -30,6 +30,8 @@ public partial class App : System.Windows.Application
     private NotificationSoundService? _sounds;
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
+    private DeliveryDispatcher? _deliveryDispatcher;
+    private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
 
@@ -110,12 +112,22 @@ public partial class App : System.Windows.Application
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync();
         _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
+        _deliveryDispatcher = new DeliveryDispatcher(
+            _deliveryRepository,
+            _providerProfiles,
+            Array.Empty<IOutboundChannelAdapter>(),
+            _logger);
+        _deliveryCoordinator = new NotificationDeliveryCoordinator(
+            _deliveryRepository,
+            _deliveryDispatcher.Signal);
+        _deliveryDispatcher.Start();
 
         _service = new NotificationService(_repository, _config);
 
         var url = $"http://127.0.0.1:{_config.Port}";
         _apiCallbacks = new ApiCallbacks
         {
+            PersistOutbound = _deliveryCoordinator.EnqueueAsync,
             Created = n =>
             {
                 _toasts?.Show(n);
@@ -290,6 +302,7 @@ public partial class App : System.Windows.Application
         _tray?.Dispose();
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { (_api as IDisposable)?.Dispose(); } catch { }
+        try { _deliveryDispatcher?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);

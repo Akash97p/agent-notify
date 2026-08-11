@@ -92,6 +92,32 @@ public sealed partial class ProviderProfileService
                ?? new Dictionary<string, string>();
     }
 
+    public async Task<DeliveryProvider?> GetForDeliveryAsync(
+        string profileId,
+        CancellationToken ct = default)
+    {
+        var stored = await _repository.GetProviderAsync(profileId, ct);
+        if (stored is null)
+            return null;
+
+        var secrets = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                          _protector.Unprotect(stored.EncryptedSecrets),
+                          Json.Options)
+                      ?? new Dictionary<string, string>();
+        var profile = new ProviderProfile
+        {
+            Id = stored.Id,
+            Name = stored.Name,
+            Kind = stored.Kind,
+            Enabled = stored.Enabled,
+            ConfigJson = stored.ConfigJson,
+            SecretNames = stored.SecretNames,
+            CreatedAt = stored.CreatedAt,
+            UpdatedAt = stored.UpdatedAt
+        };
+        return new DeliveryProvider(profile, secrets);
+    }
+
     private static string ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 100)

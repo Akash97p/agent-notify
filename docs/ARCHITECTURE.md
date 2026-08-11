@@ -72,6 +72,8 @@ Custom type definitions live in typed configuration and control label, accent, d
 
 Delivery schema changes are tracked in `schema_migrations` and applied transactionally. The current schema contains provider profiles, routes, outbox items, and per-attempt diagnostics with foreign keys and due-work indexes. Provider secret dictionaries are encrypted before repository calls with a versioned DPAPI current-user envelope; public profile models contain only secret key names. A portable injected-key AES-GCM implementation exists for tests and future platform keychain adapters, never as an automatic production fallback.
 
+After a notification is committed locally, matching enabled routes are idempotently materialized into the SQLite outbox before the API response. This hook performs no network I/O and is failure-isolated from local success. A single background dispatcher atomically claims due work, decrypts credentials only at the adapter boundary, enforces a timeout, records sanitized attempts, applies bounded jittered retry, dead-letters permanent/exhausted failures, and recovers interrupted claims on the next start. Adapter exceptions and response bodies are never written to diagnostics or logs.
+
 ## Failure behavior
 
 - Malformed/oversized requests receive an HTTP error rather than crashing the broker.

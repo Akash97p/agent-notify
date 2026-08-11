@@ -31,8 +31,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 4. Completed on `feature/custom-notification-types`: backward-compatible string IDs, custom definition editor, accent/label/default priority/lifetime/enabled settings, legacy normalization, safe fallback, CLI/API/SQLite runtime smoke, and 96 passing tests. Human Settings visual inspection remains pending.
 5. Completed on `feature/notification-sounds`: managed WAV/MP3 import, global/per-type selection, preview, volume, pause/DND policy, safe fallback, platform-neutral file store, and 101 passing tests. Human audio/UI verification with a real user-selected file remains pending.
 6. Completed on `feature/delivery-foundation`: atomic SQLite v1 migration, provider/route/outbox/attempt repositories, atomic concurrent claiming, DPAPI current-user and test AES-GCM protectors, bounded/validated encrypted profile service, routing/payload policy, bounded retry schedule, and 112 passing tests.
-7. Next: durable delivery dispatcher, adapter interface, diagnostics/test-send, and generic webhook channel.
-8. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+7. Completed on `feature/delivery-dispatcher`: schema v2 outbox idempotency, failure-isolated API persistence hook, single-worker adapter contract, atomic claiming, restart recovery, timeout, bounded jittered retries, dead-letter state, sanitized attempts/logging, exact diagnostics, bounded test-send, and 120 passing tests.
+8. Next: generic HTTPS webhook provider on its own `feature/channel-webhook` branch.
+9. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 

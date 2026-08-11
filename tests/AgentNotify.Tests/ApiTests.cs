@@ -222,4 +222,20 @@ public sealed class ApiTests
             new { title = "still persists", message = "m" }, Json.Options);
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
     }
+
+    [Fact]
+    public async Task OutboundPersistenceFailure_DoesNotFailLocalRequest()
+    {
+        await using var fx = await ApiFixture.StartAsync();
+        fx.Callbacks.PersistOutbound = (_, _) =>
+            throw new InvalidOperationException("simulated local outbox failure");
+        using var client = fx.AuthedClient();
+
+        var response = await client.PostAsJsonAsync(
+            $"{fx.BaseUrl}/v1/notifications",
+            new { title = "local survives", message = "m" },
+            Json.Options);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
 }
