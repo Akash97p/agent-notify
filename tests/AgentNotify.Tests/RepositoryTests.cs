@@ -37,15 +37,15 @@ public sealed class RepositoryTests : IAsyncLifetime
     [Fact]
     public async Task Query_Filters()
     {
-        await _repo.CreateAsync(Make("a", agent: "alpha", type: NotificationType.Info));
-        await _repo.CreateAsync(Make("b", agent: "beta", type: NotificationType.Error));
+        await _repo.CreateAsync(Make("a", agent: "alpha", type: NotificationTypes.Info));
+        await _repo.CreateAsync(Make("b", agent: "beta", type: NotificationTypes.Error));
         var onlyAlpha = await _repo.QueryAsync(new NotificationQuery { Agent = "alpha" });
         Assert.Single(onlyAlpha);
         Assert.Equal("alpha", onlyAlpha[0].Agent);
 
-        var onlyError = await _repo.QueryAsync(new NotificationQuery { Type = NotificationType.Error });
+        var onlyError = await _repo.QueryAsync(new NotificationQuery { Type = NotificationTypes.Error });
         Assert.Single(onlyError);
-        Assert.Equal(NotificationType.Error, onlyError[0].Type);
+        Assert.Equal(NotificationTypes.Error, onlyError[0].Type);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class RepositoryTests : IAsyncLifetime
     }
 
     private static Notification Make(string title, string? key = null, string agent = "test",
-        NotificationType type = NotificationType.Info) =>
+        string type = NotificationTypes.Info) =>
         Notification.Create(new CreateNotificationRequest
         {
             Title = title,

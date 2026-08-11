@@ -54,18 +54,18 @@ public partial class ToastWindow : Window
 
     private void Apply(Notification notification)
     {
-        var accent = TypeVisuals.WpfColorFor(notification.Type);
+        var accent = TypeVisuals.WpfColorFor(notification.Type, _config);
         var brush = new SolidColorBrush(accent);
         Root.Tag = brush;
         Root.BorderBrush = brush;
-        TypeLabel.Text = TypeVisuals.LabelFor(notification.Type);
+        TypeLabel.Text = TypeVisuals.LabelFor(notification.Type, _config);
         TitleText.Text = notification.Title;
         MessageText.Text = notification.Message;
         AgentText.Text = notification.Agent;
         TimeText.Text = notification.CreatedAt.ToLocalTime().ToString("HH:mm");
     }
 
-    private void ResetTimer(NotificationType type)
+    private void ResetTimer(string type)
     {
         _autoClose?.Stop();
         _autoClose = null;

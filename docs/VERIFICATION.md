@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 87
+Passed: 96
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, SQLite CRUD/query/prune, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated notification type parsing, invalid type rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, SQLite CRUD/query/prune/custom identifiers, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Skill
 
@@ -71,12 +71,16 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-f91873f47b2ad7ccde92698aeab8e59219e2a6dff30dd6429a1d79f760724a83  AgentNotifySetup.exe
+48221f1ec236408e8b0fbb492366e2f13e1f94929fe8bf23439edf3b4ca94a8d  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
 
 The portable `scripts/package.ps1` implementation and WSL wrapper generated a matching `artifacts/SHA256SUMS.txt`. The static Pages source built locally into `_site`; GitHub-hosted workflows cannot be execution-tested until the owner chooses to push the local repository.
+
+### Custom notification type smoke
+
+The packaged tray and CLI accepted `--type deployment-waiting`, normalized and persisted `deployment_waiting`, returned the same identifier through `get`, displayed a fallback toast, and resolved the row. The Settings definition editor and configured accent/label rendering are compiled and covered by configuration tests but still require a human visual pass.
 
 Windows version-resource inspection confirmed for setup, tray, and CLI:
 

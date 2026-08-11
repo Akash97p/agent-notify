@@ -21,9 +21,11 @@ public sealed class CreateNotificationRequest
     /// <summary>Project/repository name.</summary>
     public string? Project { get; set; }
 
-    public NotificationType Type { get; set; } = NotificationType.Info;
+    /// <summary>Built-in or user-defined stable type identifier.</summary>
+    public string Type { get; set; } = NotificationTypes.Info;
 
-    public NotificationPriority Priority { get; set; } = NotificationPriority.Normal;
+    /// <summary>Optional priority. The selected type definition supplies the default when omitted.</summary>
+    public NotificationPriority? Priority { get; set; }
 
     public string Title { get; set; } = "";
 

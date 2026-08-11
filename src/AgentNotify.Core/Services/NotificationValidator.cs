@@ -31,6 +31,9 @@ public static class NotificationValidator
         if (request.Message.Trim().Length > MaxMessageLength)
             return $"message must be at most {MaxMessageLength} characters";
 
+        if (NotificationTypes.Normalize(request.Type) is null)
+            return "type must be a lowercase identifier containing letters, numbers, or underscores (maximum 64 characters)";
+
         if (request.Agent is { Length: > MaxAgentLength })
             return $"agent must be at most {MaxAgentLength} characters";
         if (request.AgentInstance is { Length: > MaxAgentInstanceLength })

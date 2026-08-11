@@ -60,7 +60,16 @@ public sealed class ConfigStore
     public void Save(AgentNotifyConfig config)
     {
         Directory.CreateDirectory(_configDir);
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(config, Json.Options));
+        var temporary = ConfigPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(config, Json.Options));
+            File.Move(temporary, ConfigPath, overwrite: true);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+        }
     }
 
     /// <summary>Generates and persists a cryptographically random auth token if one is

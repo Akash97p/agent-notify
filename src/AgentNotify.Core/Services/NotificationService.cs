@@ -23,11 +23,13 @@ public sealed class ServiceResult<T>
 public sealed class NotificationService
 {
     private readonly INotificationRepository _repository;
+    private readonly AgentNotify.Core.Config.AgentNotifyConfig _config;
     private readonly SemaphoreSlim _dedupGate = new(1, 1);
 
-    public NotificationService(INotificationRepository repository)
+    public NotificationService(INotificationRepository repository, AgentNotify.Core.Config.AgentNotifyConfig? config = null)
     {
         _repository = repository;
+        _config = config ?? new AgentNotify.Core.Config.AgentNotifyConfig();
     }
 
     /// <summary>Creates a notification, or — when a logical key is supplied and an active
@@ -39,6 +41,8 @@ public sealed class NotificationService
             return ServiceResult<Notification>.Fail(validationError);
 
         var now = DateTimeOffset.UtcNow;
+        request.Type = NotificationTypes.Normalize(request.Type)!;
+        request.Priority ??= _config.DefaultPriorityFor(request.Type);
 
         if (!string.IsNullOrWhiteSpace(request.Key))
         {
@@ -93,7 +97,7 @@ public sealed class NotificationService
         existing.AgentInstance = string.IsNullOrWhiteSpace(request.AgentInstance) ? null : request.AgentInstance.Trim();
         existing.Project = string.IsNullOrWhiteSpace(request.Project) ? null : request.Project.Trim();
         existing.Type = request.Type;
-        existing.Priority = request.Priority;
+        existing.Priority = request.Priority ?? NotificationPriority.Normal;
         existing.Title = request.Title.Trim();
         existing.Message = request.Message.Trim();
         existing.Cwd = string.IsNullOrWhiteSpace(request.Cwd) ? null : request.Cwd.Trim();

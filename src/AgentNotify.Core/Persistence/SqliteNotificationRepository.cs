@@ -112,7 +112,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         if (query.Type is { } t)
         {
             where.Add("type = $type");
-            parameters.Add(new SqliteParameter("$type", t.ToString()));
+            parameters.Add(new SqliteParameter("$type", t));
         }
         if (!string.IsNullOrWhiteSpace(query.Project))
         {
@@ -212,7 +212,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         command.Parameters.AddWithValue("$agent", n.Agent);
         command.Parameters.AddWithValue("$agentInstance", (object?)n.AgentInstance ?? DBNull.Value);
         command.Parameters.AddWithValue("$project", (object?)n.Project ?? DBNull.Value);
-        command.Parameters.AddWithValue("$type", n.Type.ToString());
+        command.Parameters.AddWithValue("$type", n.Type);
         command.Parameters.AddWithValue("$priority", n.Priority.ToString());
         command.Parameters.AddWithValue("$title", n.Title);
         command.Parameters.AddWithValue("$message", n.Message);
@@ -232,7 +232,7 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         Agent = reader.GetString(2),
         AgentInstance = reader.IsDBNull(3) ? null : reader.GetString(3),
         Project = reader.IsDBNull(4) ? null : reader.GetString(4),
-        Type = Enum.Parse<NotificationType>(reader.GetString(5)),
+        Type = NotificationTypes.Normalize(reader.GetString(5)) ?? NotificationTypes.Info,
         Priority = Enum.Parse<NotificationPriority>(reader.GetString(6)),
         Title = reader.GetString(7),
         Message = reader.GetString(8),

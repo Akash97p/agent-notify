@@ -9,7 +9,7 @@ public sealed class NotificationQuery
     /// <summary>When true, only active (unresolved, undismissed) notifications.</summary>
     public bool? Unresolved { get; set; }
 
-    public NotificationType? Type { get; set; }
+    public string? Type { get; set; }
     public NotificationStatus? Status { get; set; }
     public string? Project { get; set; }
     public string? Agent { get; set; }

@@ -62,8 +62,8 @@ internal static class Program
     private static async Task<int> RunSend(string[] args)
     {
         string? title = null, message = null, agent = null, agentInstance = null, project = null, key = null, cwd = null;
-        NotificationType type = NotificationType.Info;
-        NotificationPriority priority = NotificationPriority.Normal;
+        string type = NotificationTypes.Info;
+        NotificationPriority? priority = null;
         long? pid = null;
         string? portOverride = null, tokenOverride = null;
         var positional = new List<string>();
@@ -77,10 +77,12 @@ internal static class Program
                 case "--title": title = Next(); break;
                 case "--message": case "--msg": message = Next(); break;
                 case "--type":
-                    if (!TryParseEnum(Next(), out type)) return Fail("--type must be info, success, warning, error, input_required, permission_required, completed, or blocked.");
+                    type = NotificationTypes.Normalize(Next()) ?? "";
+                    if (type.Length == 0) return Fail("--type must be a valid identifier containing letters, numbers, underscores, or hyphens (maximum 64 characters).");
                     break;
                 case "--priority":
-                    if (!TryParseEnum(Next(), out priority)) return Fail("--priority must be low, normal, high, or critical.");
+                    if (!TryParseEnum<NotificationPriority>(Next(), out var parsedPriority)) return Fail("--priority must be low, normal, high, or critical.");
+                    priority = parsedPriority;
                     break;
                 case "--agent": agent = Next(); break;
                 case "--agent-instance": agentInstance = Next(); break;

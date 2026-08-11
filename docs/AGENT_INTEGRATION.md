@@ -49,7 +49,7 @@ agentnotify.exe resolve NOTIFICATION_ID
 
 ```bash
 agentnotify.exe send --agent codex --project payments \
-  --type completed --title "Task complete" --message "Implementation is complete and 87 tests pass."
+  --type completed --title "Task complete" --message "Implementation is complete and the test suite passes."
 
 agentnotify.exe send --agent codex --project payments \
   --type blocked --priority high --key payments-blocker \

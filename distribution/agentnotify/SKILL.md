@@ -45,6 +45,8 @@ Choose the semantic type deliberately:
 
 Use `low`, `normal`, `high`, or `critical` for `--priority`. Reserve `critical` for genuinely urgent conditions.
 
+Use a user-defined `--type` only when the user or project instructions identify one configured in AgentNotify. Otherwise prefer the portable built-in types above.
+
 ## Notification discipline
 
 - Notify when user input or permission is actually needed, before waiting.

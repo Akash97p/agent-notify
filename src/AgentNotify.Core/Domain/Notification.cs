@@ -12,7 +12,7 @@ public sealed class Notification
     public string Agent { get; set; } = "unknown";
     public string? AgentInstance { get; set; }
     public string? Project { get; set; }
-    public NotificationType Type { get; set; } = NotificationType.Info;
+    public string Type { get; set; } = NotificationTypes.Info;
     public NotificationPriority Priority { get; set; } = NotificationPriority.Normal;
     public string Title { get; set; } = "";
     public string Message { get; set; } = "";
@@ -33,7 +33,7 @@ public sealed class Notification
             AgentInstance = string.IsNullOrWhiteSpace(req.AgentInstance) ? null : req.AgentInstance.Trim(),
             Project = string.IsNullOrWhiteSpace(req.Project) ? null : req.Project.Trim(),
             Type = req.Type,
-            Priority = req.Priority,
+            Priority = req.Priority ?? NotificationPriority.Normal,
             Title = req.Title.Trim(),
             Message = req.Message.Trim(),
             Cwd = string.IsNullOrWhiteSpace(req.Cwd) ? null : req.Cwd.Trim(),

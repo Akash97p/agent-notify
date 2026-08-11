@@ -147,7 +147,7 @@ public static class ApiHost
             var query = new NotificationQuery
             {
                 Unresolved = ParseBool(http.Request.Query["unresolved"]),
-                Type = TryParseEnum<NotificationType>(http.Request.Query["type"].ToString()),
+                Type = NotificationTypes.Normalize(http.Request.Query["type"].ToString()),
                 Status = TryParseEnum<NotificationStatus>(http.Request.Query["status"].ToString()),
                 Project = http.Request.Query["project"].ToString(),
                 Agent = http.Request.Query["agent"].ToString(),

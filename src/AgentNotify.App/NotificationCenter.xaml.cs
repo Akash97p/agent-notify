@@ -5,6 +5,7 @@ using AgentNotify.Contracts;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
+using AgentNotify.Core.Config;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfOrientation = System.Windows.Controls.Orientation;
@@ -15,14 +16,16 @@ public partial class NotificationCenter : Window
 {
     private readonly INotificationRepository _repository;
     private readonly NotificationService _service;
+    private readonly AgentNotifyConfig _config;
     private bool _allowClose;
 
     public event Action<Notification>? StatusChanged;
 
-    public NotificationCenter(INotificationRepository repository, NotificationService service)
+    public NotificationCenter(INotificationRepository repository, NotificationService service, AgentNotifyConfig config)
     {
         _repository = repository;
         _service = service;
+        _config = config;
         InitializeComponent();
         Icon = AppIcons.CreateWindowIcon();
     }
@@ -70,7 +73,7 @@ public partial class NotificationCenter : Window
 
     private Border BuildRow(Notification n, bool showActions)
     {
-        var accent = TypeVisuals.WpfColorFor(n.Type);
+        var accent = TypeVisuals.WpfColorFor(n.Type, _config);
         var accentBrush = new SolidColorBrush(accent);
 
         var outer = new Border
@@ -99,7 +102,7 @@ public partial class NotificationCenter : Window
         var header = new StackPanel { Orientation = WpfOrientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
         header.Children.Add(new TextBlock
         {
-            Text = TypeVisuals.LabelFor(n.Type),
+            Text = TypeVisuals.LabelFor(n.Type, _config),
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Foreground = accentBrush
@@ -226,9 +229,5 @@ public partial class NotificationCenter : Window
     }
 
     public static bool NeedsAttention(Notification n) =>
-        n.Status == NotificationStatus.Active && n.Type is
-            NotificationType.InputRequired or
-            NotificationType.PermissionRequired or
-            NotificationType.Blocked or
-            NotificationType.Error;
+        n.Status == NotificationStatus.Active && NotificationTypes.IsAttention(n.Type);
 }

@@ -92,7 +92,7 @@ public sealed class ApiTests
             $"{fx.BaseUrl}/v1/notifications?type=input-required", Json.Options);
         Assert.NotNull(filtered);
         Assert.NotEmpty(filtered!);
-        Assert.All(filtered!, n => Assert.Equal(NotificationType.InputRequired, n.Type));
+        Assert.All(filtered!, n => Assert.Equal(NotificationTypes.InputRequired, n.Type));
     }
 
     [Fact]

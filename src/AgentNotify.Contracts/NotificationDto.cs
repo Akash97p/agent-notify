@@ -10,7 +10,7 @@ public sealed class NotificationDto
     public string Agent { get; set; } = "";
     public string? AgentInstance { get; set; }
     public string? Project { get; set; }
-    public NotificationType Type { get; set; }
+    public string Type { get; set; } = NotificationTypes.Info;
     public NotificationPriority Priority { get; set; }
     public string Title { get; set; } = "";
     public string Message { get; set; } = "";
