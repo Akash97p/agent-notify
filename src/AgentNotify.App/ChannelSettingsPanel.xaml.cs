@@ -18,6 +18,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         InitializeComponent();
         ProviderKindBox.SelectedIndex = 0;
         SmtpSecurityBox.SelectedIndex = 0;
+        GoogleChatReplyPolicyBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -71,6 +72,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadSlackConfiguration(profile);
         LoadTeamsConfiguration(profile);
         LoadZohoCliqConfiguration(profile);
+        LoadGoogleChatConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -107,6 +109,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         SlackThreadBox.Clear();
         TeamsWebhookBox.Clear();
         ZohoCliqWebhookBox.Clear();
+        GoogleChatWebhookBox.Clear();
+        GoogleChatThreadBox.Clear();
+        GoogleChatReplyPolicyBox.SelectedIndex = 0;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -135,6 +140,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "slack" => await SaveSlackProviderAsync(existing),
             "teams" => await SaveTeamsProviderAsync(existing),
             "zoho_cliq" => await SaveZohoCliqProviderAsync(existing),
+            "google_chat" => await SaveGoogleChatProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -390,6 +396,34 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveGoogleChatProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(GoogleChatWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the incoming-webhook URL copied from Google Chat.");
+        var threadKey = string.IsNullOrWhiteSpace(GoogleChatThreadBox.Text)
+            ? null
+            : GoogleChatThreadBox.Text.Trim();
+        if (threadKey is not null && (threadKey.Length > 4000 || threadKey.Any(char.IsControl)))
+            throw new ArgumentException("Google Chat thread key must contain at most 4000 characters and no control characters.");
+        var replyPolicy = (GoogleChatReplyPolicyBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "fallback";
+        var config = JsonSerializer.Serialize(new
+        {
+            webhookUrlSecretName = "webhook_url",
+            threadKey,
+            threadReplyPolicy = replyPolicy
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(GoogleChatWebhookBox.Password))
+            changes["webhook_url"] = GoogleChatWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "google_chat",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        GoogleChatWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -415,6 +449,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "slack" => 4,
             "teams" => 5,
             "zoho_cliq" => 6,
+            "google_chat" => 7,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -434,6 +469,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "slack" => "Slack",
                 "teams" => "Microsoft Teams",
                 "zoho_cliq" => "Zoho Cliq",
+                "google_chat" => "Google Chat",
                 _ => "Webhook"
             };
     }
@@ -447,14 +483,16 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var slack = kind == "slack";
         var teams = kind == "teams";
         var zohoCliq = kind == "zoho_cliq";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq ? Visibility.Collapsed : Visibility.Visible;
+        var googleChat = kind == "google_chat";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
         SlackFields.Visibility = slack ? Visibility.Visible : Visibility.Collapsed;
         TeamsFields.Visibility = teams ? Visibility.Visible : Visibility.Collapsed;
         ZohoCliqFields.Visibility = zohoCliq ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq ? Visibility.Collapsed : Visibility.Visible;
+        GoogleChatFields.Visibility = googleChat ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -557,6 +595,26 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void LoadZohoCliqConfiguration(ProviderProfile profile)
     {
         ZohoCliqWebhookBox.Clear();
+    }
+
+    private void LoadGoogleChatConfiguration(ProviderProfile profile)
+    {
+        GoogleChatWebhookBox.Clear();
+        if (profile.Kind != "google_chat")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            GoogleChatThreadBox.Text = GetJsonString(root, "threadKey");
+            GoogleChatReplyPolicyBox.SelectedIndex =
+                GetJsonString(root, "threadReplyPolicy") == "fail" ? 1 : 0;
+        }
+        catch (JsonException)
+        {
+            GoogleChatThreadBox.Clear();
+            GoogleChatReplyPolicyBox.SelectedIndex = 0;
+        }
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)

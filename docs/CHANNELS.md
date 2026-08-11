@@ -183,6 +183,28 @@ Messages are plain bounded text. Cliq Markdown control characters are escaped, r
 
 HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Zoho's official [Webhook Tokens](https://www.zoho.com/cliq/help/platform/webhook-tokens.html), [message API](https://www.zoho.com/cliq/help/restapi/v2/messages/), and [data-center list](https://www.zoho.com/cliq/help/restapi/v3/introduction/#multiple-data-centers).
 
+## Google Chat
+
+Implementation status: adapter and native Settings fields complete; real-webhook and human UI smoke pending.
+
+In the target Google Chat space, open **Apps & integrations**, add an incoming webhook, and paste the complete copied URL into Settings. Its `key` and `token` query values authenticate access to that space, so AgentNotify stores the entire URL only as a DPAPI current-user encrypted secret.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url",
+  "threadKey": "agent-builds",
+  "threadReplyPolicy": "fallback"
+}
+```
+
+`threadKey` is optional. When set, `fallback` replies to the matching thread or starts it if it does not exist; `fail` posts only when the thread can be resolved. AgentNotify places the thread key in `thread.threadKey` and adds Google's documented `messageReplyOption`, rather than using the deprecated query-level `threadKey` parameter.
+
+The `google_chat` adapter accepts only HTTPS URLs on `chat.googleapis.com` with the exact `/v1/spaces/{space}/messages` path and exactly one `key` and one `token`. Custom ports, URI credentials, fragments, unknown/duplicate parameters, encoded path separators, and malformed space identifiers are rejected before a request is sent.
+
+Messages are route-redacted plain text. Chat formatting controls are escaped, and ASCII angle brackets are neutralized so notification content cannot inject `<users/all>`, user mentions, custom links, or other Chat control sequences. The complete serialized JSON body is kept at or below 31,500 UTF-8 bytes, leaving margin beneath Google's documented 32,000-byte message limit. Redirects, cookies, proxies, decompression, private/mixed DNS results, and response-body reads are disabled.
+
+AgentNotify spaces requests at least one second apart before sending. HTTP 408, 425, 429, 5xx, and network failures retry through the durable dispatcher; redirects and other 4xx responses are permanent. Google documents the URL secret, payload, threading, error handling, and one-write-per-second shared space quota in [Build a Google Chat app as a webhook](https://developers.google.com/workspace/chat/quickstart/webhooks), the size limit in [`spaces.messages.create`](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/create), and mention syntax in [Format messages](https://developers.google.com/workspace/chat/format-messages).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
