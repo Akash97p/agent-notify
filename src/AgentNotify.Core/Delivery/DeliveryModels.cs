@@ -71,3 +71,15 @@ public sealed class DeliveryAttempt
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset CompletedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public sealed record DeliveryProvider(
+    ProviderProfile Profile,
+    IReadOnlyDictionary<string, string> Secrets);
+
+public sealed record DeliveryDiagnosticSnapshot(
+    int Pending,
+    int Processing,
+    int Retry,
+    int Delivered,
+    int DeadLetter,
+    IReadOnlyList<string> RegisteredAdapters);

@@ -172,9 +172,9 @@ public sealed class DeliveryFoundationTests : IAsyncLifetime
         await using var connection = new SqliteConnection($"Data Source={_db}");
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM schema_migrations WHERE version = 1;";
+        command.CommandText = "SELECT COUNT(*) FROM schema_migrations WHERE version IN (1, 2);";
 
-        Assert.Equal(1L, (long)(await command.ExecuteScalarAsync())!);
+        Assert.Equal(2L, (long)(await command.ExecuteScalarAsync())!);
     }
 
     [Fact]

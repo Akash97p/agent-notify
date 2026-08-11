@@ -9,8 +9,16 @@ public interface IDeliveryRepository
     Task DeleteProviderAsync(string id, CancellationToken ct = default);
     Task UpsertRouteAsync(DeliveryRoute route, CancellationToken ct = default);
     Task<IReadOnlyList<DeliveryRoute>> ListRoutesAsync(CancellationToken ct = default);
-    Task EnqueueAsync(OutboxItem item, CancellationToken ct = default);
+    Task DeleteRouteAsync(string id, CancellationToken ct = default);
+    Task<bool> EnqueueAsync(OutboxItem item, CancellationToken ct = default);
     Task<OutboxItem?> ClaimDueAsync(DateTimeOffset now, CancellationToken ct = default);
     Task CompleteAttemptAsync(OutboxItem item, DeliveryAttempt attempt, CancellationToken ct = default);
     Task<IReadOnlyList<DeliveryAttempt>> ListAttemptsAsync(string outboxId, CancellationToken ct = default);
+    Task<int> RecoverInterruptedAsync(
+        DateTimeOffset abandonedBefore,
+        DateTimeOffset retryAt,
+        CancellationToken ct = default);
+    Task<IReadOnlyDictionary<OutboxStatus, int>> CountOutboxByStatusAsync(
+        CancellationToken ct = default);
+    Task<IReadOnlyList<OutboxItem>> ListOutboxAsync(int limit = 100, CancellationToken ct = default);
 }
