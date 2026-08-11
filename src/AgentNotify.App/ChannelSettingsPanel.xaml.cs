@@ -73,6 +73,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadTeamsConfiguration(profile);
         LoadZohoCliqConfiguration(profile);
         LoadGoogleChatConfiguration(profile);
+        LoadMattermostConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -112,6 +113,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         GoogleChatWebhookBox.Clear();
         GoogleChatThreadBox.Clear();
         GoogleChatReplyPolicyBox.SelectedIndex = 0;
+        MattermostWebhookBox.Clear();
+        MattermostSilentBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -141,6 +144,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "teams" => await SaveTeamsProviderAsync(existing),
             "zoho_cliq" => await SaveZohoCliqProviderAsync(existing),
             "google_chat" => await SaveGoogleChatProviderAsync(existing),
+            "mattermost" => await SaveMattermostProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -424,6 +428,28 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveMattermostProviderAsync(ProviderProfile? existing)
+    {
+        var hasWebhook = existing?.SecretNames.Contains("webhook_url", StringComparer.Ordinal) == true;
+        if (string.IsNullOrWhiteSpace(MattermostWebhookBox.Password) && !hasWebhook)
+            throw new ArgumentException("Enter the Mattermost incoming-webhook URL.");
+        var config = JsonSerializer.Serialize(new
+        {
+            webhookUrlSecretName = "webhook_url",
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            silent = MattermostSilentBox.IsChecked == true
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(MattermostWebhookBox.Password))
+            changes["webhook_url"] = MattermostWebhookBox.Password.Trim();
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "mattermost",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null && changes.Count > 0)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes);
+        MattermostWebhookBox.Clear();
+        return saved;
+    }
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -450,6 +476,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "teams" => 5,
             "zoho_cliq" => 6,
             "google_chat" => 7,
+            "mattermost" => 8,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -470,6 +497,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "teams" => "Microsoft Teams",
                 "zoho_cliq" => "Zoho Cliq",
                 "google_chat" => "Google Chat",
+                "mattermost" => "Mattermost",
                 _ => "Webhook"
             };
     }
@@ -484,7 +512,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var teams = kind == "teams";
         var zohoCliq = kind == "zoho_cliq";
         var googleChat = kind == "google_chat";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
+        var mattermost = kind == "mattermost";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -492,6 +521,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TeamsFields.Visibility = teams ? Visibility.Visible : Visibility.Collapsed;
         ZohoCliqFields.Visibility = zohoCliq ? Visibility.Visible : Visibility.Collapsed;
         GoogleChatFields.Visibility = googleChat ? Visibility.Visible : Visibility.Collapsed;
+        MattermostFields.Visibility = mattermost ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -614,6 +644,23 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             GoogleChatThreadBox.Clear();
             GoogleChatReplyPolicyBox.SelectedIndex = 0;
+        }
+    }
+
+    private void LoadMattermostConfiguration(ProviderProfile profile)
+    {
+        MattermostWebhookBox.Clear();
+        if (profile.Kind != "mattermost")
+            return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            MattermostSilentBox.IsChecked = document.RootElement.TryGetProperty("silent", out var silent) &&
+                                            silent.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            MattermostSilentBox.IsChecked = false;
         }
     }
 

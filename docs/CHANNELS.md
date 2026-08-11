@@ -205,6 +205,28 @@ Messages are route-redacted plain text. Chat formatting controls are escaped, an
 
 AgentNotify spaces requests at least one second apart before sending. HTTP 408, 425, 429, 5xx, and network failures retry through the durable dispatcher; redirects and other 4xx responses are permanent. Google documents the URL secret, payload, threading, error handling, and one-write-per-second shared space quota in [Build a Google Chat app as a webhook](https://developers.google.com/workspace/chat/quickstart/webhooks), the size limit in [`spaces.messages.create`](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/create), and mention syntax in [Format messages](https://developers.google.com/workspace/chat/format-messages).
 
+## Mattermost
+
+Implementation status: adapter and native Settings fields complete; real-server and human UI smoke pending.
+
+Create an Incoming Webhook in the target Mattermost installation and paste its complete generated URL into Settings. The URL grants permission to post as its webhook integration, so AgentNotify stores it only as a DPAPI current-user encrypted secret.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url",
+  "allowPrivateNetwork": false,
+  "silent": false
+}
+```
+
+The `mattermost` adapter requires HTTPS and a path ending in `/hooks/{token}`. It supports deployments under a URL subpath and custom HTTPS ports. URI credentials, query strings, fragments, encoded path separators, malformed tokens, and non-HTTPS endpoints are rejected. Public destinations are allowed by default; a LAN, loopback, carrier-grade NAT, or IPv6 unique-local server requires the explicit **Allow private/loopback destinations** setting. Link-local/cloud-metadata, multicast, unspecified, benchmarking, and documentation ranges are always blocked.
+
+The operating system's normal TLS hostname and certificate-chain validation is always active, including for private servers. AgentNotify does not offer an “accept invalid/self-signed certificate” switch; administrators should install their private CA correctly. Redirects, cookies, ambient proxies, and decompression are disabled, and every DNS result is checked immediately before connection to prevent public/private rebinding.
+
+Messages use the webhook's configured destination and identity—AgentNotify does not override the channel, username, icon, or arbitrary props. Text is route-redacted, Markdown-escaped, and limited to Mattermost's documented 16,383 characters without splitting surrogate pairs. `@` and angle-bracket controls are neutralized to prevent `@channel`, `@here`, user, and Slack-compatible mentions from notification content. Optional silent mode asks Mattermost to suppress desktop, push, email, unread, mention-count, and new-message signals.
+
+A 2xx response succeeds only when it is `204 No Content` or contains Mattermost's bounded plain-text `ok` acknowledgement. HTTP 408, 425, 429, 5xx, network failures, and malformed success acknowledgements retry; redirects and other 4xx responses are permanent. See Mattermost's official [Incoming webhooks](https://developers.mattermost.com/integrate/webhooks/incoming/) documentation for setup, payload fields, acknowledgement, mention behavior, silent mode, and post limits.
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

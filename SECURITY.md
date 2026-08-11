@@ -66,4 +66,6 @@ The Zoho Cliq adapter stores the complete `zapikey` URL as an encrypted secret, 
 
 The Google Chat adapter stores the complete `key`/`token` webhook URL as an encrypted secret and accepts only the exact official `chat.googleapis.com/v1/spaces/{space}/messages` shape. Unknown query parameters are rejected before sending. User-controlled Chat formatting and mention delimiters are neutralized, serialized payloads are bounded below Google's 32,000-byte limit, and redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
 
+The Mattermost adapter stores its token-bearing webhook URL as an encrypted secret, requires HTTPS and an exact terminal `/hooks/{token}` path, and keeps platform certificate validation enabled for self-hosted servers. Public destinations are the default; private or loopback servers require explicit consent, while link-local/cloud-metadata and non-unicast ranges remain blocked. Mattermost and Slack-compatible mention controls are neutralized, Markdown is escaped, acknowledgements are bounded, and redirects, proxies, and any DNS result outside the configured destination policy are rejected.
+
 Never extend the current bearer token directly to an internet-facing API.
