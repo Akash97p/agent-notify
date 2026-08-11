@@ -26,6 +26,9 @@ public sealed partial class ProviderProfileService
     public Task<IReadOnlyList<ProviderProfile>> ListAsync(CancellationToken ct = default) =>
         _repository.ListProvidersAsync(ct);
 
+    public Task DeleteAsync(string profileId, CancellationToken ct = default) =>
+        _repository.DeleteProviderAsync(profileId, ct);
+
     public async Task<ProviderProfile> SaveAsync(
         string? id,
         string name,
@@ -116,6 +119,34 @@ public sealed partial class ProviderProfileService
             UpdatedAt = stored.UpdatedAt
         };
         return new DeliveryProvider(profile, secrets);
+    }
+
+    /// <summary>
+    /// Merges entered secret values without returning existing plaintext to the UI. Empty change
+    /// values are ignored; names in <paramref name="removeNames"/> are deleted explicitly.
+    /// </summary>
+    public async Task UpdateSecretsAsync(
+        string profileId,
+        IReadOnlyDictionary<string, string> changes,
+        IReadOnlyCollection<string>? removeNames = null,
+        CancellationToken ct = default)
+    {
+        var stored = await _repository.GetProviderAsync(profileId, ct) ??
+            throw new KeyNotFoundException("Provider profile not found.");
+        var merged = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                         _protector.Unprotect(stored.EncryptedSecrets),
+                         Json.Options)
+                     ?? new Dictionary<string, string>();
+        foreach (var name in removeNames ?? [])
+            merged.Remove(name);
+        foreach (var (name, value) in changes.Where(pair => !string.IsNullOrEmpty(pair.Value)))
+            merged[name] = value;
+        ValidateSecrets(merged);
+
+        stored.EncryptedSecrets = _protector.Protect(JsonSerializer.Serialize(merged, Json.Options));
+        stored.SecretNames = merged.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        stored.UpdatedAt = DateTimeOffset.UtcNow;
+        await _repository.UpsertProviderAsync(stored, ct);
     }
 
     private static string ValidateName(string name)

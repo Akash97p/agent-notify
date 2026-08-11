@@ -43,6 +43,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F06 — Channel management UI
 
+- Status: initial webhook provider, route, test-send, deletion, and redacted diagnostics UI implemented; extend per adapter.
 - Create, edit, enable, disable, test, and delete provider profiles.
 - Show health, last success/failure, retry state, and actionable validation errors without revealing secrets.
 - Require explicit consent before sending notification bodies off-device.
@@ -58,7 +59,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 
 | ID | Channel | Integration approach | Confidence / constraint |
 |---|---|---|---|
-| C01 | Generic webhook | Configurable HTTPS POST, headers, HMAC signature, JSON template | Adapter implemented and tested; management UI pending |
+| C01 | Generic webhook | Configurable HTTPS POST, headers, HMAC signature, JSON template | Adapter and management UI implemented and tested |
 | C02 | SMTP email | STARTTLS/TLS, authenticated SMTP, recipient allowlist | High; secrets encrypted, certificate validation required |
 | C03 | Telegram | Official Bot API `sendMessage` | High; bot token and chat destination required |
 | C04 | Discord | Incoming webhook | High; webhook URL is a secret |
