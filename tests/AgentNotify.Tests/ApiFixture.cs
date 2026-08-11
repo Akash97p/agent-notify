@@ -43,7 +43,7 @@ internal sealed class ApiFixture : IAsyncDisposable
         var config = new AgentNotifyConfig { Port = port, AuthToken = token };
         var repo = new SqliteNotificationRepository(dbPath);
         await repo.InitializeAsync();
-        var service = new NotificationService(repo);
+        var service = new NotificationService(repo, config);
         var callbacks = new ApiCallbacks();
         var app = ApiHost.Build(config, repo, service, logger: null, url: $"http://127.0.0.1:{port}", callbacks: callbacks);
         await app.StartAsync().WaitAsync(TimeSpan.FromSeconds(10));

@@ -101,6 +101,19 @@ public sealed class ValidationTests
     public void Pid_Zero_Passes() =>
         Assert.Null(NotificationValidator.Validate(new CreateNotificationRequest { Title = "t", Message = "m", Pid = 0 }));
 
+    [Theory]
+    [InlineData("deployment_waiting")]
+    [InlineData("deployment-waiting")]
+    public void CustomType_ValidIdentifier_Passes(string type) =>
+        Assert.Null(NotificationValidator.Validate(new CreateNotificationRequest { Title = "t", Message = "m", Type = type }));
+
+    [Theory]
+    [InlineData("bad type")]
+    [InlineData("9starts_with_number")]
+    [InlineData("punctuation!")]
+    public void CustomType_InvalidIdentifier_Fails(string type) =>
+        Assert.Contains("type", NotificationValidator.Validate(new CreateNotificationRequest { Title = "t", Message = "m", Type = type })!);
+
     [Fact]
     public void Metadata_TooLarge()
     {

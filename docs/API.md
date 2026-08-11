@@ -3,7 +3,7 @@
 Base URL: `http://127.0.0.1:47821` (configurable via `config.json` `port` or `AGENTNOTIFY_PORT`).
 All `/v1/*` routes require `Authorization: Bearer <token>`. The token is generated on first launch and stored at `%LOCALAPPDATA%\AgentNotify\config.json` (`authToken`). It can be overridden by `AGENTNOTIFY_TOKEN` or `--token` on the CLI.
 
-Enum strings are **snake_case** (`input_required`, `permission_required`, etc.). Both request and response use the same convention. Unknown JSON enum values are invalid and return `400`; CLI input additionally accepts kebab-case.
+Priority/status enum strings and built-in type IDs are **snake_case** (`input_required`, `permission_required`, etc.). Type IDs may also be user-defined: 1–64 lowercase letters, numbers, or underscores, starting with a letter. CLI input accepts hyphens and normalizes them to underscores.
 
 `Content-Type: application/json`. Max request body: 64 KiB (configurable `maxRequestBodyBytes`).
 
@@ -43,8 +43,8 @@ Create or — when `key` matches an active notification — update in place (ded
 |-------|------|----------|-------|
 | `title` | string | yes | 1–200 chars |
 | `message` | string | yes | 1–4000 chars |
-| `type` | enum | no | `info`/`success`/`warning`/`error`/`input_required`/`permission_required`/`completed`/`blocked` (default `info`) |
-| `priority` | enum | no | `low`/`normal`/`high`/`critical` (default `normal`) |
+| `type` | identifier | no | A built-in or user-defined type ID (default `info`) |
+| `priority` | enum | no | `low`/`normal`/`high`/`critical`; omitted values use the custom definition default or `normal` |
 | `agent` | string | no | Default `"unknown"`; 1–100 chars |
 | `agentInstance` | string | no | 1–100 chars |
 | `project` | string | no | 1–200 chars |
@@ -64,7 +64,7 @@ List notifications (newest first). Optional query params:
 | Param | Type | Notes |
 |-------|------|-------|
 | `unresolved` | bool | When `true`, only `status=active` |
-| `type` | enum | Filter by exact type |
+| `type` | identifier | Filter by exact normalized type ID |
 | `status` | enum | Filter by exact status |
 | `project` | string | Exact match, trimmed |
 | `agent` | string | Exact match, trimmed |
@@ -100,6 +100,8 @@ cwd?, pid?, status, createdAt, updatedAt, resolvedAt?, metadata?
 ```
 
 Timestamps are ISO 8601 (`DateTimeOffset`). `metadata` is `Record<string, JsonElement>?` (arbitrary JSON values, erased to `null` when absent).
+
+Custom type definitions are local presentation policy stored in `config.json`; notification rows persist only the stable identifier. Missing, disabled, or deleted definitions safely fall back to generic info styling and a seven-second lifetime.
 
 ### `HealthResponse` — see `GET /v1/health`.
 

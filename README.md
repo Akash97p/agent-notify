@@ -93,6 +93,8 @@ agentnotify.exe "Build complete" "All tests passed" --type completed
 
 Both underscore and hyphen spellings are accepted by the CLI, such as `input_required` and `input-required`.
 
+User-defined types can be created under **Tray → Settings… → Custom types**. Each definition has a stable ID, display name, accent color, default priority, lifetime (`0` is sticky), and enabled state. Agents can then pass the ID through `--type`, for example `--type deployment_waiting`. Deleting or disabling a definition never corrupts history: existing/new events keep the ID and use safe generic presentation defaults.
+
 ## Give the skill to a coding agent
 
 Right-click the AgentNotify tray icon and choose either **Copy agent SKILL.md** or **Download agent SKILL.md…**. The post-install getting-started page has the same Copy and Download buttons.
@@ -256,7 +258,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current release build completes with zero warnings. The test suite has 87 passing tests.
+The current release build completes with zero warnings. The test suite has 96 passing tests.
 
 ### Build the single-file installer
 

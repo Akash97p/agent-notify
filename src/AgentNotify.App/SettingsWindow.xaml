@@ -1,6 +1,6 @@
 <Window x:Class="AgentNotify.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AgentNotify.App"
         Title="AgentNotify Settings" Width="650" Height="650" MinWidth="560" MinHeight="540"
         WindowStartupLocation="CenterScreen" Background="#0B1120" Foreground="#EEF2FF">
     <Window.Resources>
@@ -40,6 +40,22 @@
                     </UniformGrid>
                 </StackPanel></ScrollViewer>
             </TabItem>
+            <TabItem Header="Custom types">
+                <Grid Margin="18"><Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <StackPanel><ListBox x:Name="CustomTypesList" Height="300" DisplayMemberPath="DisplayName" SelectionChanged="CustomType_Selected"/>
+                        <Button Content="New type" Margin="0,10,0,0" Click="NewType_Click"/><Button Content="Delete selected" Margin="0,8,0,0" Click="DeleteType_Click"/>
+                    </StackPanel>
+                    <ScrollViewer Grid.Column="1" Margin="20,0,0,0" VerticalScrollBarVisibility="Auto"><StackPanel>
+                        <TextBlock Text="Stable ID" FontWeight="SemiBold"/><TextBox x:Name="CustomIdBox" ToolTip="lowercase letters, numbers, and underscores"/>
+                        <TextBlock Text="Display name" FontWeight="SemiBold"/><TextBox x:Name="CustomNameBox"/>
+                        <TextBlock Text="Accent color" FontWeight="SemiBold"/><TextBox x:Name="CustomColorBox" ToolTip="#RRGGBB"/>
+                        <TextBlock Text="Default priority" FontWeight="SemiBold"/><ComboBox x:Name="CustomPriorityBox" ItemsSource="{Binding Source={x:Static local:SettingsWindow.PriorityNames}}"/>
+                        <TextBlock Text="Lifetime in seconds (0 = sticky)" FontWeight="SemiBold"/><TextBox x:Name="CustomDurationBox"/>
+                        <CheckBox x:Name="CustomEnabledBox" Content="Enabled"/>
+                        <Button Content="Apply type changes" HorizontalAlignment="Left" Margin="0,8,0,0" Click="ApplyType_Click"/>
+                    </StackPanel></ScrollViewer>
+                </Grid>
+            </TabItem>
             <TabItem Header="Sounds &amp; channels">
                 <StackPanel Margin="22">
                     <CheckBox x:Name="SoundsBox" Content="Enable notification sounds"/>
@@ -56,4 +72,3 @@
         </StackPanel>
     </Grid>
 </Window>
-

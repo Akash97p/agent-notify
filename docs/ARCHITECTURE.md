@@ -8,7 +8,7 @@ AgentNotify is one interactive per-user Windows process. It owns the tray icon, 
 
 ### Contracts
 
-`AgentNotify.Contracts` defines JSON DTOs, notification type/priority/status enums, and shared `System.Text.Json` rules. JSON uses camel-case properties and snake-case enum values.
+`AgentNotify.Contracts` defines JSON DTOs, stable notification type identifiers, priority/status enums, and shared `System.Text.Json` rules. The original eight snake-case type IDs remain compatible while custom IDs are validated and persisted without an enum migration.
 
 ### Core
 
@@ -63,6 +63,8 @@ Installed filenames deliberately differ on case-insensitive Windows filesystems:
 SQLite contains one `notifications` table and indexes for status, key, and creation time. Each repository operation opens a short-lived pooled connection. UI code never issues SQL directly.
 
 Active attention rows survive restart. Resolved/dismissed rows older than `historyRetentionDays` are pruned. Malformed config falls back to safe defaults and is rewritten at app startup.
+
+Custom type definitions live in typed configuration and control label, accent, default priority, enabled state, and lifetime. SQLite rows keep the stable type ID, so removing or disabling presentation policy never makes historical data unreadable. Legacy PascalCase type/duration values are normalized during load.
 
 ## Failure behavior
 

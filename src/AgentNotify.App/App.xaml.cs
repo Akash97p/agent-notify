@@ -104,7 +104,7 @@ public partial class App : System.Windows.Application
         _repository = new SqliteNotificationRepository(_configStore.DbPath);
         await _repository.InitializeAsync();
 
-        _service = new NotificationService(_repository);
+        _service = new NotificationService(_repository, _config);
 
         var url = $"http://127.0.0.1:{_config.Port}";
         _apiCallbacks = new ApiCallbacks
@@ -157,7 +157,7 @@ public partial class App : System.Windows.Application
         };
         _toasts.ToastClicked += _ => _center?.ShowAndActivate();
 
-        _center = new NotificationCenter(_repository, _service);
+        _center = new NotificationCenter(_repository, _service, _config);
         _center.StatusChanged += n => _toasts.Update(n);
 
         _tray = new TrayIcon(

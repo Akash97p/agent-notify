@@ -13,6 +13,7 @@ This backlog turns the long-term product direction into independently testable b
 
 ### F02 — Extensible notification definitions
 
+- Status: implemented and runtime-smoked; human Settings visual inspection pending.
 - Preserve compatibility with the eight built-in API values.
 - Add user-defined types with stable IDs, display names, colors/icons, default priority, sticky/expiry behavior, and enabled state.
 - Define safe fallback behavior when a custom type is deleted or disabled.

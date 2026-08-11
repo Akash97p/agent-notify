@@ -49,25 +49,43 @@ public sealed class AgentNotifyConfig
     /// <summary>Auto-dismiss duration in seconds per notification type. 0 = until dismissed/resolved.</summary>
     public Dictionary<string, int> ToastDurations { get; set; } = DefaultDurations();
 
+    /// <summary>User-defined presentation and behavior. Built-in definitions remain code-owned.</summary>
+    public List<NotificationTypeDefinition> CustomNotificationTypes { get; set; } = [];
+
     public int ToastDurationSeconds(NotificationType type)
+        => ToastDurationSeconds(NotificationTypes.FromBuiltIn(type));
+
+    public int ToastDurationSeconds(string type)
     {
-        if (ToastDurations is { } d && d.TryGetValue(EnumName(type), out var seconds))
+        var normalized = NotificationTypes.Normalize(type);
+        var custom = CustomNotificationTypes.FirstOrDefault(x => x.Enabled && x.Id == normalized);
+        if (custom is not null) return custom.DurationSeconds;
+        if (normalized is not null && ToastDurations is { } d && d.TryGetValue(normalized, out var seconds))
             return seconds;
-        return 0;
+        return 7;
     }
 
-    public static string EnumName(NotificationType type) => type.ToString();
+    public static string EnumName(NotificationType type) => NotificationTypes.FromBuiltIn(type);
+
+    public NotificationTypeDefinition? CustomType(string type)
+    {
+        var id = NotificationTypes.Normalize(type);
+        return CustomNotificationTypes.FirstOrDefault(x => x.Enabled && x.Id == id);
+    }
+
+    public NotificationPriority DefaultPriorityFor(string type) =>
+        CustomType(type)?.DefaultPriority ?? NotificationPriority.Normal;
 
     public static Dictionary<string, int> DefaultDurations() => new(StringComparer.OrdinalIgnoreCase)
     {
-        [nameof(NotificationType.Completed)] = 5,
-        [nameof(NotificationType.Success)] = 5,
-        [nameof(NotificationType.Info)] = 7,
-        [nameof(NotificationType.Warning)] = 12,
-        [nameof(NotificationType.Error)] = 15,
-        [nameof(NotificationType.InputRequired)] = 0,
-        [nameof(NotificationType.PermissionRequired)] = 0,
-        [nameof(NotificationType.Blocked)] = 0
+        [NotificationTypes.Completed] = 5,
+        [NotificationTypes.Success] = 5,
+        [NotificationTypes.Info] = 7,
+        [NotificationTypes.Warning] = 12,
+        [NotificationTypes.Error] = 15,
+        [NotificationTypes.InputRequired] = 0,
+        [NotificationTypes.PermissionRequired] = 0,
+        [NotificationTypes.Blocked] = 0
     };
 
     /// <summary>Copies defaults into missing keys (tolerant to partial config files).</summary>
@@ -83,7 +101,28 @@ public sealed class AgentNotifyConfig
             ToastLocation = "BottomRight";
         if (ToastDurations is null || ToastDurations.Count == 0)
             ToastDurations = DefaultDurations();
+        foreach (var key in ToastDurations.Keys.ToList())
+        {
+            var normalized = NotificationTypes.Normalize(key);
+            if (normalized is not null && normalized != key && !ToastDurations.ContainsKey(normalized))
+                ToastDurations[normalized] = ToastDurations[key];
+        }
         foreach (var kv in DefaultDurations())
             ToastDurations.TryAdd(kv.Key, kv.Value);
+        CustomNotificationTypes ??= [];
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CustomNotificationTypes = CustomNotificationTypes.Where(def =>
+        {
+            var id = NotificationTypes.Normalize(def.Id);
+            if (id is null || NotificationTypes.BuiltIns.Contains(id) || !seen.Add(id)) return false;
+            def.Id = id;
+            def.DisplayName = string.IsNullOrWhiteSpace(def.DisplayName) ? id.Replace('_', ' ') : def.DisplayName.Trim();
+            def.AccentColor = IsHexColor(def.AccentColor) ? def.AccentColor.ToUpperInvariant() : "#4A90D9";
+            def.DurationSeconds = Math.Clamp(def.DurationSeconds, 0, 86400);
+            return true;
+        }).ToList();
     }
+
+    private static bool IsHexColor(string? value) => value is { Length: 7 } && value[0] == '#' &&
+        value[1..].All(Uri.IsHexDigit);
 }

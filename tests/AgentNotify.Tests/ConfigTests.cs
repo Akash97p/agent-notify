@@ -52,6 +52,34 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void CustomTypes_AreNormalizedAndControlPresentationDefaults()
+    {
+        var c = new AgentNotifyConfig
+        {
+            CustomNotificationTypes =
+            [
+                new() { Id = "Deploy-Wait", DisplayName = "Deployment waiting", AccentColor = "#12abef", DurationSeconds = 0, DefaultPriority = NotificationPriority.High },
+                new() { Id = "info", DisplayName = "Cannot replace built-in" },
+                new() { Id = "bad id!", DisplayName = "Invalid" }
+            ]
+        };
+        c.ApplyDefaults();
+        var custom = Assert.Single(c.CustomNotificationTypes);
+        Assert.Equal("deploy_wait", custom.Id);
+        Assert.Equal("#12ABEF", custom.AccentColor);
+        Assert.Equal(0, c.ToastDurationSeconds("deploy_wait"));
+        Assert.Equal(NotificationPriority.High, c.DefaultPriorityFor("deploy_wait"));
+    }
+
+    [Fact]
+    public void LegacyPascalCaseDurations_AreMigrated()
+    {
+        var c = new AgentNotifyConfig { ToastDurations = new(StringComparer.OrdinalIgnoreCase) { ["InputRequired"] = 42 } };
+        c.ApplyDefaults();
+        Assert.Equal(42, c.ToastDurationSeconds(NotificationTypes.InputRequired));
+    }
+
+    [Fact]
     public void ConfigStore_Load_MissingFile_ReturnsDefaults()
     {
         var dir = NewTempDir();
@@ -151,11 +179,11 @@ public sealed class ConfigTests
     [Fact]
     public void Json_SnakeCase_RoundTrip()
     {
-        var req = new CreateNotificationRequest { Title = "t", Message = "m", Type = NotificationType.InputRequired };
+        var req = new CreateNotificationRequest { Title = "t", Message = "m", Type = NotificationTypes.InputRequired };
         var json = JsonSerializer.Serialize(req, Json.Options);
         Assert.Contains("input_required", json);
         var back = JsonSerializer.Deserialize<CreateNotificationRequest>(json, Json.Options)!;
-        Assert.Equal(NotificationType.InputRequired, back.Type);
+        Assert.Equal(NotificationTypes.InputRequired, back.Type);
     }
 
     private static string NewTempDir() => Path.Combine(Path.GetTempPath(), "an-test-" + Guid.NewGuid().ToString("N"));
