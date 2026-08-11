@@ -36,8 +36,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 9. Completed on `feature/channel-management-ui`: native webhook provider CRUD, encrypted blank-means-preserve secret patching/removal, enable/private-network consent, test-send, validated route CRUD/filters/off-device message consent, destructive confirmations, exact redacted diagnostics, wider Settings layout, and 147 passing tests. Human visual/accessibility inspection remains pending.
 10. Completed on `feature/channel-smtp`: MailKit 4.17 transport, encrypted mandatory authentication, strict STARTTLS/TLS-on-connect, TLS 1.2/1.3 and revocation policy, connect-by-validated-address with hostname certificate validation, private-network consent, one-to-ten recipient allowlist, plain-text route-redacted messages, stable Message-ID, sanitized SMTP retry classes, native Settings fields, third-party notices, and 159 passing tests. Real-server and human UI smoke remain pending.
 11. Completed on `feature/channel-telegram`: official Bot API `sendMessage`, DPAPI-encrypted token and chat destination, optional topic ID/silent/content-protection settings, plain-text route-redacted projection, fixed-host HTTPS transport with redirect/cookie/proxy suppression and connect-time public DNS enforcement, link-preview suppression, bounded response parsing, provider-specific retry classes, native Settings fields, and 176 passing tests. Real-bot and human UI smoke remain pending.
-12. Next: Discord incoming webhook adapter and provider-specific Settings fields.
-13. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+12. Completed on `feature/channel-discord`: encrypted official webhook URL, exact Discord host/path/token validation, optional thread ID and display name, confirmed `wait=true` sends, all mentions suppressed, user Markdown escaped, route-redacted 2000-character projection, fixed-host HTTPS transport with connect-time public DNS enforcement, redirect/cookie/proxy/response-body suppression, native Settings fields, and 199 passing tests. Real-webhook and human UI smoke remain pending.
+13. Next: Slack incoming webhook adapter and provider-specific Settings fields.
+14. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 

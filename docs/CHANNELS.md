@@ -108,6 +108,26 @@ Messages are sent as plain text without `parse_mode`, so notification content ca
 
 HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx responses are permanent failures. Telegram's official `sendMessage` parameters and limits are documented in the [Telegram Bot API](https://core.telegram.org/bots/api#sendmessage).
 
+## Discord incoming webhook
+
+Implementation status: adapter and native Settings fields complete; real-webhook and human UI smoke pending.
+
+Create an incoming webhook in the destination Discord channel and paste its complete URL into Settings. The URL contains its authentication token, so AgentNotify stores the entire value only as a DPAPI current-user encrypted secret. An optional numeric thread ID routes messages into an existing thread.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url",
+  "username": "AgentNotify",
+  "threadId": "123456789012345678"
+}
+```
+
+The `discord` adapter accepts only HTTPS URLs on `discord.com` with an exact incoming-webhook path; URI credentials, custom ports, existing query strings/fragments, malformed webhook IDs, and malformed tokens are rejected. The transport disables redirects, cookies, ambient proxies, and automatic decompression, validates that every Discord DNS result is public at connection time, and never reads a response body. It sends with `wait=true` so Discord confirms persistence.
+
+Message content is bounded to Discord's 2000-character limit and safely escapes user-provided Discord Markdown. `allowed_mentions.parse` is always empty, preventing notification content from pinging users, roles, `@everyone`, or `@here`. Route-level message redaction is honored, and the encrypted webhook URL/token never appears in the JSON body, diagnostics, or logs.
+
+HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Discord's official [Execute Webhook](https://docs.discord.com/developers/resources/webhook#execute-webhook) and [rate-limit](https://docs.discord.com/developers/topics/rate-limits) references.
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
