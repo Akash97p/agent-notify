@@ -35,6 +35,7 @@ public partial class App : System.Windows.Application
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private WebhookChannelAdapter? _webhookAdapter;
     private SmtpChannelAdapter? _smtpAdapter;
+    private TelegramChannelAdapter? _telegramAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -119,10 +120,11 @@ public partial class App : System.Windows.Application
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _webhookAdapter = new WebhookChannelAdapter();
         _smtpAdapter = new SmtpChannelAdapter();
+        _telegramAdapter = new TelegramChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -318,6 +320,7 @@ public partial class App : System.Windows.Application
         try { (_api as IDisposable)?.Dispose(); } catch { }
         try { _deliveryDispatcher?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         _webhookAdapter?.Dispose();
+        _telegramAdapter?.Dispose();
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
