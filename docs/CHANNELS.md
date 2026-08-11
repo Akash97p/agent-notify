@@ -128,6 +128,25 @@ Message content is bounded to Discord's 2000-character limit and safely escapes 
 
 HTTP 408, 425, 429, 5xx, and network failures retry; redirects and other 4xx responses are permanent. See Discord's official [Execute Webhook](https://docs.discord.com/developers/resources/webhook#execute-webhook) and [rate-limit](https://docs.discord.com/developers/topics/rate-limits) references.
 
+## Slack incoming webhook
+
+Implementation status: adapter and native Settings fields complete; real-webhook and human UI smoke pending.
+
+Create an incoming webhook for the target Slack conversation and paste its complete URL into Settings. The URL is a credential tied to that workspace and channel, so AgentNotify stores it only as a DPAPI current-user encrypted secret. An optional `thread_ts` value sends the notification as a reply to an existing parent message.
+
+```json
+{
+  "webhookUrlSecretName": "webhook_url",
+  "threadTimestamp": "1712345678.123456"
+}
+```
+
+The `slack` adapter accepts only exact HTTPS incoming-webhook paths on `hooks.slack.com` and the official GovSlack `hooks.slack-gov.com` host. Custom ports, URI credentials, queries, fragments, and malformed workspace/service/token segments are rejected. Redirects, cookies, ambient proxies, and automatic decompression are disabled, and every resolved address must be public at socket-connect time.
+
+Messages set `mrkdwn: false` and `link_names: 0`. User-controlled `&`, `<`, and `>` characters are encoded so Slack control sequences cannot create user, channel, or broadcast mentions. Text is bounded to 4000 characters without splitting surrogate pairs and honors route-level message redaction. A 2xx response is accepted only with Slack's documented plain-text `ok` acknowledgement (or an empty 204); the response is bounded to 8 KiB and never logged.
+
+HTTP 408, 425, 429, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx responses are permanent. Slack documents webhook setup, secret handling, thread replies, and errors in [Sending messages using incoming webhooks](https://api.slack.com/messaging/webhooks), and documents `Retry-After` behavior in [Rate limits](https://api.slack.com/apis/rate-limits).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

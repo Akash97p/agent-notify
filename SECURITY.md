@@ -58,4 +58,6 @@ The Telegram adapter stores both bot token and chat destination as encrypted sec
 
 The Discord adapter stores the full token-bearing webhook URL as an encrypted secret, accepts only an exact official `discord.com` HTTPS webhook shape, and validates public DNS results at connect time. Redirects, cookies, proxies, response-body reads, and all allowed mentions are disabled. User-controlled Markdown is escaped and the API is called with `wait=true` to obtain delivery confirmation.
 
+The Slack adapter stores the complete channel-bound webhook URL as an encrypted secret and accepts only exact incoming-webhook paths on Slack or GovSlack's official hook hosts. It disables redirects, cookies, proxies, Markdown, automatic link-name expansion, and private/mixed DNS results. Slack control-sequence delimiters are encoded; acknowledgements are bounded and reduced to stable status codes without logging response content.
+
 Never extend the current bearer token directly to an internet-facing API.
