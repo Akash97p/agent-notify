@@ -59,7 +59,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 241 passed, 0 failed, 0 skipped
+- [x] Automated tests: 266 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -73,6 +73,7 @@
 - [x] Discord incoming-webhook adapter with encrypted URL and mention suppression
 - [x] Slack/GovSlack incoming-webhook adapter with encrypted URL and control-sequence suppression
 - [x] Microsoft Teams Workflows Adaptive Card adapter for current global-cloud trigger URLs
+- [x] Zoho Cliq channel/bot webhook adapter for all nine official data centers
 - [ ] Email provider API adapters
 - [ ] Official WhatsApp Business Cloud API adapter
 - [ ] SMS and mobile push adapters

@@ -36,7 +36,7 @@ Command:
 Result:
 
 ```text
-Passed: 241
+Passed: 266
 Failed: 0
 Skipped: 0
 ```
@@ -79,6 +79,10 @@ Contract tests verify encrypted webhook use, strict Slack/GovSlack host/port/pat
 
 Contract tests verify encrypted signed-URL use, current global Power Platform host/path/query validation, rejection of HTTP/foreign/unsigned/retired shapes, Adaptive Card 1.2 envelope construction, route message redaction, Markdown and mention-tag escaping, bounded surrogate-safe text, token omission from JSON, network sanitization, and retry/permanent HTTP classification. The production handler validates every public DNS result before connecting and disables redirects, cookies, proxies, decompression, and response-body reads. No workflow credential was assumed and no external Teams card was sent; real-workflow and sovereign-cloud interoperability remain explicitly unverified.
 
+### Zoho Cliq
+
+Contract tests cover all nine documented regional hosts, encrypted URL use, channel-name/channel-ID/bot path validation, strict token/query rules, route redaction, Markdown escaping, 5000-character surrogate-safe truncation, token omission from JSON, and retry/permanent HTTP classification. The production handler validates every public DNS result before connecting and disables redirects, cookies, proxies, decompression, and response-body reads. No Cliq credential was assumed and no external message was sent; real-webhook interoperability remains explicitly unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -107,7 +111,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-65ed7361559d45e6dd810a12b9001b456e24d16d1147e301685ba5690fdc5060  AgentNotifySetup.exe
+e0e2d44d79d22ac4a87d600e84cc90a905de477497b26191acc5dca345f96f29  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.

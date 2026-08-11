@@ -62,4 +62,6 @@ The Slack adapter stores the complete channel-bound webhook URL as an encrypted 
 
 The Teams adapter stores the complete signed Workflows trigger URL as an encrypted secret. It accepts only the current global Power Platform host suffix, expected trigger path, and required signature parameters; legacy connector/retired Logic Apps URLs are rejected. Adaptive Card text and fields are bounded, Markdown and mention tags are escaped, and redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
 
+The Zoho Cliq adapter stores the complete `zapikey` URL as an encrypted secret, recognizes only the nine official regional Cliq hosts, validates exact channel/bot message paths, and rejects unknown query parameters. Message formatting controls are escaped; redirects, proxies, private/mixed DNS results, and response-body reads are disabled.
+
 Never extend the current bearer token directly to an internet-facing API.

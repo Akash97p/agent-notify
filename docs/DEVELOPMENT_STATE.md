@@ -39,8 +39,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 12. Completed on `feature/channel-discord`: encrypted official webhook URL, exact Discord host/path/token validation, optional thread ID and display name, confirmed `wait=true` sends, all mentions suppressed, user Markdown escaped, route-redacted 2000-character projection, fixed-host HTTPS transport with connect-time public DNS enforcement, redirect/cookie/proxy/response-body suppression, native Settings fields, and 199 passing tests. Real-webhook and human UI smoke remain pending.
 13. Completed on `feature/channel-slack`: DPAPI-encrypted Slack/GovSlack webhook URL, exact official host/path/token validation, optional thread timestamp, markup/link-name suppression, Slack control-sequence encoding, route-redacted 4000-character projection, bounded `ok` acknowledgement verification, fixed-host HTTPS transport with connect-time public DNS enforcement, redirect/cookie/proxy suppression, native Settings fields, and 227 passing tests. Real-webhook and human UI smoke remain pending.
 14. Completed on `feature/channel-teams`: encrypted current Power Platform Workflows URL, exact global-cloud host/path/signature validation, rejection of retired connectors, route-redacted bounded Adaptive Card 1.2 projection, Markdown/mention-tag escaping, fixed-host HTTPS with connect-time public DNS enforcement, sanitized retry policy, native Settings fields, and 241 passing tests. Real-workflow, sovereign-cloud, and human UI smoke remain pending.
-15. Next: Zoho Cliq incoming webhook adapter and provider-specific Settings fields.
-16. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+15. Completed on `feature/channel-zoho-cliq`: encrypted `zapikey` webhook URL, all nine official data-center hosts, channel-name/channel-ID/bot message paths, strict path/query validation, route-redacted Markdown-escaped 5000-character projection, fixed-host HTTPS with connect-time public DNS enforcement, sanitized retry policy, native Settings fields, and 266 passing tests. Real-webhook and human UI smoke remain pending.
+16. Next: Google Chat incoming webhook adapter and provider-specific Settings fields.
+17. Additional channels in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 
