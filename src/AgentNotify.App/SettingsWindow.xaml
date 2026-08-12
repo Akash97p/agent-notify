@@ -73,6 +73,68 @@
             <TabItem Header="Channels">
                 <local:ChannelSettingsPanel x:Name="ChannelPanel"/>
             </TabItem>
+            <TabItem Header="About" x:Name="AboutTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                        <Image Source="pack://application:,,,/Resources/an.ico" Width="72" Height="72"
+                               VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="AgentNotify" FontSize="26" FontWeight="Bold"/>
+                            <TextBlock x:Name="AboutVersionText" Foreground="#9CA3AF" FontSize="13"/>
+                            <TextBlock x:Name="AboutPrereleaseText" Foreground="#FBBF24" FontSize="12"
+                                       TextWrapping="Wrap" MaxWidth="520" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock TextWrapping="Wrap" Foreground="#D1D5DB" Margin="0,0,0,16">
+                        The local human-attention broker for coding agents. Agents send a small authenticated
+                        request over loopback; AgentNotify shows a desktop notification, keeps the event in local
+                        SQLite history, and makes unresolved requests visible from the tray. It answers one
+                        question reliably: which agents are waiting for you?
+                    </TextBlock>
+
+                    <TextBlock Text="Local first" FontWeight="SemiBold" Margin="0,6,0,4"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="#9CA3AF" Margin="0,0,0,16">
+                        The API is bound to 127.0.0.1 and requires a bearer token. Notification history stays on
+                        this machine. Outbound channels are opt-in and stay disabled until you configure and
+                        enable both a provider and a matching route. There is no telemetry.
+                    </TextBlock>
+
+                    <TextBlock Text="Links" FontWeight="SemiBold" Margin="0,6,0,6"/>
+                    <TextBlock Margin="0,0,0,4">
+                        <Hyperlink NavigateUri="https://github.com/Akash97p/agent-notify"
+                                   RequestNavigate="AboutLink_RequestNavigate">Source code on GitHub</Hyperlink>
+                    </TextBlock>
+                    <TextBlock Margin="0,0,0,4">
+                        <Hyperlink NavigateUri="https://akash97p.github.io/agent-notify/"
+                                   RequestNavigate="AboutLink_RequestNavigate">Documentation</Hyperlink>
+                    </TextBlock>
+                    <TextBlock Margin="0,0,0,4">
+                        <Hyperlink NavigateUri="https://github.com/Akash97p/agent-notify/releases"
+                                   RequestNavigate="AboutLink_RequestNavigate">Releases and changelog</Hyperlink>
+                    </TextBlock>
+                    <TextBlock Margin="0,0,0,16">
+                        <Hyperlink NavigateUri="https://github.com/Akash97p/agent-notify/issues"
+                                   RequestNavigate="AboutLink_RequestNavigate">Report a problem</Hyperlink>
+                    </TextBlock>
+
+                    <TextBlock Text="Local data" FontWeight="SemiBold" Margin="0,6,0,4"/>
+                    <TextBlock x:Name="AboutDataPathText" Foreground="#9CA3AF" TextWrapping="Wrap"
+                               FontFamily="Consolas" FontSize="12" Margin="0,0,0,6"/>
+                    <TextBlock Foreground="#FCA5A5" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16">
+                        config.json contains the local bearer token. Do not share or commit it.
+                    </TextBlock>
+
+                    <Border Background="#111827" Padding="14" CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock x:Name="AboutPublisherText" Foreground="#9CA3AF" FontSize="12"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Foreground="#6B7280" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Text="MIT licensed. Provided as is, without warranty of any kind. Binaries are not code-signed."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel></ScrollViewer>
+            </TabItem>
         </TabControl>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#FCA5A5" Margin="0,0,12,0"/>
