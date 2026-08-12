@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Config;
@@ -39,7 +41,51 @@ public partial class SettingsWindow : Window
         _defaultSound = config.DefaultSoundFile;
         _typeSounds = new Dictionary<string, string>(config.TypeSoundFiles, StringComparer.OrdinalIgnoreCase);
         LoadValues();
+        LoadAbout();
         ChannelPanel.Initialize(providerProfiles, routes, dispatcher);
+    }
+
+    /// <summary>Selects the About tab, used by the tray menu's About entry.</summary>
+    public void ShowAboutTab() => AboutTab.IsSelected = true;
+
+    private void LoadAbout()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var version =
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion
+            ?? "unknown";
+
+        AboutVersionText.Text = $"Version {version}";
+
+        if (version.Contains('-', StringComparison.Ordinal))
+        {
+            AboutPrereleaseText.Text =
+                "This is a prerelease build. Expect incomplete features and breaking changes.";
+        }
+        else
+        {
+            AboutPrereleaseText.Visibility = Visibility.Collapsed;
+        }
+
+        AboutDataPathText.Text = _store.ConfigDir;
+        AboutPublisherText.Text = "Published by Kabani Tech Private Limited. Author Akash P.";
+    }
+
+    private void AboutLink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        if (string.Equals(e.Uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            }
+            catch
+            {
+            }
+        }
+
+        e.Handled = true;
     }
 
     private void LoadValues()

@@ -599,3 +599,26 @@ Verified:
 
 Not verified: **no WPF interaction was performed.** Whether clicking the Telegram provider now loads
 its fields without closing the application must be confirmed by the owner on Windows.
+
+## About section (`feature/about-section`)
+
+Adds an About tab to the Settings window and an "About AgentNotify" tray menu entry that opens it.
+The tab shows the app icon, name, version read from assembly metadata, a prerelease warning shown
+only when the version carries a suffix, a description of the product, a local-first summary, links
+to the repository/documentation/releases/issues, the per-user data directory, a warning that
+`config.json` holds the local bearer token, and publisher/licence/unsigned notes.
+
+The tray item is placed immediately above Exit rather than literally last, because Exit last is the
+established convention and an entry below it reads as a mistake. Moving it is a one-line change.
+
+Hyperlinks hand only `https` URIs to `ShellExecute`. The URIs are compiled into the XAML today, so
+this cannot currently matter, but routing an arbitrary scheme through the shell is what turns a link
+into a command launcher if the source ever becomes dynamic. Browser launch failures are swallowed so
+a misconfigured default browser cannot close the Settings window.
+
+Verified: Release build 0 warnings/0 errors, 644 tests pass, installer repackaged with SHA-256
+`4cf2cb98416352f488083d20fc666a2994388ad57ccd9426d03bc9e5ba3778ad`.
+
+**Not verified: no WPF interaction was performed.** Whether the icon renders from the packed
+`Resources/an.ico` URI, whether the tab lays out correctly, and whether the tray entry opens the
+Settings window on the About tab all need a human on Windows.
