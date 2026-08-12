@@ -25,6 +25,7 @@ coverage*.xml
 
 # Local AgentNotify runtime data (config may contain the auth token)
 local/
+notification-tone/
 logs/
 
 # OS / editor noise

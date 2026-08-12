@@ -11,7 +11,7 @@ fi
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cp -R "$ROOT/site/." "$OUT/"
-cp "$ROOT/an.png" "$OUT/an.png"
+cp "$ROOT/assets/branding/an.png" "$OUT/an.png"
 test -s "$OUT/index.html"
 echo "Built documentation site at $OUT"
 

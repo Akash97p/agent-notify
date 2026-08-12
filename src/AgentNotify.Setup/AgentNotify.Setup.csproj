@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>AgentNotifySetup</AssemblyName>
     <RootNamespace>AgentNotify.Setup</RootNamespace>
-    <ApplicationIcon>..\..\an.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\branding\an.ico</ApplicationIcon>
     <Description>AgentNotify per-user installer.</Description>
     <AssemblyTitle>AgentNotify Installer</AssemblyTitle>
   </PropertyGroup>
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\an.ico" Link="Resources\an.ico" />
+    <Resource Include="..\..\assets\branding\an.ico" Link="Resources\an.ico" />
     <EmbeddedResource Include="$(PayloadDir)\AgentNotify.Tray.exe" LogicalName="Payload.AgentNotify.Tray.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\AgentNotify.Tray.exe')" />
     <EmbeddedResource Include="$(PayloadDir)\agentnotify.exe" LogicalName="Payload.agentnotify.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\agentnotify.exe')" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="Payload.SKILL.md" />

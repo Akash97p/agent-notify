@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "site/**"
-      - "an.png"
+      - "assets/branding/an.png"
       - "scripts/build-site.sh"
       - ".github/workflows/pages.yml"
   workflow_dispatch:

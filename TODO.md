@@ -20,7 +20,7 @@
 
 ## Desktop experience
 
-- [x] Branded tray/window/setup icon from `an.ico`
+- [x] Branded tray/window/setup icon from `assets/branding/an.ico`
 - [x] Custom borderless WPF toasts with `WS_EX_NOACTIVATE`
 - [x] Foreground-monitor, DPI-aware centralized stacking
 - [x] Overflow queue

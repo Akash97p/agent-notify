@@ -9,7 +9,7 @@
     <RootNamespace>AgentNotify.Cli</RootNamespace>
     <Description>agentnotify — command-line client for the AgentNotify broker.</Description>
     <AssemblyTitle>AgentNotify Command Line</AssemblyTitle>
-    <ApplicationIcon>..\..\an.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\branding\an.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

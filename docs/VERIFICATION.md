@@ -240,7 +240,7 @@ The installed CLI returned `agentnotify 0.0.1-alpha.1`. The Windows uninstall re
 ## Verified by implementation and compilation, not visually inspected
 
 - Tray menu includes Notification Center, Getting Started, Copy/Download skill, Pause, Start with Windows, logs, and Exit.
-- The supplied multi-resolution `an.ico` is compiled into app/setup resources and executable icon metadata.
+- The supplied multi-resolution `assets/branding/an.ico` is compiled into app/setup resources and executable icon metadata.
 - Toast HWND receives `WS_EX_NOACTIVATE`; XAML also sets `ShowActivated=false`, `Focusable=false`, and `Topmost=true`.
 - Toast manager queues overflow and uses foreground-monitor work area with DPI conversion.
 - Dashboard status changes feed back into the toast manager.
