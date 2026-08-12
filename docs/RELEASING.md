@@ -1,16 +1,43 @@
 # Releases and GitHub Pages
 
-The repository is currently local-only. These files do not configure a remote or publish anything by themselves.
+The repository is published at [github.com/Akash97p/agent-notify](https://github.com/Akash97p/agent-notify). These files document the release process; GitHub Actions performs the hosted build and publication after an authorized tag push.
 
-## GitHub setup after the owner pushes the repository
+## GitHub repository setup
 
-1. Push `main` and `dev` to `https://github.com/Akash97p/agent-notify`.
+1. Keep `main` as the stable release line and `dev` as the integration line.
 2. Make `main` the default protected branch and require the CI workflow before merge.
 3. In **Settings → Pages**, select **GitHub Actions** as the publishing source.
 4. Keep normal development on topic branches merged into `dev`; promote a tested release from `dev` to `main` through review.
 5. Obtain and configure Authenticode signing before presenting a public build as trusted. The current workflow produces unsigned binaries.
 
 The Pages workflow deploys the static `site/` documentation after changes reach `main`. It uses the official GitHub Pages actions and requests only read, Pages, and OIDC permissions.
+
+## Published prerelease: `v0.0.1-alpha.1`
+
+The first hosted prerelease was prepared on the `dev` integration line and published on 2026-08-12:
+
+- Tag: [`v0.0.1-alpha.1`](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1)
+- Merge commit: `8186aed` (`merge: prepare v0.0.1-alpha.1 prerelease`)
+- Actions run: [31566620009](https://github.com/Akash97p/agent-notify/actions/runs/31566620009)
+- Result: successful Windows build, test, packaging, and prerelease publication
+- Assets: `AgentNotifySetup.exe`, `SHA256SUMS.txt`, and `SKILL.md`
+- Local installer checksum recorded in [`docs/VERIFICATION.md`](VERIFICATION.md): `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`
+
+This is an alpha evaluation release, not the mature `v1.0.0` release. It may contain incomplete features, breaking changes, unsigned binaries, and unverified provider integrations.
+
+### Version progression
+
+Use the committed `Version` value and exact `v`-prefixed tag together:
+
+| Stage | Example | Meaning |
+|---|---|---|
+| Pre-alpha | `v0.0.1-pre-alpha.1` | Internal or very early evaluation |
+| Alpha | `v0.0.1-alpha.1` | Active development; unstable and incomplete |
+| Beta | `v0.0.1-beta.1` | Feature-complete target with ongoing stabilization |
+| Release candidate | `v0.0.1-rc.1` | Candidate for a stable release |
+| First mature release | `v1.0.0` | Stable public milestone after release criteria pass |
+
+Any tag containing a hyphen is created by the workflow as a GitHub prerelease. A mature `v1.0.0` release should be promoted from a tested `dev` merge to `main` and should also complete signing, human verification, and release review.
 
 ## Create a release
 

@@ -160,7 +160,13 @@ Latest locally packaged artifact SHA-256:
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
 
-The portable `scripts/package.ps1` implementation and WSL wrapper generated a matching `artifacts/SHA256SUMS.txt`. The static Pages source built locally into `_site`; GitHub-hosted workflows cannot be execution-tested until the owner chooses to push the local repository.
+### Published GitHub prerelease
+
+The first hosted prerelease was published from tag `v0.0.1-alpha.1` after the release workflow verified the exact version match, SemVer-style metadata, Windows Release build, 597-test suite, packaging, and skill validity. GitHub Actions run [31566620009](https://github.com/Akash97p/agent-notify/actions/runs/31566620009) completed successfully. The [GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1) contains `AgentNotifySetup.exe`, `SHA256SUMS.txt`, and `SKILL.md`.
+
+The prerelease is intentionally not the mature `v1.0.0` milestone. The release workflow marks any tag containing a hyphen as a prerelease; stable promotion to `v1.0.0` additionally requires a tested `main` release commit, signing, human checks, and release review.
+
+The portable `scripts/package.ps1` implementation and WSL wrapper generated a matching `artifacts/SHA256SUMS.txt`. The static Pages source built locally into `_site`, and the hosted CI, Pages, and release workflows have now executed successfully on GitHub.
 
 ### Custom notification type smoke
 

@@ -289,7 +289,7 @@ artifacts/AgentNotifySetup.exe
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
 
-When this repository is pushed to GitHub, tagged releases can publish the same installer and its SHA-256 checksum through the repository’s release workflow. Building locally never requires a GitHub account or a remote repository. See [Releases and GitHub Pages](docs/RELEASING.md).
+The current [v0.0.1-alpha.1 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1) includes the installer, checksum, and distributable skill. Future exact `v`-prefixed tags publish through the release workflow; hyphenated prerelease tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
 
 ## API
 
