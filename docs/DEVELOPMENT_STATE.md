@@ -8,7 +8,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Stable branch: `main`.
 - Integration branch: `dev`.
 - Imported working baseline: `4be4c1a` (`chore: import working AgentNotify baseline`).
-- Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 87 tests passed.
+- Current integration head: `e20e1c4` (`merge: hardened MQTT 5 channel`).
+- Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
+- Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `724d8e0bb8dff997d0d69011028ec0693d7da0f0d4cfaaba92ede20a5c79707c`.
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
 - Current product version: `1.0.0`, Windows x64, unsigned.
 
@@ -51,9 +53,17 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 24. Completed on `feature/whatsapp-cloud`: exact official versioned Graph Messages endpoint (v25.0 default, strictly configurable), DPAPI-encrypted system-user access token/phone-number ID/single E.164 recipient, approved text templates with zero-to-five allowlisted ordered body variables, redaction-safe fixed arity, explicit recipient-opt-in/template-approval/paid-send acknowledgements, critical-by-default priority cost floor, 32 KiB request/response bounds, `wamid` acceptance validation, best-effort no-replay handling for caught ambiguity/cancellation with only definite 429 retries, public-DNS connection enforcement, native Settings fields, and 513 passing tests. Process-termination duplicates, real-business-account/human UI smoke, delivery-status webhooks, and a durable daily/account spend budget remain pending.
 25. Completed on `feature/twilio-whatsapp`: exact Account-scoped Twilio Messages endpoint, recommended API Key and local-testing Auth Token modes, DPAPI-encrypted Account/credential/single E.164 recipient/Messaging Service/Content SIDs, approved `HX` Content Templates with zero-to-five allowlisted numbered variables, redaction-safe fixed arity, explicit opt-in/template/text-only/paid acknowledgements, critical-by-default priority floor and queue validity, content/address retention controls, bounded acknowledgement including WhatsApp `read`, best-effort no-replay ambiguity handling with only definite 429 retries, public-DNS enforcement, native Settings fields, and 552 passing tests. Process-termination duplicates, real-account/human UI smoke, delivery-status webhooks, and durable spend budgets remain pending.
 26. Completed on `feature/channel-mqtt`: MQTTnet 5.2 MQTT 5 publishing, mandatory TLS 1.2/1.3 with platform hostname/chain/revocation checks, all-address DNS validation followed by pinned-IP connection with the original SNI target, explicit private-network consent, DPAPI-encrypted fixed non-wildcard topic and username/password or Current User mTLS certificate thumbprint, separately acknowledged anonymous TLS, bounded non-retained JSON with message expiry and stable delivery/notification user properties, explicit QoS 0/1/2 behavior and duplicate-risk acknowledgement, native Settings fields, and 597 passing tests. Real-broker/mTLS and human UI smoke remain pending.
-27. Next: AWS SNS publishing with explicit static access-key profiles (no ambient credential-chain inheritance), encrypted region/topic ARN/keys, HTTPS-only AWS SDK transport, fixed destination, message bounds, cost acknowledgement, and provider-specific retry classification.
+27. Paused after MQTT: AWS SNS was researched but deliberately not implemented. No AWS SDK, credential-chain behavior, or partial adapter remains in the tree. Revisit only as a separately approved `feature/channel-aws-sns` branch with explicit static credentials, encrypted region/topic/keys, fixed destination, cost acknowledgement, and provider-specific retry classification.
 28. Signal remains experimental because it has no supported official bot/business sending API. Additional channels remain in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+
+## Current documentation/status snapshot
+
+- Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
+- All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
+- Automated coverage is 597 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
+- Work is paused on the clean `dev` branch after the MQTT merge. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 
-Inspect the current branch and status, finish its documented acceptance criteria, run the required gates, update this file, merge the branch to `dev`, and create the next branch from `dev`.
+Inspect the current branch and status, keep documentation aligned with the merged `dev` head, and create a new topic branch only when the next capability is explicitly resumed.

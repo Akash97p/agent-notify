@@ -257,3 +257,15 @@ These were code-reviewed and built, but the automation did not capture the user�
 ## Release blocker for public distribution
 
 The app is functional but unsigned. Obtain an Authenticode certificate for Kabani Tech Private Limited, sign the two payload binaries before embedding them, sign the final installer last, timestamp all signatures, and publish a fresh SHA-256 checksum.
+
+## Documentation audit — 2026-08-12
+
+This documentation-only branch reconciled the README, roadmap, feature backlog, development handoff, outbound-channel index, and GitHub Pages source with the merged MQTT milestone (`e20e1c4`). It corrected the stale 87-test baseline, recorded the 597-test state and current local installer checksum, documented all 18 implemented outbound adapters, and marked AWS SNS as paused/not implemented. No application source, project file, generated artifact, or distributable skill content was changed by this audit.
+
+Documentation gates for this branch:
+
+- `git diff --check` — required before commit.
+- `./scripts/build.sh` — full Windows Release build, required even for documentation branches by repository workflow.
+- `./scripts/test.sh` — full automated suite, required before merge.
+- `./scripts/build-site.sh` — static documentation site build.
+- `python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
