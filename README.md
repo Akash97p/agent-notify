@@ -5,6 +5,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](docs/INSTALLATION.md)
 [![Tests](https://img.shields.io/badge/tests-597%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
+[![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
 > **Development status:** Pre-release `v0.0.1-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
 
@@ -14,6 +15,7 @@
 
 <p align="center">
   <strong>The local human-attention and notification broker for coding agents.</strong><br>
+  <a href="https://akash97p.github.io/agent-notify/">Documentation</a> ·
   <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
   <a href="docs/INSTALLATION.md">Installation</a> ·
   <a href="docs/API.md">API</a> ·
