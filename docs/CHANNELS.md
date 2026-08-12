@@ -368,6 +368,36 @@ A successful create must return a valid message SID, an accepted/queued/sending/
 
 Before enabling a route, configure Twilio geographic permissions, sender registration/A2P compliance, consent and opt-out obligations, usage triggers, and an account spend limit. AgentNotify's one-segment and priority controls are not a durable daily monetary budget. See Twilio's official [Messages resource](https://www.twilio.com/docs/messaging/api/message-resource), [API authentication guidance](https://www.twilio.com/docs/usage/requests-to-twilio), and [SMS character limits](https://www.twilio.com/docs/glossary/what-sms-character-limit).
 
+## WhatsApp Cloud API
+
+Implementation status: direct Meta adapter and native Settings fields complete; real-business-account testing, delivery-status webhooks, durable spend budgets, and human UI smoke pending.
+
+AgentNotify uses Meta's official hosted WhatsApp Cloud API, not browser automation, WhatsApp Web scraping, a personal account, or an unofficial bridge. It sends approved text templates only. A profile is restricted to one encrypted E.164 recipient and cannot be saved or delivered unless the operator separately confirms that the recipient opted in, the exact template/language/variable order is approved, and paid template sends are authorized.
+
+```json
+{
+  "apiVersion": "v25.0",
+  "phoneNumberIdSecretName": "phone_number_id",
+  "accessTokenSecretName": "access_token",
+  "recipientSecretName": "recipient",
+  "templateName": "agentnotify_alert",
+  "languageCode": "en_US",
+  "bodyParameters": ["title", "message"],
+  "recipientOptInAcknowledged": true,
+  "templateApprovedAcknowledged": true,
+  "paidSendConsent": true,
+  "minimumPriority": "critical"
+}
+```
+
+The Graph version defaults to `v25.0`, the current release when this adapter was implemented on 2026-08-12, but remains an explicit strictly validated setting because Meta versions expire independently of AgentNotify. The endpoint is always derived as `https://graph.facebook.com/{version}/{phone-number-id}/messages`; neither an agent nor a profile can select another host, port, path, or recipient at delivery time. The system-user access token must carry the permissions required by the operator's Meta setup. The token, phone-number ID, and recipient are stored only in DPAPI current-user secret envelopes.
+
+An approved template can have no body variables or up to five variables in an operator-configured order. Available mappings are `title`, `message`, `priority`, `type`, `agent`, and `project`; arbitrary notification metadata is never projected. If routing redacts `message`, AgentNotify supplies `Details withheld` so the approved template's parameter count does not change. Title-like values are bounded to 250 Unicode scalars and message to 1024 without splitting surrogate pairs. AgentNotify does not send free-form session text, media headers, documents, buttons, URL parameters, catalogue content, location, contact cards, or reactions.
+
+The default priority floor is critical. An explicit **Send test** bypasses that floor because it is a deliberate operator action, but it still requires all three acknowledgements and may incur charges. The create response must be bounded and identify exactly one accepted message with a printable `wamid.` identifier. Meta documents no create-message idempotency key, so 408, 425, 5xx, cancellation/timeouts, network failures, and malformed 2xx responses are terminal: replay might duplicate a paid conversation. Only a definite 429 response retries. A process, OS, or power failure after Meta accepts the message but before the local outbox completion commits can still cause recovery replay.
+
+Before enabling a route, create and approve the template in WhatsApp Manager, obtain recipient opt-in through a compliant flow, provision and rotate a least-privilege system-user token, configure billing/quality/opt-out controls, and verify the exact parameter order. The local priority floor is not a durable monetary budget. See Meta's official [WhatsApp Business Platform workspace](https://www.postman.com/meta/whatsapp-business-platform/overview), [template-message request](https://www.postman.com/meta/whatsapp-business-platform/request/o65u5m5/send-message-template-text), and [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.
