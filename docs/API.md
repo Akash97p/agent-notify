@@ -26,7 +26,7 @@ Authenticated. Returns broker health.
 | Field | Type | Notes |
 |-------|------|-------|
 | `status` | string | `"ok"` |
-| `version` | string | Product informational version, e.g. `"0.0.1-alpha.1"` |
+| `version` | string | Product informational version, e.g. `"0.0.3-alpha.1"` |
 | `pid` | int | Broker process id |
 | `uptimeSeconds` | number | Seconds since start |
 | `activeCount` | int | Count of `status=active` notifications |

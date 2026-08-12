@@ -41,7 +41,7 @@ For narrow iterations, targeted tests are acceptable during development; the ful
 Validate the distributable skill after modifying it:
 
 ```bash
-python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify
+python3 "$SKILL_CREATOR/scripts/quick_validate.py" distribution/agentnotify
 ```
 
 Record manual WPF checks honestly in `docs/VERIFICATION.md`. Never claim a visual or integration test that was not performed.

@@ -274,7 +274,7 @@ Documentation gates for this branch:
 - `./scripts/build.sh` — full Windows Release build, required even for documentation branches by repository workflow.
 - `./scripts/test.sh` — full automated suite, required before merge.
 - `./scripts/build-site.sh` — static documentation site build.
-- `python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
+- `quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
 
 ## Settings readability and window chrome — 2026-08-12
 
@@ -622,3 +622,21 @@ Verified: Release build 0 warnings/0 errors, 644 tests pass, installer repackage
 **Not verified: no WPF interaction was performed.** Whether the icon renders from the packed
 `Resources/an.ico` URI, whether the tab lays out correctly, and whether the tray entry opens the
 Settings window on the About tab all need a human on Windows.
+
+## Owner confirmation on Windows (0.0.3-alpha.1)
+
+Two items previously recorded here as unverified were confirmed by the owner on Windows:
+
+- The Settings crash fix: selecting the saved Telegram provider now loads its fields instead of
+  closing the application, and a real Telegram bot delivered a test message with no error afterwards.
+- The About section: the tray entry opens Settings on the About tab and the tab renders as intended.
+
+A spread of eight notifications across every built-in type was also sent through the installed
+build. The four high and critical ones routed to Telegram and were recorded as `Delivered` on the
+first attempt; the four normal-priority ones correctly stayed local, exercising the route's
+minimum-priority filter.
+
+Documentation was swept for machine-specific paths and version drift: personal filesystem paths were
+replaced with `/path/to/agent-notify`, and every current-version reference and test count now matches
+the released version. Historical version references in `RELEASING.md` and `CHANGELOG.md` are left as
+written, since they record what was published at the time.

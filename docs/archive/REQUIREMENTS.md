@@ -141,7 +141,7 @@ Base URL `http://127.0.0.1:47821` (port configurable). Loopback only. Bearer-tok
 
 ## 7. WSL Development Constraints
 
-- Repository lives at `/home/akash/projects/agent-notify` in this workspace.
+- Repository lives at `/path/to/agent-notify` in this workspace.
 - Code is edited from WSL and built with the **Windows** .NET SDK (`dotnet.exe`).
 - The Windows .NET 10.0.302 SDK is available at `/mnt/d/dev/dotnet/dotnet.exe`.
 - WPF must never be built with the Linux `dotnet`; only `dotnet.exe`.

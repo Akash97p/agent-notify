@@ -51,7 +51,7 @@ Microsoft.WindowsDesktop.App 10.0.10
 ```
 
 ```bash
-cd /home/akash/projects/agent-notify
+cd /path/to/agent-notify
 ./scripts/build.sh
 ./scripts/test.sh
 ./scripts/package.sh

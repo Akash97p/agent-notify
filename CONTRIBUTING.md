@@ -13,7 +13,7 @@ Thanks for helping improve AgentNotify. Bug reports, documentation fixes, tests,
 AgentNotify is a Windows 11 WPF application built from WSL with the Windows .NET 10 SDK. This checkout uses the SDK at `D:\dev\dotnet\dotnet.exe`:
 
 ```bash
-cd /home/akash/projects/agent-notify
+cd /path/to/agent-notify
 ./scripts/build.sh
 ./scripts/test.sh
 ```
