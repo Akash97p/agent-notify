@@ -23,6 +23,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioCredentialModeBox.SelectedIndex = 0;
         TwilioSenderTypeBox.SelectedIndex = 0;
         TwilioMinimumPriorityBox.SelectedIndex = 0;
+        WhatsAppMinimumPriorityBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -84,6 +85,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadPushoverConfiguration(profile);
         LoadPushbulletConfiguration(profile);
         LoadTwilioSmsConfiguration(profile);
+        LoadWhatsAppCloudConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -157,6 +159,17 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioMinimumPriorityBox.SelectedIndex = 0;
         TwilioValidityBox.Text = "300";
         TwilioPaidConsentBox.IsChecked = false;
+        WhatsAppVersionBox.Text = "v25.0";
+        WhatsAppPhoneNumberIdBox.Clear();
+        WhatsAppAccessTokenBox.Clear();
+        WhatsAppRecipientBox.Clear();
+        WhatsAppTemplateBox.Text = "agentnotify_alert";
+        WhatsAppLanguageBox.Text = "en_US";
+        WhatsAppParametersBox.Text = "title,message";
+        WhatsAppMinimumPriorityBox.SelectedIndex = 0;
+        WhatsAppOptInBox.IsChecked = false;
+        WhatsAppTemplateApprovedBox.IsChecked = false;
+        WhatsAppPaidConsentBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -193,6 +206,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "pushover" => await SavePushoverProviderAsync(existing),
             "pushbullet" => await SavePushbulletProviderAsync(existing),
             "twilio_sms" => await SaveTwilioSmsProviderAsync(existing),
+            "whatsapp_cloud" => await SaveWhatsAppCloudProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -775,6 +789,77 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveWhatsAppCloudProviderAsync(ProviderProfile? existing)
+    {
+        var secretNames = existing?.SecretNames ?? [];
+        RequireSecret(WhatsAppPhoneNumberIdBox.Password, secretNames, "phone_number_id",
+            "Enter the WhatsApp phone-number ID.");
+        RequireSecret(WhatsAppAccessTokenBox.Password, secretNames, "access_token",
+            "Enter a Meta system-user access token.");
+        RequireSecret(WhatsAppRecipientBox.Password, secretNames, "recipient",
+            "Enter the one opted-in WhatsApp recipient.");
+
+        var version = WhatsAppVersionBox.Text.Trim();
+        if (!IsMetaGraphVersion(version))
+            throw new ArgumentException("The Meta Graph version must look like v25.0 (major 1–99).");
+        var phoneNumberId = WhatsAppPhoneNumberIdBox.Password.Trim();
+        if (phoneNumberId.Length > 0 && !IsWhatsAppPhoneNumberId(phoneNumberId))
+            throw new ArgumentException("The WhatsApp phone-number ID must contain 5–32 digits.");
+        var accessToken = WhatsAppAccessTokenBox.Password;
+        if (accessToken.Length > 0 && (accessToken.Length is < 16 or > 2048 ||
+                                      accessToken.Any(character => character is <= ' ' or > '~')))
+            throw new ArgumentException("The Meta access token must be 16–2048 printable characters without spaces.");
+        var recipient = WhatsAppRecipientBox.Password.Trim();
+        if (recipient.Length > 0 && !IsE164(recipient))
+            throw new ArgumentException("The WhatsApp recipient must be an E.164 number such as +15551234567.");
+        var templateName = WhatsAppTemplateBox.Text.Trim();
+        if (!IsWhatsAppTemplateName(templateName))
+            throw new ArgumentException("The approved template name may contain lowercase letters, digits, and underscore only.");
+        var languageCode = WhatsAppLanguageBox.Text.Trim();
+        if (!IsWhatsAppLanguageCode(languageCode))
+            throw new ArgumentException("Enter a language code such as en or en_US.");
+        var parameters = WhatsAppParametersBox.Text
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var allowedParameters = new HashSet<string>(["title", "message", "priority", "type", "agent", "project"], StringComparer.Ordinal);
+        if (parameters.Length > 5 || parameters.Any(value => !allowedParameters.Contains(value)) ||
+            parameters.Distinct(StringComparer.Ordinal).Count() != parameters.Length)
+            throw new ArgumentException("Use up to five unique allowed template variables in the approved order.");
+        if (WhatsAppOptInBox.IsChecked != true)
+            throw new ArgumentException("Confirm that the recipient explicitly opted in.");
+        if (WhatsAppTemplateApprovedBox.IsChecked != true)
+            throw new ArgumentException("Confirm the approved template, language, and variable order.");
+        if (WhatsAppPaidConsentBox.IsChecked != true)
+            throw new ArgumentException("Authorize paid WhatsApp template sends before saving this provider.");
+        var minimumPriority = (WhatsAppMinimumPriorityBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "critical";
+
+        var config = JsonSerializer.Serialize(new
+        {
+            apiVersion = version,
+            phoneNumberIdSecretName = "phone_number_id",
+            accessTokenSecretName = "access_token",
+            recipientSecretName = "recipient",
+            templateName,
+            languageCode,
+            bodyParameters = parameters,
+            recipientOptInAcknowledged = true,
+            templateApprovedAcknowledged = true,
+            paidSendConsent = true,
+            minimumPriority
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddSecret(changes, "phone_number_id", WhatsAppPhoneNumberIdBox.Password);
+        AddSecret(changes, "access_token", WhatsAppAccessTokenBox.Password);
+        AddSecret(changes, "recipient", WhatsAppRecipientBox.Password);
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "whatsapp_cloud",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, []);
+        WhatsAppPhoneNumberIdBox.Clear();
+        WhatsAppAccessTokenBox.Clear();
+        WhatsAppRecipientBox.Clear();
+        return saved;
+    }
+
     private static void RequireSecret(string entered, IReadOnlyList<string> stored, string name, string message)
     {
         if (string.IsNullOrWhiteSpace(entered) && !stored.Contains(name, StringComparer.Ordinal))
@@ -796,6 +881,28 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
     private static bool IsPrintableSecret(string value) =>
         value.Length is >= 16 and <= 256 && value.All(character => character is >= '!' and <= '~');
+
+    private static bool IsMetaGraphVersion(string value)
+    {
+        if (!value.StartsWith('v') || !value.EndsWith(".0", StringComparison.Ordinal)) return false;
+        return int.TryParse(value.AsSpan(1, value.Length - 3), out var major) && major is >= 1 and <= 99;
+    }
+
+    private static bool IsWhatsAppPhoneNumberId(string value) =>
+        value.Length is >= 5 and <= 32 && value.All(char.IsAsciiDigit);
+
+    private static bool IsWhatsAppTemplateName(string value) =>
+        value.Length is >= 1 and <= 512 &&
+        value.All(character => character is >= 'a' and <= 'z' || char.IsAsciiDigit(character) || character == '_');
+
+    private static bool IsWhatsAppLanguageCode(string value)
+    {
+        var parts = value.Split('_');
+        return parts.Length is 1 or 2 && parts[0].Length is 2 or 3 &&
+               parts[0].All(character => character is >= 'a' and <= 'z') &&
+               (parts.Length == 1 || parts[1].Length == 2 &&
+                parts[1].All(character => character is >= 'A' and <= 'Z'));
+    }
 
     private Dictionary<string, string> BuildEnteredSecrets()
     {
@@ -830,6 +937,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "pushover" => 12,
             "pushbullet" => 13,
             "twilio_sms" => 14,
+            "whatsapp_cloud" => 15,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -857,6 +965,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "pushover" => "Pushover",
                 "pushbullet" => "Pushbullet",
                 "twilio_sms" => "Twilio SMS",
+                "whatsapp_cloud" => "WhatsApp Cloud",
                 _ => "Webhook"
             };
     }
@@ -878,7 +987,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var pushover = kind == "pushover";
         var pushbullet = kind == "pushbullet";
         var twilioSms = kind == "twilio_sms";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms ? Visibility.Collapsed : Visibility.Visible;
+        var whatsAppCloud = kind == "whatsapp_cloud";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -893,7 +1003,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         PushoverFields.Visibility = pushover ? Visibility.Visible : Visibility.Collapsed;
         PushbulletFields.Visibility = pushbullet ? Visibility.Visible : Visibility.Collapsed;
         TwilioSmsFields.Visibility = twilioSms ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms ? Visibility.Collapsed : Visibility.Visible;
+        WhatsAppCloudFields.Visibility = whatsAppCloud ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -1168,6 +1279,51 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             TwilioMinimumPriorityBox.SelectedIndex = 0;
             TwilioValidityBox.Text = "300";
             TwilioPaidConsentBox.IsChecked = false;
+        }
+    }
+
+    private void LoadWhatsAppCloudConfiguration(ProviderProfile profile)
+    {
+        WhatsAppPhoneNumberIdBox.Clear();
+        WhatsAppAccessTokenBox.Clear();
+        WhatsAppRecipientBox.Clear();
+        if (profile.Kind != "whatsapp_cloud") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            WhatsAppVersionBox.Text = GetJsonString(root, "apiVersion");
+            if (string.IsNullOrWhiteSpace(WhatsAppVersionBox.Text)) WhatsAppVersionBox.Text = "v25.0";
+            WhatsAppTemplateBox.Text = GetJsonString(root, "templateName");
+            WhatsAppLanguageBox.Text = GetJsonString(root, "languageCode");
+            WhatsAppParametersBox.Text = root.TryGetProperty("bodyParameters", out var parameters) &&
+                                             parameters.ValueKind == JsonValueKind.Array
+                ? string.Join(',', parameters.EnumerateArray().Select(value => value.GetString()))
+                : "";
+            WhatsAppMinimumPriorityBox.SelectedIndex = GetJsonString(root, "minimumPriority") switch
+            {
+                "high" => 1,
+                "normal" => 2,
+                "low" => 3,
+                _ => 0
+            };
+            WhatsAppOptInBox.IsChecked = root.TryGetProperty("recipientOptInAcknowledged", out var optIn) &&
+                                           optIn.ValueKind == JsonValueKind.True;
+            WhatsAppTemplateApprovedBox.IsChecked = root.TryGetProperty("templateApprovedAcknowledged", out var approved) &&
+                                                      approved.ValueKind == JsonValueKind.True;
+            WhatsAppPaidConsentBox.IsChecked = root.TryGetProperty("paidSendConsent", out var paid) &&
+                                                paid.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            WhatsAppVersionBox.Text = "v25.0";
+            WhatsAppTemplateBox.Text = "agentnotify_alert";
+            WhatsAppLanguageBox.Text = "en_US";
+            WhatsAppParametersBox.Text = "title,message";
+            WhatsAppMinimumPriorityBox.SelectedIndex = 0;
+            WhatsAppOptInBox.IsChecked = false;
+            WhatsAppTemplateApprovedBox.IsChecked = false;
+            WhatsAppPaidConsentBox.IsChecked = false;
         }
     }
 
