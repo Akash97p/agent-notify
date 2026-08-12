@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using AgentNotify.Contracts;
@@ -432,7 +433,10 @@ internal static class Program
 
     private static int RunVersion()
     {
-        var v = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+        var assembly = typeof(Program).Assembly;
+        var v = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "0.0.1";
         Console.WriteLine($"agentnotify {v}");
         return 0;
     }

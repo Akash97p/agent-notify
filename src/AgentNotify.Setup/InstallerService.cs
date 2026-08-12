@@ -13,6 +13,11 @@ internal sealed record InstallProgress(int Percent, string Message);
 
 internal static class InstallerService
 {
+    public static string ProductVersion =>
+        typeof(InstallerService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(InstallerService).Assembly.GetName().Version?.ToString(3)
+        ?? "0.0.1";
+
     private const string ProductKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\AgentNotify";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string EnvironmentKey = @"Environment";
@@ -106,7 +111,7 @@ internal static class InstallerService
         var uninstall = $"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{uninstallScript}\" -InstallDir \"{directory}\"";
         using var key = Registry.CurrentUser.CreateSubKey(ProductKey);
         key.SetValue("DisplayName", "AgentNotify");
-        key.SetValue("DisplayVersion", "1.0.0");
+        key.SetValue("DisplayVersion", ProductVersion);
         key.SetValue("Publisher", "Kabani Tech Private Limited");
         key.SetValue("DisplayIcon", Path.Combine(directory, "AgentNotify.Tray.exe"));
         key.SetValue("InstallLocation", directory);

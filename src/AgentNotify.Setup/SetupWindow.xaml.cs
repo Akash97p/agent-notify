@@ -17,6 +17,7 @@ public partial class SetupWindow : Window
     {
         InitializeComponent();
         Icon = BitmapFrameFromResource();
+        VersionText.Text = $"Version {InstallerService.ProductVersion} · Kabani Tech Private Limited";
         InstallPath.Text = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Programs",

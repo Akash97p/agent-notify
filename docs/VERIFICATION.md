@@ -155,7 +155,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-724d8e0bb8dff997d0d69011028ec0693d7da0f0d4cfaaba92ede20a5c79707c  AgentNotifySetup.exe
+2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
@@ -175,7 +175,7 @@ Windows version-resource inspection confirmed for setup, tray, and CLI:
 ```text
 Product: AgentNotify
 Company: Kabani Tech Private Limited
-File version: 1.0.0.0
+File version: 0.0.1.0
 ```
 
 Authenticode status is `NotSigned`, as documented.
@@ -185,7 +185,7 @@ Authenticode status is `NotSigned`, as documented.
 The actual packaged `AgentNotify.Tray.exe` and `agentnotify.exe` were copied to a temporary directory on the Windows `D:` filesystem and executed. Verified:
 
 - tray/API process started;
-- authenticated `health` returned version `1.0.0`, API `v1`, and the running PID;
+- authenticated `health` returned version `0.0.1-alpha.1`, API `v1`, and the running PID;
 - `input-required` CLI spelling was accepted and serialized as `input_required`;
 - create returned an active notification ID;
 - a second create with the same key returned the same ID and updated content;
@@ -229,7 +229,7 @@ Verified installed outputs:
 - `THIRD_PARTY_NOTICES.txt`
 - `uninstall.ps1`
 
-The installed CLI returned `agentnotify 1.0.0`. The Windows uninstall registry entry reported AgentNotify, version 1.0.0, and publisher Kabani Tech Private Limited. Running the registered uninstall script removed the known files and uninstall registration. The temporary test directory was then removed.
+The installed CLI returned `agentnotify 0.0.1-alpha.1`. The Windows uninstall registry entry reported AgentNotify, version 0.0.1-alpha.1, and publisher Kabani Tech Private Limited. Running the registered uninstall script removed the known files and uninstall registration. The temporary test directory was then removed.
 
 ## Verified by implementation and compilation, not visually inspected
 
