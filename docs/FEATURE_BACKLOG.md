@@ -78,7 +78,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C17 | Twilio WhatsApp | Twilio Messages API + Content Templates | Adapter and Settings integration implemented with text-template attestation and consent/cost controls; real-account smoke and delivery status pending |
 | C18 | Signal | User-managed `signal-cli` process adapter | Experimental/unofficial; never imply official Signal support |
 | C19 | MQTT | MQTT 5 publish to configured TLS broker/topic | Adapter and Settings integration implemented with DNS pinning, platform trust/mTLS, fixed encrypted topic, and explicit QoS semantics; real-broker smoke pending |
-| C20 | AWS SNS | Signed AWS API/SDK publish | Medium; IAM and credential-chain UX must be carefully scoped |
+| C20 | AWS SNS | Signed AWS API/SDK publish | Paused/not implemented; revisit only with explicit static credentials, no ambient credential-chain inheritance, fixed destination, cost controls, and a provider-specific retry review |
 | C21 | Azure Communication Services | Email/SMS provider SDK/API | Medium; connection credentials and cost controls required |
 | C22 | SendGrid | Mail Send API | High; useful when SMTP is unavailable |
 | C23 | Mailgun | Messages API | High; region and domain configuration required |
@@ -110,4 +110,4 @@ Publish small PowerShell, shell, Python, JavaScript, and .NET clients; then eval
 - Signed x64/ARM64 releases, checksums, schema migration recovery, automatic updates, and rollback.
 - Accessibility, keyboard navigation, localization, high-contrast support, multi-DPI/multi-monitor verification.
 - Portable core extraction followed by native macOS menu-bar and Linux tray/desktop implementations.
-- Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes.
+- Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes. The local `site/` source is already buildable; publishing it requires the owner to configure GitHub Pages after a future remote is intentionally added.

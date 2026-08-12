@@ -4,6 +4,19 @@ Outbound delivery is secondary to AgentNotify's local SQLite notification record
 
 Use **Tray icon → Settings → Channels** to create a provider profile, enter encrypted values, send a test, and add a route. New profiles and routes begin disabled. Password fields never reveal stored values: leave one blank to preserve it, enter a value to replace it, or select the explicit removal checkbox for an optional credential. Route message content is excluded by default and requires explicit opt-in.
 
+## Implemented channel inventory
+
+The current `dev` integration branch contains 18 adapters. Each detailed section below documents its configuration contract, payload projection, acknowledgement policy, and verification boundary.
+
+| Group | Implemented adapters |
+|---|---|
+| Automation and self-hosted infrastructure | Generic HTTPS webhook, MQTT 5 |
+| Email and chat | SMTP, Telegram, Discord, Slack, Microsoft Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix |
+| Push | ntfy, Gotify, Pushover, Pushbullet |
+| Paid messaging | Twilio SMS, Meta WhatsApp Cloud API, Twilio WhatsApp |
+
+All providers are disabled until explicitly configured. Automated tests use fake transports and synthetic secrets; they do not prove that a provider account, template, broker ACL, quota, consent record, or destination is correct. Use each provider's **Test** action only after reviewing the cost, recipient, privacy, and retention implications in its section.
+
 ## Generic HTTPS webhook
 
 Implementation status: adapter and native Settings management UI complete; human visual/accessibility inspection pending.

@@ -312,16 +312,17 @@ Content-Type: application/json
 - The binaries and installer are x64 Windows builds.
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix-room, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, direct WhatsApp Cloud templates, Twilio WhatsApp Content templates, and MQTT 5 over TLS/mTLS are configurable; the remaining provider adapters are roadmap work.
+- Eighteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, and MQTT 5 over TLS/mTLS.
+- Real-provider interoperability is not claimed by automated tests. Configure and test each provider with your own account, destination, consent, quotas, and compliance controls.
+- AWS SNS, Signal, provider email APIs, additional SMS/mobile-push services, quiet hours/escalation, agent callbacks, and SDK/MCP work remain backlog items; AWS SNS is currently paused and has no implementation in this branch.
 
 ## Roadmap
 
-The transport design will keep the local broker as the source of truth and add opt-in delivery adapters. Planned directions include:
+The transport design keeps the local broker as the source of truth. Completed delivery adapters are listed in [docs/CHANNELS.md](docs/CHANNELS.md); remaining directions include:
 
-- Email through user-configured SMTP or provider APIs.
+- Provider email APIs where SMTP is unavailable or insufficient.
 - Delivery-status webhooks and durable spend budgets for paid SMS/WhatsApp transports.
-- Microsoft Teams, Slack, Discord, and provider-specific chat webhooks.
-- SMS and mobile push through explicitly configured providers.
+- Additional SMS and mobile push through explicitly configured providers.
 - Quiet hours, schedules, snooze, escalation, grouping, and per-project rules.
 - Response buttons and acknowledgements back to the waiting agent.
 - Agent heartbeat/status, richer SDKs, and an optional MCP server.
@@ -329,7 +330,7 @@ The transport design will keep the local broker as the source of truth and add o
 - ARM64 packages, signed releases, automatic updates, and migration tooling.
 - Native macOS menu-bar and Linux desktop editions built around portable broker contracts.
 
-External channels will be disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md).
+External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). Development is currently paused on `dev` after the MQTT milestone.
 
 ## Contributing and license
 

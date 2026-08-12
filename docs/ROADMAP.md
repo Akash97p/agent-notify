@@ -4,10 +4,8 @@ AgentNotify keeps the local broker, notification lifecycle, and history as the s
 
 ## Near term
 
-- Native Settings UI for port, corner, durations, retention, startup, pause state, channels, and diagnostics.
-- Extensible built-in/custom notification definitions and global/per-type WAV or MP3 sounds.
-- SQLite delivery profiles/routes/outbox/attempts with DPAPI-encrypted provider secrets.
-- Quiet hours, schedules, snooze, escalation, routing, grouping, and coalescing controls.
+- Keep the completed native Settings UI, custom notification definitions, managed WAV/MP3 sounds, and channel diagnostics stable while human visual/audio/accessibility checks are completed.
+- Quiet hours, schedules, snooze, escalation, routing, grouping, cooldowns, and coalescing controls.
 - Response/acknowledgement buttons with a safe path back to the waiting agent.
 - Better “Open Agent” support for Windows Terminal tabs, editors, and virtual desktops.
 - ARM64 builds, Authenticode-signed releases, checksums, and update/migration tooling.
@@ -22,7 +20,8 @@ Potential adapters, in rough priority order:
 4. ntfy, Gotify, Pushover, and Pushbullet (implemented).
 5. Twilio SMS with an encrypted single-recipient allowlist and one-segment/priority cost controls (implemented); durable daily/account spend budgets remain planned.
 6. WhatsApp approved-template delivery through the official Meta Cloud API and optional Twilio Content Templates (implemented); delivery-status webhooks and durable spend controls remain planned.
-7. MQTT 5 with TLS/mTLS for self-hosted/enterprise automation (implemented), followed by selected cloud messaging services.
+7. MQTT 5 with TLS/mTLS for self-hosted/enterprise automation (implemented).
+8. AWS SNS and other cloud messaging services are backlog candidates, not current implementations. They require a separate security and cost review before work begins.
 
 Each provider must be opt-in and independently configurable. Required design work includes Windows-protected credential storage, verified destinations, content-redaction rules, retry queues, idempotency, delivery status, quotas/cost limits, provider rate limits, and a test-send workflow.
 
@@ -47,4 +46,4 @@ WhatsApp must use the official business platform rather than browser automation 
 
 The complete provider-by-provider task list and confidence constraints are maintained in `FEATURE_BACKLOG.md`.
 
-No roadmap item is a compatibility promise. Security/privacy review and a small understandable implementation take precedence over provider count.
+No roadmap item is a compatibility promise. Security/privacy review and a small understandable implementation take precedence over provider count. Current implementation work is paused after MQTT; roadmap items do not imply that a provider branch is active.
