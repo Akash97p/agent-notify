@@ -6,6 +6,8 @@
 [![Tests](https://img.shields.io/badge/tests-597%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 
+> **Development status:** Not released — AgentNotify is under active development. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
+
 <p align="center">
   <img src="an.png" alt="AgentNotify app icon" width="180" height="180">
 </p>
