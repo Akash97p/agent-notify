@@ -39,10 +39,25 @@ Use the committed `Version` value and exact `v`-prefixed tag together:
 
 Any tag containing a hyphen is created by the workflow as a GitHub prerelease. A mature `v1.0.0` release should be promoted from a tested `dev` merge to `main` and should also complete signing, human verification, and release review.
 
+## Release notes
+
+The release description is written by hand in [`CHANGELOG.md`](../CHANGELOG.md), not generated from
+commit subjects. `scripts/release-notes.sh <tag> [previous-tag]` extracts that version's section and
+appends the install instructions, checksum guidance, documentation links, and a compare range. The
+workflow runs it and passes the result to `gh release create --notes-file`.
+
+The script **fails when `CHANGELOG.md` has no section for the tagged version**, which stops a
+release going out with an empty or wrong description. Add the section before tagging, and preview it
+locally:
+
+```bash
+./scripts/release-notes.sh v0.0.2-alpha.1 v0.0.1-alpha.1
+```
+
 ## Create a release
 
 1. Update `Version`, `InformationalVersion`, `AssemblyVersion`, and `FileVersion` in `Directory.Build.props`. Keep the informational value and tag suffix identical; keep the assembly/file values numeric.
-2. Update release notes, the verification record, and any migration documentation.
+2. Add the version's section to `CHANGELOG.md`, then update the verification record and any migration documentation.
 3. Run:
 
    ```bash
@@ -63,9 +78,16 @@ Any tag containing a hyphen is created by the workflow as a GitHub prerelease. A
 
 The tag workflow independently restores, builds, tests, packages, checks the tag against `Directory.Build.props`, and creates a GitHub Release containing:
 
-- `AgentNotifySetup.exe`;
-- `SHA256SUMS.txt`; and
-- the distributable `SKILL.md`.
+- `AgentNotifySetup.exe`, the Windows installer;
+- `SHA256SUMS.txt`, covering the installer;
+- the distributable `SKILL.md`;
+- `agentnotify-win-x64.zip` and `agentnotify-{linux,osx}-{x64,arm64}.tar.gz`, the portable CLI and
+  `agentnotifyd` broker archives; and
+- `SHA256SUMS-portable.txt`, covering those archives.
+
+The portable archives are produced by a second job on a Linux runner after the Windows job succeeds.
+The two checksum files are deliberately named differently: two assets sharing one name would replace
+each other rather than sit side by side.
 
 The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata remains `0.0.1.0` for the current prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.0.1-alpha.1`.
 

@@ -502,3 +502,23 @@ Run `31607106390` passed both jobs. The broker smoke test completed end to end o
 Both platform branches of the secret-protection selection are therefore exercised by CI, and the
 headless broker is confirmed to start, serve `/v1`, deduplicate by key, protect its local state,
 and stop on `SIGTERM` on real Linux and real macOS.
+
+## Release 0.0.2-alpha.1 preparation (`chore/release-0.0.2-alpha.1`)
+
+- Version bumped to `0.0.2-alpha.1` in `Directory.Build.props`, with numeric assembly and file
+  metadata at `0.0.2.0`. The version is centralized there; no other file hard-codes it.
+- `./scripts/build.sh` 0 warnings/0 errors, `./scripts/test.sh` 628 passed, `./scripts/package.sh`
+  rebuilt the installer. Installer SHA-256:
+  `74877688e5bd6e26c0146b8e68b750ebe695e21ae51b01e57dee8eec7a2d208c`.
+- `scripts/release-notes.sh` was run locally for `v0.0.2-alpha.1`. It produced the changelog
+  section, prerelease banner, install instructions, checksum guidance, documentation links, and the
+  compare range, and it exits non-zero for a version with no changelog section.
+- Fixed a defect in the release workflow before it could ship: the Windows job and the portable job
+  both uploaded an asset named `SHA256SUMS.txt`, so the second would have replaced the first rather
+  than sitting beside it. The portable file is now `SHA256SUMS-portable.txt`.
+- The release checkout now uses `fetch-depth: 0`; the default shallow checkout has no earlier tags,
+  so the compare link would have been omitted.
+
+Not verified until the tag is pushed: the release workflow has never run with these changes. The
+`cross-platform-assets` job in particular has never executed at all, so the portable archives have
+never been produced by CI or attached to a release.
