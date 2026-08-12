@@ -522,3 +522,21 @@ and stop on `SIGTERM` on real Linux and real macOS.
 Not verified until the tag is pushed: the release workflow has never run with these changes. The
 `cross-platform-assets` job in particular has never executed at all, so the portable archives have
 never been produced by CI or attached to a release.
+
+## Release v0.0.2-alpha.1 outcome
+
+The tagged run (`31609644846`) published the release with the written description, the Windows
+installer, its checksum, and `SKILL.md`. The `cross-platform-assets` job built all five archives
+successfully but failed at the upload step with `no matches found for 'checksums'`.
+
+The cause was a shell quoting defect in the workflow, not in the archives: `gh release upload`
+takes `file#Display label` arguments, and the label was written unquoted, so the shell split
+`SHA256SUMS-portable.txt#SHA-256 checksums for the portable archives` into six words and `gh` looked
+for files named `checksums`, `for`, and `the`. Every argument is now quoted and each archive has a
+descriptive label. The fix was checked by reproducing the argument construction in bash and
+confirming it yields two arguments rather than eight.
+
+Because the tag and its release already existed, the archives for this release were built locally
+with `./scripts/publish-cross.sh` and uploaded to the existing release rather than retagging. The
+next tagged release will exercise the corrected workflow path, which has still never run to
+completion.
