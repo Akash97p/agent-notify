@@ -11,7 +11,7 @@
     <RootNamespace>AgentNotify.App</RootNamespace>
     <Description>AgentNotify — human-attention broker for coding agents (tray app).</Description>
     <AssemblyTitle>AgentNotify Tray</AssemblyTitle>
-    <ApplicationIcon>..\..\an.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\branding\an.ico</ApplicationIcon>
     <StartupObject>AgentNotify.App.App</StartupObject>
   </PropertyGroup>
 
@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\an.ico" Link="Resources\an.ico" />
+    <Resource Include="..\..\assets\branding\an.ico" Link="Resources\an.ico" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Resources.SKILL.md" />
     <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="AgentNotify.Resources.GettingStarted.html" />
   </ItemGroup>
