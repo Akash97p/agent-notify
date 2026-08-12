@@ -425,3 +425,27 @@ Not verified:
   are unexercised.
 - The `win-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64` archives have not been produced in a
   full run of the script, only the two above.
+
+## Portable file-name sanitizing (`fix/portable-filename-sanitizing`)
+
+The first Linux and macOS CI run failed on `ConfigTests.SoundProfiles_AreSanitizedAndResolvePerTypeOverride`,
+identically on both runners. This was a real defect rather than a test artefact.
+
+`Path.GetFileName` is platform-dependent. Windows treats `\`, `/`, and the volume separator as
+boundaries; on Linux and macOS a backslash is an ordinary file-name character. A configured sound
+of `C:\outside\global.MP3` therefore passed through sanitizing unchanged on Unix, so the invariant
+that a configured sound is a bare file name inside the managed sounds directory did not hold there.
+Configuration is portable between machines, so the same `config.json` must normalize identically on
+every platform. `SafeFileName.Last` now strips both separators and any volume prefix using plain
+string operations, and the three call sites in `AgentNotifyConfig` and `ManagedSoundStore` use it.
+
+Verified:
+
+- 628 tests pass on Windows (619 previous plus 9 covering platform-independent normalization).
+- On real Linux: a `config.json` hand-written with `"defaultSoundFile": "C:\\outside\\global.MP3"`
+  and `"input_required": "..\\attention.wav"` was loaded by the Linux `agentnotifyd`, which rewrote
+  the file with `global.MP3` and `attention.wav`. This exercises the fix through the running broker
+  rather than through the test host.
+
+Not verified until the next CI run: that the previously failing test now passes on the macOS runner.
+No Mac is available here.

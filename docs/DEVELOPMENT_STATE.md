@@ -96,11 +96,14 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Verified: a real `linux-x64` archive was produced, extracted, and both binaries inside it ran. Not verified: no GitHub Actions run has ever executed, and `install.sh` has never run end to end because no release contains these archives yet.
 
 
+35. Completed on `fix/portable-filename-sanitizing`: the first Linux/macOS CI run failed identically on both runners because `Path.GetFileName` is platform-dependent — on Unix a backslash is an ordinary file-name character, so a Windows-style configured sound path survived sanitizing intact and the "bare file name inside the managed directory" invariant did not hold. Added `SafeFileName.Last`, which strips both separators and any volume prefix with plain string operations, and routed `AgentNotifyConfig.NormalizeSoundFile`, `ManagedSoundStore.SeedBuiltIn`, and `ManagedSoundStore.Resolve` through it. 628 tests pass on Windows, and the fix was confirmed on real Linux by letting the Linux broker rewrite a hand-authored Windows-style `config.json`. This is the first defect found by CI rather than by local work.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 619 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 628 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 described in entries 33 and 34. The next steps are pushing so the Linux/macOS CI actually runs, then Phase 4 distribution (Homebrew tap, Winget) and Phase 5 native clients.
 
