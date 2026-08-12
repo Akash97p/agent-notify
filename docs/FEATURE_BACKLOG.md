@@ -75,7 +75,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C14 | Pushbullet | Official push API | Note adapter and Settings integration implemented; real-account smoke pending |
 | C15 | Twilio SMS | Official Messages API | Adapter and Settings integration implemented with one-segment/at-most-once controls; real-account smoke and durable daily budget pending |
 | C16 | WhatsApp | Official Meta WhatsApp Cloud API | Approved text-template adapter and Settings integration implemented; real-business-account smoke, delivery-status webhooks, and durable spend budget pending |
-| C17 | Twilio WhatsApp | Twilio Messages API | High; optional alternative to direct Meta setup |
+| C17 | Twilio WhatsApp | Twilio Messages API + Content Templates | Adapter and Settings integration implemented with text-template attestation and consent/cost controls; real-account smoke and delivery status pending |
 | C18 | Signal | User-managed `signal-cli` process adapter | Experimental/unofficial; never imply official Signal support |
 | C19 | MQTT | Publish to configured TLS broker/topic | High for self-hosted automation; credentials/certificates protected |
 | C20 | AWS SNS | Signed AWS API/SDK publish | Medium; IAM and credential-chain UX must be carefully scoped |

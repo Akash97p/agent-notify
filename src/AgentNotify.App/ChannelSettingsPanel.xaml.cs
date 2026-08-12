@@ -24,6 +24,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioSenderTypeBox.SelectedIndex = 0;
         TwilioMinimumPriorityBox.SelectedIndex = 0;
         WhatsAppMinimumPriorityBox.SelectedIndex = 0;
+        TwilioWhatsAppCredentialModeBox.SelectedIndex = 0;
+        TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -86,6 +88,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadPushbulletConfiguration(profile);
         LoadTwilioSmsConfiguration(profile);
         LoadWhatsAppCloudConfiguration(profile);
+        LoadTwilioWhatsAppConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -170,6 +173,20 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         WhatsAppOptInBox.IsChecked = false;
         WhatsAppTemplateApprovedBox.IsChecked = false;
         WhatsAppPaidConsentBox.IsChecked = false;
+        TwilioWhatsAppAccountSidBox.Clear();
+        TwilioWhatsAppCredentialModeBox.SelectedIndex = 0;
+        TwilioWhatsAppCredentialSidBox.Clear();
+        TwilioWhatsAppCredentialSecretBox.Clear();
+        TwilioWhatsAppRecipientBox.Clear();
+        TwilioWhatsAppServiceSidBox.Clear();
+        TwilioWhatsAppContentSidBox.Clear();
+        TwilioWhatsAppVariablesBox.Text = "title,message";
+        TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
+        TwilioWhatsAppValidityBox.Text = "300";
+        TwilioWhatsAppOptInBox.IsChecked = false;
+        TwilioWhatsAppTemplateApprovedBox.IsChecked = false;
+        TwilioWhatsAppTextOnlyBox.IsChecked = false;
+        TwilioWhatsAppPaidConsentBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -207,6 +224,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "pushbullet" => await SavePushbulletProviderAsync(existing),
             "twilio_sms" => await SaveTwilioSmsProviderAsync(existing),
             "whatsapp_cloud" => await SaveWhatsAppCloudProviderAsync(existing),
+            "twilio_whatsapp" => await SaveTwilioWhatsAppProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -860,6 +878,91 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveTwilioWhatsAppProviderAsync(ProviderProfile? existing)
+    {
+        var secretNames = existing?.SecretNames ?? [];
+        var mode = (TwilioWhatsAppCredentialModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "api_key";
+        var previousMode = ReadConfigString(existing?.ConfigJson, "credentialMode", "api_key");
+        RequireSecret(TwilioWhatsAppAccountSidBox.Password, secretNames, "account_sid", "Enter the Twilio Account SID.");
+        RequireSecret(TwilioWhatsAppCredentialSecretBox.Password, secretNames, "credential_secret", "Enter the Twilio API Key secret or Auth Token.");
+        RequireSecret(TwilioWhatsAppRecipientBox.Password, secretNames, "recipient", "Enter the one opted-in WhatsApp recipient.");
+        RequireSecret(TwilioWhatsAppServiceSidBox.Password, secretNames, "messaging_service_sid", "Enter the WhatsApp-enabled Messaging Service SID.");
+        RequireSecret(TwilioWhatsAppContentSidBox.Password, secretNames, "content_sid", "Enter the approved Content Template SID.");
+        if (mode == "api_key" && string.IsNullOrWhiteSpace(TwilioWhatsAppCredentialSidBox.Password) &&
+            (!secretNames.Contains("credential_sid", StringComparer.Ordinal) || previousMode != "api_key"))
+            throw new ArgumentException("Enter the Twilio API Key SID.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppAccountSidBox.Password) && !IsTwilioSid(TwilioWhatsAppAccountSidBox.Password.Trim(), "AC"))
+            throw new ArgumentException("The Twilio Account SID must be AC followed by 32 hexadecimal characters.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppCredentialSidBox.Password) && !IsTwilioSid(TwilioWhatsAppCredentialSidBox.Password.Trim(), "SK"))
+            throw new ArgumentException("The Twilio API Key SID must be SK followed by 32 hexadecimal characters.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppCredentialSecretBox.Password) && !IsPrintableSecret(TwilioWhatsAppCredentialSecretBox.Password))
+            throw new ArgumentException("The Twilio credential secret must be 16–256 printable characters without spaces.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppRecipientBox.Password) && !IsE164(TwilioWhatsAppRecipientBox.Password.Trim()))
+            throw new ArgumentException("The WhatsApp recipient must be an E.164 number such as +15551234567.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppServiceSidBox.Password) && !IsTwilioSid(TwilioWhatsAppServiceSidBox.Password.Trim(), "MG"))
+            throw new ArgumentException("The Messaging Service SID must be MG followed by 32 hexadecimal characters.");
+        if (!string.IsNullOrWhiteSpace(TwilioWhatsAppContentSidBox.Password) && !IsTwilioSid(TwilioWhatsAppContentSidBox.Password.Trim(), "HX"))
+            throw new ArgumentException("The Content Template SID must be HX followed by 32 hexadecimal characters.");
+        var variables = TwilioWhatsAppVariablesBox.Text
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var allowedVariables = new HashSet<string>(["title", "message", "priority", "type", "agent", "project"], StringComparer.Ordinal);
+        if (variables.Length > 5 || variables.Any(value => !allowedVariables.Contains(value)) ||
+            variables.Distinct(StringComparer.Ordinal).Count() != variables.Length)
+            throw new ArgumentException("Use up to five unique allowed Content variables in the approved numbered order.");
+        if (!int.TryParse(TwilioWhatsAppValidityBox.Text, out var validity) || validity is < 6 or > 36_000)
+            throw new ArgumentException("Twilio queue validity must be between 6 and 36000 seconds.");
+        if (TwilioWhatsAppOptInBox.IsChecked != true)
+            throw new ArgumentException("Confirm that the recipient explicitly opted in.");
+        if (TwilioWhatsAppTemplateApprovedBox.IsChecked != true)
+            throw new ArgumentException("Confirm the approved HX template and exact variable order.");
+        if (TwilioWhatsAppTextOnlyBox.IsChecked != true)
+            throw new ArgumentException("Confirm that the HX template is text-only.");
+        if (TwilioWhatsAppPaidConsentBox.IsChecked != true)
+            throw new ArgumentException("Authorize paid Twilio WhatsApp sends before saving this provider.");
+        var minimumPriority = (TwilioWhatsAppMinimumPriorityBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "critical";
+
+        var config = JsonSerializer.Serialize(new
+        {
+            accountSidSecretName = "account_sid",
+            credentialMode = mode,
+            credentialSidSecretName = "credential_sid",
+            credentialSecretName = "credential_secret",
+            recipientSecretName = "recipient",
+            messagingServiceSidSecretName = "messaging_service_sid",
+            contentSidSecretName = "content_sid",
+            contentVariables = variables,
+            recipientOptInAcknowledged = true,
+            templateApprovedAcknowledged = true,
+            textOnlyTemplateAcknowledged = true,
+            paidSendConsent = true,
+            minimumPriority,
+            validityPeriodSeconds = validity
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddSecret(changes, "account_sid", TwilioWhatsAppAccountSidBox.Password);
+        AddSecret(changes, "credential_sid", TwilioWhatsAppCredentialSidBox.Password);
+        AddSecret(changes, "credential_secret", TwilioWhatsAppCredentialSecretBox.Password);
+        AddSecret(changes, "recipient", TwilioWhatsAppRecipientBox.Password);
+        AddSecret(changes, "messaging_service_sid", TwilioWhatsAppServiceSidBox.Password);
+        AddSecret(changes, "content_sid", TwilioWhatsAppContentSidBox.Password);
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "twilio_whatsapp",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = mode == "auth_token" && secretNames.Contains("credential_sid", StringComparer.Ordinal)
+                ? new[] { "credential_sid" }
+                : [];
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        TwilioWhatsAppAccountSidBox.Clear();
+        TwilioWhatsAppCredentialSidBox.Clear();
+        TwilioWhatsAppCredentialSecretBox.Clear();
+        TwilioWhatsAppRecipientBox.Clear();
+        TwilioWhatsAppServiceSidBox.Clear();
+        TwilioWhatsAppContentSidBox.Clear();
+        return saved;
+    }
+
     private static void RequireSecret(string entered, IReadOnlyList<string> stored, string name, string message)
     {
         if (string.IsNullOrWhiteSpace(entered) && !stored.Contains(name, StringComparer.Ordinal))
@@ -938,6 +1041,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "pushbullet" => 13,
             "twilio_sms" => 14,
             "whatsapp_cloud" => 15,
+            "twilio_whatsapp" => 16,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -966,6 +1070,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "pushbullet" => "Pushbullet",
                 "twilio_sms" => "Twilio SMS",
                 "whatsapp_cloud" => "WhatsApp Cloud",
+                "twilio_whatsapp" => "Twilio WhatsApp",
                 _ => "Webhook"
             };
     }
@@ -988,7 +1093,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var pushbullet = kind == "pushbullet";
         var twilioSms = kind == "twilio_sms";
         var whatsAppCloud = kind == "whatsapp_cloud";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud ? Visibility.Collapsed : Visibility.Visible;
+        var twilioWhatsApp = kind == "twilio_whatsapp";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -1004,7 +1110,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         PushbulletFields.Visibility = pushbullet ? Visibility.Visible : Visibility.Collapsed;
         TwilioSmsFields.Visibility = twilioSms ? Visibility.Visible : Visibility.Collapsed;
         WhatsAppCloudFields.Visibility = whatsAppCloud ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud ? Visibility.Collapsed : Visibility.Visible;
+        TwilioWhatsAppFields.Visibility = twilioWhatsApp ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -1324,6 +1431,57 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             WhatsAppOptInBox.IsChecked = false;
             WhatsAppTemplateApprovedBox.IsChecked = false;
             WhatsAppPaidConsentBox.IsChecked = false;
+        }
+    }
+
+    private void LoadTwilioWhatsAppConfiguration(ProviderProfile profile)
+    {
+        TwilioWhatsAppAccountSidBox.Clear();
+        TwilioWhatsAppCredentialSidBox.Clear();
+        TwilioWhatsAppCredentialSecretBox.Clear();
+        TwilioWhatsAppRecipientBox.Clear();
+        TwilioWhatsAppServiceSidBox.Clear();
+        TwilioWhatsAppContentSidBox.Clear();
+        if (profile.Kind != "twilio_whatsapp") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            TwilioWhatsAppCredentialModeBox.SelectedIndex = GetJsonString(root, "credentialMode") == "auth_token" ? 1 : 0;
+            TwilioWhatsAppVariablesBox.Text = root.TryGetProperty("contentVariables", out var variables) &&
+                                                variables.ValueKind == JsonValueKind.Array
+                ? string.Join(',', variables.EnumerateArray().Select(value => value.GetString()))
+                : "";
+            TwilioWhatsAppMinimumPriorityBox.SelectedIndex = GetJsonString(root, "minimumPriority") switch
+            {
+                "high" => 1,
+                "normal" => 2,
+                "low" => 3,
+                _ => 0
+            };
+            TwilioWhatsAppValidityBox.Text = root.TryGetProperty("validityPeriodSeconds", out var validity) &&
+                                               validity.TryGetInt32(out var seconds)
+                ? seconds.ToString()
+                : "300";
+            TwilioWhatsAppOptInBox.IsChecked = root.TryGetProperty("recipientOptInAcknowledged", out var optIn) &&
+                                                 optIn.ValueKind == JsonValueKind.True;
+            TwilioWhatsAppTemplateApprovedBox.IsChecked = root.TryGetProperty("templateApprovedAcknowledged", out var approved) &&
+                                                            approved.ValueKind == JsonValueKind.True;
+            TwilioWhatsAppTextOnlyBox.IsChecked = root.TryGetProperty("textOnlyTemplateAcknowledged", out var textOnly) &&
+                                                   textOnly.ValueKind == JsonValueKind.True;
+            TwilioWhatsAppPaidConsentBox.IsChecked = root.TryGetProperty("paidSendConsent", out var paid) &&
+                                                      paid.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            TwilioWhatsAppCredentialModeBox.SelectedIndex = 0;
+            TwilioWhatsAppVariablesBox.Text = "title,message";
+            TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
+            TwilioWhatsAppValidityBox.Text = "300";
+            TwilioWhatsAppOptInBox.IsChecked = false;
+            TwilioWhatsAppTemplateApprovedBox.IsChecked = false;
+            TwilioWhatsAppTextOnlyBox.IsChecked = false;
+            TwilioWhatsAppPaidConsentBox.IsChecked = false;
         }
     }
 
