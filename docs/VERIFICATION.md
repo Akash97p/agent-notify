@@ -404,3 +404,24 @@ compiled.
   performed** after the adapter-factory and secret-protector-factory refactor. On Windows the
   factory returns the same `DpapiSecretProtector` the app constructed directly before, and the
   adapter list and disposal set are unchanged, but that is reasoning, not observation.
+
+## Cross-platform Phase 3 (`feature/cross-platform-release`)
+
+- `./scripts/publish-cross.sh linux-x64` produced `agentnotify-linux-x64.tar.gz` and a
+  `SHA256SUMS.txt`. The archive was extracted and both binaries inside it ran and reported version
+  `0.0.1-alpha.1`, so the released artefact — not just a build output — is known to work on Linux.
+- `./scripts/publish-cross.sh linux-x64 osx-arm64` produced both archives.
+- Both new shell scripts pass `sh -n`/`bash -n`. `shellcheck` is not installed here, so no lint
+  beyond a syntax check was run.
+- All four workflow files parse as YAML.
+
+Not verified:
+
+- **No GitHub Actions run has happened.** The Linux and macOS CI jobs and the release upload job
+  are written but have never executed; the repository has not been pushed. Until a run is green,
+  "builds and tests on macOS" is an expectation, not a result.
+- `install.sh` has never been run end to end, because it downloads from a GitHub release that does
+  not contain these archives yet. Its platform detection, checksum verification, and failure paths
+  are unexercised.
+- The `win-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64` archives have not been produced in a
+  full run of the script, only the two above.

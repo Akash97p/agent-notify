@@ -1,0 +1,95 @@
+name: CI (Linux and macOS)
+
+# The Windows job in ci.yml builds the whole solution including WPF. This workflow builds and tests
+# only the portable projects on real Linux and macOS runners, which is the only thing that actually
+# proves the broker runs off Windows — cross-compiling from Windows does not.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # AgentNotify.slnx contains the WPF app and installer, which cannot build here, so the
+      # portable projects are named explicitly.
+      - name: Build portable projects
+        run: |
+          for project in \
+            src/AgentNotify.Contracts/AgentNotify.Contracts.csproj \
+            src/AgentNotify.Core/AgentNotify.Core.csproj \
+            src/AgentNotify.Api/AgentNotify.Api.csproj \
+            src/AgentNotify.Cli/AgentNotify.Cli.csproj \
+            src/AgentNotify.Desktop/AgentNotify.Desktop.csproj \
+            src/AgentNotify.Host/AgentNotify.Host.csproj
+          do
+            dotnet build "$project" --configuration Release
+          done
+
+      - name: Test
+        run: dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release
+
+      # Exercises the paths that only exist off Windows: the key-file secret protector, owner-only
+      # file modes, the lock file, the loopback API, and signal-driven shutdown.
+      - name: Smoke test the broker
+        shell: bash
+        run: |
+          set -euo pipefail
+          data="$(mktemp -d)"
+          dotnet run --project src/AgentNotify.Host/AgentNotify.Host.csproj --configuration Release -- \
+            --port 47931 --config-dir "$data" --no-desktop > broker.log 2>&1 &
+
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null "http://127.0.0.1:47931/health" && break || sleep 1
+          done
+          curl -fsS "http://127.0.0.1:47931/health"
+
+          token="$(python3 -c "import json,sys; print(json.load(open('$data/config.json'))['authToken'])")"
+          send() {
+            curl -fsS -X POST "http://127.0.0.1:47931/v1/notifications" \
+              -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+              -d "$1"
+          }
+
+          id="$(send '{"agent":"ci","project":"agent-notify","type":"input_required","key":"ci-smoke","title":"CI smoke","message":"hello"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          echo "created $id"
+
+          # The same key must update the existing row rather than create a second one.
+          again="$(send '{"agent":"ci","project":"agent-notify","type":"input_required","key":"ci-smoke","title":"CI smoke again","message":"hello"}' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          [ "$id" = "$again" ] || { echo "deduplication failed: $id != $again"; exit 1; }
+
+          # Local state must be owner-only; config.json holds the bearer token.
+          for file in config.json agentnotify.db secret.key; do
+            mode="$(stat -c '%a' "$data/$file" 2>/dev/null || stat -f '%Lp' "$data/$file")"
+            [ "$mode" = "600" ] || { echo "$file has mode $mode, expected 600"; exit 1; }
+          done
+
+          pid="$(cat "$data/agentnotifyd.lock")"
+          kill -TERM "$pid"
+          for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "broker ignored SIGTERM"; cat broker.log; exit 1
+          fi
+          echo "broker stopped cleanly"
+
+      - name: Show broker log on failure
+        if: failure()
+        run: cat broker.log || true
