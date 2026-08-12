@@ -4,13 +4,13 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 ## Current baseline
 
-- Local repository only; no remote is configured or authorized.
+- GitHub repository: `git@github.com:Akash97p/agent-notify.git`; local development remains branch-based and no unrequested remote operations are permitted.
 - Stable branch: `main`.
 - Integration branch: `dev`.
 - Imported working baseline: `4be4c1a` (`chore: import working AgentNotify baseline`).
-- Current integration head: `e20e1c4` (`merge: hardened MQTT 5 channel`).
+- Current integration head: `8186aed` (`merge: prepare v0.0.1-alpha.1 prerelease`).
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
-- Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `724d8e0bb8dff997d0d69011028ec0693d7da0f0d4cfaaba92ede20a5c79707c`.
+- Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
 - Current product version: `0.0.1-alpha.1`, Windows x64, unsigned prerelease. The first mature release is reserved for `1.0.0`.
 
@@ -22,13 +22,13 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 4. Keep local desktop notification delivery authoritative. Outbound channels are opt-in secondary deliveries and cannot make notification creation fail.
 5. Implement one bounded capability per topic branch, verify it, merge it locally into `dev`, then branch from the updated `dev`.
 6. Prefer official APIs. Signal support, if added through `signal-cli`, is experimental and must be clearly labeled as an unofficial user-managed bridge.
-7. No commits or edits on `main`; no remote creation or push without a new explicit user request.
+7. No commits or edits on `main`; remote pushes and tags require an explicit user request. The owner explicitly authorized the `dev` push and `v0.0.1-alpha.1` tag for the first prerelease.
 8. Future macOS and Linux clients are first-class roadmap goals. Avoid putting portable routing/domain logic in WPF classes.
 
 ## Active sequence
 
 1. Completed on `docs/foundation-and-onboarding`: README image/build guide, Getting Started title fix and GitHub link, contributor workflow, durable backlog, cross-agent skill guide.
-2. Completed on `chore/github-release-pages`: portable PowerShell packaging, CI/tagged-release workflows, checksum generation, and a locally buildable GitHub Pages documentation site. No remote was created.
+2. Completed on `chore/github-release-pages`: portable PowerShell packaging, CI/tagged-release workflows, checksum generation, and a locally buildable GitHub Pages documentation site. At that milestone no remote was created; the repository was later published after explicit owner authorization.
 3. Completed on `feature/settings-window`: native tray-opened Settings window with validated general, toast placement/lifetime, pause/DND, and initial sound controls. Build/tests passed; human visual inspection remains pending.
 4. Completed on `feature/custom-notification-types`: backward-compatible string IDs, custom definition editor, accent/label/default priority/lifetime/enabled settings, legacy normalization, safe fallback, CLI/API/SQLite runtime smoke, and 96 passing tests. Human Settings visual inspection remains pending.
 5. Completed on `feature/notification-sounds`: managed WAV/MP3 import, global/per-type selection, preview, volume, pause/DND policy, safe fallback, platform-neutral file store, and 101 passing tests. Human audio/UI verification with a real user-selected file remains pending.
@@ -55,6 +55,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 26. Completed on `feature/channel-mqtt`: MQTTnet 5.2 MQTT 5 publishing, mandatory TLS 1.2/1.3 with platform hostname/chain/revocation checks, all-address DNS validation followed by pinned-IP connection with the original SNI target, explicit private-network consent, DPAPI-encrypted fixed non-wildcard topic and username/password or Current User mTLS certificate thumbprint, separately acknowledged anonymous TLS, bounded non-retained JSON with message expiry and stable delivery/notification user properties, explicit QoS 0/1/2 behavior and duplicate-risk acknowledgement, native Settings fields, and 597 passing tests. Real-broker/mTLS and human UI smoke remain pending.
 27. Paused after MQTT: AWS SNS was researched but deliberately not implemented. No AWS SDK, credential-chain behavior, or partial adapter remains in the tree. Revisit only as a separately approved `feature/channel-aws-sns` branch with explicit static credentials, encrypted region/topic/keys, fixed destination, cost acknowledgement, and provider-specific retry classification.
 28. Signal remains experimental because it has no supported official bot/business sending API. Additional channels remain in the priority order maintained in `docs/FEATURE_BACKLOG.md`.
+29. Completed on `chore/prerelease-versioning`: aligned product informational version metadata to `0.0.1-alpha.1`, kept numeric Windows assembly/file metadata at `0.0.1.0`, updated API/CLI/installer/registry display values, added prerelease-aware release workflow behavior, and updated release documentation. Merged as `8186aed`, pushed to `origin/dev`, and tagged `v0.0.1-alpha.1`.
+30. Published `v0.0.1-alpha.1` as a GitHub prerelease through Actions run `31566620009`. The release contains `AgentNotifySetup.exe`, `SHA256SUMS.txt`, and `SKILL.md`; the mature `v1.0.0` release remains intentionally reserved for a future stable milestone.
 
 ## Current documentation/status snapshot
 
@@ -62,7 +64,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
 - Automated coverage is 597 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work is paused on the clean `dev` branch after the MQTT merge. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
+- Work is paused on the clean `dev` branch after publishing `v0.0.1-alpha.1`. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 
