@@ -540,3 +540,22 @@ Because the tag and its release already existed, the archives for this release w
 with `./scripts/publish-cross.sh` and uploaded to the existing release rather than retagging. The
 next tagged release will exercise the corrected workflow path, which has still never run to
 completion.
+
+### Publishing the v0.0.2-alpha.1 archives
+
+`scripts/publish-cross.sh` hard-depended on `zip` for the Windows archive, which is absent from
+many minimal Linux and WSL installs, including this one. The CI runners have it, which is why the
+job built all five archives while the same script failed locally. The script now falls back to
+Python when `zip` is missing and checks its tools before starting a multi-runtime publish.
+
+Because the local `gh` CLI was authenticated as an account with read-only access to the repository,
+GitHub answered the asset upload with a 404 that masked a permissions failure. After the owner
+authenticated as `Akash97p`, the archives were uploaded to the existing release rather than
+retagging.
+
+Verified against the published release, not the local build: `agentnotify-linux-x64.tar.gz` was
+downloaded back from GitHub, its SHA-256 checked against the published `SHA256SUMS-portable.txt`,
+and both binaries extracted from it ran and reported `0.0.2-alpha.1`.
+
+Still unverified: the `cross-platform-assets` job has never completed. Its archives were built and
+attached locally for this release, so the corrected upload step remains unproven until the next tag.
