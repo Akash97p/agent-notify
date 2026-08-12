@@ -20,16 +20,24 @@ internal sealed class ApiFixture : IAsyncDisposable
     public ApiCallbacks Callbacks { get; private set; } = null!;
     private string _dbPath = "";
 
+    /// <summary>
+    /// Guards against a hung request, nothing more. Keyed creation is deliberately serialized in
+    /// the broker, so a burst of concurrent same-key posts on a slow shared CI runner can sit in
+    /// that queue for several seconds; a tight timeout turns that into a spurious failure rather
+    /// than telling us anything about correctness.
+    /// </summary>
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+
     public HttpClient AuthedClient()
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        var c = new HttpClient { Timeout = RequestTimeout };
         c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         return c;
     }
 
     public HttpClient ClientWithToken(string? token)
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        var c = new HttpClient { Timeout = RequestTimeout };
         if (token is not null)
             c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return c;

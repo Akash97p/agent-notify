@@ -449,3 +449,17 @@ Verified:
 
 Not verified until the next CI run: that the previously failing test now passes on the macOS runner.
 No Mac is available here.
+
+## Test-harness timeout (`test/stabilize-concurrency-timeout`)
+
+The Windows CI job failed once on `DedupTests.ConcurrentSameKey_CreatesOneActiveNotification` with
+an `HttpClient.Timeout` of five seconds elapsing. The identical commit content passed on the `main`
+push and failed on the `dev` push minutes later, so this was timing on a shared runner rather than
+a defect: the test issues twelve concurrent same-key posts, keyed creation is deliberately
+serialized inside the broker, and a slow two-core runner can hold the last request in that queue
+past five seconds.
+
+The fixture's request timeout is now thirty seconds. It exists to stop a hung request from wedging
+the suite, not to assert throughput, and thirty seconds still catches a genuine hang. No assertion
+was weakened and the concurrency of the test is unchanged, because twelve simultaneous same-key
+requests are exactly the race worth exercising.
