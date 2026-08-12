@@ -148,7 +148,9 @@ public sealed class AgentNotifyConfig
     private static string? NormalizeSoundFile(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
-        var file = Path.GetFileName(value.Trim());
+        // Not Path.GetFileName: it is platform-dependent and would let a Windows-style path
+        // through unchanged on Unix. See SafeFileName.
+        var file = SafeFileName.Last(value.Trim());
         var extension = Path.GetExtension(file);
         return extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) || extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
             ? file : null;
