@@ -463,3 +463,29 @@ The fixture's request timeout is now thirty seconds. It exists to stop a hung re
 the suite, not to assert throughput, and thirty seconds still catches a genuine hang. No assertion
 was weakened and the concurrency of the test is unchanged, because twelve simultaneous same-key
 requests are exactly the race worth exercising.
+
+## First green Linux and macOS CI (`fix/ci-smoke-keyring-assumption`)
+
+The second CI run passed the full test suite on **both** ubuntu-latest and macos-latest, confirming
+the file-name sanitizing fix. Remaining results from that run:
+
+- **ubuntu-latest passed the broker smoke test outright**: the headless broker started, `/v1/health`
+  returned `ok`, a notification was created through the API, a second post with the same key
+  returned the same id, `config.json` and `agentnotify.db` were mode `600`, and the broker stopped
+  cleanly on `SIGTERM`. This is independent confirmation, on a machine that is not WSL, of the
+  behaviour recorded earlier.
+- **macos-latest reported `secrets: macOS login keychain`**. The Keychain key store therefore runs
+  correctly on a real Mac, which was previously listed here as unverifiable.
+- The macOS smoke step failed on a defect in the workflow, not in the product: it required
+  `secret.key` to exist, but that file is only written when no platform keyring is available. macOS
+  found its keychain and correctly wrote no key file. The step now checks `secret.key` only when
+  present and asserts the broker reported whichever protection it chose.
+
+Still unverified after this run:
+
+- Neither desktop notifier has displayed a notification. The CI smoke test runs the broker with
+  `--no-desktop`, and the runners have no graphical session, so the console backend is used by
+  design.
+- The Linux Secret Service store has still never run; `secret-tool` is absent from the runners, so
+  Linux exercised the key-file fallback.
+- ARM64 binaries have still never executed.

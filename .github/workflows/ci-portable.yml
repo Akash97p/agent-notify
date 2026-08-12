@@ -76,11 +76,24 @@ jobs:
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
           [ "$id" = "$again" ] || { echo "deduplication failed: $id != $again"; exit 1; }
 
-          # Local state must be owner-only; config.json holds the bearer token.
-          for file in config.json agentnotify.db secret.key; do
+          # Local state must be owner-only; config.json holds the bearer token. secret.key only
+          # exists when no platform keyring was available — on macOS the login keychain holds the
+          # key instead — so it is checked only if the broker actually created one.
+          for file in config.json agentnotify.db; do
             mode="$(stat -c '%a' "$data/$file" 2>/dev/null || stat -f '%Lp' "$data/$file")"
             [ "$mode" = "600" ] || { echo "$file has mode $mode, expected 600"; exit 1; }
           done
+
+          if [ -f "$data/secret.key" ]; then
+            mode="$(stat -c '%a' "$data/secret.key" 2>/dev/null || stat -f '%Lp' "$data/secret.key")"
+            [ "$mode" = "600" ] || { echo "secret.key has mode $mode, expected 600"; exit 1; }
+            echo "secret protection: key file (no keyring on this runner)"
+          else
+            echo "secret protection: platform keyring, no key file written"
+          fi
+
+          # Whichever path was taken, the broker must have reported one of them.
+          grep -q "secrets  *:" broker.log || { echo "broker did not report its secret protection"; exit 1; }
 
           pid="$(cat "$data/agentnotifyd.lock")"
           kill -TERM "$pid"
