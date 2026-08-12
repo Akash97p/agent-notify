@@ -127,7 +127,7 @@ the console fallback instead of failing a notification, and notifier failure nev
 
 ---
 
-## Phase 3 — Build and release (**planned**)
+## Phase 3 — Build and release (**done**, CI unverified until pushed)
 
 Publish self-contained single-file binaries for `agentnotify` and `agentnotifyd`:
 
@@ -144,12 +144,12 @@ is what proves the code actually runs off Windows.
 *Done when:* one script produces every archive plus `SHA256SUMS.txt`, CI builds and tests the
 portable projects on Linux and macOS, and the release workflow attaches the archives.
 
-## Phase 4 — Distribution (**planned**)
+## Phase 4 — Distribution (**partly done**)
 
-- GitHub Releases as the primary channel for every platform.
-- A POSIX `install.sh` that downloads, verifies the checksum, and installs into `~/.local/bin`.
-- A Homebrew tap pointing at the release archives. No Apple Developer account is required for this.
-- A Winget manifest for Windows.
+- GitHub Releases as the primary channel for every platform. **Done** — the release workflow attaches every archive plus `SHA256SUMS.txt`.
+- A POSIX `install.sh` that downloads, verifies the checksum, and installs into `~/.local/bin`. **Done** — it refuses to install anything it cannot verify.
+- A Homebrew tap pointing at the release archives. **Planned**; no Apple Developer account is required for it.
+- A Winget manifest for Windows. **Planned**.
 
 ## Phase 5 — Native desktop clients (**planned**, out of scope here)
 

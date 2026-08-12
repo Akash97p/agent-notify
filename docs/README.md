@@ -9,6 +9,7 @@ milestone is intentionally reserved and has not been reached.
 | Document | What it covers |
 | --- | --- |
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
+| [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
 | [CONFIGURATION.md](CONFIGURATION.md) | The on-disk config file, every setting, and custom notification types |
