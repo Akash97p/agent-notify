@@ -308,3 +308,39 @@ Not yet performed — still requires a human at a Windows desktop:
   Routes lists before any profile exists, and disappear once one is saved.
 - Contrast measurement against WCAG AA for the muted `#9CA3AF` and `#7C8699`
   text on the `#111827` panel background.
+
+## Built-in notification tones — 2026-08-12
+
+Four original tones (`chime.wav`, `ping.wav`, `alert.wav`, `knock.wav`) were
+synthesised for this project and released under CC0, so the app ships with
+usable sound out of the box and nothing third-party is redistributed. They are
+embedded in `AgentNotify.Tray` and seeded into the managed sound directory on
+first construction of `NotificationSoundService`; seeding is idempotent and
+never overwrites an existing file of the same name. Users can still import
+their own WAV/MP3 files, which is unchanged.
+
+Automated and mechanical checks performed:
+
+- `./scripts/build.sh` — 0 warnings, 0 errors.
+- `./scripts/test.sh` — 601 passed, 0 failed (597 previous plus 4 new
+  `ManagedSoundStore`/`BuiltInTones` tests).
+- `./scripts/package.sh` — installer rebuilt; embedded resources changed, so
+  packaging was required. SHA-256
+  `bd7c8ac93cea2369438ec857566dd6d5e5c3d3825228ac1f03c56dc6056c446e`.
+- Embedded-resource audit: the built `AgentNotify.Tray.dll` exposes exactly
+  `AgentNotify.Resources.Tones.{chime,ping,alert,knock}.wav`, matching the
+  names `NotificationSoundService` looks up. Each was extracted from the
+  assembly through the reflection path the app itself uses and confirmed to
+  carry a valid `RIFF`/`WAVE` header and to be byte-identical (SHA-256) to the
+  source file in `assets/tones/`.
+- `RefreshSoundTypes` always forces a selection, so the per-type tone picker
+  cannot be driven with a null type.
+
+Not yet performed — still requires a human at a Windows desktop:
+
+- Listening to each of the four tones through Preview to judge loudness
+  balance and whether they are pleasant at the default 0.8 volume.
+- Confirming the tones are seeded into the sound directory on a genuinely
+  clean per-user profile after a real install.
+- Confirming the built-in tone dropdowns stay in sync with the file boxes when
+  switching between built-in, custom, and cleared selections.

@@ -17,6 +17,26 @@ public sealed class NotificationSoundService : IDisposable
     public NotificationSoundService(AgentNotifyConfig config, string soundsDir, IAppLogger logger)
     {
         _config = config; _logger = logger; _store = new ManagedSoundStore(soundsDir);
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            foreach (var tone in BuiltInTones.All)
+            {
+                var resourceName = $"AgentNotify.Resources.Tones.{tone.FileName}";
+                var probe = assembly.GetManifestResourceStream(resourceName);
+                if (probe is null)
+                {
+                    _logger.Info($"Built-in tone resource missing: {resourceName}");
+                    continue;
+                }
+                probe.Dispose();
+                _store.SeedBuiltIn(tone.FileName, () => assembly.GetManifestResourceStream(resourceName)!);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Failed to seed built-in tones", ex);
+        }
     }
 
     public string Import(string sourcePath)

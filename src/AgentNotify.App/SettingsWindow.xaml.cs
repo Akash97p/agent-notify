@@ -1,6 +1,8 @@
+using System.IO;
 using System.Windows;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Services;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AgentNotify.App;
@@ -16,6 +18,7 @@ public partial class SettingsWindow : Window
     private readonly List<NotificationTypeDefinition> _customTypes;
     private string? _defaultSound;
     private readonly Dictionary<string, string> _typeSounds;
+    private bool _syncingSoundUi;
 
     public SettingsWindow(
         AgentNotifyConfig config,
@@ -61,6 +64,9 @@ public partial class SettingsWindow : Window
         BlockedDuration.Text = Duration(NotificationType.Blocked);
         RefreshCustomTypes();
         RefreshSoundTypes();
+        PopulateBuiltInBoxes();
+        SyncGlobalBuiltInSelection();
+        SyncTypeBuiltInSelection();
     }
 
     private string Duration(NotificationType type) => _config.ToastDurationSeconds(type).ToString();
@@ -163,18 +169,18 @@ public partial class SettingsWindow : Window
 
     private void ChooseGlobalSound_Click(object sender, RoutedEventArgs e)
     {
-        var file = ChooseAndImportSound(); if (file is null) return; _defaultSound = file; GlobalSoundBox.Text = file;
+        var file = ChooseAndImportSound(); if (file is null) return; _defaultSound = file; GlobalSoundBox.Text = file; SyncGlobalBuiltInSelection();
     }
     private void PreviewGlobalSound_Click(object sender, RoutedEventArgs e) => _sounds.Preview(_defaultSound);
-    private void ClearGlobalSound_Click(object sender, RoutedEventArgs e) { _defaultSound = null; GlobalSoundBox.Text = "No global sound selected"; }
+    private void ClearGlobalSound_Click(object sender, RoutedEventArgs e) { _defaultSound = null; GlobalSoundBox.Text = "No global sound selected"; SyncGlobalBuiltInSelection(); }
     private string? SelectedSoundType => SoundTypeBox.SelectedItem?.ToString();
     private void SoundType_Selected(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        var type = SelectedSoundType; TypeSoundBox.Text = type is not null && _typeSounds.TryGetValue(type, out var file) ? file : "Using global sound";
+        var type = SelectedSoundType; TypeSoundBox.Text = type is not null && _typeSounds.TryGetValue(type, out var file) ? file : "Using global sound"; SyncTypeBuiltInSelection();
     }
     private void ChooseTypeSound_Click(object sender, RoutedEventArgs e)
     {
-        var type = SelectedSoundType; if (type is null) return; var file = ChooseAndImportSound(); if (file is null) return; _typeSounds[type] = file; TypeSoundBox.Text = file;
+        var type = SelectedSoundType; if (type is null) return; var file = ChooseAndImportSound(); if (file is null) return; _typeSounds[type] = file; TypeSoundBox.Text = file; SyncTypeBuiltInSelection();
     }
     private void PreviewTypeSound_Click(object sender, RoutedEventArgs e)
     {
@@ -182,7 +188,63 @@ public partial class SettingsWindow : Window
     }
     private void ClearTypeSound_Click(object sender, RoutedEventArgs e)
     {
-        var type = SelectedSoundType; if (type is not null) _typeSounds.Remove(type); TypeSoundBox.Text = "Using global sound";
+        var type = SelectedSoundType; if (type is not null) _typeSounds.Remove(type); TypeSoundBox.Text = "Using global sound"; SyncTypeBuiltInSelection();
+    }
+
+    private void PopulateBuiltInBoxes()
+    {
+        var options = new List<string> { "Custom or none" };
+        options.AddRange(BuiltInTones.All.Select(t => t.DisplayName));
+        _syncingSoundUi = true;
+        try
+        {
+            GlobalBuiltInBox.ItemsSource = options.ToList();
+            TypeBuiltInBox.ItemsSource = options.ToList();
+        }
+        finally { _syncingSoundUi = false; }
+    }
+
+    private void SyncGlobalBuiltInSelection()
+    {
+        _syncingSoundUi = true;
+        try { GlobalBuiltInBox.SelectedIndex = IndexForFile(_defaultSound); }
+        finally { _syncingSoundUi = false; }
+    }
+
+    private void SyncTypeBuiltInSelection()
+    {
+        var type = SelectedSoundType;
+        var file = type is not null && _typeSounds.TryGetValue(type, out var f) ? f : null;
+        _syncingSoundUi = true;
+        try { TypeBuiltInBox.SelectedIndex = IndexForFile(file); }
+        finally { _syncingSoundUi = false; }
+    }
+
+    private static int IndexForFile(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return 0;
+        var name = Path.GetFileName(fileName);
+        for (var i = 0; i < BuiltInTones.All.Count; i++)
+            if (string.Equals(BuiltInTones.All[i].FileName, name, StringComparison.OrdinalIgnoreCase)) return i + 1;
+        return 0;
+    }
+
+    private void GlobalBuiltIn_Selected(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingSoundUi) return;
+        var idx = GlobalBuiltInBox.SelectedIndex;
+        if (idx <= 0) { _defaultSound = null; GlobalSoundBox.Text = "No global sound selected"; }
+        else { var tone = BuiltInTones.All[idx - 1]; _defaultSound = tone.FileName; GlobalSoundBox.Text = tone.FileName; }
+    }
+
+    private void TypeBuiltIn_Selected(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingSoundUi) return;
+        var idx = TypeBuiltInBox.SelectedIndex;
+        var type = SelectedSoundType;
+        if (type is null) return;
+        if (idx <= 0) { _typeSounds.Remove(type); TypeSoundBox.Text = "Using global sound"; }
+        else { var tone = BuiltInTones.All[idx - 1]; _typeSounds[type] = tone.FileName; TypeSoundBox.Text = tone.FileName; }
     }
     private bool TryDuration(WpfTextBox box, string label, out int value) => TryInt(box, 0, 86400, label + " duration", out value);
     private bool TryInt(WpfTextBox box, int min, int max, string label, out int value)

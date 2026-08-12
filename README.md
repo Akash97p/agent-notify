@@ -105,7 +105,7 @@ Both underscore and hyphen spellings are accepted by the CLI, such as `input_req
 
 User-defined types can be created under **Tray → Settings… → Custom types**. Each definition has a stable ID, display name, accent color, default priority, lifetime (`0` is sticky), and enabled state. Agents can then pass the ID through `--type`, for example `--type deployment_waiting`. Deleting or disabling a definition never corrupts history: existing/new events keep the ID and use safe generic presentation defaults.
 
-Under **Settings… → Sounds & channels**, users can import a global WAV/MP3 tone and assign per-type overrides, preview sounds, choose volume, and control critical playback during Do Not Disturb. Imported files are validated, content-addressed, and copied into AgentNotify’s managed per-user sound directory; configuration never depends on the original upload path.
+AgentNotify ships with four built-in tones — Chime, Ping, Alert, and Knock — that are embedded in the application and seeded into the managed sound directory on first run, so sound works offline with no setup. Under **Settings… → Sounds & channels**, users can pick a built-in tone or import their own global WAV/MP3 tone, assign per-type overrides, preview sounds, choose volume, and control critical playback during Do Not Disturb. Imported files are validated, content-addressed, and copied into AgentNotify’s managed per-user sound directory; configuration never depends on the original upload path.
 
 ## Give the skill to a coding agent
 
@@ -200,7 +200,7 @@ Runtime state stays under `%LOCALAPPDATA%\AgentNotify`:
 config.json                 port, random bearer token, UI/runtime options
 agentnotify.db              SQLite notification history
 logs/agentnotify-YYYYMMDD.log
-sounds/                     managed user-imported WAV/MP3 files
+sounds/                     built-in tones plus user-imported WAV/MP3 files
 resources/SKILL.md
 resources/GettingStarted.html
 ```
