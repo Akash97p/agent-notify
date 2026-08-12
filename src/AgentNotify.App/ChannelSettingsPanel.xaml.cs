@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Delivery;
+using AgentNotify.Core;
 
 namespace AgentNotify.App;
 
@@ -67,6 +68,24 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     {
         if (ProviderList.SelectedItem is not ProviderProfile profile)
             return;
+
+        // Selection runs outside RunAsync, so anything thrown here reaches the WPF dispatcher
+        // unhandled and terminates the tray process, taking the broker and its API down with it.
+        // A stored profile must never be able to do that: report it and leave the fields cleared.
+        try
+        {
+            LoadSelectedProvider(profile);
+        }
+        catch (Exception exception)
+        {
+            SetStatus(
+                $"Could not load the saved settings for '{profile.Name}': {exception.Message}",
+                success: false);
+        }
+    }
+
+    private void LoadSelectedProvider(ProviderProfile profile)
+    {
         ProviderNameBox.Text = profile.Name;
         ProviderEnabledBox.IsChecked = profile.Enabled;
         SelectProviderKind(profile.Kind);
@@ -1266,7 +1285,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             using var document = JsonDocument.Parse(profile.ConfigJson);
             var root = document.RootElement;
             SmtpHostBox.Text = GetJsonString(root, "host");
-            SmtpPortBox.Text = root.TryGetProperty("port", out var port) && port.TryGetInt32(out var number)
+            SmtpPortBox.Text = JsonConfigReader.TryGetInt32(root, "port", out var number)
                 ? number.ToString()
                 : "587";
             var security = GetJsonString(root, "security");
@@ -1295,10 +1314,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             using var document = JsonDocument.Parse(profile.ConfigJson);
             var root = document.RootElement;
-            TelegramThreadBox.Text = root.TryGetProperty("messageThreadId", out var thread) &&
-                                     thread.TryGetInt32(out var threadId)
-                ? threadId.ToString()
-                : "";
+            TelegramThreadBox.Text = JsonConfigReader.GetInt32Text(root, "messageThreadId");
             TelegramSilentBox.IsChecked = root.TryGetProperty("disableNotification", out var silent) &&
                                           silent.ValueKind == JsonValueKind.True;
             TelegramProtectBox.IsChecked = !root.TryGetProperty("protectContent", out var protect) ||
@@ -1447,12 +1463,10 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             PushoverSoundBox.Text = GetJsonString(root, "sound");
             PushoverEmergencyBox.IsChecked = root.TryGetProperty("criticalAsEmergency", out var emergency) &&
                                                emergency.ValueKind == JsonValueKind.True;
-            PushoverRetryBox.Text = root.TryGetProperty("emergencyRetrySeconds", out var retry) &&
-                                    retry.TryGetInt32(out var retrySeconds)
+            PushoverRetryBox.Text = JsonConfigReader.TryGetInt32(root, "emergencyRetrySeconds", out var retrySeconds)
                 ? retrySeconds.ToString()
                 : "60";
-            PushoverExpireBox.Text = root.TryGetProperty("emergencyExpireSeconds", out var expire) &&
-                                     expire.TryGetInt32(out var expireSeconds)
+            PushoverExpireBox.Text = JsonConfigReader.TryGetInt32(root, "emergencyExpireSeconds", out var expireSeconds)
                 ? expireSeconds.ToString()
                 : "3600";
         }
@@ -1513,8 +1527,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "low" => 3,
                 _ => 0
             };
-            TwilioValidityBox.Text = root.TryGetProperty("validityPeriodSeconds", out var validity) &&
-                                     validity.TryGetInt32(out var seconds)
+            TwilioValidityBox.Text = JsonConfigReader.TryGetInt32(root, "validityPeriodSeconds", out var seconds)
                 ? seconds.ToString()
                 : "300";
             TwilioPaidConsentBox.IsChecked = root.TryGetProperty("paidSendConsent", out var consent) &&
@@ -1600,8 +1613,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "low" => 3,
                 _ => 0
             };
-            TwilioWhatsAppValidityBox.Text = root.TryGetProperty("validityPeriodSeconds", out var validity) &&
-                                               validity.TryGetInt32(out var seconds)
+            TwilioWhatsAppValidityBox.Text = JsonConfigReader.TryGetInt32(root, "validityPeriodSeconds", out var seconds)
                 ? seconds.ToString()
                 : "300";
             TwilioWhatsAppOptInBox.IsChecked = root.TryGetProperty("recipientOptInAcknowledged", out var optIn) &&
@@ -1638,7 +1650,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             using var document = JsonDocument.Parse(profile.ConfigJson);
             var root = document.RootElement;
             MqttHostBox.Text = GetJsonString(root, "brokerHost");
-            MqttPortBox.Text = root.TryGetProperty("port", out var port) && port.TryGetInt32(out var portNumber)
+            MqttPortBox.Text = JsonConfigReader.TryGetInt32(root, "port", out var portNumber)
                 ? portNumber.ToString()
                 : "8883";
             MqttClientIdBox.Text = GetJsonString(root, "clientId");
@@ -1649,15 +1661,14 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "anonymous" => 3,
                 _ => 0
             };
-            MqttQosBox.SelectedIndex = root.TryGetProperty("qos", out var qos) && qos.TryGetInt32(out var qosNumber)
+            MqttQosBox.SelectedIndex = JsonConfigReader.TryGetInt32(root, "qos", out var qosNumber)
                 ? Math.Clamp(qosNumber, 0, 2)
                 : 1;
             MqttDuplicateRiskBox.IsChecked = root.TryGetProperty("duplicateRiskAcknowledged", out var duplicate) &&
                                               duplicate.ValueKind == JsonValueKind.True;
             MqttAnonymousBox.IsChecked = root.TryGetProperty("anonymousAcknowledged", out var anonymous) &&
                                          anonymous.ValueKind == JsonValueKind.True;
-            MqttExpiryBox.Text = root.TryGetProperty("messageExpirySeconds", out var expiry) &&
-                                  expiry.TryGetInt32(out var expirySeconds)
+            MqttExpiryBox.Text = JsonConfigReader.TryGetInt32(root, "messageExpirySeconds", out var expirySeconds)
                 ? expirySeconds.ToString()
                 : "300";
         }
