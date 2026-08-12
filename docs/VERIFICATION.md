@@ -489,3 +489,16 @@ Still unverified after this run:
 - The Linux Secret Service store has still never run; `secret-tool` is absent from the runners, so
   Linux exercised the key-file fallback.
 - ARM64 binaries have still never executed.
+
+### Confirmed green run
+
+Run `31607106390` passed both jobs. The broker smoke test completed end to end on each runner:
+
+| Runner | Secret protection chosen | Smoke test |
+| --- | --- | --- |
+| ubuntu-latest | key file (no `secret-tool` installed) | health, create, keyed dedup, `0600` state, clean `SIGTERM` |
+| macos-latest | macOS login keychain, no key file written | health, create, keyed dedup, `0600` state, clean `SIGTERM` |
+
+Both platform branches of the secret-protection selection are therefore exercised by CI, and the
+headless broker is confirmed to start, serve `/v1`, deduplicate by key, protect its local state,
+and stop on `SIGTERM` on real Linux and real macOS.

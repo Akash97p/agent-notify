@@ -127,7 +127,7 @@ the console fallback instead of failing a notification, and notifier failure nev
 
 ---
 
-## Phase 3 — Build and release (**done**, CI unverified until pushed)
+## Phase 3 — Build and release (**done**)
 
 Publish self-contained single-file binaries for `agentnotify` and `agentnotifyd`:
 
@@ -172,12 +172,13 @@ made it possible to verify the Linux broker end to end rather than only compile 
 | --- | --- |
 | Portable projects compile for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 | **Verified** by cross-compilation |
 | Portable logic is correct | **Verified** by the automated test suite |
-| The headless broker runs on Linux, serves `/v1`, and the CLI drives it | **Verified** in WSL: health, send, keyed dedup, list, resolve |
+| The headless broker runs on Linux and macOS, serves `/v1`, and the CLI drives it | **Verified** in WSL and on both CI runners |
 | Owner-only `0600`/`0700` local state on Unix | **Verified** in WSL on real files |
 | The key-file fallback and its warning | **Verified** in WSL |
 | Single-instance locking and clean `SIGTERM` shutdown | **Verified** in WSL |
 | `notify-send` and macOS notifiers actually display a notification | **Unverified** — needs a graphical Linux session and a Mac |
-| macOS Keychain and `secret-tool` key stores | **Unverified** — neither tool exists in this environment |
+| macOS Keychain key store | **Verified** on the macOS CI runner |
+| Linux `secret-tool` key store | **Unverified** — not installed on the CI runners; Linux exercises the key-file fallback |
 | ARM64 binaries execute | **Unverified** — no ARM64 machine |
 
 Running the Linux binary is what found three defects that no amount of cross-compilation would
