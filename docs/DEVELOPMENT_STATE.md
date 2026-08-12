@@ -76,13 +76,24 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: Release build 0 warnings/0 errors, 601 passing tests. Packaging was not rerun because no installer payload, embedded resource, or publish setting changed. No WPF visual check was performed and none is claimed.
 
 
+33. Completed on `feature/cross-platform-core` (Phases 1 and 2 of `docs/CROSS_PLATFORM.md`):
+    - `ChannelAdapterFactory` in Core is now the single source of the eighteen adapters; `App.xaml.cs` uses it and its eighteen private adapter fields collapsed into one list. Disposal is unchanged: the sixteen `IDisposable` adapters are still disposed, and SMTP/MQTT still are not because they do not implement it.
+    - Secret protection is selected per platform. Windows keeps DPAPI and can never fall back. macOS uses a key in the login keychain via `/usr/bin/security`, Linux uses the Secret Service via `secret-tool`, and either falls back to a `0600` key file with a loud warning. A corrupted key file is a hard error, never a silent regeneration.
+    - Unix local state is owner-only: `0700` data directory, `0600` on `config.json`, `agentnotify.db`, and `secret.key`.
+    - New `AgentNotify.Desktop` project with `IDesktopNotifier` and `notify-send`, macOS (`terminal-notifier`/`osascript`), and console backends. All helper processes are launched with an argument list, never a shell; the AppleScript is a fixed program taking text through `argv`, and `notify-send` body text is XML-escaped.
+    - New `AgentNotify.Host` console project (`agentnotifyd`) that runs the same broker headlessly: config, SQLite, delivery dispatcher, loopback API, desktop notifier, lock-file single instance, and bounded signal-driven shutdown.
+    - Three defects were found by running the Linux binary in WSL, not by compiling: local state could be written into the working directory including the bearer token; `SIGTERM` was ignored because the signal registrations were finalized; and shutdown could hang forever. All three are fixed and the first has a regression test. Full detail is in `docs/VERIFICATION.md`.
+    - Gates: Release build 0 warnings/0 errors, 619 passing tests, cross-compilation for all five target RIDs, and a real end-to-end run on Linux (health, send, keyed dedup, list, resolve, permissions, single instance, `SIGTERM`). Packaging was not rerun; no installer payload or embedded resource changed.
+    - Explicitly unverified: the Linux and macOS *desktop* notifiers have never displayed a notification, the macOS Keychain and `secret-tool` key stores have never run, ARM64 binaries have never executed, and no WPF visual check was performed after the App refactor.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 601 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 619 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work continues on `dev` after the documentation accuracy pass described in entry 32. The next implementation is cross-platform support (macOS and Linux), planned in `docs/CROSS_PLATFORM.md`.
+- Work continues on `dev` after cross-platform Phases 1 and 2 described in entry 33. Phase 3 (cross-platform publish script, Linux/macOS CI, release archives) is the next step in `docs/CROSS_PLATFORM.md`.
 
 ## Next resume action
 

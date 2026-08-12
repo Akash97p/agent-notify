@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](docs/INSTALLATION.md)
-[![Tests](https://img.shields.io/badge/tests-601%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-619%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -280,7 +280,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 601 passing tests.
+The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 619 passing tests.
 
 ### Build the single-file installer
 

@@ -10,11 +10,13 @@ public sealed class SqliteNotificationRepository : INotificationRepository
 {
     private const string ConnectionStringTemplate = "Data Source={0}";
     private readonly string _connectionString;
+    private readonly string _dbPath;
 
     public SqliteNotificationRepository(string dbPath)
     {
         if (string.IsNullOrWhiteSpace(dbPath))
             throw new ArgumentException("dbPath is required", nameof(dbPath));
+        _dbPath = dbPath;
         _connectionString = string.Format(CultureInfo.InvariantCulture, ConnectionStringTemplate, dbPath);
     }
 
@@ -54,6 +56,9 @@ public sealed class SqliteNotificationRepository : INotificationRepository
             CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
             """;
         await command.ExecuteNonQueryAsync(ct);
+
+        // The history database is owner-only on Unix; on Windows the profile ACL already covers it.
+        UnixFilePermissions.RestrictFile(_dbPath);
     }
 
     public async Task<Notification> CreateAsync(Notification n, CancellationToken ct = default)

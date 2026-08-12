@@ -44,7 +44,24 @@ Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the
 
 Provider profiles, routes, outbox state, and delivery attempts may be stored in SQLite. Credentials must first be encrypted with a versioned secret envelope backed by Windows DPAPI in current-user scope. Plaintext secrets must exist only for the minimum time required to configure or call a provider, and must never appear in list responses, exports, exception messages, notification metadata, analytics, or logs.
 
-The implemented envelope prefix is `dpapi-user:v1:` and protection uses application-specific optional entropy. The DPAPI implementation is Windows-only by design; portable tests use an injected AES-GCM protector, not a production fallback. See Microsoft’s [ProtectedData documentation](https://learn.microsoft.com/dotnet/api/system.security.cryptography.protecteddata.protect).
+The implemented envelope prefix is `dpapi-user:v1:` and protection uses application-specific optional entropy. See Microsoft’s [ProtectedData documentation](https://learn.microsoft.com/dotnet/api/system.security.cryptography.protecteddata.protect).
+
+### Secret protection outside Windows
+
+DPAPI has no equivalent on macOS or Linux, so the portable broker selects a protector at startup. Windows always uses DPAPI and must never fall back to any other scheme while it is available.
+
+| Platform | Protection | Envelope |
+| --- | --- | --- |
+| Windows | DPAPI, current-user scope | `dpapi-user:v1:` |
+| macOS | AES-GCM under a 256-bit key in the login keychain (`/usr/bin/security`) | `aes-gcm:v1:` |
+| Linux | AES-GCM under a 256-bit key in the Secret Service keyring (`secret-tool`) | `aes-gcm:v1:` |
+| macOS/Linux without a keyring | AES-GCM under a `0600` key file in the config directory | `aes-gcm:v1:` |
+
+The key-file fallback is the weakest of these and is deliberately visible: the broker logs a warning at startup and `agentnotifyd` prints one to the console. Any process running as the same user can read `secret.key` and therefore decrypt stored provider credentials. It exists so a machine with no keyring still runs, not because it is equivalent protection.
+
+A corrupted key file is a hard error rather than a silent regeneration, because a new key would make every stored provider credential undecryptable.
+
+On Unix the per-user data directory is created `0700`, and `config.json` (which holds the local bearer token), `agentnotify.db`, and `secret.key` are created `0600`. Windows relies on the per-user profile ACL as before. `Environment.SpecialFolder.LocalApplicationData` returns an empty string on Unix when the base directory does not yet exist, so the data directory is always resolved to an absolute path — otherwise the token and database would be written into whatever working directory the broker was started from.
 
 DPAPI protects data at rest from other users and casual file disclosure. It does not defend against malware already executing as the same Windows user. Backups containing encrypted credentials may not be decryptable under another user profile or machine; migration/export tooling must omit secrets by default and require re-entry.
 
