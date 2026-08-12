@@ -20,6 +20,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         SmtpSecurityBox.SelectedIndex = 0;
         GoogleChatReplyPolicyBox.SelectedIndex = 0;
         PushbulletTargetTypeBox.SelectedIndex = 0;
+        TwilioCredentialModeBox.SelectedIndex = 0;
+        TwilioSenderTypeBox.SelectedIndex = 0;
+        TwilioMinimumPriorityBox.SelectedIndex = 0;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -80,6 +83,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadGotifyConfiguration(profile);
         LoadPushoverConfiguration(profile);
         LoadPushbulletConfiguration(profile);
+        LoadTwilioSmsConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -143,6 +147,16 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         PushbulletTargetBox.Clear();
         PushbulletTargetTypeBox.SelectedIndex = 0;
         PushbulletQuotaBox.IsChecked = false;
+        TwilioAccountSidBox.Clear();
+        TwilioCredentialModeBox.SelectedIndex = 0;
+        TwilioCredentialSidBox.Clear();
+        TwilioCredentialSecretBox.Clear();
+        TwilioRecipientBox.Clear();
+        TwilioSenderTypeBox.SelectedIndex = 0;
+        TwilioSenderBox.Clear();
+        TwilioMinimumPriorityBox.SelectedIndex = 0;
+        TwilioValidityBox.Text = "300";
+        TwilioPaidConsentBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -178,6 +192,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "gotify" => await SaveGotifyProviderAsync(existing),
             "pushover" => await SavePushoverProviderAsync(existing),
             "pushbullet" => await SavePushbulletProviderAsync(existing),
+            "twilio_sms" => await SaveTwilioSmsProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -691,6 +706,97 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         catch (JsonException) { return fallback; }
     }
 
+    private async Task<ProviderProfile> SaveTwilioSmsProviderAsync(ProviderProfile? existing)
+    {
+        var secretNames = existing?.SecretNames ?? [];
+        var mode = (TwilioCredentialModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "api_key";
+        var senderType = (TwilioSenderTypeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "messaging_service";
+        var minimumPriority = (TwilioMinimumPriorityBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "critical";
+        var previousMode = ReadConfigString(existing?.ConfigJson, "credentialMode", "api_key");
+        var previousSenderType = ReadConfigString(existing?.ConfigJson, "senderType", "messaging_service");
+        RequireSecret(TwilioAccountSidBox.Password, secretNames, "account_sid", "Enter the Twilio Account SID.");
+        RequireSecret(TwilioCredentialSecretBox.Password, secretNames, "credential_secret", "Enter the Twilio API Key secret or Auth Token.");
+        RequireSecret(TwilioRecipientBox.Password, secretNames, "recipient", "Enter the one permitted SMS recipient.");
+        RequireSecret(TwilioSenderBox.Password, secretNames, "sender", "Enter the Twilio sender.");
+        if (mode == "api_key" && string.IsNullOrWhiteSpace(TwilioCredentialSidBox.Password) &&
+            (!secretNames.Contains("credential_sid", StringComparer.Ordinal) || previousMode != "api_key"))
+            throw new ArgumentException("Enter the Twilio API Key SID.");
+        if (!string.IsNullOrWhiteSpace(TwilioAccountSidBox.Password) && !IsTwilioSid(TwilioAccountSidBox.Password.Trim(), "AC"))
+            throw new ArgumentException("The Twilio Account SID must be AC followed by 32 hexadecimal characters.");
+        if (!string.IsNullOrWhiteSpace(TwilioCredentialSidBox.Password) && !IsTwilioSid(TwilioCredentialSidBox.Password.Trim(), "SK"))
+            throw new ArgumentException("The Twilio API Key SID must be SK followed by 32 hexadecimal characters.");
+        if (!string.IsNullOrWhiteSpace(TwilioCredentialSecretBox.Password) && !IsPrintableSecret(TwilioCredentialSecretBox.Password))
+            throw new ArgumentException("The Twilio credential secret must be 16–256 printable characters without spaces.");
+        if (!string.IsNullOrWhiteSpace(TwilioRecipientBox.Password) && !IsE164(TwilioRecipientBox.Password.Trim()))
+            throw new ArgumentException("The SMS recipient must be an E.164 number such as +15551234567.");
+        var enteredSender = TwilioSenderBox.Password.Trim();
+        if (enteredSender.Length > 0 && !(senderType == "phone" ? IsE164(enteredSender) : IsTwilioSid(enteredSender, "MG")))
+            throw new ArgumentException("Enter a matching E.164 Twilio number or MG Messaging Service SID.");
+        if (enteredSender.Length == 0 && previousSenderType != senderType)
+            throw new ArgumentException("Re-enter the sender after changing its type.");
+        if (!int.TryParse(TwilioValidityBox.Text, out var validity) || validity is < 6 or > 36_000)
+            throw new ArgumentException("Twilio queue validity must be between 6 and 36000 seconds.");
+        if (TwilioPaidConsentBox.IsChecked != true)
+            throw new ArgumentException("Authorize paid SMS sends before saving this provider.");
+
+        var config = JsonSerializer.Serialize(new
+        {
+            accountSidSecretName = "account_sid",
+            credentialMode = mode,
+            credentialSidSecretName = "credential_sid",
+            credentialSecretName = "credential_secret",
+            recipientSecretName = "recipient",
+            senderType,
+            senderSecretName = "sender",
+            paidSendConsent = true,
+            minimumPriority,
+            validityPeriodSeconds = validity
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddSecret(changes, "account_sid", TwilioAccountSidBox.Password);
+        AddSecret(changes, "credential_sid", TwilioCredentialSidBox.Password);
+        AddSecret(changes, "credential_secret", TwilioCredentialSecretBox.Password);
+        AddSecret(changes, "recipient", TwilioRecipientBox.Password);
+        AddSecret(changes, "sender", TwilioSenderBox.Password);
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "twilio_sms",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = mode == "auth_token" && secretNames.Contains("credential_sid", StringComparer.Ordinal)
+                ? new[] { "credential_sid" }
+                : [];
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        TwilioAccountSidBox.Clear();
+        TwilioCredentialSidBox.Clear();
+        TwilioCredentialSecretBox.Clear();
+        TwilioRecipientBox.Clear();
+        TwilioSenderBox.Clear();
+        return saved;
+    }
+
+    private static void RequireSecret(string entered, IReadOnlyList<string> stored, string name, string message)
+    {
+        if (string.IsNullOrWhiteSpace(entered) && !stored.Contains(name, StringComparer.Ordinal))
+            throw new ArgumentException(message);
+    }
+
+    private static void AddSecret(IDictionary<string, string> changes, string name, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) changes[name] = value.Trim();
+    }
+
+    private static bool IsTwilioSid(string value, string prefix) =>
+        value.Length == 34 && value.StartsWith(prefix, StringComparison.Ordinal) &&
+        value[2..].All(Uri.IsHexDigit);
+
+    private static bool IsE164(string value) =>
+        value.Length is >= 9 and <= 16 && value[0] == '+' && value[1] is >= '1' and <= '9' &&
+        value[2..].All(char.IsAsciiDigit);
+
+    private static bool IsPrintableSecret(string value) =>
+        value.Length is >= 16 and <= 256 && value.All(character => character is >= '!' and <= '~');
+
     private Dictionary<string, string> BuildEnteredSecrets()
     {
         var secrets = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -723,6 +829,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "gotify" => 11,
             "pushover" => 12,
             "pushbullet" => 13,
+            "twilio_sms" => 14,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -749,6 +856,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "gotify" => "Gotify",
                 "pushover" => "Pushover",
                 "pushbullet" => "Pushbullet",
+                "twilio_sms" => "Twilio SMS",
                 _ => "Webhook"
             };
     }
@@ -769,7 +877,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var gotify = kind == "gotify";
         var pushover = kind == "pushover";
         var pushbullet = kind == "pushbullet";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet ? Visibility.Collapsed : Visibility.Visible;
+        var twilioSms = kind == "twilio_sms";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -783,7 +892,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         GotifyFields.Visibility = gotify ? Visibility.Visible : Visibility.Collapsed;
         PushoverFields.Visibility = pushover ? Visibility.Visible : Visibility.Collapsed;
         PushbulletFields.Visibility = pushbullet ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet ? Visibility.Collapsed : Visibility.Visible;
+        TwilioSmsFields.Visibility = twilioSms ? Visibility.Visible : Visibility.Collapsed;
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -1020,6 +1130,44 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             PushbulletTargetTypeBox.SelectedIndex = 0;
             PushbulletQuotaBox.IsChecked = false;
+        }
+    }
+
+    private void LoadTwilioSmsConfiguration(ProviderProfile profile)
+    {
+        TwilioAccountSidBox.Clear();
+        TwilioCredentialSidBox.Clear();
+        TwilioCredentialSecretBox.Clear();
+        TwilioRecipientBox.Clear();
+        TwilioSenderBox.Clear();
+        if (profile.Kind != "twilio_sms") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            TwilioCredentialModeBox.SelectedIndex = GetJsonString(root, "credentialMode") == "auth_token" ? 1 : 0;
+            TwilioSenderTypeBox.SelectedIndex = GetJsonString(root, "senderType") == "phone" ? 1 : 0;
+            TwilioMinimumPriorityBox.SelectedIndex = GetJsonString(root, "minimumPriority") switch
+            {
+                "high" => 1,
+                "normal" => 2,
+                "low" => 3,
+                _ => 0
+            };
+            TwilioValidityBox.Text = root.TryGetProperty("validityPeriodSeconds", out var validity) &&
+                                     validity.TryGetInt32(out var seconds)
+                ? seconds.ToString()
+                : "300";
+            TwilioPaidConsentBox.IsChecked = root.TryGetProperty("paidSendConsent", out var consent) &&
+                                              consent.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            TwilioCredentialModeBox.SelectedIndex = 0;
+            TwilioSenderTypeBox.SelectedIndex = 0;
+            TwilioMinimumPriorityBox.SelectedIndex = 0;
+            TwilioValidityBox.Text = "300";
+            TwilioPaidConsentBox.IsChecked = false;
         }
     }
 

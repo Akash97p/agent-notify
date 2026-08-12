@@ -59,7 +59,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 434 passed, 0 failed, 0 skipped
+- [x] Automated tests: 468 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -81,6 +81,7 @@
 - [x] Gotify push adapter with encrypted application token and plain-text-only payloads
 - [x] Pushover adapter with encrypted app/user keys, device/sound selection, and opt-in emergency priority
 - [x] Pushbullet note adapter with encrypted token/target, quota consent, and stable retry GUID
+- [x] Twilio SMS adapter with encrypted allowlists, one-segment cost bound, priority floor, and paid-send consent
 - [ ] Email provider API adapters
 - [ ] Official WhatsApp Business Cloud API adapter
 - [ ] SMS and mobile push adapters

@@ -339,6 +339,35 @@ Every push includes a stable 32-character GUID derived from the durable outbox I
 
 The user must acknowledge the documented free-account limit of 500 pushes per month before saving a profile; the **Send test** action also consumes a push. HTTP 408, 425, 429 rate limits, 5xx, network failures, and malformed success responses retry. Redirects and other 4xx authentication/target errors are permanent; a monthly-limit error returned as one of those client errors will not be retried. See the official [Pushbullet API overview and Pushes documentation](https://docs.pushbullet.com/v18/).
 
+## Twilio SMS
+
+Implementation status: adapter and native Settings fields complete; real-account, durable daily budget, delivery-status polling, and human UI smoke pending.
+
+Twilio SMS is a paid, regulated transport. AgentNotify requires one Account SID, one credential, one recipient, one sender, and explicit paid-send consent. It recommends a revocable Standard or Restricted API Key SID/secret; Account SID/Auth Token authentication remains available but is labeled for local testing only, matching Twilio's credential guidance. All account, credential, phone, and sender values are DPAPI current-user encrypted.
+
+```json
+{
+  "accountSidSecretName": "account_sid",
+  "credentialMode": "api_key",
+  "credentialSidSecretName": "credential_sid",
+  "credentialSecretName": "credential_secret",
+  "recipientSecretName": "recipient",
+  "senderType": "messaging_service",
+  "senderSecretName": "sender",
+  "paidSendConsent": true,
+  "minimumPriority": "critical",
+  "validityPeriodSeconds": 300
+}
+```
+
+The recipient must be one E.164 phone number. The sender must be either one account-owned E.164 Twilio number or one `MG…` Messaging Service SID; WhatsApp/channel addresses, short codes, alphanumeric sender IDs, recipient lists, and agent-selected destinations are rejected. Use separate disabled-by-default profiles and routes for separate recipients. Trial accounts must separately verify the recipient in Twilio.
+
+AgentNotify composes a compact title/message SMS and enforces one billed segment: at most 160 GSM-7 septets (correctly counting extension characters twice) or 70 UCS-2 code units without splitting surrogate pairs. It sets `SmartEncoded=true`, a 300-second default queue validity, `ContentRetention=discard`, and `AddressRetention=obfuscate`. It sends no media, templates, callbacks, shortened links, scheduling, or risk-check override. The minimum priority defaults to critical; explicit test sends bypass that floor because the button is a deliberate action, but still require paid consent and can incur charges.
+
+A successful create must return a valid message SID, an accepted/queued/sending/sent/delivered state, and zero or one initial segment. Failed/undelivered/canceled responses are permanent. Twilio does not document an idempotency key for Message creation, so AgentNotify applies a best-effort at-most-once policy to handled outcomes: 408, 425, 5xx, cancellation/timeouts, network failures, and malformed 2xx responses do not retry because the original SMS may already have been accepted and billed. Only a definite 429 rate limit retries. An app, OS, or power failure after provider acceptance but before local completion can still cause outbox recovery to replay and duplicate a billed SMS. This favors cost/duplicate safety over guaranteed off-device delivery; the local AgentNotify record remains authoritative.
+
+Before enabling a route, configure Twilio geographic permissions, sender registration/A2P compliance, consent and opt-out obligations, usage triggers, and an account spend limit. AgentNotify's one-segment and priority controls are not a durable daily monetary budget. See Twilio's official [Messages resource](https://www.twilio.com/docs/messaging/api/message-resource), [API authentication guidance](https://www.twilio.com/docs/usage/requests-to-twilio), and [SMS character limits](https://www.twilio.com/docs/glossary/what-sms-character-limit).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

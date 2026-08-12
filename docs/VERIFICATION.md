@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 434
+Passed: 468
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, Matrix/ntfy/Gotify/Pushover/Pushbullet encrypted destination and acknowledgement contracts, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, Matrix/ntfy/Gotify/Pushover/Pushbullet/Twilio encrypted destination and acknowledgement contracts, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
@@ -111,6 +111,10 @@ Contract tests verify the exact official HTTPS message endpoint, URL-encoded enc
 
 Contract tests verify the exact official HTTPS Pushes endpoint, encrypted `Access-Token` header, token omission from URLs and JSON, all-devices/device/channel/email targeting with exactly one optional target, explicit quota consent, stable per-outbox `guid`, route redaction, plain note-only projection, 32 KiB serialized request bound, bounded active-note acknowledgement, rate-limit/server retry classes, permanent credential/target classes, and network-error sanitization. The production handler permits at most two pooled connections and validates every public DNS result for `api.pushbullet.com` before connecting. No Pushbullet account, quota, token, or destination was contacted; real-account and human Settings smoke remain unverified.
 
+### Twilio SMS
+
+Contract tests verify the exact Account-scoped Messages endpoint; Basic authentication with an encrypted API Key SID/secret or Account SID/Auth Token; encrypted one-recipient and sender allowlists; E.164, AC/SK/MG/SM SID validation; provider-mode transitions; paid-send consent; critical-by-default priority blocking with explicit test-send bypass; 6–36,000-second validity; route redaction; GSM-7 extension-septet and UCS-2 surrogate-safe one-segment bounds; smart encoding; content discard/address obfuscation; omission of media/callback/risk-disable fields; bounded queued/accepted acknowledgement; immediate rejection handling; and best-effort no-replay 408/cancellation/network/5xx/malformed-response policy with only 429 retries. The production handler allows one connection and validates every public DNS result for `api.twilio.com`. Process-termination replay is not eliminated. No Twilio credential, phone number, Messaging Service, or paid send was used; real-account, delivery-status, pricing, compliance, and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -139,7 +143,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-c5b507dc58013cd35e9f27d99cfb5b72d99efc59706fc4d2069c1f17df9d073a  AgentNotifySetup.exe
+8f5e3b877fbeee019e1c9faa27ec32b065c8842028746396d5ceebc4b2e75727  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
