@@ -58,14 +58,27 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 29. Completed on `chore/prerelease-versioning`: aligned product informational version metadata to `0.0.1-alpha.1`, kept numeric Windows assembly/file metadata at `0.0.1.0`, updated API/CLI/installer/registry display values, added prerelease-aware release workflow behavior, and updated release documentation. Merged as `8186aed`, pushed to `origin/dev`, and tagged `v0.0.1-alpha.1`.
 30. Published `v0.0.1-alpha.1` as a GitHub prerelease through Actions run `31566620009`. The release contains `AgentNotifySetup.exe`, `SHA256SUMS.txt`, and `SKILL.md`; the mature `v1.0.0` release remains intentionally reserved for a future stable milestone.
 
+31. Completed on `chore/repo-layout`, `feature/site-favicon`, `fix/settings-readability`, and `feature/bundled-tones` (housekeeping and UX pass, no channel work):
+    - Repository root reduced to README, LICENSE, CONTRIBUTING, SECURITY, CLAUDE, AGENTS, TODO, THIRD_PARTY_NOTICES and build files. The original planning documents moved to `docs/archive/` with a README marking them historical, the cross-platform plan became `docs/CROSS_PLATFORM.md`, and branding images moved to `assets/branding/`. Project icon paths, the site build script, and the Pages path trigger were updated; the `Resources\an.ico` link name was deliberately preserved so existing `pack://` URIs still resolve.
+    - The supplied favicon set moved to `site/favicon/` so the existing build script publishes it. The webmanifest had empty name fields and absolute `/` icon paths that would have broken under the `/agent-notify/` project path; both were corrected and the theme colour matched to the site background. Open Graph and Twitter metadata were added, and the published site is linked from the README.
+    - `src/AgentNotify.App/Theme.xaml` fixes settings readability. WPF's default control templates paint system-black text, which was unreadable on the dark settings background, and empty provider/route lists rendered as blank white boxes. The dictionary is merged into `SettingsWindow` only, so toast and notification-center visuals are intentionally unchanged. Empty-state hints were added to the Providers and Routes lists. The redundant close button was removed from the Notification Center header, along with its now-dead handler.
+    - Four original CC0 tones (`chime`, `ping`, `alert`, `knock`) were synthesised for the project, embedded in the tray assembly, and seeded idempotently into the managed sound directory on first run. A built-in tone picker was added to the global and per-type sound settings behind a suppression flag that prevents programmatic selection from feeding back into the change handlers. User-supplied WAV/MP3 import is unchanged. The user's own four MP3s are deliberately NOT committed and are ignored via `notification-tone/`, pending redistribution-rights confirmation.
+    - Gates: full Release build 0 warnings/0 errors, 601 passing tests, packaging rerun because embedded resources changed (installer SHA-256 `bd7c8ac93cea2369438ec857566dd6d5e5c3d3825228ac1f03c56dc6056c446e`), and the static site build. The distributable skill was not modified.
+    - Verification limits are recorded honestly in `docs/VERIFICATION.md`: the theme dictionary and the embedded tones were verified programmatically (dictionary loads through the real pack URI with every template instantiating; each tone extracted through the app's own reflection path with a valid RIFF/WAVE header and byte-identical SHA-256), but **no visual WPF check was performed** and none is claimed.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 597 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 601 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work is paused on the clean `dev` branch after publishing `v0.0.1-alpha.1`. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
+- Work is paused on the clean `dev` branch after the repository-housekeeping and UX pass described in entry 31. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
 
 ## Next resume action
 
 Inspect the current branch and status, keep documentation aligned with the merged `dev` head, and create a new topic branch only when the next capability is explicitly resumed.
+
+Two items are waiting on the repository owner rather than on code:
+
+- Perform the human WPF checks listed at the end of `docs/VERIFICATION.md` for the settings theme and the built-in tones. Nothing visual has been confirmed.
+- Decide the redistribution rights for the four personal MP3s in the ignored `notification-tone/` folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`, and record their provenance in `THIRD_PARTY_NOTICES.md`.
