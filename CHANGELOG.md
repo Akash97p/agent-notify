@@ -9,6 +9,36 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
+## [0.0.3-alpha.1] - 2026-08-12
+
+Fixes a crash that could close the application, and adds an About section.
+
+### Fixed
+
+- **Selecting a saved provider in Settings closed the application.** `JsonElement.TryGetInt32`
+  throws rather than returning false for any value that is not a number, including JSON `null`, and
+  optional provider settings are stored as `null` when left blank. A Telegram provider saved
+  without a topic ID therefore threw when its row was selected, and because that handler runs
+  outside the panel's error boundary the exception terminated the tray process — taking the broker
+  and its local API with it. The same pattern affected eight settings across SMTP, Telegram,
+  Pushover, Twilio SMS, Twilio WhatsApp, and MQTT.
+- **A successful provider test reported an error.** Test send saves, sends, then reloads the
+  provider. The reload hit the same defect, so the failure appeared after the message had already
+  been delivered.
+
+### Added
+
+- **About section.** A new About tab in Settings shows the application icon, name, version, what
+  AgentNotify is, a local-first summary, links to the repository, documentation, releases and
+  issues, the per-user data directory, and publisher, licence and unsigned-binary notes. The tray
+  menu gained an "About AgentNotify" entry that opens it.
+- **`docs/BUG.md`**, a bug log recording the cause, fix and lesson for each defect found so far.
+
+### Changed
+
+- Documentation no longer contains machine-specific filesystem paths, and every version reference
+  is aligned with the released version.
+
 ## [0.0.2-alpha.1] - 2026-08-12
 
 AgentNotify now runs on macOS and Linux, not just Windows.
@@ -87,5 +117,6 @@ First published prerelease.
 - A single self-contained `AgentNotifySetup.exe` per-user installer with an offline getting-started
   page.
 
+[0.0.3-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1
 [0.0.2-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.2-alpha.1
 [0.0.1-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1

@@ -6,7 +6,7 @@ command-line client that agents already use. The API, the bearer token, the noti
 `SKILL.md` are identical on all three platforms, so an agent written against the Windows build needs
 no changes.
 
-> **Status.** These builds are part of the `0.0.1-alpha.1` prerelease. The broker itself has been
+> **Status.** These builds are part of the `0.0.3-alpha.1` prerelease. The broker itself has been
 > run and exercised end to end on Linux, but the macOS build and the graphical notification backends
 > have not been run on real hardware yet. See [VERIFICATION.md](VERIFICATION.md) for exactly what
 > has and has not been observed.
@@ -24,7 +24,7 @@ It refuses to install anything it cannot verify.
 To install elsewhere or pin a version:
 
 ```sh
-AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.0.1-alpha.1 sh install.sh
+AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.0.3-alpha.1 sh install.sh
 ```
 
 ### Manual install
