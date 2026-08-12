@@ -119,7 +119,7 @@ The supplied and expected values are hashed with SHA-256 and compared with a fix
 
 ## Rate limiting
 
-`POST /v1/notifications` is guarded by a sliding fixed-window counter per token: default **30 requests/second** (`rateLimitPerSecond`). When exceeded: `429 { "error": "rate limit exceeded" }` with `Retry-After: 1`.
+Every `POST` under `/v1/notifications` — both the create route and `POST /v1/notifications/{id}/dismiss` — is guarded by one sliding fixed-window counter per token: default **30 requests/second** (`rateLimitPerSecond`). `GET` and `PATCH` are not rate limited. When exceeded: `429 { "error": "rate limit exceeded" }` with `Retry-After: 1`.
 
 ---
 

@@ -83,6 +83,6 @@ After a notification is committed locally, matching enabled routes are idempoten
 - The CLI catches connection failures and timeouts and exits nonzero with a useful message.
 - Initialization failures are recorded in the local log and terminate the incomplete broker rather than leaving a partial tray process.
 
-## Future adapter boundary
+## Adding a new outbound adapter
 
-External delivery should subscribe to lifecycle events after local persistence. Each adapter must be isolated behind a delivery interface and queue, and it must never block API persistence or the WPF dispatcher. Provider credentials must not be stored in notification metadata or the current config token field.
+The rules below apply to every adapter, including the eighteen already implemented. External delivery subscribes to lifecycle events after local persistence. Each adapter is isolated behind a delivery interface and the durable outbox, and must never block API persistence or the desktop UI thread. Provider credentials must not be stored in notification metadata or the config token field. See [CHANNELS.md](CHANNELS.md) for the per-provider security policies that a new adapter is expected to match.

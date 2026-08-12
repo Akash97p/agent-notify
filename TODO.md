@@ -49,7 +49,7 @@
 - [x] Per-user install, Start menu, optional desktop shortcut, startup, PATH, and uninstall registration
 - [x] Publisher/author/version metadata
 - [x] MIT License and setup no-warranty acknowledgement
-- [x] README, contributing, security, architecture, installation, API, integration, roadmap, and verification docs
+- [x] README, contributing, security, architecture, installation, API, CLI, configuration, troubleshooting, integration, roadmap, and verification docs, indexed by `docs/README.md`
 - [x] Preserve local user data on uninstall
 - [ ] Authenticode signing and timestamping
 - [ ] Published SHA-256 checksums
@@ -59,7 +59,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 597 passed, 0 failed, 0 skipped
+- [x] Automated tests: 601 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

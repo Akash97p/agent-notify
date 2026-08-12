@@ -46,4 +46,4 @@ WhatsApp must use the official business platform rather than browser automation 
 
 The complete provider-by-provider task list and confidence constraints are maintained in `FEATURE_BACKLOG.md`.
 
-No roadmap item is a compatibility promise. Security/privacy review and a small understandable implementation take precedence over provider count. Current implementation work is paused after MQTT; roadmap items do not imply that a provider branch is active.
+No roadmap item is a compatibility promise. Security/privacy review and a small understandable implementation take precedence over provider count. MQTT 5 was the last outbound adapter merged; roadmap items do not imply that a provider branch is active.

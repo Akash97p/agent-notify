@@ -16,7 +16,7 @@ Do not disclose an exploitable issue in a public GitHub issue. Contact the repos
 
 Avoid including real bearer tokens, notification content, database files, or other personal data.
 
-## V1 trust boundary
+## Trust boundary
 
 AgentNotify assumes the signed-in Windows user controls processes in that user session. Its API is protected by:
 
