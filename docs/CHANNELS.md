@@ -398,6 +398,37 @@ The default priority floor is critical. An explicit **Send test** bypasses that 
 
 Before enabling a route, create and approve the template in WhatsApp Manager, obtain recipient opt-in through a compliant flow, provision and rotate a least-privilege system-user token, configure billing/quality/opt-out controls, and verify the exact parameter order. The local priority floor is not a durable monetary budget. See Meta's official [WhatsApp Business Platform workspace](https://www.postman.com/meta/whatsapp-business-platform/overview), [template-message request](https://www.postman.com/meta/whatsapp-business-platform/request/o65u5m5/send-message-template-text), and [Cloud API overview](https://developers.facebook.com/docs/whatsapp/cloud-api/overview).
 
+## Twilio WhatsApp
+
+Implementation status: optional Twilio Content Template adapter and native Settings fields complete; real-account testing, delivery-status webhooks, durable spend budgets, and human UI smoke pending. Direct Meta Cloud API remains the preferred path when an operator does not already depend on Twilio.
+
+Twilio WhatsApp uses the same official Account-scoped Messages resource as Programmable SMS, but AgentNotify treats it as a separate provider with separate consent and template constraints. The profile encrypts its Account SID, API Key SID/secret or local-testing Auth Token, one E.164 recipient, one WhatsApp-enabled `MG…` Messaging Service SID, and one approved `HX…` Content Template SID.
+
+```json
+{
+  "accountSidSecretName": "account_sid",
+  "credentialMode": "api_key",
+  "credentialSidSecretName": "credential_sid",
+  "credentialSecretName": "credential_secret",
+  "recipientSecretName": "recipient",
+  "messagingServiceSidSecretName": "messaging_service_sid",
+  "contentSidSecretName": "content_sid",
+  "contentVariables": ["title", "message"],
+  "recipientOptInAcknowledged": true,
+  "templateApprovedAcknowledged": true,
+  "textOnlyTemplateAcknowledged": true,
+  "paidSendConsent": true,
+  "minimumPriority": "critical",
+  "validityPeriodSeconds": 300
+}
+```
+
+The adapter posts `To=whatsapp:+E164`, `MessagingServiceSid`, and `ContentSid`; it adds `ContentVariables` only when the approved template has placeholders. Zero to five numbered placeholders can map, in operator-confirmed order, to `title`, `message`, `priority`, `type`, `agent`, or `project`. A redacted message becomes `Details withheld` to preserve arity. It sends no `Body`, `From`, `MediaUrl`, `StatusCallback`, scheduling field, shortened link, or agent-derived address. The text-only acknowledgement is necessary because AgentNotify cannot inspect the remote `HX` template and therefore cannot technically prove that it lacks media, buttons, catalogues, or dynamic URL variables.
+
+The default priority floor is critical, and queue validity defaults to 300 seconds. Explicit **Send test** bypasses only the priority floor; all opt-in, template, text-only, and paid acknowledgements remain mandatory. AgentNotify requests content discard and address obfuscation. A bounded response must contain a valid Message SID and an accepted/queued/sending/sent/delivered/read state; failed/undelivered/canceled is permanent.
+
+Twilio documents no idempotency key for Message creation. AgentNotify therefore does not retry 408, 425, 5xx, cancellation/timeouts, network failures, or malformed 2xx responses because the WhatsApp template may already have been accepted and billed; only a definite 429 retries. A process, OS, or power failure between provider acceptance and local outbox completion can still cause recovery replay. Configure Twilio and Meta billing, alerts, template-quality monitoring, recipient opt-out handling, and spend controls before enabling a route. See Twilio's official [WhatsApp overview](https://www.twilio.com/docs/whatsapp/api), [Content Template notification guide](https://www.twilio.com/docs/whatsapp/tutorial/send-whatsapp-notification-messages-templates), and [Messages resource](https://www.twilio.com/docs/messaging/api/message-resource).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

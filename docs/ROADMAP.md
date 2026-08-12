@@ -21,7 +21,7 @@ Potential adapters, in rough priority order:
 3. Telegram Bot API, Discord/Slack webhooks, global-cloud Teams Workflows, Zoho Cliq, Google Chat, Mattermost, and unencrypted Matrix rooms (implemented).
 4. ntfy, Gotify, Pushover, and Pushbullet (implemented).
 5. Twilio SMS with an encrypted single-recipient allowlist and one-segment/priority cost controls (implemented); durable daily/account spend budgets remain planned.
-6. WhatsApp approved-template delivery through the official Meta Cloud API (implemented); optional Twilio transport, delivery-status webhooks, and durable spend controls remain planned.
+6. WhatsApp approved-template delivery through the official Meta Cloud API and optional Twilio Content Templates (implemented); delivery-status webhooks and durable spend controls remain planned.
 7. MQTT and selected cloud messaging services for self-hosted/enterprise automation.
 
 Each provider must be opt-in and independently configurable. Required design work includes Windows-protected credential storage, verified destinations, content-redaction rules, retry queues, idempotency, delivery status, quotas/cost limits, provider rate limits, and a test-send workflow.

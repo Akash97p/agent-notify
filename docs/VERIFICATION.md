@@ -36,12 +36,12 @@ Command:
 Result:
 
 ```text
-Passed: 513
+Passed: 552
 Failed: 0
 Skipped: 0
 ```
 
-Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, Matrix/ntfy/Gotify/Pushover/Pushbullet/Twilio/WhatsApp encrypted destination and acknowledgement contracts, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
+Coverage includes validation, lifecycle transitions, config recovery/round-trip, custom type normalization/definitions/default priority, managed sound import/sanitization/deduplication and sound profile resolution, SQLite notification and delivery migrations/CRUD/outbox/attempts, atomic concurrent outbox claiming, DPAPI/AES-GCM secret round-trip and redaction, provider input bounds, credential-preserving/merging/removal updates, validated route service updates, idempotent route materialization, dispatcher success/timeout/retry/dead-letter/recovery, sanitized diagnostics and bounded test-send, webhook templating/headers/HMAC/idempotency/status policy/private-address controls, SMTP message projection/authentication/TLS modes/recipient normalization/injection and address policy/status propagation, Telegram encrypted destination projection/plain-text limits/fixed endpoint JSON/status policy, Discord encrypted URL validation/mention suppression/Markdown escaping/content limits/thread/status policy, Slack/GovSlack URL validation/control-sequence suppression/threading/bounded response/status policy, Teams/Zoho Cliq/Google Chat URL and payload hardening, Mattermost self-hosted destination/acknowledgement/mention controls, Matrix/ntfy/Gotify/Pushover/Pushbullet/Twilio SMS/direct WhatsApp/Twilio WhatsApp encrypted destination and acknowledgement contracts, routing/retry policy, authentication, health, create/list/get/patch/dismiss, malformed/null JSON, callback isolation including outbound queue failure, keyed deduplication including concurrent calls, CLI connection failure, bare `--unresolved`, hyphenated and custom notification type parsing, invalid identifier rejection, and version output.
 
 ### Delivery security foundation
 
@@ -119,6 +119,10 @@ Contract tests verify the exact Account-scoped Messages endpoint; Basic authenti
 
 Contract tests verify the exact versioned `graph.facebook.com/{version}/{phone-number-id}/messages` endpoint, Bearer-token placement, encrypted one-recipient/phone-ID/token projection, E.164 and identifier validation, explicit opt-in/template-approval/paid-send gates, critical-by-default priority blocking with deliberate test-send bypass, approved-template name/language constraints, zero-to-five ordered allowlisted body variables, duplicate/unknown mapping rejection, route-redaction arity preservation, Unicode-scalar bounds, 32 KiB request/response limits, strict single-`wamid` acknowledgement, redirect/client-error classification, and best-effort no-replay 408/cancellation/network/5xx/malformed-response policy with only 429 retries. The production handler allows one connection and validates every public DNS result for `graph.facebook.com`. Process-termination replay is not eliminated. No Meta credential, business account, phone number, recipient, template, or paid send was used; real-account, template interoperability, delivery status, billing, compliance, and human Settings smoke remain unverified.
 
+### Twilio WhatsApp
+
+Contract tests verify the exact Account-scoped Messages endpoint; Basic authentication with an encrypted API Key SID/secret or Account SID/Auth Token; encrypted one-recipient, Messaging Service, and Content Template allowlists; E.164 and AC/SK/MG/HX/SM SID validation; `whatsapp:` recipient projection; explicit opt-in/template/text-only/paid acknowledgements; critical-by-default priority blocking with deliberate test-send bypass; queue validity; zero-to-five ordered numbered Content variables; duplicate/unknown/null mapping rejection; route-redaction arity preservation; Unicode-scalar bounds; omission of free-form body/sender/media/callback fields; content discard/address obfuscation; bounded accepted/queued/read acknowledgement; immediate rejection handling; and best-effort no-replay 408/cancellation/network/5xx/malformed-response policy with only 429 retries. The production handler allows one connection and validates every public DNS result for `api.twilio.com`. Process-termination replay is not eliminated. No Twilio/Meta credential, account, recipient, Messaging Service, Content template, or paid send was used; real-account, delivery status, billing, compliance, and human Settings smoke remain unverified.
+
 ### Skill
 
 `distribution/agentnotify` was initialized using the official skill initializer. `quick_validate.py` reports:
@@ -147,7 +151,7 @@ Result:
 Latest locally packaged artifact SHA-256:
 
 ```text
-b2778f63d7cd8854c83277f3952daddf7339625532d5a1a1da245a4cb2330f14  AgentNotifySetup.exe
+b803d891b4150d9f3acddb884469e7ce6bcc53d3ecc2191482ec55e299e22e9a  AgentNotifySetup.exe
 ```
 
 Regenerate the checksum after any rebuild because it necessarily changes with the binary.
