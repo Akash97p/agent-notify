@@ -559,3 +559,43 @@ and both binaries extracted from it ran and reported `0.0.2-alpha.1`.
 
 Still unverified: the `cross-platform-assets` job has never completed. Its archives were built and
 attached locally for this release, so the corrected upload step remains unproven until the next tag.
+
+## Settings window crash on a saved provider (`fix/settings-json-null-crash`)
+
+Reported by the owner while configuring a real Telegram bot: the test send delivered a message to
+Telegram successfully but the Settings window then showed an error mentioning null, and clicking the
+saved Telegram provider in the list closed the application every time.
+
+Both symptoms had one cause. `JsonElement.TryGetInt32` does not behave like a `Try` method: it
+returns false only for a number that will not fit, and throws `InvalidOperationException` for every
+other value kind, including JSON `null`. The Settings window read optional integers as
+`root.TryGetProperty(name, out var e) && e.TryGetInt32(out var v)`, and optional settings are
+serialized as `null` when left blank. A Telegram provider saved without a topic ID stores
+`"messageThreadId": null`, so loading it threw.
+
+- Clicking the provider runs `Provider_Selected`, which is not inside `RunAsync`, so the exception
+  reached the WPF dispatcher unhandled and terminated the tray process — taking the broker and its
+  API down with it.
+- Test send runs inside `RunAsync`, which catches everything and shows `exception.Message`. It saves,
+  sends, then reloads and reselects the provider, which threw after the message had already been
+  delivered. That is why a successful send appeared to fail.
+
+The same unsafe pattern was present at eight call sites: SMTP port, Telegram topic ID, Pushover
+emergency retry and expiry, Twilio SMS validity, Twilio WhatsApp validity, and MQTT port, QoS, and
+message expiry. All eight now use `JsonConfigReader`, which treats absent, null, and wrong-typed
+values alike as "not set". `Provider_Selected` additionally catches anything a stored profile can
+throw and reports it in the status line, so no saved row can terminate the process again.
+
+Verified:
+
+- The stored configuration was read directly from the user's SQLite database and confirmed to
+  contain `"messageThreadId": null`. Encrypted secret columns were not read.
+- A test asserts that `JsonElement.TryGetInt32` really does throw on a JSON null, so the diagnosis
+  is demonstrated rather than assumed.
+- 644 tests pass, including 16 new ones covering null, missing, wrong-typed, oversized, and
+  fractional values, and the exact Telegram document that caused the crash.
+- Release build 0 warnings/0 errors; installer repackaged, SHA-256
+  `ae12982bff7fe2ca7fadba696772ce51eb4e5bb5fad2a866bb00746fc8b3863a`.
+
+Not verified: **no WPF interaction was performed.** Whether clicking the Telegram provider now loads
+its fields without closing the application must be confirmed by the owner on Windows.
