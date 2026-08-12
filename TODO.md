@@ -59,7 +59,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 552 passed, 0 failed, 0 skipped
+- [x] Automated tests: 597 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -85,6 +85,7 @@
 - [ ] Email provider API adapters
 - [x] Official WhatsApp Business Cloud API adapter for approved text templates, one opted-in recipient, and paid-send controls
 - [x] Optional Twilio WhatsApp Content Template adapter with encrypted allowlists and consent/cost controls
+- [x] MQTT 5 adapter with mandatory TLS, pinned validated DNS, encrypted fixed topic/authentication, optional certificate-store mTLS, and explicit QoS semantics
 - [ ] SMS and mobile push adapters
 - [ ] Quiet hours, snooze, escalation, grouping, and per-project routing
 - [ ] Response buttons and acknowledgement callbacks to agents
