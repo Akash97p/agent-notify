@@ -51,15 +51,11 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="AgentNotify" FontSize="16" FontWeight="SemiBold" Foreground="White"/>
                     <TextBlock x:Name="Subtitle" Text="Notifications from your agents" FontSize="11" Foreground="#7B819A" Margin="0,2,0,0"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="11"
-                        Width="24" Height="24" Background="Transparent" BorderThickness="0"
-                        Foreground="#7B819A" Click="OnCloseClick"/>
             </Grid>
         </Border>
 

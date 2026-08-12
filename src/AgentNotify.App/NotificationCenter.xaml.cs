@@ -204,7 +204,6 @@ public partial class NotificationCenter : Window
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e) => await RefreshAsync();
-    private async void OnCloseClick(object sender, RoutedEventArgs e) { Hide(); await Task.CompletedTask; }
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (!_allowClose)

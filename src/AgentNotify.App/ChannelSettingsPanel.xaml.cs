@@ -51,11 +51,13 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var providers = await _profiles.ListAsync();
         ProviderList.ItemsSource = providers;
         RouteProviderBox.ItemsSource = providers;
+        ProviderEmptyHint.Visibility = providers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (providerId is not null)
             ProviderList.SelectedItem = providers.FirstOrDefault(profile => profile.Id == providerId);
 
         var routes = await _routes.ListAsync();
         RouteList.ItemsSource = routes;
+        RouteEmptyHint.Visibility = routes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (routeId is not null)
             RouteList.SelectedItem = routes.FirstOrDefault(route => route.Id == routeId);
         await RefreshDiagnosticsAsync();

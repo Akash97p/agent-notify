@@ -275,3 +275,36 @@ Documentation gates for this branch:
 - `./scripts/test.sh` — full automated suite, required before merge.
 - `./scripts/build-site.sh` — static documentation site build.
 - `python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
+
+## Settings readability and window chrome — 2026-08-12
+
+The settings surfaces previously relied on WPF's default control templates,
+which paint system-black text. Against the dark settings background this made
+labels, checkbox captions, tab headers, and list contents effectively
+unreadable, and the empty provider/route lists rendered as blank white boxes.
+
+`src/AgentNotify.App/Theme.xaml` now restates every control the settings
+surfaces use. It is merged into `SettingsWindow` only, so toast and
+notification-center visuals are deliberately untouched.
+
+Automated and mechanical checks performed:
+
+- `./scripts/build.sh` — full Windows Release build, 0 warnings, 0 errors.
+- `./scripts/test.sh` — 597 passed, 0 failed.
+- Theme load smoke test: a throwaway WPF harness merged `Theme.xaml` through
+  the same `pack://application:,,,/Theme.xaml` URI used by `SettingsWindow`,
+  then instantiated and laid out one of every themed control type. The
+  dictionary resolved with 28 top-level resources and every implicit template
+  applied without error. This proves the dictionary resolves and the templates
+  are structurally valid; it does **not** evaluate visual appearance.
+
+Not yet performed — still requires a human at a Windows desktop:
+
+- Visual confirmation that every settings tab is legible, including the
+  Channels tab and the provider-type dropdown in its opened state.
+- Confirmation that the Notification Center header no longer shows a second
+  close affordance next to the native title-bar buttons.
+- Confirmation that the new empty-state hints appear on the Providers and
+  Routes lists before any profile exists, and disappear once one is saved.
+- Contrast measurement against WCAG AA for the muted `#9CA3AF` and `#7C8699`
+  text on the `#111827` panel background.
