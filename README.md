@@ -1,5 +1,11 @@
 # AgentNotify
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-2563eb.svg)](Directory.Build.props)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](docs/INSTALLATION.md)
+[![Tests](https://img.shields.io/badge/tests-597%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
+
 <p align="center">
   <img src="an.png" alt="AgentNotify app icon" width="180" height="180">
 </p>
