@@ -14,7 +14,7 @@ The Pages workflow deploys the static `site/` documentation after changes reach 
 
 ## Create a release
 
-1. Update `Version`, `AssemblyVersion`, and `FileVersion` in `Directory.Build.props`.
+1. Update `Version`, `InformationalVersion`, `AssemblyVersion`, and `FileVersion` in `Directory.Build.props`. Keep the informational value and tag suffix identical; keep the assembly/file values numeric.
 2. Update release notes, the verification record, and any migration documentation.
 3. Run:
 
@@ -25,12 +25,14 @@ The Pages workflow deploys the static `site/` documentation after changes reach 
    ```
 
 4. Verify the installer and `artifacts/SHA256SUMS.txt` on Windows.
-5. After the release commit is on `main`, create and push an exact matching tag, for example:
+5. After the release commit is on the intended release branch, create and push an exact matching tag. Prerelease tags use SemVer-style suffixes and are marked as prereleases automatically:
 
    ```bash
-   git tag -a v1.1.0 -m "AgentNotify 1.1.0"
-   git push origin v1.1.0
+   git tag -a v0.0.1-alpha.1 -m "AgentNotify v0.0.1-alpha.1"
+   git push origin v0.0.1-alpha.1
    ```
+
+   The tag must exactly equal `v` plus the committed `Version` value. Examples include `v0.0.1-pre-alpha.1`, `v0.0.1-alpha.1`, `v0.0.1-beta.1`, `v0.0.1-rc.1`, and finally `v1.0.0`. The release workflow passes `--prerelease` whenever the tag contains a hyphen.
 
 The tag workflow independently restores, builds, tests, packages, checks the tag against `Directory.Build.props`, and creates a GitHub Release containing:
 
@@ -38,7 +40,7 @@ The tag workflow independently restores, builds, tests, packages, checks the tag
 - `SHA256SUMS.txt`; and
 - the distributable `SKILL.md`.
 
-The workflow fails rather than publishing when tests fail, packaging fails, or the tag does not exactly match the product version.
+The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata remains `0.0.1.0` for the current prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.0.1-alpha.1`.
 
 ## Local packaging
 
@@ -49,4 +51,3 @@ PowerShell is the portable packaging implementation:
 ```
 
 The WSL `scripts/package.sh` wrapper resolves the configured Windows SDK path and invokes the same script, preventing local and hosted release logic from drifting.
-

@@ -77,7 +77,10 @@ public static class ApiHost
         var token = config.AuthToken;
         var limiter = new RateLimiter(config.RateLimitPerSecond, TimeSpan.FromSeconds(1));
         var startedAt = DateTimeOffset.UtcNow;
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+        var assembly = Assembly.GetExecutingAssembly();
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "0.0.1";
 
         app.Use(async (context, next) =>
         {

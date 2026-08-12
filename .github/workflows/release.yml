@@ -24,6 +24,9 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne "v$version") {
             throw "Tag $env:GITHUB_REF_NAME does not match project version v$version."
           }
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$') {
+            throw "Project version '$version' is not valid SemVer-style release metadata."
+          }
       - name: Build, test, and package
         shell: pwsh
         run: |
@@ -36,8 +39,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME `
-            "artifacts/AgentNotifySetup.exe#AgentNotify Windows x64 installer" `
-            "artifacts/SHA256SUMS.txt#SHA-256 checksums" `
-            "distribution/agentnotify/SKILL.md#AgentNotify agent skill" `
-            --verify-tag --generate-notes --title "AgentNotify $env:GITHUB_REF_NAME"
+          $releaseArgs = @(
+            $env:GITHUB_REF_NAME,
+            "artifacts/AgentNotifySetup.exe#AgentNotify Windows x64 installer",
+            "artifacts/SHA256SUMS.txt#SHA-256 checksums",
+            "distribution/agentnotify/SKILL.md#AgentNotify agent skill",
+            "--verify-tag",
+            "--generate-notes",
+            "--title",
+            "AgentNotify $env:GITHUB_REF_NAME"
+          )
+          if ($env:GITHUB_REF_NAME -match '-') {
+            $releaseArgs += "--prerelease"
+          }
+          gh release create @releaseArgs

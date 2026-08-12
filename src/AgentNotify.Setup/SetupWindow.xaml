@@ -60,7 +60,7 @@
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="AgentNotify" Foreground="White" FontWeight="Bold" FontSize="32"/>
                             <TextBlock Text="Human attention broker for coding agents" Foreground="#9BA8C2" FontSize="15"/>
-                            <TextBlock Text="Version 1.0.0 · Kabani Tech Private Limited" Foreground="#7C8BA6" FontSize="12" Margin="0,4,0,0"/>
+                            <TextBlock x:Name="VersionText" Foreground="#7C8BA6" FontSize="12" Margin="0,4,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
