@@ -28,6 +28,18 @@ public sealed class ManagedSoundStore
         return fileName;
     }
 
+    public void SeedBuiltIn(string fileName, Func<Stream> openSource)
+    {
+        var safe = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safe)) return;
+        Directory.CreateDirectory(DirectoryPath);
+        var destination = Path.Combine(DirectoryPath, safe);
+        if (File.Exists(destination)) return;
+        using var source = openSource();
+        using var dest = File.Create(destination);
+        source.CopyTo(dest);
+    }
+
     public string? Resolve(string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return null;

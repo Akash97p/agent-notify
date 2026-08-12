@@ -61,9 +61,11 @@
                     <CheckBox x:Name="SoundsBox" Content="Enable notification sounds"/>
                     <TextBlock Text="Volume (0–100)" FontWeight="SemiBold"/><TextBox x:Name="SoundVolumeBox"/>
                     <CheckBox x:Name="CriticalSoundDndBox" Content="Allow critical sounds during Do Not Disturb"/>
+                    <TextBlock Text="Built-in tone" FontWeight="SemiBold"/><ComboBox x:Name="GlobalBuiltInBox" SelectionChanged="GlobalBuiltIn_Selected"/>
                     <TextBlock Text="Global WAV/MP3" FontWeight="SemiBold"/><TextBox x:Name="GlobalSoundBox" IsReadOnly="True"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,20"><Button Content="Choose…" Margin="0" Click="ChooseGlobalSound_Click"/><Button Content="Preview" Click="PreviewGlobalSound_Click"/><Button Content="Clear" Click="ClearGlobalSound_Click"/></StackPanel>
                     <TextBlock Text="Per-type override" FontWeight="SemiBold"/><ComboBox x:Name="SoundTypeBox" SelectionChanged="SoundType_Selected"/>
+                    <TextBlock Text="Built-in tone" FontWeight="SemiBold"/><ComboBox x:Name="TypeBuiltInBox" SelectionChanged="TypeBuiltIn_Selected"/>
                     <TextBox x:Name="TypeSoundBox" IsReadOnly="True"/>
                     <StackPanel Orientation="Horizontal"><Button Content="Choose…" Margin="0" Click="ChooseTypeSound_Click"/><Button Content="Preview" Click="PreviewTypeSound_Click"/><Button Content="Use global" Click="ClearTypeSound_Click"/></StackPanel>
                 </StackPanel></ScrollViewer>

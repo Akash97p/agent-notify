@@ -25,6 +25,7 @@
     <Resource Include="..\..\assets\branding\an.ico" Link="Resources\an.ico" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Resources.SKILL.md" />
     <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="AgentNotify.Resources.GettingStarted.html" />
+    <EmbeddedResource Include="..\..\assets\tones\*.wav" LogicalName="AgentNotify.Resources.Tones.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
