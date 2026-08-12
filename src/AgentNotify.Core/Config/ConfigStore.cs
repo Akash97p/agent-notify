@@ -17,8 +17,43 @@ public sealed class ConfigStore
         _applyEnvOverrides = applyEnvOverrides;
     }
 
-    public static string DefaultConfigDir() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AgentNotify");
+    /// <summary>
+    /// Resolves the per-user data directory: <c>%LOCALAPPDATA%\AgentNotify</c> on Windows and
+    /// <c>$XDG_DATA_HOME/AgentNotify</c> (or <c>~/.local/share/AgentNotify</c>) on Unix.
+    /// </summary>
+    /// <remarks>
+    /// On Unix <see cref="Environment.GetFolderPath(Environment.SpecialFolder)"/> returns an empty
+    /// string when the base directory does not exist yet, which is the normal state of a fresh
+    /// account. Combining that empty string yields the relative path <c>AgentNotify</c>, so the
+    /// bearer token, the secret key, and the history database would be written into whatever
+    /// directory the process happened to start in — for an agent, the user's repository. The result
+    /// is therefore always resolved to an absolute path before it is returned.
+    /// </remarks>
+    public static string DefaultConfigDir() => Path.Combine(BaseDataDir(), "AgentNotify");
+
+    private static string BaseDataDir()
+    {
+        var baseDir = Environment.GetFolderPath(
+            Environment.SpecialFolder.LocalApplicationData,
+            Environment.SpecialFolderOption.Create);
+
+        if (IsUsable(baseDir)) return baseDir;
+
+        // Fall back to the XDG base directory specification, then to the home directory.
+        var xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        if (IsUsable(xdg)) return xdg!;
+
+        var home = Environment.GetEnvironmentVariable("HOME")
+            ?? Environment.GetEnvironmentVariable("USERPROFILE");
+        if (IsUsable(home)) return Path.Combine(home!, ".local", "share");
+
+        // Last resort: a user-scoped directory under the temporary path. Still absolute, so local
+        // state can never land in the working directory.
+        return Path.Combine(Path.GetTempPath(), $"agentnotify-{Environment.UserName}");
+    }
+
+    private static bool IsUsable(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && Path.IsPathRooted(path);
 
     public string ConfigDir => _configDir;
     public string ConfigPath => Path.Combine(_configDir, "config.json");
@@ -60,12 +95,15 @@ public sealed class ConfigStore
 
     public void Save(AgentNotifyConfig config)
     {
-        Directory.CreateDirectory(_configDir);
+        UnixFilePermissions.CreateOwnerOnlyDirectory(_configDir);
         var temporary = ConfigPath + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
             File.WriteAllText(temporary, JsonSerializer.Serialize(config, Json.Options));
+            // Restrict before the move so the token is never briefly world-readable at its final path.
+            UnixFilePermissions.RestrictFile(temporary);
             File.Move(temporary, ConfigPath, overwrite: true);
+            UnixFilePermissions.RestrictFile(ConfigPath);
         }
         finally
         {

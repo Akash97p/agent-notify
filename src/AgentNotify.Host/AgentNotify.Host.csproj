@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>agentnotifyd</AssemblyName>
+    <RootNamespace>AgentNotify.Host</RootNamespace>
+    <Description>agentnotifyd — portable headless AgentNotify broker for macOS and Linux.</Description>
+    <AssemblyTitle>AgentNotify Broker</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentNotify.Api\AgentNotify.Api.csproj" />
+    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+    <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\AgentNotify.Desktop\AgentNotify.Desktop.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentNotify.Tests" />
+  </ItemGroup>
+
+</Project>

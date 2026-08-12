@@ -49,17 +49,23 @@
 - [x] Per-user install, Start menu, optional desktop shortcut, startup, PATH, and uninstall registration
 - [x] Publisher/author/version metadata
 - [x] MIT License and setup no-warranty acknowledgement
-- [x] README, contributing, security, architecture, installation, API, integration, roadmap, and verification docs
+- [x] README, contributing, security, architecture, installation, API, CLI, configuration, troubleshooting, integration, roadmap, and verification docs, indexed by `docs/README.md`
 - [x] Preserve local user data on uninstall
 - [ ] Authenticode signing and timestamping
 - [ ] Published SHA-256 checksums
 - [ ] ARM64 installer
+- [x] Portable `agentnotifyd` broker for macOS and Linux
+- [x] Self-contained archives for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 with checksums
+- [x] Checksum-verifying POSIX `install.sh`
+- [ ] Green Linux/macOS CI run (workflow written, never executed)
+- [ ] Homebrew tap and Winget manifest
+- [ ] Native macOS menu-bar and Linux tray clients
 - [ ] Automatic updates and schema/config migration framework
 
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 597 passed, 0 failed, 0 skipped
+- [x] Automated tests: 619 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

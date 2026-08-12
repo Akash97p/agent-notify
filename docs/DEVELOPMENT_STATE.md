@@ -66,13 +66,43 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: full Release build 0 warnings/0 errors, 601 passing tests, packaging rerun because embedded resources changed (installer SHA-256 `bd7c8ac93cea2369438ec857566dd6d5e5c3d3825228ac1f03c56dc6056c446e`), and the static site build. The distributable skill was not modified.
     - Verification limits are recorded honestly in `docs/VERIFICATION.md`: the theme dictionary and the embedded tones were verified programmatically (dictionary loads through the real pack URI with every template instantiating; each tone extracted through the app's own reflection path with a valid RIFF/WAVE header and byte-identical SHA-256), but **no visual WPF check was performed** and none is claimed.
 
+32. Completed on `docs/accuracy-pass` (documentation only, plus one comment fix):
+    - Removed stale "V1" framing from current documentation. `SECURITY.md` now has a "Trust boundary" heading, `CONTRIBUTING.md` says "the current trust boundary", and the `SoundsEnabled` XML comment no longer claims "V1 does not play sounds" (sounds have shipped). The `docs/archive/` documents keep their original V1 wording on purpose; `docs/README.md` states that they are historical.
+    - Corrected the automated test count from 597 to 601 in the README badge, README build section, `TODO.md`, and the site stats card, after re-running `./scripts/test.sh`.
+    - The GitHub Pages stats card read "8+ built-in and custom types", which was being misread as a provider count. It now reads "8 built-in notification types, plus custom"; the neighbouring card already stated the correct 18 implemented outbound adapters.
+    - Fixed two places where documentation contradicted the code. `error` was documented as a sticky toast but `DefaultDurations` gives it 15 seconds; the README table now says 15 seconds and a new paragraph separates "attention type" (which `error` is) from "sticky toast" (which it is not). Rate limiting was documented as covering only `POST /v1/notifications`, but `ApiHost` guards every `POST` under that path; `docs/API.md` and `docs/CONFIGURATION.md` now say so and note that `GET`/`PATCH` are unlimited.
+    - `docs/ARCHITECTURE.md` retitled "Future adapter boundary" to "Adding a new outbound adapter", since eighteen adapters exist; the section is now the rule set for adding another.
+    - Added four documents: `docs/CLI.md` (every command, flag, output, and exit code), `docs/CONFIGURATION.md` (config file location, every setting with defaults, custom type schema, sound policy, token warning), `docs/TROUBLESHOOTING.md` (symptom/cause/fix entries), and `docs/README.md` as the documentation index. The first three were drafted against the source by the Muse worker and then reviewed, corrected, and stripped of volatile source line-number citations.
+    - Gates: Release build 0 warnings/0 errors, 601 passing tests. Packaging was not rerun because no installer payload, embedded resource, or publish setting changed. No WPF visual check was performed and none is claimed.
+
+
+33. Completed on `feature/cross-platform-core` (Phases 1 and 2 of `docs/CROSS_PLATFORM.md`):
+    - `ChannelAdapterFactory` in Core is now the single source of the eighteen adapters; `App.xaml.cs` uses it and its eighteen private adapter fields collapsed into one list. Disposal is unchanged: the sixteen `IDisposable` adapters are still disposed, and SMTP/MQTT still are not because they do not implement it.
+    - Secret protection is selected per platform. Windows keeps DPAPI and can never fall back. macOS uses a key in the login keychain via `/usr/bin/security`, Linux uses the Secret Service via `secret-tool`, and either falls back to a `0600` key file with a loud warning. A corrupted key file is a hard error, never a silent regeneration.
+    - Unix local state is owner-only: `0700` data directory, `0600` on `config.json`, `agentnotify.db`, and `secret.key`.
+    - New `AgentNotify.Desktop` project with `IDesktopNotifier` and `notify-send`, macOS (`terminal-notifier`/`osascript`), and console backends. All helper processes are launched with an argument list, never a shell; the AppleScript is a fixed program taking text through `argv`, and `notify-send` body text is XML-escaped.
+    - New `AgentNotify.Host` console project (`agentnotifyd`) that runs the same broker headlessly: config, SQLite, delivery dispatcher, loopback API, desktop notifier, lock-file single instance, and bounded signal-driven shutdown.
+    - Three defects were found by running the Linux binary in WSL, not by compiling: local state could be written into the working directory including the bearer token; `SIGTERM` was ignored because the signal registrations were finalized; and shutdown could hang forever. All three are fixed and the first has a regression test. Full detail is in `docs/VERIFICATION.md`.
+    - Gates: Release build 0 warnings/0 errors, 619 passing tests, cross-compilation for all five target RIDs, and a real end-to-end run on Linux (health, send, keyed dedup, list, resolve, permissions, single instance, `SIGTERM`). Packaging was not rerun; no installer payload or embedded resource changed.
+    - Explicitly unverified: the Linux and macOS *desktop* notifiers have never displayed a notification, the macOS Keychain and `secret-tool` key stores have never run, ARM64 binaries have never executed, and no WPF visual check was performed after the App refactor.
+
+
+34. Completed on `feature/cross-platform-release` (Phase 3 and part of Phase 4):
+    - `scripts/publish-cross.sh` publishes the `agentnotify` CLI and the `agentnotifyd` broker as self-contained single files for win-x64, linux-x64, linux-arm64, osx-x64, and osx-arm64, bundles the licence, third-party notices, and `SKILL.md` beside them, archives each runtime, and writes `SHA256SUMS.txt`.
+    - `scripts/install.sh` is a POSIX installer that detects the platform, downloads the matching archive, verifies its SHA-256 against the published checksums, and installs into `~/.local/bin`. It refuses to install anything it cannot verify.
+    - `.github/workflows/ci-portable.yml` builds and tests the portable projects on ubuntu-latest and macos-latest, then smoke-tests the broker: health, keyed deduplication through the API, `0600` local state, and clean `SIGTERM` shutdown. This is the only thing that can prove the macOS build works, since no Mac is available here.
+    - The release workflow gained a `cross-platform-assets` job that attaches every archive to the tagged release after the Windows installer job succeeds.
+    - `docs/INSTALLATION_UNIX.md` documents installation, systemd/launchd units, notification backends, data locations, credential protection, and platform-specific troubleshooting. The README now describes the project as cross-platform and states plainly what macOS and Linux still lack.
+    - Verified: a real `linux-x64` archive was produced, extracted, and both binaries inside it ran. Not verified: no GitHub Actions run has ever executed, and `install.sh` has never run end to end because no release contains these archives yet.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 601 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 619 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work is paused on the clean `dev` branch after the repository-housekeeping and UX pass described in entry 31. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
+- Work continues on `dev` after cross-platform Phases 1-3 described in entries 33 and 34. The next steps are pushing so the Linux/macOS CI actually runs, then Phase 4 distribution (Homebrew tap, Winget) and Phase 5 native clients.
 
 ## Next resume action
 

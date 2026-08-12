@@ -2,8 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha.1-2563eb.svg)](Directory.Build.props)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](docs/INSTALLATION.md)
-[![Tests](https://img.shields.io/badge/tests-597%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4.svg)](docs/INSTALLATION.md)
+[![Tests](https://img.shields.io/badge/tests-619%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -22,14 +22,14 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-AgentNotify is a local Windows human-attention broker for autonomous coding agents. Agents send a small authenticated request; AgentNotify displays a dedicated non-activating WPF toast, preserves the event in local history, and makes unresolved requests visible from the system tray.
+AgentNotify is a local human-attention broker for autonomous coding agents. Agents send a small authenticated request; AgentNotify displays a dedicated non-activating WPF toast, preserves the event in local history, and makes unresolved requests visible from the system tray.
 
 It is designed for people running several agents across terminals, repositories, windows, and virtual desktops who need a reliable answer to: “Which agents are waiting for me?”
 
 ## What you get
 
 - Custom Windows 11 toast windows owned by AgentNotify, not browser notifications.
-- Sticky `input_required`, `permission_required`, `blocked`, and `error` attention requests.
+- Sticky `input_required`, `permission_required`, and `blocked` toasts that stay until dismissed or resolved.
 - Auto-expiring informational, warning, success, and completion notifications.
 - Centralized multi-toast stacking on the monitor where the user is working.
 - A compact notification center with “Needs attention” and recent history.
@@ -42,6 +42,8 @@ It is designed for people running several agents across terminals, repositories,
 - One self-contained installer executable with an offline getting-started page.
 
 ## Install
+
+### Windows
 
 The distributable is [AgentNotifySetup.exe](artifacts/AgentNotifySetup.exe). Copy that one file to a Windows 11 machine and run it; no separate .NET runtime is required.
 
@@ -58,6 +60,18 @@ Setup installs per user by default under `%LOCALAPPDATA%\Programs\AgentNotify`, 
 The installer displays the MIT License and the explicit “as is, no warranty” notice before installation. This build contains publisher metadata for **Kabani Tech Private Limited**, but it is not Authenticode-signed. Windows may therefore show an unknown-publisher/SmartScreen prompt until a code-signing certificate is used.
 
 After installation, open a new PowerShell, Command Prompt, or WSL shell so the updated Windows user `PATH` is visible.
+
+### macOS and Linux
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/install.sh | sh
+```
+
+This installs the `agentnotify` CLI and the `agentnotifyd` broker into `~/.local/bin` after verifying
+the published SHA-256 checksum. Start the broker with `agentnotifyd`, then use the same CLI and the
+same `/v1` API as on Windows. There is no tray or Settings UI on these platforms yet; notifications
+go to `notify-send` on Linux, Notification Center on macOS, or standard output when no desktop
+session is available. See [Installing on macOS and Linux](docs/INSTALLATION_UNIX.md).
 
 ## Send your first notification
 
@@ -130,11 +144,16 @@ Types:
 | `input_required` | Sticky | A user decision or answer blocks progress |
 | `permission_required` | Sticky | Explicit authorization is required |
 | `blocked` | Sticky | A prerequisite or external dependency prevents progress |
-| `error` | Sticky attention item | A significant operation failed |
+| `error` | 15 seconds | A significant operation failed |
 | `warning` | 12 seconds | Attention is advisable but work can continue |
 | `info` | 7 seconds | A meaningful non-actionable milestone |
 | `success` | 5 seconds | An important operation succeeded |
 | `completed` | 5 seconds | The requested work finished |
+
+Toast lifetime and “needs attention” are separate ideas. `input_required`, `permission_required`, `blocked`, and
+`error` are all attention types, so an active one is listed under **Needs attention** in the notification center.
+Only the first three have a sticky toast; an `error` toast auto-dismisses after its lifetime while the entry stays
+active in the center. Every lifetime above is the default and is configurable per type.
 
 Priorities are `low`, `normal`, `high`, and `critical`. Status values are `active`, `dismissed`, and `resolved`.
 
@@ -275,7 +294,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 597 passing tests.
+The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 619 passing tests.
 
 ### Build the single-file installer
 
@@ -319,7 +338,9 @@ Content-Type: application/json
 
 ## Current limitations
 
-- The binaries and installer are x64 Windows builds.
+- The Windows tray application, notification center, Settings UI, and installer are x64 Windows only.
+- macOS and Linux run the broker headlessly through `agentnotifyd`; there is no tray or Settings UI there yet.
+- The macOS build and the graphical notification backends have not been run on real hardware; see [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
 - Eighteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, and MQTT 5 over TLS/mTLS.
@@ -338,9 +359,9 @@ The transport design keeps the local broker as the source of truth. Completed de
 - Agent heartbeat/status, richer SDKs, and an optional MCP server.
 - Safer terminal/tab activation and virtual-desktop awareness.
 - ARM64 packages, signed releases, automatic updates, and migration tooling.
-- Native macOS menu-bar and Linux desktop editions built around portable broker contracts.
+- Native macOS menu-bar and Linux tray clients on top of the portable broker that now exists.
 
-External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). Development is currently paused on `dev` after the MQTT milestone.
+External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). No new outbound adapter branch is active; current work is cross-platform support and documentation.
 
 ## Contributing and license
 

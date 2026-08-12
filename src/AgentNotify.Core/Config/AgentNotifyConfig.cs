@@ -34,7 +34,7 @@ public sealed class AgentNotifyConfig
     /// <summary>Stub for future quiet-hours scheduling (reserved).</summary>
     public bool DoNotDisturb { get; set; }
 
-    /// <summary>Reserved; V1 does not play sounds.</summary>
+    /// <summary>Master switch for notification sounds.</summary>
     public bool SoundsEnabled { get; set; }
 
     public double SoundVolume { get; set; } = 0.8;

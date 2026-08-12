@@ -344,3 +344,84 @@ Not yet performed — still requires a human at a Windows desktop:
   clean per-user profile after a real install.
 - Confirming the built-in tone dropdowns stay in sync with the file boxes when
   switching between built-in, custom, and cleared selections.
+
+## Cross-platform Phase 1 and 2 (`feature/cross-platform-core`)
+
+### What was actually run
+
+WSL is a real Linux x64 userland, so a `linux-x64` self-contained publish of `agentnotifyd` and
+`agentnotify` runs natively here. The Linux broker was therefore exercised for real, not only
+compiled.
+
+- `./scripts/build.sh` — 0 warnings, 0 errors, including the two new projects.
+- `./scripts/test.sh` — 619 passed, 0 failed (601 previous plus 18 new cross-platform and desktop
+  notifier tests).
+- Cross-compilation of `AgentNotify.Cli` for `linux-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64`
+  succeeded, as did `AgentNotify.Host` for `linux-x64`.
+- The published Linux `agentnotify` binary is an ELF executable, runs in WSL, reports its version,
+  extracts and loads the native `libe_sqlite3.so`, and fails with a clean message and exit code 1
+  when no broker is listening.
+- `agentnotifyd` was started in WSL against an isolated `HOME`. It reported the key-file protection
+  and console notifier, created its data directory, and served the API.
+- End-to-end through the Linux CLI against the Linux broker: `health` returned `ok`; `send`
+  created an `input_required` notification and printed the DTO; a second `send` with the same
+  `--key` updated the existing row in place rather than creating a duplicate; `list` showed one
+  row; `resolve` moved it to `resolved`. The console notifier printed the attention line.
+- File permissions on real Linux files: the data directory is `drwx------`, and `config.json`,
+  `agentnotify.db`, and `secret.key` are `-rw-------`.
+- Single instance: a second `agentnotifyd` against the same data directory refused to start with a
+  clear message and exit code 1, and started successfully once the first had exited.
+- `SIGTERM` handling: the broker printed `Stopping…`, logged `agentnotifyd stopped`, and exited
+  within one second with a normal exit status.
+
+### Three defects that only running it exposed
+
+1. **Local state could land in the working directory.** On Unix
+   `Environment.GetFolderPath(LocalApplicationData)` returns an empty string when the base
+   directory does not exist yet, which is the normal state of a fresh account. The empty string
+   combined to the relative path `AgentNotify`, so the first run wrote `config.json` — containing
+   the local bearer token — plus `secret.key` and the history database into whatever directory the
+   broker was started from. In this repository that was the checkout itself. `DefaultConfigDir`
+   now resolves through `SpecialFolderOption.Create`, then `XDG_DATA_HOME`, then `$HOME`, and
+   always returns an absolute path. Covered by a regression test.
+2. **`SIGTERM` was ignored entirely.** The `PosixSignalRegistration` objects were created and
+   discarded. Once finalized the handler is unhooked, so the broker neither shut down nor died and
+   could only be stopped with `SIGKILL` — it would have been unmanageable under systemd or
+   launchd. The registrations are now held for the lifetime of the process.
+3. **Shutdown could hang indefinitely.** `DeliveryDispatcher.StopAsync` is unbounded; the WPF app
+   had always bounded it with a two-second `Wait`. The host now bounds the dispatcher stop, bounds
+   overall shutdown at fifteen seconds, and exits immediately on a second signal.
+
+### Not verified
+
+- No `notify-send` binary and no graphical session exist here, so **the Linux desktop notifier has
+  never displayed a notification**. Only the console fallback was observed.
+- No macOS machine, so **neither macOS notifier path nor the Keychain key store has ever run**.
+- No `secret-tool`, so **the Linux Secret Service key store has never run**. Only the key-file
+  fallback was exercised.
+- No ARM64 hardware, so the `linux-arm64` and `osx-arm64` binaries are compiled but never executed.
+- The Windows tray application was rebuilt and its tests pass, but **no WPF visual check was
+  performed** after the adapter-factory and secret-protector-factory refactor. On Windows the
+  factory returns the same `DpapiSecretProtector` the app constructed directly before, and the
+  adapter list and disposal set are unchanged, but that is reasoning, not observation.
+
+## Cross-platform Phase 3 (`feature/cross-platform-release`)
+
+- `./scripts/publish-cross.sh linux-x64` produced `agentnotify-linux-x64.tar.gz` and a
+  `SHA256SUMS.txt`. The archive was extracted and both binaries inside it ran and reported version
+  `0.0.1-alpha.1`, so the released artefact — not just a build output — is known to work on Linux.
+- `./scripts/publish-cross.sh linux-x64 osx-arm64` produced both archives.
+- Both new shell scripts pass `sh -n`/`bash -n`. `shellcheck` is not installed here, so no lint
+  beyond a syntax check was run.
+- All four workflow files parse as YAML.
+
+Not verified:
+
+- **No GitHub Actions run has happened.** The Linux and macOS CI jobs and the release upload job
+  are written but have never executed; the repository has not been pushed. Until a run is green,
+  "builds and tests on macOS" is an expectation, not a result.
+- `install.sh` has never been run end to end, because it downloads from a GitHub release that does
+  not contain these archives yet. Its platform detection, checksum verification, and failure paths
+  are unexercised.
+- The `win-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64` archives have not been produced in a
+  full run of the script, only the two above.
