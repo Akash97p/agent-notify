@@ -425,3 +425,80 @@ Not verified:
   are unexercised.
 - The `win-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64` archives have not been produced in a
   full run of the script, only the two above.
+
+## Portable file-name sanitizing (`fix/portable-filename-sanitizing`)
+
+The first Linux and macOS CI run failed on `ConfigTests.SoundProfiles_AreSanitizedAndResolvePerTypeOverride`,
+identically on both runners. This was a real defect rather than a test artefact.
+
+`Path.GetFileName` is platform-dependent. Windows treats `\`, `/`, and the volume separator as
+boundaries; on Linux and macOS a backslash is an ordinary file-name character. A configured sound
+of `C:\outside\global.MP3` therefore passed through sanitizing unchanged on Unix, so the invariant
+that a configured sound is a bare file name inside the managed sounds directory did not hold there.
+Configuration is portable between machines, so the same `config.json` must normalize identically on
+every platform. `SafeFileName.Last` now strips both separators and any volume prefix using plain
+string operations, and the three call sites in `AgentNotifyConfig` and `ManagedSoundStore` use it.
+
+Verified:
+
+- 628 tests pass on Windows (619 previous plus 9 covering platform-independent normalization).
+- On real Linux: a `config.json` hand-written with `"defaultSoundFile": "C:\\outside\\global.MP3"`
+  and `"input_required": "..\\attention.wav"` was loaded by the Linux `agentnotifyd`, which rewrote
+  the file with `global.MP3` and `attention.wav`. This exercises the fix through the running broker
+  rather than through the test host.
+
+Not verified until the next CI run: that the previously failing test now passes on the macOS runner.
+No Mac is available here.
+
+## Test-harness timeout (`test/stabilize-concurrency-timeout`)
+
+The Windows CI job failed once on `DedupTests.ConcurrentSameKey_CreatesOneActiveNotification` with
+an `HttpClient.Timeout` of five seconds elapsing. The identical commit content passed on the `main`
+push and failed on the `dev` push minutes later, so this was timing on a shared runner rather than
+a defect: the test issues twelve concurrent same-key posts, keyed creation is deliberately
+serialized inside the broker, and a slow two-core runner can hold the last request in that queue
+past five seconds.
+
+The fixture's request timeout is now thirty seconds. It exists to stop a hung request from wedging
+the suite, not to assert throughput, and thirty seconds still catches a genuine hang. No assertion
+was weakened and the concurrency of the test is unchanged, because twelve simultaneous same-key
+requests are exactly the race worth exercising.
+
+## First green Linux and macOS CI (`fix/ci-smoke-keyring-assumption`)
+
+The second CI run passed the full test suite on **both** ubuntu-latest and macos-latest, confirming
+the file-name sanitizing fix. Remaining results from that run:
+
+- **ubuntu-latest passed the broker smoke test outright**: the headless broker started, `/v1/health`
+  returned `ok`, a notification was created through the API, a second post with the same key
+  returned the same id, `config.json` and `agentnotify.db` were mode `600`, and the broker stopped
+  cleanly on `SIGTERM`. This is independent confirmation, on a machine that is not WSL, of the
+  behaviour recorded earlier.
+- **macos-latest reported `secrets: macOS login keychain`**. The Keychain key store therefore runs
+  correctly on a real Mac, which was previously listed here as unverifiable.
+- The macOS smoke step failed on a defect in the workflow, not in the product: it required
+  `secret.key` to exist, but that file is only written when no platform keyring is available. macOS
+  found its keychain and correctly wrote no key file. The step now checks `secret.key` only when
+  present and asserts the broker reported whichever protection it chose.
+
+Still unverified after this run:
+
+- Neither desktop notifier has displayed a notification. The CI smoke test runs the broker with
+  `--no-desktop`, and the runners have no graphical session, so the console backend is used by
+  design.
+- The Linux Secret Service store has still never run; `secret-tool` is absent from the runners, so
+  Linux exercised the key-file fallback.
+- ARM64 binaries have still never executed.
+
+### Confirmed green run
+
+Run `31607106390` passed both jobs. The broker smoke test completed end to end on each runner:
+
+| Runner | Secret protection chosen | Smoke test |
+| --- | --- | --- |
+| ubuntu-latest | key file (no `secret-tool` installed) | health, create, keyed dedup, `0600` state, clean `SIGTERM` |
+| macos-latest | macOS login keychain, no key file written | health, create, keyed dedup, `0600` state, clean `SIGTERM` |
+
+Both platform branches of the secret-protection selection are therefore exercised by CI, and the
+headless broker is confirmed to start, serve `/v1`, deduplicate by key, protect its local state,
+and stop on `SIGTERM` on real Linux and real macOS.

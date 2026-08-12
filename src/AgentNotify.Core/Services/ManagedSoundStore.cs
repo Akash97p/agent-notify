@@ -30,7 +30,7 @@ public sealed class ManagedSoundStore
 
     public void SeedBuiltIn(string fileName, Func<Stream> openSource)
     {
-        var safe = Path.GetFileName(fileName);
+        var safe = SafeFileName.Last(fileName);
         if (string.IsNullOrWhiteSpace(safe)) return;
         Directory.CreateDirectory(DirectoryPath);
         var destination = Path.Combine(DirectoryPath, safe);
@@ -43,7 +43,7 @@ public sealed class ManagedSoundStore
     public string? Resolve(string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return null;
-        var path = Path.Combine(DirectoryPath, Path.GetFileName(fileName));
+        var path = Path.Combine(DirectoryPath, SafeFileName.Last(fileName));
         return File.Exists(path) ? path : null;
     }
 }

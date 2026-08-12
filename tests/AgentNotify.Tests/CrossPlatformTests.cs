@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using AgentNotify.Contracts;
 using AgentNotify.Core;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
@@ -130,6 +131,43 @@ public sealed class CrossPlatformTests : IDisposable
         var directoryMode = File.GetUnixFileMode(_dir);
         Assert.False(directoryMode.HasFlag(UnixFileMode.GroupRead));
         Assert.False(directoryMode.HasFlag(UnixFileMode.OtherRead));
+    }
+
+    [Theory]
+    // Windows-style input must normalize the same way on Linux and macOS, where a backslash is an
+    // ordinary file-name character and Path.GetFileName would let the whole value through.
+    [InlineData(@"C:\outside\global.MP3", "global.MP3")]
+    [InlineData(@"..\attention.wav", "attention.wav")]
+    [InlineData(@"\\server\share\alert.wav", "alert.wav")]
+    [InlineData("C:global.mp3", "global.mp3")]
+    // Unix-style input, which Path.GetFileName already handles on both platforms.
+    [InlineData("/etc/passwd.wav", "passwd.wav")]
+    [InlineData("../../attention.wav", "attention.wav")]
+    // Already-bare names are returned unchanged.
+    [InlineData("chime.wav", "chime.wav")]
+    [InlineData("", "")]
+    public void SafeFileName_NormalizesIdenticallyOnEveryPlatform(string input, string expected)
+    {
+        Assert.Equal(expected, SafeFileName.Last(input));
+    }
+
+    [Fact]
+    public void ConfiguredSoundFile_NeverKeepsDirectoryComponents()
+    {
+        var config = new AgentNotifyConfig
+        {
+            DefaultSoundFile = @"C:\outside\global.MP3",
+            TypeSoundFiles = new() { ["input_required"] = @"..\attention.wav" }
+        };
+
+        config.ApplyDefaults();
+
+        // A config file authored on Windows can be copied to a Unix machine, so the stored value
+        // must reduce to a bare file name inside the managed sounds directory on both.
+        Assert.Equal("global.MP3", config.DefaultSoundFile);
+        Assert.Equal("attention.wav", config.SoundFileFor(NotificationTypes.InputRequired));
+        Assert.DoesNotContain('\\', config.DefaultSoundFile!);
+        Assert.DoesNotContain('/', config.DefaultSoundFile!);
     }
 
     [Fact]
