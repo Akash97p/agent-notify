@@ -24,6 +24,8 @@
     <ProjectReference Include="..\..\src\AgentNotify.Cli\AgentNotify.Cli.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentNotify.Desktop\AgentNotify.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\AgentNotify.Host\AgentNotify.Host.csproj" />
   </ItemGroup>
 
 </Project>

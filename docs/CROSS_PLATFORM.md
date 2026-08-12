@@ -1,287 +1,194 @@
-# Agent Notify Cross-Platform Future Plan
+# Cross-platform plan
 
-## Vision
+AgentNotify should become the common human-attention layer for coding agents on every desktop a
+developer uses, not only Windows. This document is the implementation plan: what has to change,
+in what order, and what "done" means for each step.
 
-Agent Notify becomes the **universal notification layer for AI coding agents**.
-
-The goal is not merely desktop notifications. The goal is to provide a **vendor-neutral, cross-platform notification protocol** that any coding agent can use to notify a human through any channel.
-
-Examples:
-
-- Claude Code
-- OpenAI Codex
-- Cursor
-- Zed
-- OpenCode
-- Future agent frameworks
-
-A repository should be able to include a `SKILL.md` (or equivalent agent instruction file), and any supported agent should immediately gain the ability to notify the user.
+Status keys used below: **done**, **in progress**, **planned**.
 
 ---
 
-# Why this matters
+## Goal
 
-Coding agents are becoming **asynchronous workers**.
-
-The human is often away from the terminal while the agent:
-
-- finishes a task
-- needs approval
-- needs additional input
-- encounters an error
-- completes a long-running operation
-
-Today, notification support is fragmented across vendors and editors. Agent Notify aims to provide a **single interface** regardless of the agent or notification channel.
-
----
-
-# Core proposition
-
-**One command, any agent, any channel.**
+One command, any agent, any channel, any desktop:
 
 ```bash
-agent-notify send "Build finished"
+agentnotify send --type input_required --title "Need a decision" --message "A or B?"
 ```
 
-Notification events should be standardized:
+The agent-facing contract — the CLI, the loopback `/v1` API, the notification model, `SKILL.md` —
+must be identical on Windows, macOS, and Linux. Only the desktop presentation layer and the
+platform secret store differ.
 
-- completed
-- failed
-- needs_input
-- needs_approval
-- long_running
-- progress
+## Non-goals for this plan
 
----
-
-# Cross-platform strategy
-
-## Current status
-
-- Windows native implementation
-- .NET / C#
-- Native executable
-- No Node.js runtime
-- No Python runtime
-- No virtual environments
-- Minimal dependency surface
-
-This is intentionally a strength.
-
-## Target platforms
-
-### Windows
-
-- Native executable
-- MSI / installer
-- Winget distribution
-
-### macOS
-
-- Apple Silicon (`osx-arm64`)
-- Intel (`osx-x64`)
-- Homebrew distribution
-- GitHub Releases binaries
-
-### Linux
-
-- x64
-- ARM64
-- Standalone binaries
-- Optional package formats later (.deb, AppImage)
+- Rewriting in Rust or Go. .NET 10 is already cross-platform; most of the codebase is portable today.
+- A native macOS menu-bar UI or a native Linux tray UI. Those are separate later projects.
+  This plan delivers a headless broker plus native OS notifications on macOS and Linux.
+- Apple notarization and the Mac App Store. Unsigned binaries are acceptable for a developer tool
+  at this stage; an Apple Developer account can wait for adoption.
 
 ---
 
-# Important realization
+## Starting point
 
-Modern **.NET 8+ is cross-platform**.
+Already portable — these target `net10.0` with no Windows-only API use:
 
-The project does **not** need a rewrite in Rust or Go.
+| Project | Role |
+| --- | --- |
+| `AgentNotify.Contracts` | DTOs, type IDs, JSON rules |
+| `AgentNotify.Core` | Domain, validation, config, SQLite, logging, delivery adapters |
+| `AgentNotify.Api` | Loopback Minimal API host |
+| `AgentNotify.Cli` | `agentnotify` command-line client |
+| `AgentNotify.Tests` | Automated coverage |
 
-Most of the codebase should remain shared across all operating systems.
+Windows-only by design — these target `net10.0-windows` and use WPF/WinForms:
 
-Only the desktop notification backend is platform-specific.
+| Project | Role |
+| --- | --- |
+| `AgentNotify.App` | Tray process, toasts, notification center, Settings |
+| `AgentNotify.Setup` | Per-user installer |
 
-Architecture:
+The three things that actually block non-Windows use:
 
-```text
-AgentNotify
-├── Core
-├── CLI
-├── NotificationRouter
-├── Channels
-│   ├── Slack
-│   ├── Discord
-│   ├── ntfy
-│   ├── Bark
-│   └── Webhook
-└── DesktopNotifier
-    ├── WindowsNotifier
-    ├── MacNotifier
-    └── LinuxNotifier
-```
+1. The broker only exists inside the WPF tray process. There is no headless host, so on
+   macOS or Linux nothing starts the API, the repository, or the delivery dispatcher.
+2. Provider secrets are protected with Windows DPAPI. `AesGcmSecretProtector` exists but takes an
+   injected key and is used only by tests; there is no production key source on other platforms.
+3. There is no desktop notification path other than WPF toast windows.
 
----
-
-# Release pipeline
-
-GitHub Actions should publish native binaries for:
-
-- win-x64
-- linux-x64
-- linux-arm64
-- osx-x64
-- osx-arm64
-
-Using:
-
-```bash
-dotnet publish -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
-```
-
-These binaries can be built **from a Windows machine**.
+Everything else — SQLite, the outbox, all eighteen delivery adapters, the API, the CLI — is
+expected to work unchanged.
 
 ---
 
-# Distribution
+## Phase 1 — Portable broker (**done**)
 
-## GitHub Releases
+### 1.1 Shared channel adapter list
 
-Primary distribution method.
+`App.xaml.cs` constructs all eighteen adapters inline. Move that construction into
+`AgentNotify.Core` so the WPF app and the new headless host cannot drift apart.
 
-## Homebrew
+*Done when:* a single factory in Core returns the adapter list, `App.xaml.cs` uses it, and the
+existing tests still pass unchanged.
 
-Create a Homebrew tap repository that downloads binaries from GitHub Releases.
+### 1.2 Platform secret protection
 
-No Apple Developer account is required for Homebrew distribution.
+Select the protector at runtime instead of hard-coding DPAPI:
 
-## Winget
+| Platform | Protection |
+| --- | --- |
+| Windows | DPAPI, current-user scope (unchanged) |
+| macOS | AES-GCM under a 256-bit master key stored in the login Keychain via `/usr/bin/security` |
+| Linux | AES-GCM under a 256-bit master key stored in the Secret Service via `secret-tool` when available, otherwise a `0600` key file in the config directory |
 
-Publish Windows package through Winget.
+The file-backed fallback is weaker than DPAPI or a keyring: any process running as the same user
+can read it. It must be reported honestly in `SECURITY.md`, in the app's own diagnostics, and never
+be silently selected on Windows.
 
-## Linux install script
+*Done when:* a factory picks the protector per platform, each key store round-trips a secret, the
+Windows path is untouched, and the active protection level is visible to the user.
 
-Simple curl installer:
+### 1.3 Unix file permissions
 
-```bash
-curl -fsSL https://... | sh
-```
+`config.json` holds the bearer token and the SQLite database holds notification history. On Unix
+both are created world-readable by default. Set `0600` on the config file, the database, and the
+master-key file, and `0700` on the config directory.
 
----
+*Done when:* files created on Unix are owner-only, and Windows behaviour is unchanged.
 
-# Apple Developer account
+### 1.4 Headless host
 
-Not required initially.
+New `AgentNotify.Host` console project (`net10.0`, binary `agentnotifyd`) that composes config,
+logging, SQLite, the delivery dispatcher, the API, and a desktop notifier; handles `SIGINT`/`SIGTERM`;
+enforces single-instance with a lock file; and shuts down cleanly.
 
-Unsigned macOS binaries are acceptable for developer-focused open-source tools.
-
-Apple Developer Program ($99/year) is only needed later for:
-
-- code signing
-- notarization
-- Mac App Store
-- smoother first-run experience
-
-This can wait until the project has meaningful adoption.
-
----
-
-# Positioning
-
-Avoid positioning Agent Notify as:
-
-> desktop notifications for Codex
-
-Instead position it as:
-
-> **The notification protocol for AI coding agents**
-
-The value is:
-
-- agent-agnostic
-- channel-agnostic
-- repo-local
-- zero-runtime
-- cross-platform
+*Done when:* the host starts the broker, serves the same `/v1` API the CLI already speaks, and stops
+without leaving a claimed outbox item.
 
 ---
 
-# Differentiation
+## Phase 2 — Desktop notifiers (**done**, unverified on a real desktop session)
 
-Potential advantages over existing notification utilities:
+An `IDesktopNotifier` abstraction with one implementation per platform, chosen at runtime:
 
-- Works across multiple coding agents
-- Unified notification semantics
-- Multiple delivery channels
-- Native binaries
-- No Node/Python dependency chain
-- `SKILL.md` distribution model
-- Repository-level integration
+| Platform | Mechanism | Notes |
+| --- | --- | --- |
+| Linux | `notify-send` | Priority maps to urgency; sticky types use expiry `0` |
+| macOS | `terminal-notifier` when present, otherwise `osascript display notification` | `osascript` cannot render sticky notifications |
+| Windows | existing WPF toast stack | Unchanged |
+| Any | console fallback | Used on headless machines and over SSH |
 
----
+All process invocations must pass arguments as a list, never through a shell, and must bound and
+sanitize notification text before it reaches an interpreter such as AppleScript.
 
-# Near-term roadmap
-
-## Phase 1
-
-- Windows
-- macOS binaries
-- Linux binaries
-- GitHub Releases automation
-
-## Phase 2
-
-- Homebrew tap
-- Winget package
-- Linux installer script
-- Better release assets
-
-## Phase 3
-
-- Telegram
-- Email
-- Home Assistant
-- Apple Shortcuts
-- Custom webhooks
-- Plugin architecture
-
-## Phase 4
-
-- Public notification event schema
-- SDK for other agent frameworks
-- Community integrations
-- Agent Notify as ecosystem infrastructure
+*Done when:* each notifier escapes hostile titles/messages safely, an unavailable backend degrades to
+the console fallback instead of failing a notification, and notifier failure never fails persistence.
 
 ---
 
-# Portfolio objective
+## Phase 3 — Build and release (**planned**)
 
-The goal is to build a **high-quality open-source developer tool** that demonstrates:
+Publish self-contained single-file binaries for `agentnotify` and `agentnotifyd`:
 
-- cross-platform engineering
-- release automation
-- native binary distribution
-- clean architecture
-- developer experience
-- documentation
-- ecosystem integration
+- `win-x64`
+- `linux-x64`
+- `linux-arm64`
+- `osx-x64`
+- `osx-arm64`
 
-Success is not only measured by startup potential.
+These cross-compile from any host, including the Windows SDK used for the WPF build. The portable
+projects must also build and test on a Linux and a macOS CI runner — that, not cross-compilation,
+is what proves the code actually runs off Windows.
 
-A well-executed project with strong GitHub adoption, contributors, releases, and ecosystem integrations is already a significant portfolio asset.
+*Done when:* one script produces every archive plus `SHA256SUMS.txt`, CI builds and tests the
+portable projects on Linux and macOS, and the release workflow attaches the archives.
+
+## Phase 4 — Distribution (**planned**)
+
+- GitHub Releases as the primary channel for every platform.
+- A POSIX `install.sh` that downloads, verifies the checksum, and installs into `~/.local/bin`.
+- A Homebrew tap pointing at the release archives. No Apple Developer account is required for this.
+- A Winget manifest for Windows.
+
+## Phase 5 — Native desktop clients (**planned**, out of scope here)
+
+A macOS menu-bar client and a Linux tray client with the notification center and Settings UI,
+built on the same portable broker. Contributors welcome; the phases above exist to make this
+possible without a rewrite.
 
 ---
 
-# Guiding principle
+## Verification honesty
 
-**Do not rewrite prematurely.**
+The maintainer's development machine is Windows with WSL and has no macOS host, no Linux desktop
+session, and no Linux .NET SDK. What can and cannot be claimed:
 
-Ship quickly.
+WSL turned out to be more useful than expected: it is a real Linux x64 userland, so a
+`linux-x64` self-contained publish of `agentnotifyd` and `agentnotify` runs natively there. That
+made it possible to verify the Linux broker end to end rather than only compile it.
 
-Use the existing .NET codebase.
+| Claim | Status |
+| --- | --- |
+| Portable projects compile for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 | **Verified** by cross-compilation |
+| Portable logic is correct | **Verified** by the automated test suite |
+| The headless broker runs on Linux, serves `/v1`, and the CLI drives it | **Verified** in WSL: health, send, keyed dedup, list, resolve |
+| Owner-only `0600`/`0700` local state on Unix | **Verified** in WSL on real files |
+| The key-file fallback and its warning | **Verified** in WSL |
+| Single-instance locking and clean `SIGTERM` shutdown | **Verified** in WSL |
+| `notify-send` and macOS notifiers actually display a notification | **Unverified** — needs a graphical Linux session and a Mac |
+| macOS Keychain and `secret-tool` key stores | **Unverified** — neither tool exists in this environment |
+| ARM64 binaries execute | **Unverified** — no ARM64 machine |
 
-Expand to macOS and Linux.
+Running the Linux binary is what found three defects that no amount of cross-compilation would
+have surfaced; see `docs/VERIFICATION.md`. The remaining unverified rows are the reason Linux and
+macOS CI jobs are part of Phase 3 rather than an optional extra.
 
-Optimize distribution and developer experience.
+---
 
-Let adoption determine whether a deeper architectural evolution is necessary.
+## Positioning
+
+AgentNotify is not "desktop notifications for one agent on Windows". It is the notification layer
+for AI coding agents: agent-agnostic, channel-agnostic, repo-local, no Node or Python runtime, and
+cross-platform. The phases above are what turn that description into something true on three
+operating systems.

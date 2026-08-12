@@ -5,7 +5,6 @@ using AgentNotify.Api;
 using AgentNotify.Contracts;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Delivery.Channels;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
@@ -33,24 +32,7 @@ public partial class App : System.Windows.Application
     private ProviderProfileService _providerProfiles = null!;
     private DeliveryDispatcher? _deliveryDispatcher;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
-    private WebhookChannelAdapter? _webhookAdapter;
-    private SmtpChannelAdapter? _smtpAdapter;
-    private TelegramChannelAdapter? _telegramAdapter;
-    private DiscordChannelAdapter? _discordAdapter;
-    private SlackChannelAdapter? _slackAdapter;
-    private TeamsChannelAdapter? _teamsAdapter;
-    private ZohoCliqChannelAdapter? _zohoCliqAdapter;
-    private GoogleChatChannelAdapter? _googleChatAdapter;
-    private MattermostChannelAdapter? _mattermostAdapter;
-    private MatrixChannelAdapter? _matrixAdapter;
-    private NtfyChannelAdapter? _ntfyAdapter;
-    private GotifyChannelAdapter? _gotifyAdapter;
-    private PushoverChannelAdapter? _pushoverAdapter;
-    private PushbulletChannelAdapter? _pushbulletAdapter;
-    private TwilioSmsChannelAdapter? _twilioSmsAdapter;
-    private WhatsAppCloudChannelAdapter? _whatsAppCloudAdapter;
-    private TwilioWhatsAppChannelAdapter? _twilioWhatsAppAdapter;
-    private MqttChannelAdapter? _mqttAdapter;
+    private IReadOnlyList<IOutboundChannelAdapter>? _channelAdapters;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -131,30 +113,16 @@ public partial class App : System.Windows.Application
         await _repository.InitializeAsync();
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync();
-        _providerProfiles = new ProviderProfileService(_deliveryRepository, new DpapiSecretProtector());
+        // On Windows the factory always returns the DPAPI protector; going through it keeps the
+        // tray app and the portable host on one code path.
+        var secretProtector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger);
+        _providerProfiles = new ProviderProfileService(_deliveryRepository, secretProtector);
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
-        _webhookAdapter = new WebhookChannelAdapter();
-        _smtpAdapter = new SmtpChannelAdapter();
-        _telegramAdapter = new TelegramChannelAdapter();
-        _discordAdapter = new DiscordChannelAdapter();
-        _slackAdapter = new SlackChannelAdapter();
-        _teamsAdapter = new TeamsChannelAdapter();
-        _zohoCliqAdapter = new ZohoCliqChannelAdapter();
-        _googleChatAdapter = new GoogleChatChannelAdapter();
-        _mattermostAdapter = new MattermostChannelAdapter();
-        _matrixAdapter = new MatrixChannelAdapter();
-        _ntfyAdapter = new NtfyChannelAdapter();
-        _gotifyAdapter = new GotifyChannelAdapter();
-        _pushoverAdapter = new PushoverChannelAdapter();
-        _pushbulletAdapter = new PushbulletChannelAdapter();
-        _twilioSmsAdapter = new TwilioSmsChannelAdapter();
-        _whatsAppCloudAdapter = new WhatsAppCloudChannelAdapter();
-        _twilioWhatsAppAdapter = new TwilioWhatsAppChannelAdapter();
-        _mqttAdapter = new MqttChannelAdapter();
+        _channelAdapters = ChannelAdapterFactory.CreateAll();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter, _gotifyAdapter, _pushoverAdapter, _pushbulletAdapter, _twilioSmsAdapter, _whatsAppCloudAdapter, _twilioWhatsAppAdapter, _mqttAdapter],
+            _channelAdapters,
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,
@@ -349,22 +317,9 @@ public partial class App : System.Windows.Application
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { (_api as IDisposable)?.Dispose(); } catch { }
         try { _deliveryDispatcher?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
-        _webhookAdapter?.Dispose();
-        _telegramAdapter?.Dispose();
-        _discordAdapter?.Dispose();
-        _slackAdapter?.Dispose();
-        _teamsAdapter?.Dispose();
-        _zohoCliqAdapter?.Dispose();
-        _googleChatAdapter?.Dispose();
-        _mattermostAdapter?.Dispose();
-        _matrixAdapter?.Dispose();
-        _ntfyAdapter?.Dispose();
-        _gotifyAdapter?.Dispose();
-        _pushoverAdapter?.Dispose();
-        _pushbulletAdapter?.Dispose();
-        _twilioSmsAdapter?.Dispose();
-        _whatsAppCloudAdapter?.Dispose();
-        _twilioWhatsAppAdapter?.Dispose();
+        if (_channelAdapters is not null)
+            foreach (var adapter in _channelAdapters)
+                try { (adapter as IDisposable)?.Dispose(); } catch { }
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
