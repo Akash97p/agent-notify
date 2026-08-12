@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)](docs/INSTALLATION.md)
-[![Tests](https://img.shields.io/badge/tests-597%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-601%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -29,7 +29,7 @@ It is designed for people running several agents across terminals, repositories,
 ## What you get
 
 - Custom Windows 11 toast windows owned by AgentNotify, not browser notifications.
-- Sticky `input_required`, `permission_required`, `blocked`, and `error` attention requests.
+- Sticky `input_required`, `permission_required`, and `blocked` toasts that stay until dismissed or resolved.
 - Auto-expiring informational, warning, success, and completion notifications.
 - Centralized multi-toast stacking on the monitor where the user is working.
 - A compact notification center with “Needs attention” and recent history.
@@ -130,11 +130,16 @@ Types:
 | `input_required` | Sticky | A user decision or answer blocks progress |
 | `permission_required` | Sticky | Explicit authorization is required |
 | `blocked` | Sticky | A prerequisite or external dependency prevents progress |
-| `error` | Sticky attention item | A significant operation failed |
+| `error` | 15 seconds | A significant operation failed |
 | `warning` | 12 seconds | Attention is advisable but work can continue |
 | `info` | 7 seconds | A meaningful non-actionable milestone |
 | `success` | 5 seconds | An important operation succeeded |
 | `completed` | 5 seconds | The requested work finished |
+
+Toast lifetime and “needs attention” are separate ideas. `input_required`, `permission_required`, `blocked`, and
+`error` are all attention types, so an active one is listed under **Needs attention** in the notification center.
+Only the first three have a sticky toast; an `error` toast auto-dismisses after its lifetime while the entry stays
+active in the center. Every lifetime above is the default and is configurable per type.
 
 Priorities are `low`, `normal`, `high`, and `critical`. Status values are `active`, `dismissed`, and `resolved`.
 
@@ -275,7 +280,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 597 passing tests.
+The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 601 passing tests.
 
 ### Build the single-file installer
 
@@ -340,7 +345,7 @@ The transport design keeps the local broker as the source of truth. Completed de
 - ARM64 packages, signed releases, automatic updates, and migration tooling.
 - Native macOS menu-bar and Linux desktop editions built around portable broker contracts.
 
-External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). Development is currently paused on `dev` after the MQTT milestone.
+External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). No new outbound adapter branch is active; current work is cross-platform support and documentation.
 
 ## Contributing and license
 

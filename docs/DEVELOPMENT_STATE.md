@@ -66,13 +66,23 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: full Release build 0 warnings/0 errors, 601 passing tests, packaging rerun because embedded resources changed (installer SHA-256 `bd7c8ac93cea2369438ec857566dd6d5e5c3d3825228ac1f03c56dc6056c446e`), and the static site build. The distributable skill was not modified.
     - Verification limits are recorded honestly in `docs/VERIFICATION.md`: the theme dictionary and the embedded tones were verified programmatically (dictionary loads through the real pack URI with every template instantiating; each tone extracted through the app's own reflection path with a valid RIFF/WAVE header and byte-identical SHA-256), but **no visual WPF check was performed** and none is claimed.
 
+32. Completed on `docs/accuracy-pass` (documentation only, plus one comment fix):
+    - Removed stale "V1" framing from current documentation. `SECURITY.md` now has a "Trust boundary" heading, `CONTRIBUTING.md` says "the current trust boundary", and the `SoundsEnabled` XML comment no longer claims "V1 does not play sounds" (sounds have shipped). The `docs/archive/` documents keep their original V1 wording on purpose; `docs/README.md` states that they are historical.
+    - Corrected the automated test count from 597 to 601 in the README badge, README build section, `TODO.md`, and the site stats card, after re-running `./scripts/test.sh`.
+    - The GitHub Pages stats card read "8+ built-in and custom types", which was being misread as a provider count. It now reads "8 built-in notification types, plus custom"; the neighbouring card already stated the correct 18 implemented outbound adapters.
+    - Fixed two places where documentation contradicted the code. `error` was documented as a sticky toast but `DefaultDurations` gives it 15 seconds; the README table now says 15 seconds and a new paragraph separates "attention type" (which `error` is) from "sticky toast" (which it is not). Rate limiting was documented as covering only `POST /v1/notifications`, but `ApiHost` guards every `POST` under that path; `docs/API.md` and `docs/CONFIGURATION.md` now say so and note that `GET`/`PATCH` are unlimited.
+    - `docs/ARCHITECTURE.md` retitled "Future adapter boundary" to "Adding a new outbound adapter", since eighteen adapters exist; the section is now the rule set for adding another.
+    - Added four documents: `docs/CLI.md` (every command, flag, output, and exit code), `docs/CONFIGURATION.md` (config file location, every setting with defaults, custom type schema, sound policy, token warning), `docs/TROUBLESHOOTING.md` (symptom/cause/fix entries), and `docs/README.md` as the documentation index. The first three were drafted against the source by the Muse worker and then reviewed, corrected, and stripped of volatile source line-number citations.
+    - Gates: Release build 0 warnings/0 errors, 601 passing tests. Packaging was not rerun because no installer payload, embedded resource, or publish setting changed. No WPF visual check was performed and none is claimed.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
 - Automated coverage is 601 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work is paused on the clean `dev` branch after the repository-housekeeping and UX pass described in entry 31. The next implementation must begin from a new topic branch and must be explicitly selected from `docs/FEATURE_BACKLOG.md`.
+- Work continues on `dev` after the documentation accuracy pass described in entry 32. The next implementation is cross-platform support (macOS and Linux), planned in `docs/CROSS_PLATFORM.md`.
 
 ## Next resume action
 

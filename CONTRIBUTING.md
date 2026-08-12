@@ -6,7 +6,7 @@ Thanks for helping improve AgentNotify. Bug reports, documentation fixes, tests,
 
 1. Search existing issues and pull requests to avoid duplicating work.
 2. For a substantial feature or protocol change, open an issue first and describe the user problem, proposed behavior, and security implications.
-3. Keep V1’s trust boundary intact: the API must remain loopback-only and authenticated unless a separately reviewed transport is introduced.
+3. Keep the current trust boundary intact: the API must remain loopback-only and authenticated unless a separately reviewed transport is introduced.
 
 ## Development setup
 
