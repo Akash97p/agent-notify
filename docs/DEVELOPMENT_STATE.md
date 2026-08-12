@@ -12,7 +12,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
 - Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
-- Current product version: `0.0.1-alpha.1`, Windows x64, unsigned prerelease. The first mature release is reserved for `1.0.0`.
+- Current product version: `0.0.2-alpha.1`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
 
 ## Decisions that must survive context compaction
 
@@ -97,6 +97,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 
 35. Completed on `fix/portable-filename-sanitizing`: the first Linux/macOS CI run failed identically on both runners because `Path.GetFileName` is platform-dependent — on Unix a backslash is an ordinary file-name character, so a Windows-style configured sound path survived sanitizing intact and the "bare file name inside the managed directory" invariant did not hold. Added `SafeFileName.Last`, which strips both separators and any volume prefix with plain string operations, and routed `AgentNotifyConfig.NormalizeSoundFile`, `ManagedSoundStore.SeedBuiltIn`, and `ManagedSoundStore.Resolve` through it. 628 tests pass on Windows, and the fix was confirmed on real Linux by letting the Linux broker rewrite a hand-authored Windows-style `config.json`. This is the first defect found by CI rather than by local work.
+
+
+36. Completed on `chore/release-0.0.2-alpha.1`: bumped the product version to `0.0.2-alpha.1`, added `CHANGELOG.md` as the hand-written source of release descriptions, and added `scripts/release-notes.sh` which extracts a version's section and appends install instructions, checksum guidance, documentation links, and a compare range. The release workflow now passes that file to `gh release create --notes-file` instead of `--generate-notes`, so a release explains what changed rather than only linking to a diff, and it fails when the changelog has no section for the tag. Two workflow defects were fixed before shipping: both jobs uploaded an asset named `SHA256SUMS.txt` so the portable one would have replaced the installer's (now `SHA256SUMS-portable.txt`), and the shallow default checkout had no earlier tags for the compare link (now `fetch-depth: 0`). Gates: build 0/0, 628 tests, packaging rerun (installer SHA-256 `74877688e5bd6e26c0146b8e68b750ebe695e21ae51b01e57dee8eec7a2d208c`).
 
 
 ## Current documentation/status snapshot

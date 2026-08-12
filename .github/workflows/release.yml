@@ -13,6 +13,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Tags are needed so the release notes can link a compare range to the previous release.
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
@@ -34,6 +37,17 @@ jobs:
           dotnet build AgentNotify.slnx --configuration Release --no-restore
           dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release --no-build --no-restore
           ./scripts/package.ps1
+      # The description comes from CHANGELOG.md rather than generated commit notes, so the
+      # release explains what changed instead of only linking to a diff. release-notes.sh fails
+      # when the changelog has no section for this tag, which stops an empty release going out.
+      - name: Build release notes
+        shell: bash
+        run: |
+          previous="$(git tag --list 'v*' --sort=-version:refname | grep -v "^$GITHUB_REF_NAME$" | head -1)"
+          ./scripts/release-notes.sh "$GITHUB_REF_NAME" "$previous" > "$RUNNER_TEMP/release-notes.md"
+          echo "--- release notes ---"
+          cat "$RUNNER_TEMP/release-notes.md"
+
       - name: Publish GitHub release assets
         shell: pwsh
         env:
@@ -42,10 +56,11 @@ jobs:
           $releaseArgs = @(
             $env:GITHUB_REF_NAME,
             "artifacts/AgentNotifySetup.exe#AgentNotify Windows x64 installer",
-            "artifacts/SHA256SUMS.txt#SHA-256 checksums",
+            "artifacts/SHA256SUMS.txt#SHA-256 checksum for the Windows installer",
             "distribution/agentnotify/SKILL.md#AgentNotify agent skill",
             "--verify-tag",
-            "--generate-notes",
+            "--notes-file",
+            "$env:RUNNER_TEMP/release-notes.md",
             "--title",
             "AgentNotify $env:GITHUB_REF_NAME"
           )
@@ -66,7 +81,9 @@ jobs:
         with:
           global-json-file: global.json
       - name: Publish portable archives
-        run: ./scripts/publish-cross.sh
+        run: |
+          ./scripts/publish-cross.sh
+          mv artifacts/cross/SHA256SUMS.txt artifacts/cross/SHA256SUMS-portable.txt
       - name: Attach archives to the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,5 +95,5 @@ jobs:
             agentnotify-linux-arm64.tar.gz \
             agentnotify-osx-x64.tar.gz \
             agentnotify-osx-arm64.tar.gz \
-            SHA256SUMS.txt#SHA-256 checksums for the portable archives \
+            SHA256SUMS-portable.txt#SHA-256 checksums for the portable archives \
             --clobber
