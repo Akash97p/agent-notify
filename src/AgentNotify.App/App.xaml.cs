@@ -50,6 +50,7 @@ public partial class App : System.Windows.Application
     private TwilioSmsChannelAdapter? _twilioSmsAdapter;
     private WhatsAppCloudChannelAdapter? _whatsAppCloudAdapter;
     private TwilioWhatsAppChannelAdapter? _twilioWhatsAppAdapter;
+    private MqttChannelAdapter? _mqttAdapter;
     private DeliveryRouteService _deliveryRoutes = null!;
     private DispatcherTimer? _pruneTimer;
     private bool _showCenterRequested;
@@ -149,10 +150,11 @@ public partial class App : System.Windows.Application
         _twilioSmsAdapter = new TwilioSmsChannelAdapter();
         _whatsAppCloudAdapter = new WhatsAppCloudChannelAdapter();
         _twilioWhatsAppAdapter = new TwilioWhatsAppChannelAdapter();
+        _mqttAdapter = new MqttChannelAdapter();
         _deliveryDispatcher = new DeliveryDispatcher(
             _deliveryRepository,
             _providerProfiles,
-            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter, _gotifyAdapter, _pushoverAdapter, _pushbulletAdapter, _twilioSmsAdapter, _whatsAppCloudAdapter, _twilioWhatsAppAdapter],
+            [_webhookAdapter, _smtpAdapter, _telegramAdapter, _discordAdapter, _slackAdapter, _teamsAdapter, _zohoCliqAdapter, _googleChatAdapter, _mattermostAdapter, _matrixAdapter, _ntfyAdapter, _gotifyAdapter, _pushoverAdapter, _pushbulletAdapter, _twilioSmsAdapter, _whatsAppCloudAdapter, _twilioWhatsAppAdapter, _mqttAdapter],
             _logger);
         _deliveryCoordinator = new NotificationDeliveryCoordinator(
             _deliveryRepository,

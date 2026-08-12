@@ -429,6 +429,44 @@ The default priority floor is critical, and queue validity defaults to 300 secon
 
 Twilio documents no idempotency key for Message creation. AgentNotify therefore does not retry 408, 425, 5xx, cancellation/timeouts, network failures, or malformed 2xx responses because the WhatsApp template may already have been accepted and billed; only a definite 429 retries. A process, OS, or power failure between provider acceptance and local outbox completion can still cause recovery replay. Configure Twilio and Meta billing, alerts, template-quality monitoring, recipient opt-out handling, and spend controls before enabling a route. See Twilio's official [WhatsApp overview](https://www.twilio.com/docs/whatsapp/api), [Content Template notification guide](https://www.twilio.com/docs/whatsapp/tutorial/send-whatsapp-notification-messages-templates), and [Messages resource](https://www.twilio.com/docs/messaging/api/message-resource).
 
+## MQTT 5
+
+Implementation status: adapter and native Settings fields complete; real-broker, Current User mTLS, and human UI smoke pending.
+
+MQTT is intended for user-controlled automation brokers and enterprise event infrastructure. AgentNotify requires a single configured broker and an exact encrypted publish topic. Notification fields cannot choose or modify the broker, port, topic, authentication, QoS, retention, or expiry at delivery time. Topic wildcards (`+`, `#`), `$` system topics, control characters, leading/trailing separators, and empty path levels are rejected.
+
+```json
+{
+  "brokerHost": "mqtt.example.com",
+  "port": 8883,
+  "allowPrivateNetwork": false,
+  "clientId": "agentnotify-production",
+  "topicSecretName": "topic",
+  "authenticationMode": "username_password",
+  "usernameSecretName": "username",
+  "passwordSecretName": "password",
+  "clientCertificateThumbprintSecretName": "client_certificate_thumbprint",
+  "anonymousAcknowledged": false,
+  "qos": 1,
+  "duplicateRiskAcknowledged": true,
+  "messageExpirySeconds": 300
+}
+```
+
+Four authentication modes are supported: username/password, Current User client certificate, both, or explicitly acknowledged anonymous TLS. The topic, username/password, and certificate thumbprint are DPAPI-encrypted. For mTLS, import a valid private-key certificate into **Certificates - Current User → Personal** and configure its SHA-1 or SHA-256 thumbprint. AgentNotify looks up only a currently valid certificate with a private key, digital-signature key usage when constrained, and client-authentication EKU when constrained. The private key stays protected by the Windows certificate store; PFX bytes and passwords are not persisted by AgentNotify.
+
+TLS cannot be disabled. AgentNotify enables TLS 1.2/1.3, online revocation checking, platform root trust, and exact hostname validation with no untrusted-certificate, chain-error, revocation-error, or name-error bypass. It resolves the configured ASCII host once, rejects the destination if any answer violates the configured public/private policy, then connects MQTTnet to a selected validated `IPEndPoint` while retaining the original host as TLS SNI and certificate target. Explicit private-network consent permits private/loopback broker addresses but never link-local/cloud-metadata, multicast, unspecified, documentation, or mixed allowed/disallowed answers. Install private PKI roots through normal Windows trust administration rather than weakening the profile.
+
+The published application message is the route-redacted notification JSON, bounded to 16 KiB, with `application/json` content type, UTF-8 payload indicator, a 5–86,400-second expiry, and stable `agentnotify-delivery-id` and `agentnotify-notification-id` MQTT 5 user properties. The retained flag is always false. AgentNotify does not publish response topics, correlation data, arbitrary user properties, wills, subscriptions, or agent-provided binary content.
+
+QoS behavior must be chosen deliberately:
+
+- QoS 0 is at-most-once. A timeout or network ambiguity becomes terminal so the durable dispatcher does not intentionally replay it; the message may be lost.
+- QoS 1 is at-least-once. Network/timeouts and transient broker rejection can retry, so consumers must deduplicate using `agentnotify-delivery-id`.
+- QoS 2 is exactly-once only inside the MQTT protocol session. AgentNotify uses a clean one-shot session; a later durable outbox attempt is a new application/session boundary and can duplicate. It therefore requires the same duplicate-risk acknowledgement as QoS 1.
+
+Broker authentication/topic rejection is permanent; broker busy, rate/quota, and transient implementation failures retry for acknowledged QoS 1/2. The adapter deliberately ignores server redirection so an MQTT broker cannot move delivery to an unconfigured destination. See the [OASIS MQTT 5 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html) and the [.NET Foundation MQTTnet project](https://github.com/dotnet/MQTTnet).
+
 ## Planned adapters
 
 The authoritative implementation order and constraints are in [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md). Each adapter gets its own topic branch, contract tests, provider-specific retry classification, security notes, and user documentation before it is merged to `dev`.

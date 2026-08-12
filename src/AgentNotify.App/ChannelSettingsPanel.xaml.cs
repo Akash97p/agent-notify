@@ -26,6 +26,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         WhatsAppMinimumPriorityBox.SelectedIndex = 0;
         TwilioWhatsAppCredentialModeBox.SelectedIndex = 0;
         TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
+        MqttAuthenticationModeBox.SelectedIndex = 0;
+        MqttQosBox.SelectedIndex = 1;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -89,6 +91,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadTwilioSmsConfiguration(profile);
         LoadWhatsAppCloudConfiguration(profile);
         LoadTwilioWhatsAppConfiguration(profile);
+        LoadMqttConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -187,6 +190,18 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioWhatsAppTemplateApprovedBox.IsChecked = false;
         TwilioWhatsAppTextOnlyBox.IsChecked = false;
         TwilioWhatsAppPaidConsentBox.IsChecked = false;
+        MqttHostBox.Clear();
+        MqttPortBox.Text = "8883";
+        MqttClientIdBox.Text = "agentnotify";
+        MqttTopicBox.Clear();
+        MqttAuthenticationModeBox.SelectedIndex = 0;
+        MqttUsernameBox.Clear();
+        MqttPasswordBox.Clear();
+        MqttCertificateThumbprintBox.Clear();
+        MqttQosBox.SelectedIndex = 1;
+        MqttDuplicateRiskBox.IsChecked = false;
+        MqttAnonymousBox.IsChecked = false;
+        MqttExpiryBox.Text = "300";
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -225,6 +240,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "twilio_sms" => await SaveTwilioSmsProviderAsync(existing),
             "whatsapp_cloud" => await SaveWhatsAppCloudProviderAsync(existing),
             "twilio_whatsapp" => await SaveTwilioWhatsAppProviderAsync(existing),
+            "mqtt" => await SaveMqttProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -963,6 +979,125 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveMqttProviderAsync(ProviderProfile? existing)
+    {
+        var secretNames = existing?.SecretNames ?? [];
+        var mode = (MqttAuthenticationModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "username_password";
+        var previousMode = ReadConfigString(existing?.ConfigJson, "authenticationMode", "username_password");
+        RequireSecret(MqttTopicBox.Password, secretNames, "topic", "Enter the exact MQTT publish topic.");
+        var usesUsername = mode is "username_password" or "username_and_certificate";
+        var previouslyUsedUsername = previousMode is "username_password" or "username_and_certificate";
+        var usesCertificate = mode is "client_certificate" or "username_and_certificate";
+        var previouslyUsedCertificate = previousMode is "client_certificate" or "username_and_certificate";
+        if (usesUsername)
+        {
+            if (string.IsNullOrWhiteSpace(MqttUsernameBox.Password) &&
+                (!secretNames.Contains("username", StringComparer.Ordinal) || !previouslyUsedUsername))
+                throw new ArgumentException("Enter the MQTT username after selecting this authentication mode.");
+            if (string.IsNullOrEmpty(MqttPasswordBox.Password) &&
+                (!secretNames.Contains("password", StringComparer.Ordinal) || !previouslyUsedUsername))
+                throw new ArgumentException("Enter the MQTT password after selecting this authentication mode.");
+        }
+        if (usesCertificate && string.IsNullOrWhiteSpace(MqttCertificateThumbprintBox.Password) &&
+            (!secretNames.Contains("client_certificate_thumbprint", StringComparer.Ordinal) || !previouslyUsedCertificate))
+            throw new ArgumentException("Enter the Current User client-certificate thumbprint.");
+        if (mode == "anonymous" && MqttAnonymousBox.IsChecked != true)
+            throw new ArgumentException("Explicitly acknowledge anonymous MQTT publishing.");
+        if (mode is not ("anonymous" or "username_password" or "client_certificate" or "username_and_certificate"))
+            throw new ArgumentException("Select a supported MQTT authentication mode.");
+
+        var host = MqttHostBox.Text.Trim();
+        if (!IsMqttHost(host))
+            throw new ArgumentException("Enter an ASCII DNS host or IP address without a scheme, path, or trailing dot.");
+        if (!int.TryParse(MqttPortBox.Text, out var port) || port is < 1 or > 65_535)
+            throw new ArgumentException("MQTT TLS port must be between 1 and 65535.");
+        var clientId = MqttClientIdBox.Text.Trim();
+        if (clientId.Length is < 1 or > 64 || clientId.Any(character =>
+                !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))
+            throw new ArgumentException("MQTT client ID may contain 1–64 letters, digits, underscores, or hyphens.");
+        if (!string.IsNullOrWhiteSpace(MqttTopicBox.Password)) ValidateMqttTopic(MqttTopicBox.Password.Trim());
+        if (!string.IsNullOrWhiteSpace(MqttUsernameBox.Password) &&
+            (MqttUsernameBox.Password.Length > 256 || MqttUsernameBox.Password.Any(character => character == '\0' || char.IsControl(character))))
+            throw new ArgumentException("MQTT username must be at most 256 non-control characters.");
+        if (!string.IsNullOrEmpty(MqttPasswordBox.Password) &&
+            (MqttPasswordBox.Password.Length > 4096 || MqttPasswordBox.Password.Contains('\0')))
+            throw new ArgumentException("MQTT password must be at most 4096 characters and cannot contain NUL.");
+        if (!string.IsNullOrWhiteSpace(MqttCertificateThumbprintBox.Password) &&
+            !IsCertificateThumbprint(MqttCertificateThumbprintBox.Password))
+            throw new ArgumentException("The certificate thumbprint must contain 40 or 64 hexadecimal characters.");
+        var qosText = (MqttQosBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "1";
+        if (!int.TryParse(qosText, out var qos) || qos is < 0 or > 2)
+            throw new ArgumentException("Select a valid MQTT QoS.");
+        if (qos > 0 && MqttDuplicateRiskBox.IsChecked != true)
+            throw new ArgumentException("Acknowledge possible application-level duplicates for QoS 1/2.");
+        if (!int.TryParse(MqttExpiryBox.Text, out var expiry) || expiry is < 5 or > 86_400)
+            throw new ArgumentException("MQTT message expiry must be between 5 and 86400 seconds.");
+
+        var config = JsonSerializer.Serialize(new
+        {
+            brokerHost = host.ToLowerInvariant(),
+            port,
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            clientId,
+            topicSecretName = "topic",
+            authenticationMode = mode,
+            usernameSecretName = "username",
+            passwordSecretName = "password",
+            clientCertificateThumbprintSecretName = "client_certificate_thumbprint",
+            anonymousAcknowledged = mode == "anonymous",
+            qos,
+            duplicateRiskAcknowledged = qos > 0,
+            messageExpirySeconds = expiry
+        }, Json.Options);
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddSecret(changes, "topic", MqttTopicBox.Password);
+        if (usesUsername) AddSecret(changes, "username", MqttUsernameBox.Password);
+        if (usesUsername && !string.IsNullOrEmpty(MqttPasswordBox.Password))
+            changes["password"] = MqttPasswordBox.Password;
+        if (usesCertificate && !string.IsNullOrWhiteSpace(MqttCertificateThumbprintBox.Password))
+            changes["client_certificate_thumbprint"] = NormalizeCertificateThumbprint(MqttCertificateThumbprintBox.Password);
+        var saved = await _profiles.SaveAsync(existing?.Id, ProviderNameBox.Text, "mqtt",
+            ProviderEnabledBox.IsChecked == true, config, existing is null ? changes : null);
+        if (existing is not null)
+        {
+            var remove = new List<string>();
+            if (!usesUsername) { remove.Add("username"); remove.Add("password"); }
+            if (!usesCertificate) remove.Add("client_certificate_thumbprint");
+            await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+        MqttTopicBox.Clear();
+        MqttUsernameBox.Clear();
+        MqttPasswordBox.Clear();
+        MqttCertificateThumbprintBox.Clear();
+        return saved;
+    }
+
+    private static bool IsMqttHost(string value)
+    {
+        if (value.Length is < 1 or > 253 || value.EndsWith('.') || value.Any(character => character > 127)) return false;
+        if (System.Net.IPAddress.TryParse(value, out _)) return true;
+        return Uri.CheckHostName(value) == UriHostNameType.Dns && value.Split('.').All(label =>
+            label.Length is >= 1 and <= 63 && label[0] != '-' && label[^1] != '-' &&
+            label.All(character => char.IsAsciiLetterOrDigit(character) || character == '-'));
+    }
+
+    private static void ValidateMqttTopic(string value)
+    {
+        if (value.Length == 0 || System.Text.Encoding.UTF8.GetByteCount(value) > 512 ||
+            value[0] is '/' or '$' || value[^1] == '/' || value.Contains("//", StringComparison.Ordinal) ||
+            value.Any(character => character is '\0' or '+' or '#' || char.IsControl(character)))
+            throw new ArgumentException("MQTT topic must be a fixed non-system topic without wildcards, empty levels, or controls.");
+    }
+
+    private static bool IsCertificateThumbprint(string value)
+    {
+        var normalized = NormalizeCertificateThumbprint(value);
+        return normalized.Length is 40 or 64 && normalized.All(Uri.IsHexDigit);
+    }
+
+    private static string NormalizeCertificateThumbprint(string value) =>
+        new(value.Where(character => !char.IsWhiteSpace(character)).Select(char.ToUpperInvariant).ToArray());
+
     private static void RequireSecret(string entered, IReadOnlyList<string> stored, string name, string message)
     {
         if (string.IsNullOrWhiteSpace(entered) && !stored.Contains(name, StringComparer.Ordinal))
@@ -1042,6 +1177,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "twilio_sms" => 14,
             "whatsapp_cloud" => 15,
             "twilio_whatsapp" => 16,
+            "mqtt" => 17,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -1071,6 +1207,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "twilio_sms" => "Twilio SMS",
                 "whatsapp_cloud" => "WhatsApp Cloud",
                 "twilio_whatsapp" => "Twilio WhatsApp",
+                "mqtt" => "MQTT",
                 _ => "Webhook"
             };
     }
@@ -1094,7 +1231,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var twilioSms = kind == "twilio_sms";
         var whatsAppCloud = kind == "whatsapp_cloud";
         var twilioWhatsApp = kind == "twilio_whatsapp";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
+        var mqtt = kind == "mqtt";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp || mqtt ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -1111,6 +1249,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioSmsFields.Visibility = twilioSms ? Visibility.Visible : Visibility.Collapsed;
         WhatsAppCloudFields.Visibility = whatsAppCloud ? Visibility.Visible : Visibility.Collapsed;
         TwilioWhatsAppFields.Visibility = twilioWhatsApp ? Visibility.Visible : Visibility.Collapsed;
+        MqttFields.Visibility = mqtt ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -1482,6 +1621,54 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             TwilioWhatsAppTemplateApprovedBox.IsChecked = false;
             TwilioWhatsAppTextOnlyBox.IsChecked = false;
             TwilioWhatsAppPaidConsentBox.IsChecked = false;
+        }
+    }
+
+    private void LoadMqttConfiguration(ProviderProfile profile)
+    {
+        MqttTopicBox.Clear();
+        MqttUsernameBox.Clear();
+        MqttPasswordBox.Clear();
+        MqttCertificateThumbprintBox.Clear();
+        if (profile.Kind != "mqtt") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            MqttHostBox.Text = GetJsonString(root, "brokerHost");
+            MqttPortBox.Text = root.TryGetProperty("port", out var port) && port.TryGetInt32(out var portNumber)
+                ? portNumber.ToString()
+                : "8883";
+            MqttClientIdBox.Text = GetJsonString(root, "clientId");
+            MqttAuthenticationModeBox.SelectedIndex = GetJsonString(root, "authenticationMode") switch
+            {
+                "client_certificate" => 1,
+                "username_and_certificate" => 2,
+                "anonymous" => 3,
+                _ => 0
+            };
+            MqttQosBox.SelectedIndex = root.TryGetProperty("qos", out var qos) && qos.TryGetInt32(out var qosNumber)
+                ? Math.Clamp(qosNumber, 0, 2)
+                : 1;
+            MqttDuplicateRiskBox.IsChecked = root.TryGetProperty("duplicateRiskAcknowledged", out var duplicate) &&
+                                              duplicate.ValueKind == JsonValueKind.True;
+            MqttAnonymousBox.IsChecked = root.TryGetProperty("anonymousAcknowledged", out var anonymous) &&
+                                         anonymous.ValueKind == JsonValueKind.True;
+            MqttExpiryBox.Text = root.TryGetProperty("messageExpirySeconds", out var expiry) &&
+                                  expiry.TryGetInt32(out var expirySeconds)
+                ? expirySeconds.ToString()
+                : "300";
+        }
+        catch (JsonException)
+        {
+            MqttHostBox.Clear();
+            MqttPortBox.Text = "8883";
+            MqttClientIdBox.Text = "agentnotify";
+            MqttAuthenticationModeBox.SelectedIndex = 0;
+            MqttQosBox.SelectedIndex = 1;
+            MqttDuplicateRiskBox.IsChecked = false;
+            MqttAnonymousBox.IsChecked = false;
+            MqttExpiryBox.Text = "300";
         }
     }
 
