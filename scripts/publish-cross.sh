@@ -38,6 +38,9 @@ PROJECTS=(
   "src/AgentNotify.Host/AgentNotify.Host.csproj"
 )
 
+# Fail before any long publish rather than partway through a multi-runtime run.
+command -v tar >/dev/null 2>&1 || { echo "'tar' is required." >&2; exit 1; }
+
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cd "$ROOT"
@@ -74,7 +77,23 @@ for rid in "${RUNTIMES[@]}"; do
   rm -f "$stage"/*.pdb
 
   if [[ "$rid" == win-* ]]; then
-    ( cd "$OUT" && zip -qr "agentnotify-$rid.zip" "agentnotify-$rid" )
+    # Windows users expect a zip. Prefer the zip tool, but fall back to python so the script does
+    # not depend on a package that is missing from many minimal Linux and WSL installs.
+    if command -v zip >/dev/null 2>&1; then
+      ( cd "$OUT" && zip -qr "agentnotify-$rid.zip" "agentnotify-$rid" )
+    elif command -v python3 >/dev/null 2>&1; then
+      ( cd "$OUT" && python3 -c "
+import pathlib, sys, zipfile
+root = pathlib.Path(sys.argv[1])
+with zipfile.ZipFile(root.with_suffix('.zip'), 'w', zipfile.ZIP_DEFLATED) as archive:
+    for path in sorted(root.rglob('*')):
+        if path.is_file():
+            archive.write(path, path.relative_to(root.parent))
+" "agentnotify-$rid" )
+    else
+      echo "Creating the $rid archive needs either 'zip' or 'python3'. Install one, or pass only non-Windows runtimes." >&2
+      exit 1
+    fi
   else
     chmod +x "$stage/agentnotify" "$stage/agentnotifyd" 2>/dev/null || true
     ( cd "$OUT" && tar -czf "agentnotify-$rid.tar.gz" "agentnotify-$rid" )
