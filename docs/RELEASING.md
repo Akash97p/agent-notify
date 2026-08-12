@@ -51,7 +51,7 @@ release going out with an empty or wrong description. Add the section before tag
 locally:
 
 ```bash
-./scripts/release-notes.sh v0.0.2-alpha.1 v0.0.1-alpha.1
+./scripts/release-notes.sh v0.0.3-alpha.1 v0.0.2-alpha.1
 ```
 
 ## Create a release
@@ -89,7 +89,7 @@ The portable archives are produced by a second job on a Linux runner after the W
 The two checksum files are deliberately named differently: two assets sharing one name would replace
 each other rather than sit side by side.
 
-The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata remains `0.0.1.0` for the current prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.0.1-alpha.1`.
+The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata is `0.0.3.0` for the current prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.0.3-alpha.1`.
 
 ## Local packaging
 

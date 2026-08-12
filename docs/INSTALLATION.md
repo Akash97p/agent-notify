@@ -56,7 +56,7 @@ Use a Windows .NET 10 SDK. The current workspace uses:
 Build and test:
 
 ```bash
-cd /home/akash/projects/agent-notify
+cd /path/to/agent-notify
 ./scripts/build.sh
 ./scripts/test.sh
 ```

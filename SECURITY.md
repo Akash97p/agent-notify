@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes target the latest released AgentNotify version. This repository currently represents prerelease version `0.0.1-alpha.1`; the first mature release is reserved for `1.0.0`.
+Security fixes target the latest released AgentNotify version. This repository currently represents prerelease version `0.0.3-alpha.1`; the first mature release is reserved for `1.0.0`.
 
 ## Reporting a vulnerability
 

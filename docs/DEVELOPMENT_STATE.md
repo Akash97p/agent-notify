@@ -12,7 +12,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
 - Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
-- Current product version: `0.0.2-alpha.1`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
+- Current product version: `0.0.3-alpha.1`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
 
 ## Decisions that must survive context compaction
 
@@ -102,11 +102,14 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 36. Completed on `chore/release-0.0.2-alpha.1`: bumped the product version to `0.0.2-alpha.1`, added `CHANGELOG.md` as the hand-written source of release descriptions, and added `scripts/release-notes.sh` which extracts a version's section and appends install instructions, checksum guidance, documentation links, and a compare range. The release workflow now passes that file to `gh release create --notes-file` instead of `--generate-notes`, so a release explains what changed rather than only linking to a diff, and it fails when the changelog has no section for the tag. Two workflow defects were fixed before shipping: both jobs uploaded an asset named `SHA256SUMS.txt` so the portable one would have replaced the installer's (now `SHA256SUMS-portable.txt`), and the shallow default checkout had no earlier tags for the compare link (now `fetch-depth: 0`). Gates: build 0/0, 628 tests, packaging rerun (installer SHA-256 `74877688e5bd6e26c0146b8e68b750ebe695e21ae51b01e57dee8eec7a2d208c`).
 
 
+37. Completed on `feature/about-section` and `chore/docs-and-release-0.0.3`: added an About tab to Settings and an "About AgentNotify" tray entry that opens it; added `docs/BUG.md`; removed machine-specific filesystem paths from all documentation, replacing them with `/path/to/agent-notify` and an environment variable for the external skill validator; and aligned every current-version reference and test count with the release. Version bumped to `0.0.3-alpha.1` (assembly/file metadata `0.0.3.0`). Gates: build 0/0, 644 tests, packaging rerun (installer SHA-256 `828db45c5b02ac0ce73b308d261433186042ac5e83ea9e694a0cb802d1dd9377`). The About tab and tray entry were confirmed working by the owner on Windows; the Telegram crash fix was likewise confirmed with a real bot, including a delivered notification.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 628 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 644 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 described in entries 33 and 34. The next steps are pushing so the Linux/macOS CI actually runs, then Phase 4 distribution (Homebrew tap, Winget) and Phase 5 native clients.
 

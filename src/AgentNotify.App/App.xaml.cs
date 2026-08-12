@@ -197,7 +197,7 @@ public partial class App : System.Windows.Application
             isPaused: () => _config.PauseNotifications,
             isStartupEnabled: StartupRegistrar.IsEnabled,
             onShowCenter: () => _center.ShowAndActivate(),
-            onOpenSettings: ShowSettings,
+            onOpenSettings: () => ShowSettings(),
             onOpenGettingStarted: () => RunTrayAction("Getting started", AgentResources.OpenGettingStarted),
             onCopySkill: () => RunTrayAction("Agent skill", () =>
             {
@@ -219,6 +219,7 @@ public partial class App : System.Windows.Application
                 _configStore.Save(_config);
                 _logger.Info($"Startup toggled -> {next}");
             },
+            onOpenAbout: () => ShowSettings(showAbout: true),
             onExit: () =>
             {
                 _center.CloseForExit();
@@ -237,7 +238,7 @@ public partial class App : System.Windows.Application
         _pruneTimer.Start();
     }
 
-    private void ShowSettings()
+    private void ShowSettings(bool showAbout = false)
     {
         if (_settings is null)
         {
@@ -259,6 +260,7 @@ public partial class App : System.Windows.Application
         }
         _settings.Show();
         _settings.Activate();
+        if (showAbout) _settings.ShowAboutTab();
     }
 
     private async Task RestoreAttentionToastsAsync()

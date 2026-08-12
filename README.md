@@ -3,11 +3,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4.svg)](docs/INSTALLATION.md)
-[![Tests](https://img.shields.io/badge/tests-628%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-644%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
-> **Development status:** Pre-release `v0.0.1-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
+> **Development status:** Pre-release `v0.0.3-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
 
 <p align="center">
   <img src="assets/branding/an.png" alt="AgentNotify app icon" width="180" height="180">
@@ -283,7 +283,7 @@ dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Rel
 WPF must be built with a Windows .NET SDK, not Linux `dotnet`. From WSL, point the scripts at the Windows `dotnet.exe` if it is not installed at the repository default:
 
 ```bash
-cd /home/akash/projects/agent-notify
+cd /path/to/agent-notify
 ./scripts/build.sh
 ./scripts/test.sh
 ```
@@ -294,7 +294,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.1-alpha.1` build completes with zero warnings. The test suite has 628 passing tests.
+The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 644 passing tests.
 
 ### Build the single-file installer
 
@@ -310,7 +310,7 @@ artifacts/AgentNotifySetup.exe
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
 
-The current [v0.0.1-alpha.1 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1) includes the installer, checksum, and distributable skill. Future exact `v`-prefixed tags publish through the release workflow; hyphenated prerelease tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
+The current [v0.0.3-alpha.1 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1) includes the installer, checksum, and distributable skill. Future exact `v`-prefixed tags publish through the release workflow; hyphenated prerelease tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
 
 ## API
 

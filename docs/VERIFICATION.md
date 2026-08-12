@@ -274,7 +274,7 @@ Documentation gates for this branch:
 - `./scripts/build.sh` — full Windows Release build, required even for documentation branches by repository workflow.
 - `./scripts/test.sh` — full automated suite, required before merge.
 - `./scripts/build-site.sh` — static documentation site build.
-- `python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
+- `quick_validate.py distribution/agentnotify` — skill remains valid; the skill was not modified.
 
 ## Settings readability and window chrome — 2026-08-12
 
@@ -559,3 +559,84 @@ and both binaries extracted from it ran and reported `0.0.2-alpha.1`.
 
 Still unverified: the `cross-platform-assets` job has never completed. Its archives were built and
 attached locally for this release, so the corrected upload step remains unproven until the next tag.
+
+## Settings window crash on a saved provider (`fix/settings-json-null-crash`)
+
+Reported by the owner while configuring a real Telegram bot: the test send delivered a message to
+Telegram successfully but the Settings window then showed an error mentioning null, and clicking the
+saved Telegram provider in the list closed the application every time.
+
+Both symptoms had one cause. `JsonElement.TryGetInt32` does not behave like a `Try` method: it
+returns false only for a number that will not fit, and throws `InvalidOperationException` for every
+other value kind, including JSON `null`. The Settings window read optional integers as
+`root.TryGetProperty(name, out var e) && e.TryGetInt32(out var v)`, and optional settings are
+serialized as `null` when left blank. A Telegram provider saved without a topic ID stores
+`"messageThreadId": null`, so loading it threw.
+
+- Clicking the provider runs `Provider_Selected`, which is not inside `RunAsync`, so the exception
+  reached the WPF dispatcher unhandled and terminated the tray process — taking the broker and its
+  API down with it.
+- Test send runs inside `RunAsync`, which catches everything and shows `exception.Message`. It saves,
+  sends, then reloads and reselects the provider, which threw after the message had already been
+  delivered. That is why a successful send appeared to fail.
+
+The same unsafe pattern was present at eight call sites: SMTP port, Telegram topic ID, Pushover
+emergency retry and expiry, Twilio SMS validity, Twilio WhatsApp validity, and MQTT port, QoS, and
+message expiry. All eight now use `JsonConfigReader`, which treats absent, null, and wrong-typed
+values alike as "not set". `Provider_Selected` additionally catches anything a stored profile can
+throw and reports it in the status line, so no saved row can terminate the process again.
+
+Verified:
+
+- The stored configuration was read directly from the user's SQLite database and confirmed to
+  contain `"messageThreadId": null`. Encrypted secret columns were not read.
+- A test asserts that `JsonElement.TryGetInt32` really does throw on a JSON null, so the diagnosis
+  is demonstrated rather than assumed.
+- 644 tests pass, including 16 new ones covering null, missing, wrong-typed, oversized, and
+  fractional values, and the exact Telegram document that caused the crash.
+- Release build 0 warnings/0 errors; installer repackaged, SHA-256
+  `ae12982bff7fe2ca7fadba696772ce51eb4e5bb5fad2a866bb00746fc8b3863a`.
+
+Not verified: **no WPF interaction was performed.** Whether clicking the Telegram provider now loads
+its fields without closing the application must be confirmed by the owner on Windows.
+
+## About section (`feature/about-section`)
+
+Adds an About tab to the Settings window and an "About AgentNotify" tray menu entry that opens it.
+The tab shows the app icon, name, version read from assembly metadata, a prerelease warning shown
+only when the version carries a suffix, a description of the product, a local-first summary, links
+to the repository/documentation/releases/issues, the per-user data directory, a warning that
+`config.json` holds the local bearer token, and publisher/licence/unsigned notes.
+
+The tray item is placed immediately above Exit rather than literally last, because Exit last is the
+established convention and an entry below it reads as a mistake. Moving it is a one-line change.
+
+Hyperlinks hand only `https` URIs to `ShellExecute`. The URIs are compiled into the XAML today, so
+this cannot currently matter, but routing an arbitrary scheme through the shell is what turns a link
+into a command launcher if the source ever becomes dynamic. Browser launch failures are swallowed so
+a misconfigured default browser cannot close the Settings window.
+
+Verified: Release build 0 warnings/0 errors, 644 tests pass, installer repackaged with SHA-256
+`4cf2cb98416352f488083d20fc666a2994388ad57ccd9426d03bc9e5ba3778ad`.
+
+**Not verified: no WPF interaction was performed.** Whether the icon renders from the packed
+`Resources/an.ico` URI, whether the tab lays out correctly, and whether the tray entry opens the
+Settings window on the About tab all need a human on Windows.
+
+## Owner confirmation on Windows (0.0.3-alpha.1)
+
+Two items previously recorded here as unverified were confirmed by the owner on Windows:
+
+- The Settings crash fix: selecting the saved Telegram provider now loads its fields instead of
+  closing the application, and a real Telegram bot delivered a test message with no error afterwards.
+- The About section: the tray entry opens Settings on the About tab and the tab renders as intended.
+
+A spread of eight notifications across every built-in type was also sent through the installed
+build. The four high and critical ones routed to Telegram and were recorded as `Delivered` on the
+first attempt; the four normal-priority ones correctly stayed local, exercising the route's
+minimum-priority filter.
+
+Documentation was swept for machine-specific paths and version drift: personal filesystem paths were
+replaced with `/path/to/agent-notify`, and every current-version reference and test count now matches
+the released version. Historical version references in `RELEASING.md` and `CHANGELOG.md` are left as
+written, since they record what was published at the time.
