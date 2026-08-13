@@ -65,6 +65,62 @@ terminate the process again.
 
 ---
 
+## Settings could get stuck editing a saved provider with no way back to a new one
+
+**Found:** 2026-08-13, by the maintainer adding a second provider.
+**Fixed in:** `fix/provider-editor-reset`. **Severity:** medium — the tab became unusable until the
+Settings window was closed and reopened.
+
+### Symptoms
+
+After selecting an already-configured provider in **Channels → Providers**, there was no way to add
+another one. The provider type dropdown was greyed out with no explanation, nothing deselected the
+list row, and the only recovery was closing the Settings window and opening it again — which works
+because `App.ShowSettings` drops its window reference on `Closed`, so the panel is rebuilt from
+scratch.
+
+### Cause
+
+Three things combined, none of which is a thrown exception:
+
+1. **The escape hatch was easy to miss.** The only way back to a blank editor was a button labelled
+   just `New`, sitting under the list beside `Delete`, with no heading and nothing to say which
+   profile the right-hand form belonged to.
+2. **The escape hatch could be off-screen.** The left column was a `StackPanel` holding a
+   fixed `Height="330"` list followed by the buttons, inside a tab that does not scroll. Whenever
+   the available height fell below roughly 380px — the window near its `MinHeight="580"`, or a
+   higher display scale — the `StackPanel` was clipped and the `New` and `Delete` buttons were
+   simply not rendered.
+3. **Selecting a profile locked the type dropdown permanently.** `LoadSelectedProvider` sets
+   `ProviderKindBox.IsEnabled = false` because a saved profile's kind cannot change. Nothing said
+   so, and `Provider_Selected` returned early on a null selection, so clearing the selection left
+   the previous profile's values and its disabled dropdown in place.
+
+### Fix
+
+- Both list columns are now `Grid`s whose list row is `*` with a `MinHeight`, so the list shrinks
+  and the buttons stay visible at every window size instead of the buttons being pushed out.
+- `+ New provider` / `+ New route` are full-width buttons above their list, with `Delete selected`
+  below it and a line of help text between them.
+- The editor has a heading that reads `New provider` or `Editing "<name>"`, so the form's subject is
+  always visible.
+- The disabled provider type dropdown now shows why it is disabled and what to press instead.
+- Pressing Escape in either list returns to a blank editor.
+- `Provider_Selected` and `Route_Selected` reset their form when the selection becomes null, so
+  every path that clears a selection — the button, Escape, a delete, a reload — lands on the same
+  usable state. The reset runs inside a guard that reports failures in the status line, following
+  the lesson from the entry above: a handler outside `RunAsync` must never reach the dispatcher.
+
+### Lessons
+
+- A fixed-height control in a non-scrolling `StackPanel` does not overflow, it disappears — and it
+  takes whatever follows it with it. The controls that must never vanish belong in `Auto` rows, with
+  the resizable content in the `*` row.
+- Disabling a control without saying why leaves a dead end. The recovery has to be visible from the
+  state the user is stuck in.
+
+---
+
 ## Local state could be written into the working directory on macOS and Linux
 
 **Found:** 2026-08-12, by running the Linux broker. **Fixed in:** `feature/cross-platform-core`.
