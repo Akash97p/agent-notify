@@ -640,3 +640,21 @@ Documentation was swept for machine-specific paths and version drift: personal f
 replaced with `/path/to/agent-notify`, and every current-version reference and test count now matches
 the released version. Historical version references in `RELEASING.md` and `CHANGELOG.md` are left as
 written, since they record what was published at the time.
+
+## Provider and route editor reset (`fix/provider-editor-reset`)
+
+Reworked the left-hand list columns of **Channels → Providers** and **Channels → Routes** so a saved
+selection can always be left: adaptive `Grid` layout that keeps the buttons visible, `+ New provider`
+/ `+ New route` above the list, `Delete selected` below it, an editor heading naming the profile
+being edited, an explanation on the disabled provider-type dropdown, Escape to deselect, and a
+form reset on every path that clears a selection. The cause is analysed in
+[BUG.md](BUG.md).
+
+Verified: Release build 0 warnings/0 errors, 644 tests pass. The XAML compiles, which is what proves
+the new named elements and handlers resolve.
+
+**Not verified: no WPF interaction was performed.** The clipping analysis is a reading of the layout,
+not a measurement of a rendered window. A human on Windows needs to confirm that both buttons are
+visible at the window's minimum height, that `+ New provider` after selecting a saved profile clears
+the form and re-enables the type dropdown, that Escape does the same, and that saving afterwards
+creates a second profile rather than overwriting the first.

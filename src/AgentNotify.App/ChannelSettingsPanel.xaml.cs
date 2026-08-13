@@ -66,30 +66,46 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
     private void Provider_Selected(object sender, SelectionChangedEventArgs e)
     {
-        if (ProviderList.SelectedItem is not ProviderProfile profile)
-            return;
-
         // Selection runs outside RunAsync, so anything thrown here reaches the WPF dispatcher
         // unhandled and terminates the tray process, taking the broker and its API down with it.
         // A stored profile must never be able to do that: report it and leave the fields cleared.
+        var profile = ProviderList.SelectedItem as ProviderProfile;
         try
         {
-            LoadSelectedProvider(profile);
+            // Clearing the selection is the only way back to a blank editor, so it must always
+            // land on a usable "new provider" form instead of leaving the previous profile's
+            // values and its locked provider type behind.
+            if (profile is null)
+                ResetProviderForm();
+            else
+                LoadSelectedProvider(profile);
         }
         catch (Exception exception)
         {
             SetStatus(
-                $"Could not load the saved settings for '{profile.Name}': {exception.Message}",
+                profile is null
+                    ? $"Could not clear the provider editor: {exception.Message}"
+                    : $"Could not load the saved settings for '{profile.Name}': {exception.Message}",
                 success: false);
         }
     }
 
+    private void ProviderList_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Escape)
+            return;
+        e.Handled = true;
+        StartNewProvider();
+    }
+
     private void LoadSelectedProvider(ProviderProfile profile)
     {
+        ProviderEditorHeader.Text = $"Editing “{profile.Name}”";
         ProviderNameBox.Text = profile.Name;
         ProviderEnabledBox.IsChecked = profile.Enabled;
         SelectProviderKind(profile.Kind);
         ProviderKindBox.IsEnabled = false;
+        ProviderKindLockHint.Visibility = Visibility.Visible;
         EndpointBox.Clear();
         AuthorizationBox.Clear();
         HmacBox.Clear();
@@ -118,11 +134,38 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
     }
 
-    private void NewProvider_Click(object sender, RoutedEventArgs e)
+    private void NewProvider_Click(object sender, RoutedEventArgs e) => StartNewProvider();
+
+    /// <summary>
+    /// Returns the editor to a blank provider. Clearing the list selection raises
+    /// <see cref="Provider_Selected"/>, which performs the reset, so the form and the list can
+    /// never disagree about which profile is being edited.
+    /// </summary>
+    private void StartNewProvider()
     {
-        ProviderList.SelectedItem = null;
+        try
+        {
+            if (ProviderList.SelectedItem is null)
+                ResetProviderForm();
+            else
+                ProviderList.SelectedItem = null;
+            ProviderNameBox.Focus();
+            SetStatus(
+                "Editing a new provider. Choose a provider type, fill in the fields, then press Save provider.",
+                success: true);
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Could not start a new provider: {exception.Message}", success: false);
+        }
+    }
+
+    private void ResetProviderForm()
+    {
+        ProviderEditorHeader.Text = "New provider";
         ProviderNameBox.Text = "Webhook";
         ProviderKindBox.IsEnabled = true;
+        ProviderKindLockHint.Visibility = Visibility.Collapsed;
         ProviderKindBox.SelectedIndex = 0;
         ProviderEnabledBox.IsChecked = false;
         EndpointBox.Clear();
@@ -227,7 +270,6 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
         StoredSecretsText.Text = "Enter the provider configuration. New providers start disabled.";
-        ProviderNameBox.Focus();
     }
 
     private async void SaveProvider_Click(object sender, RoutedEventArgs e)
@@ -1713,7 +1755,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         await RunAsync(async () =>
         {
             await _profiles.DeleteAsync(profile.Id);
-            NewProvider_Click(sender, e);
+            StartNewProvider();
             await ReloadAsync();
             SetStatus("Provider deleted.", success: true);
         });
@@ -1722,7 +1764,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void Route_Selected(object sender, SelectionChangedEventArgs e)
     {
         if (RouteList.SelectedItem is not DeliveryRoute route)
+        {
+            ResetRouteForm();
             return;
+        }
+        RouteEditorHeader.Text = $"Editing “{route.Name}”";
         RouteNameBox.Text = route.Name;
         RouteProviderBox.SelectedItem = RouteProviderBox.Items.Cast<ProviderProfile>()
             .FirstOrDefault(profile => profile.Id == route.ProviderId);
@@ -1734,9 +1780,35 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         IncludeMessageBox.IsChecked = route.IncludeMessage;
     }
 
-    private void NewRoute_Click(object sender, RoutedEventArgs e)
+    private void NewRoute_Click(object sender, RoutedEventArgs e) => StartNewRoute();
+
+    private void RouteList_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        RouteList.SelectedItem = null;
+        if (e.Key != System.Windows.Input.Key.Escape)
+            return;
+        e.Handled = true;
+        StartNewRoute();
+    }
+
+    private void StartNewRoute()
+    {
+        try
+        {
+            if (RouteList.SelectedItem is null)
+                ResetRouteForm();
+            else
+                RouteList.SelectedItem = null;
+            SetStatus("Editing a new route. Fill in the fields, then press Save route.", success: true);
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Could not start a new route: {exception.Message}", success: false);
+        }
+    }
+
+    private void ResetRouteForm()
+    {
+        RouteEditorHeader.Text = "New route";
         RouteNameBox.Text = "Delivery route";
         RouteProviderBox.SelectedIndex = RouteProviderBox.Items.Count > 0 ? 0 : -1;
         RouteEnabledBox.IsChecked = false;
@@ -1784,7 +1856,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         await RunAsync(async () =>
         {
             await _routes.DeleteAsync(route.Id);
-            NewRoute_Click(sender, e);
+            StartNewRoute();
             await ReloadAsync();
             SetStatus("Route deleted.", success: true);
         });
