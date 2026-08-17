@@ -1,8 +1,9 @@
 # AgentNotify
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.1--alpha.1-2563eb.svg)](Directory.Build.props)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4.svg)](docs/INSTALLATION.md)
+[![Version](https://img.shields.io/badge/version-0.0.3--alpha.1-2563eb.svg)](Directory.Build.props)
+[![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
+[![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
 [![Tests](https://img.shields.io/badge/tests-644%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
@@ -26,7 +27,39 @@ AgentNotify is a local human-attention broker for autonomous coding agents. Agen
 
 It is designed for people running several agents across terminals, repositories, windows, and virtual desktops who need a reliable answer to: “Which agents are waiting for me?”
 
+## Platform support
+
+**The graphical application is Windows-only today.** macOS and Linux run the same broker, CLI and
+API, but headlessly — there is no tray icon, no notification center and no Settings window on those
+platforms, so everything configured through the Settings UI on Windows (outbound channels, custom
+types, sounds, toast placement) has to be edited in `config.json` or left at its defaults.
+
+| | Windows 11 x64 | macOS | Linux |
+|---|---|---|---|
+| Installer | `AgentNotifySetup.exe` | `install.sh` archive | `install.sh` archive |
+| CLI (`agentnotify`) | yes | yes | yes |
+| Loopback REST API | yes | yes | yes |
+| SQLite history, dedup keys, retention | yes | yes | yes |
+| Outbound channels (18 adapters) | yes | yes, config file only | yes, config file only |
+| Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
+| Tray icon and notification center | yes | **no** | **no** |
+| Settings window | yes | **no** | **no** |
+| Verified on real hardware | yes | **no**, CI only | yes |
+
+Native macOS and Linux clients are a roadmap goal, not a shipped feature; the portable broker exists
+so that they can be built on top of it. See [Cross-platform plan](docs/CROSS_PLATFORM.md).
+
 ## What you get
+
+Everywhere:
+
+- A loopback-only, bearer-authenticated REST API at `127.0.0.1:47821`.
+- A self-contained `agentnotify` CLI, including an `agentnotify.exe` for Windows and WSL agents.
+- SQLite history, deduplication keys, configurable retention, and local logs.
+- Eighteen opt-in outbound channel adapters with encrypted credentials.
+- Single-instance behavior and a desktop notification on each supported platform.
+
+On Windows, additionally:
 
 - Custom Windows 11 toast windows owned by AgentNotify, not browser notifications.
 - Sticky `input_required`, `permission_required`, and `blocked` toasts that stay until dismissed or resolved.
@@ -34,10 +67,8 @@ It is designed for people running several agents across terminals, repositories,
 - Centralized multi-toast stacking on the monitor where the user is working.
 - A compact notification center with “Needs attention” and recent history.
 - A system tray icon that keeps the broker alive when windows close.
-- A loopback-only, bearer-authenticated REST API at `127.0.0.1:47821`.
-- A self-contained `agentnotify.exe` CLI for Windows and WSL-based agents.
-- SQLite history, deduplication keys, configurable retention, and local logs.
-- Single-instance behavior and per-user startup registration.
+- A Settings window for channels, custom types, sounds, toast placement, and pause/DND.
+- Per-user startup registration.
 - Tray actions to copy or save the distributable `SKILL.md`.
 - One self-contained installer executable with an offline getting-started page.
 
@@ -69,9 +100,15 @@ curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/
 
 This installs the `agentnotify` CLI and the `agentnotifyd` broker into `~/.local/bin` after verifying
 the published SHA-256 checksum. Start the broker with `agentnotifyd`, then use the same CLI and the
-same `/v1` API as on Windows. There is no tray or Settings UI on these platforms yet; notifications
-go to `notify-send` on Linux, Notification Center on macOS, or standard output when no desktop
-session is available. See [Installing on macOS and Linux](docs/INSTALLATION_UNIX.md).
+same `/v1` API as on Windows.
+
+**There is no graphical application on macOS or Linux.** No tray icon, no notification center and no
+Settings window: `agentnotifyd` is a headless daemon you run under systemd or launchd, and every
+setting is edited in `config.json` by hand. Desktop notifications go to `notify-send` on Linux,
+Notification Center on macOS, or standard output when no desktop session is available. The macOS
+build has only ever run on CI, never on real hardware.
+
+See [Installing on macOS and Linux](docs/INSTALLATION_UNIX.md).
 
 ## Send your first notification
 

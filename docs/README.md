@@ -4,6 +4,13 @@ AgentNotify is a local human-attention broker for coding agents. This directory 
 documentation. The current release line is the prerelease `0.0.3-alpha.1`; the mature `1.0.0`
 milestone is intentionally reserved and has not been reached.
 
+## Platform support
+
+The **graphical application is Windows-only**: the tray icon, notification center, custom toasts and
+Settings window are WPF. macOS and Linux run the same CLI, loopback API, SQLite history and outbound
+adapters through the headless `agentnotifyd` broker, configured by editing `config.json` directly.
+[CROSS_PLATFORM.md](CROSS_PLATFORM.md) describes the plan for native clients.
+
 ## Start here
 
 | Document | What it covers |
@@ -39,6 +46,7 @@ milestone is intentionally reserved and has not been reached.
 | [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md) | The ordered backlog with per-item status |
 | [DEVELOPMENT_STATE.md](DEVELOPMENT_STATE.md) | Durable handoff record: decisions, merged milestones, and next actions |
 | [VERIFICATION.md](VERIFICATION.md) | What has actually been verified, and what remains unverified |
+| [BUG.md](BUG.md) | Defects found after a capability was called complete, and what caused them |
 | [RELEASING.md](RELEASING.md) | Version scheme, tagging, and the release/Pages workflows |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching rules, quality gates, and how to propose a change |
 

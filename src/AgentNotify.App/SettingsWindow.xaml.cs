@@ -146,7 +146,8 @@ public partial class SettingsWindow : Window
         SetDuration(NotificationType.PermissionRequired, permission); SetDuration(NotificationType.Blocked, blocked);
         _store.Save(_config);
         _saved(port != _originalPort);
-        Close();
+        var restartHint = port != _originalPort ? " Restart AgentNotify to apply the new API port." : "";
+        SetSuccess("Settings saved." + restartHint);
     }
 
     private void SetDuration(NotificationType type, int seconds) => _config.ToastDurations[AgentNotifyConfig.EnumName(type)] = seconds;
@@ -175,13 +176,13 @@ public partial class SettingsWindow : Window
     private void ApplyType_Click(object sender, RoutedEventArgs e)
     {
         var id = NotificationTypes.Normalize(CustomIdBox.Text);
-        if (id is null || NotificationTypes.BuiltIns.Contains(id)) { StatusText.Text = "Enter a unique custom type ID."; return; }
-        if (!int.TryParse(CustomDurationBox.Text, out var duration) || duration is < 0 or > 86400) { StatusText.Text = "Custom lifetime must be 0–86400."; return; }
+        if (id is null || NotificationTypes.BuiltIns.Contains(id)) { SetError("Enter a unique custom type ID."); return; }
+        if (!int.TryParse(CustomDurationBox.Text, out var duration) || duration is < 0 or > 86400) { SetError("Custom lifetime must be 0–86400."); return; }
         var color = CustomColorBox.Text.Trim();
-        if (color.Length != 7 || color[0] != '#' || !color[1..].All(Uri.IsHexDigit)) { StatusText.Text = "Accent must use #RRGGBB."; return; }
+        if (color.Length != 7 || color[0] != '#' || !color[1..].All(Uri.IsHexDigit)) { SetError("Accent must use #RRGGBB."); return; }
         if (!Enum.TryParse<NotificationPriority>(CustomPriorityBox.SelectedItem?.ToString(), out var priority)) priority = NotificationPriority.Normal;
         var selected = CustomTypesList.SelectedItem as NotificationTypeDefinition;
-        if (_customTypes.Any(x => x.Id == id && x != selected)) { StatusText.Text = "That custom type ID already exists."; return; }
+        if (_customTypes.Any(x => x.Id == id && x != selected)) { SetError("That custom type ID already exists."); return; }
         var item = selected ?? new NotificationTypeDefinition();
         var previousId = selected?.Id;
         item.Id = id; item.DisplayName = string.IsNullOrWhiteSpace(CustomNameBox.Text) ? id.Replace('_', ' ') : CustomNameBox.Text.Trim();
@@ -210,7 +211,7 @@ public partial class SettingsWindow : Window
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Choose notification sound", Filter = "Audio files (*.wav;*.mp3)|*.wav;*.mp3|All files (*.*)|*.*" };
         if (dialog.ShowDialog(this) != true) return null;
         try { StatusText.Text = ""; return _sounds.Import(dialog.FileName); }
-        catch (Exception ex) { StatusText.Text = ex.Message; return null; }
+        catch (Exception ex) { SetError(ex.Message); return null; }
     }
 
     private void ChooseGlobalSound_Click(object sender, RoutedEventArgs e)
@@ -296,8 +297,22 @@ public partial class SettingsWindow : Window
     private bool TryInt(WpfTextBox box, int min, int max, string label, out int value)
     {
         if (int.TryParse(box.Text, out value) && value >= min && value <= max) return true;
-        StatusText.Text = $"{label} must be between {min} and {max}.";
+        SetError($"{label} must be between {min} and {max}.");
         box.Focus(); box.SelectAll(); return false;
     }
+    private void SetError(string message)
+    {
+        StatusText.Text = message;
+        StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FCA5A5"));
+    }
+
+    private void SetSuccess(string message)
+    {
+        StatusText.Text = message;
+        StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#86EFAC"));
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 }

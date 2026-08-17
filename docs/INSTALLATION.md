@@ -1,5 +1,10 @@
 # Installation and packaging
 
+This document covers the **Windows 11 x64** build: the installer, the tray application, and the
+packaging pipeline that produces them. There is no equivalent graphical build for macOS or Linux;
+those platforms install the CLI and the headless `agentnotifyd` broker instead, described in
+[INSTALLATION_UNIX.md](INSTALLATION_UNIX.md).
+
 ## End-user installation
 
 Run `AgentNotifySetup.exe`. Setup is per-user and does not require administrator rights for the default location.

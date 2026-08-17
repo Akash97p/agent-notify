@@ -101,6 +101,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void LoadSelectedProvider(ProviderProfile profile)
     {
         ProviderEditorHeader.Text = $"Editing “{profile.Name}”";
+        ProviderBackToNewButton.Visibility = Visibility.Visible;
         ProviderNameBox.Text = profile.Name;
         ProviderEnabledBox.IsChecked = profile.Enabled;
         SelectProviderKind(profile.Kind);
@@ -163,6 +164,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void ResetProviderForm()
     {
         ProviderEditorHeader.Text = "New provider";
+        ProviderBackToNewButton.Visibility = Visibility.Collapsed;
         ProviderNameBox.Text = "Webhook";
         ProviderKindBox.IsEnabled = true;
         ProviderKindLockHint.Visibility = Visibility.Collapsed;
@@ -1769,6 +1771,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             return;
         }
         RouteEditorHeader.Text = $"Editing “{route.Name}”";
+        RouteBackToNewButton.Visibility = Visibility.Visible;
         RouteNameBox.Text = route.Name;
         RouteProviderBox.SelectedItem = RouteProviderBox.Items.Cast<ProviderProfile>()
             .FirstOrDefault(profile => profile.Id == route.ProviderId);
@@ -1809,6 +1812,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private void ResetRouteForm()
     {
         RouteEditorHeader.Text = "New route";
+        RouteBackToNewButton.Visibility = Visibility.Collapsed;
         RouteNameBox.Text = "Delivery route";
         RouteProviderBox.SelectedIndex = RouteProviderBox.Items.Count > 0 ? 0 : -1;
         RouteEnabledBox.IsChecked = false;

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AgentNotify documentation — the local human-attention broker for coding agents.">
+  <title>{{TITLE}} · AgentNotify</title>
+  <link rel="icon" href="{{ROOT}}favicon/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ROOT}}favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ROOT}}favicon/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ROOT}}favicon/apple-touch-icon.png">
+  <link rel="manifest" href="{{ROOT}}favicon/site.webmanifest">
+  <meta name="theme-color" content="#070b13">
+  <meta property="og:title" content="{{TITLE}} · AgentNotify">
+  <meta property="og:description" content="A local human-attention broker for coding agents.">
+  <meta property="og:image" content="https://akash97p.github.io/agent-notify/an.png">
+  <meta property="og:url" content="https://akash97p.github.io/agent-notify/docs/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="{{ROOT}}styles.css">
+  <link rel="stylesheet" href="{{ROOT}}docs.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ROOT}}index.html"><img src="{{ROOT}}an.png" alt=""><span>AgentNotify</span></a>
+    <nav aria-label="Primary navigation">
+      <a href="{{ROOT}}index.html">Home</a><a href="{{ROOT}}docs/index.html">Documentation</a>
+    </nav>
+    <a class="github" href="https://github.com/Akash97p/agent-notify">GitHub ↗</a>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        {{SIDEBAR}}
+      </nav>
+    </aside>
+    <main class="docs-main">
+      <article class="docs-content">
+        {{CONTENT}}
+        <p class="edit-link"><a href="{{SOURCE_URL}}">Edit this page on GitHub</a></p>
+      </article>
+    </main>
+    {{TOC}}
+  </div>
+
+  <footer><span>AgentNotify · Kabani Tech Private Limited</span><span>Author <a href="https://github.com/Akash97p">Akash P</a> · MIT License · Provided as is, without warranty</span></footer>
+</body>
+</html>
