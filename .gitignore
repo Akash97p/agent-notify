@@ -38,3 +38,4 @@ Thumbs.db
 *.pfx
 *.p12
 *.snk
+__pycache__/

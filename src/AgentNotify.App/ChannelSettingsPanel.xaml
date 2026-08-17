@@ -31,12 +31,18 @@
                                 Click="DeleteProvider_Click"/>
                     </Grid>
                     <ScrollViewer Grid.Column="1" Margin="18,0,0,0" VerticalScrollBarVisibility="Auto"><StackPanel>
-                        <TextBlock x:Name="ProviderEditorHeader" Text="New provider" FontSize="18" FontWeight="Bold"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ProviderEditorHeader" Text="New provider" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button x:Name="ProviderBackToNewButton" Grid.Column="1" Content="+ New provider" Visibility="Collapsed"
+                                    ToolTip="Clear the editor and start a new provider profile."
+                                    Click="NewProvider_Click" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </Grid>
                         <TextBlock Text="Secrets stay encrypted. Blank secret fields preserve stored values." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Profile name"/><TextBox x:Name="ProviderNameBox"/>
                         <TextBlock Text="Provider type"/><ComboBox x:Name="ProviderKindBox" SelectionChanged="ProviderKind_Changed"><ComboBoxItem Content="Webhook" Tag="webhook"/><ComboBoxItem Content="SMTP email" Tag="smtp"/><ComboBoxItem Content="Telegram Bot" Tag="telegram"/><ComboBoxItem Content="Discord webhook" Tag="discord"/><ComboBoxItem Content="Slack webhook" Tag="slack"/><ComboBoxItem Content="Microsoft Teams Workflows" Tag="teams"/><ComboBoxItem Content="Zoho Cliq webhook" Tag="zoho_cliq"/><ComboBoxItem Content="Google Chat webhook" Tag="google_chat"/><ComboBoxItem Content="Mattermost webhook" Tag="mattermost"/><ComboBoxItem Content="Matrix room" Tag="matrix"/><ComboBoxItem Content="ntfy push" Tag="ntfy"/><ComboBoxItem Content="Gotify push" Tag="gotify"/><ComboBoxItem Content="Pushover" Tag="pushover"/><ComboBoxItem Content="Pushbullet" Tag="pushbullet"/><ComboBoxItem Content="Twilio SMS (paid)" Tag="twilio_sms"/><ComboBoxItem Content="WhatsApp Cloud API (paid)" Tag="whatsapp_cloud"/><ComboBoxItem Content="Twilio WhatsApp (paid)" Tag="twilio_whatsapp"/><ComboBoxItem Content="MQTT 5 (TLS)" Tag="mqtt"/></ComboBox>
                         <TextBlock x:Name="ProviderKindLockHint" Visibility="Collapsed" Foreground="#FBBF24" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
-                                   Text="The provider type cannot be changed on a saved profile. Press “+ New provider” on the left to add a different type."/>
+                                   Text="The provider type cannot be changed on a saved profile. Press “+ New provider” to add a different type."/>
                         <CheckBox x:Name="ProviderEnabledBox" Content="Enable this provider"/>
                         <StackPanel x:Name="WebhookFields">
                             <TextBlock Text="HTTPS endpoint URL (encrypted)"/><PasswordBox x:Name="EndpointBox" Padding="9,7" Margin="0,0,0,12"/>
@@ -225,7 +231,13 @@
                                 Click="DeleteRoute_Click"/>
                     </Grid>
                     <ScrollViewer Grid.Column="1" Margin="18,0,0,0" VerticalScrollBarVisibility="Auto"><StackPanel>
-                        <TextBlock x:Name="RouteEditorHeader" Text="New route" FontSize="18" FontWeight="Bold"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="RouteEditorHeader" Text="New route" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button x:Name="RouteBackToNewButton" Grid.Column="1" Content="+ New route" Visibility="Collapsed"
+                                    ToolTip="Clear the editor and start a new delivery route."
+                                    Click="NewRoute_Click" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </Grid>
                         <TextBlock Text="A route sends matching new notifications to one provider." Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Route name"/><TextBox x:Name="RouteNameBox"/>
                         <TextBlock Text="Provider"/><ComboBox x:Name="RouteProviderBox" DisplayMemberPath="Name"/>

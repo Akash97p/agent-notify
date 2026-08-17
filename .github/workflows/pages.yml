@@ -5,8 +5,10 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "docs/**"
       - "assets/branding/an.png"
       - "scripts/build-site.sh"
+      - "scripts/render-docs.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
