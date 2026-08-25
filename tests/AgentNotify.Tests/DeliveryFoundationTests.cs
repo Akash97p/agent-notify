@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Domain;
 using Microsoft.Data.Sqlite;

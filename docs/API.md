@@ -57,6 +57,22 @@ Validation failures return `400` with `{ "error": "<message>" }`.
 
 **Response** `201` → `NotificationDto`; on dedup the same `id` is returned with updated `updatedAt`.
 
+### `POST /v1/events`
+
+Accepts the experimental AEP 0.1 Human Attention profile. Supported event types are
+`notification.sent` with a `notification` content entry and `question.asked` with a `question`
+content entry. The optional `extensions.x-agentnotify` object supplies title, notification type,
+priority, key, project, and process ID projection hints.
+
+A stable key derived from `agent.slug` and the AEP event `id` makes delivery retries return the
+original notification, even after it is resolved. A new event returns `201 NotificationDto`; an
+idempotent replay returns `200 NotificationDto` without another outbound delivery. Supplying
+`x-agentnotify.key` opts into the native active-condition update lifecycle. The endpoint uses the
+same validation, persistence, callbacks, routes, and durable outbox as native creation.
+Invalid/unsupported envelopes return `400`.
+
+See [AEP.md](AEP.md) for the complete profile, mapping table, schema, security rules, and example.
+
 ### `GET /v1/notifications`
 
 List notifications (newest first). Optional query params:
@@ -119,7 +135,10 @@ The supplied and expected values are hashed with SHA-256 and compared with a fix
 
 ## Rate limiting
 
-Every `POST` under `/v1/notifications` — both the create route and `POST /v1/notifications/{id}/dismiss` — is guarded by one sliding fixed-window counter per token: default **30 requests/second** (`rateLimitPerSecond`). `GET` and `PATCH` are not rate limited. When exceeded: `429 { "error": "rate limit exceeded" }` with `Retry-After: 1`.
+Every `POST` under `/v1/notifications`, plus `POST /v1/events`, is guarded by one sliding
+fixed-window counter per token: default **30 requests/second** (`rateLimitPerSecond`). `GET` and
+`PATCH` are not rate limited. When exceeded: `429 { "error": "rate limit exceeded" }` with
+`Retry-After: 1`.
 
 ---
 
@@ -172,5 +191,24 @@ curl --fail-with-body -sS -X POST http://127.0.0.1:47821/v1/notifications \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"type":"blocked","priority":"high","title":"Blocked","message":"SDK missing"}'
+unset TOKEN
+```
+
+### AEP event
+
+```bash
+TOKEN="$(agentnotify.exe token)"
+curl --fail-with-body -sS -X POST http://127.0.0.1:47821/v1/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "aep_version":"0.1",
+    "id":"evt_build_42",
+    "type":"notification.sent",
+    "time":"2026-08-26T01:15:00Z",
+    "agent":{"slug":"codex","display_name":"Codex"},
+    "content":[{"type":"notification","text":"All tests passed."}],
+    "extensions":{"x-agentnotify":{"title":"Build complete","notification_type":"completed"}}
+  }'
 unset TOKEN
 ```

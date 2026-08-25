@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 
 namespace AgentNotify.Cli;
@@ -13,7 +13,7 @@ namespace AgentNotify.Cli;
 /// Every command talks to the local broker via HTTP; the broker is source of truth.</summary>
 internal static class Program
 {
-    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "token", "help", "--help", "-h", "--version"];
+    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "token", "install-skill", "install", "help", "--help", "-h", "--version"];
 
     internal static async Task<int> Main(string[] args)
     {
@@ -43,6 +43,9 @@ internal static class Program
                 "dismiss" => await RunDismiss(args[1..]),
                 "health" => await RunHealth(args[1..]),
                 "token" => RunToken(args[1..]),
+                "install-skill" => RunInstallSkill(args[1..]),
+                "install" when args.Length > 1 && args[1].Equals("skill", StringComparison.OrdinalIgnoreCase) => RunInstallSkill(args[2..]),
+                "install" => Fail("Usage: agentnotify install skill <codex|claude> [options]"),
                 "help" or "--help" or "h" => RunHelp(args.Length > 1 ? args[1] : null),
                 "version" => RunVersion(),
                 _ => Fail($"unknown command '{args[0]}'. Run 'agentnotify help' for usage.")
@@ -414,6 +417,63 @@ internal static class Program
         }
     }
 
+    private static int RunInstallSkill(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-'))
+        {
+            PrintInstallSkillHelp();
+            return args.Any(a => a is "--help" or "-h") ? 0 : 1;
+        }
+
+        SkillAgent agent;
+        switch (args[0].ToLowerInvariant())
+        {
+            case "codex": agent = SkillAgent.Codex; break;
+            case "claude": case "claude-code": agent = SkillAgent.Claude; break;
+            default: return Fail("install-skill target must be codex or claude.");
+        }
+
+        var projectScope = false;
+        var force = false;
+        var dryRun = false;
+        string? path = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--scope":
+                    if (i + 1 >= args.Length) return Fail("--scope requires user or project.");
+                    var scope = args[++i].ToLowerInvariant();
+                    if (scope is not ("user" or "project")) return Fail("--scope must be user or project.");
+                    projectScope = scope == "project";
+                    break;
+                case "--path":
+                    if (i + 1 >= args.Length) return Fail("--path requires a skills directory.");
+                    path = args[++i];
+                    break;
+                case "--force": force = true; break;
+                case "--dry-run": dryRun = true; break;
+                case "--help": case "-h": PrintInstallSkillHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for install-skill.");
+            }
+        }
+
+        try
+        {
+            var skillsRoot = path ?? SkillInstaller.DefaultSkillsRoot(agent, projectScope);
+            var result = SkillInstaller.Install(agent, skillsRoot, force, dryRun);
+            if (result.Success)
+                Console.WriteLine(result.Message);
+            else
+                Console.Error.WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            return Fail($"Could not install the AgentNotify skill: {ex.Message}");
+        }
+    }
+
     private static int RunHelp(string? topic)
     {
         if (topic is not null)
@@ -425,6 +485,7 @@ internal static class Program
                 case "get": Console.WriteLine("Usage: agentnotify get <id> [--port N] [--token T]"); return 0;
                 case "resolve": Console.WriteLine("Usage: agentnotify resolve <id> [--port N] [--token T]"); return 0;
                 case "dismiss": Console.WriteLine("Usage: agentnotify dismiss <id> [--port N] [--token T]"); return 0;
+                case "install-skill": case "install": PrintInstallSkillHelp(); return 0;
             }
         }
         PrintUsage();
@@ -512,6 +573,7 @@ internal static class Program
               dismiss    Dismiss a notification
               health     Check broker health
               token      Print the local bearer token
+              install-skill  Install the bundled skill for Codex or Claude Code
               help       Show help (help <command> for details)
 
             Global options (for send/list/get/...):
@@ -524,6 +586,7 @@ internal static class Program
               agentnotify list --unresolved true --limit 20
               agentnotify resolve abc123
               agentnotify health
+              agentnotify install-skill codex
             """);
     }
 
@@ -570,6 +633,27 @@ internal static class Program
               --json                  Output raw JSON
               --port N                Override broker port
               --token T               Override bearer token
+            """);
+    }
+
+    private static void PrintInstallSkillHelp()
+    {
+        Console.WriteLine("""
+            agentnotify install-skill — install the bundled AgentNotify skill
+
+            Usage:
+              agentnotify install-skill <codex|claude> [options]
+              agentnotify install skill <codex|claude> [options]
+
+            Options:
+              --scope user|project   Install for the current user (default) or current project
+              --path DIRECTORY      Override the agent's skills root directory
+              --force               Replace changed AgentNotify skill files
+              --dry-run             Print the destination without writing files
+
+            Default user locations:
+              Codex        ~/.agents/skills/agentnotify
+              Claude Code  ~/.claude/skills/agentnotify
             """);
     }
 }

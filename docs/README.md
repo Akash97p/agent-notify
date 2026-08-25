@@ -19,6 +19,7 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
+| [AEP.md](AEP.md) | Experimental AEP 0.1 Human Attention profile and `x-agentnotify` extension |
 | [CONFIGURATION.md](CONFIGURATION.md) | The on-disk config file, every setting, and custom notification types |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Symptoms, causes, and fixes for common problems |
 

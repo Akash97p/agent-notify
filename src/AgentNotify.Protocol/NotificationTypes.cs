@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>Stable notification type identifiers used by the API and persistence.</summary>
 public static partial class NotificationTypes

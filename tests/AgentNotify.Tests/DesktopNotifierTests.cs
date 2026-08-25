@@ -1,4 +1,4 @@
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Domain;
 using AgentNotify.Desktop;
 

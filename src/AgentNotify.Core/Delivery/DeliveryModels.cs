@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Core.Delivery;
 

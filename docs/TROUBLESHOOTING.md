@@ -107,7 +107,7 @@ The installer adds `%LOCALAPPDATA%\Programs\AgentNotify` to the current user's `
 
 **Symptom**
 
-`POST /v1/notifications` returns:
+`POST /v1/notifications` or `POST /v1/events` returns:
 
 ```json
 { "error": "rate limit exceeded" }
@@ -119,7 +119,11 @@ CLI `send` prints `Error 429 TooManyRequests: rate limit exceeded` and exits `1`
 
 **Cause**
 
-The API guards `POST` under `/v1/notifications` with a per-token fixed-window counter: `RateLimiter(config.RateLimitPerSecond, 1s)` (`src/AgentNotify.Api/ApiHost.cs`, `98`). The limit is `rateLimitPerSecond` in `config.json` (`AgentNotifyConfig.cs`), default `30` requests per second. When the count within the current 1-second window reaches the limit, `TryAcquire` returns false and the middleware returns `429` with `Retry-After: 1` (`src/AgentNotify.Api/ApiHost.cs`). The limiter is not a security boundary; it roughly bounds abusive traffic.
+The API guards `POST` under `/v1/notifications` and the AEP `/v1/events` endpoint with one per-token
+fixed-window counter. The limit is `rateLimitPerSecond` in `config.json`, default `30` requests per
+second. When the count within the current one-second window reaches the limit, the middleware returns
+`429` with `Retry-After: 1`. The limiter is not a security boundary; it roughly bounds abusive
+traffic.
 
 **Fix**
 

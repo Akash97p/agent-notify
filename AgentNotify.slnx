@@ -3,7 +3,7 @@
     <Project Path="src/AgentNotify.Api/AgentNotify.Api.csproj" />
     <Project Path="src/AgentNotify.App/AgentNotify.App.csproj" />
     <Project Path="src/AgentNotify.Cli/AgentNotify.Cli.csproj" />
-    <Project Path="src/AgentNotify.Contracts/AgentNotify.Contracts.csproj" />
+    <Project Path="src/AgentNotify.Protocol/AgentNotify.Protocol.csproj" />
     <Project Path="src/AgentNotify.Core/AgentNotify.Core.csproj" />
     <Project Path="src/AgentNotify.Desktop/AgentNotify.Desktop.csproj" />
     <Project Path="src/AgentNotify.Host/AgentNotify.Host.csproj" />

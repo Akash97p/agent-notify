@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+    <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
   </ItemGroup>
 

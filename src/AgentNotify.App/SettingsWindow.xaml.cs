@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Windows;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Services;
 using WpfTextBox = System.Windows.Controls.TextBox;

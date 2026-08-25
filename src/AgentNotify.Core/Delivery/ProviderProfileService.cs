@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Core.Delivery;
 

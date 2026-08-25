@@ -1,4 +1,4 @@
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>Semantic notification types understood by AgentNotify.</summary>
 public enum NotificationType

@@ -6,9 +6,12 @@ AgentNotify is one interactive per-user Windows process. It owns the tray icon, 
 
 ## Components
 
-### Contracts
+### Protocol
 
-`AgentNotify.Contracts` defines JSON DTOs, stable notification type identifiers, priority/status enums, and shared `System.Text.Json` rules. The original eight snake-case type IDs remain compatible while custom IDs are validated and persisted without an enum migration.
+`AgentNotify.Protocol` is the portable wire-contract assembly. It defines the local API DTOs, stable
+notification type identifiers, priority/status enums, shared `System.Text.Json` rules, and the
+experimental AEP 0.1 Human Attention profile model and JSON Schema. The original eight snake-case
+type IDs remain compatible while custom IDs are validated and persisted without an enum migration.
 
 ### Core
 
@@ -28,6 +31,12 @@ Keyed creation is guarded by a process-wide asynchronous gate in `NotificationSe
 `AgentNotify.Api` builds an embedded ASP.NET Core Minimal API host. Kestrel binds to `127.0.0.1` and all `/v1` routes pass through bearer authentication. The host uses an explicit local content root so Windows test processes launched from WSL UNC paths do not hang while probing the working directory.
 
 API callbacks are instance-scoped. Callback exceptions are logged and isolated from the API response, so a toast-rendering failure cannot roll back a notification already persisted to SQLite.
+
+`POST /v1/events` accepts the AEP profile's `notification.sent` and `question.asked` envelopes and
+projects them into the same `CreateNotificationRequest` path as the native API. A stable key derived
+from the producer event ID makes retries idempotent across active and resolved history. An explicit
+profile key opts into the native active-condition lifecycle. Unsupported event families are rejected
+instead of becoming noisy desktop events, and only bounded correlation metadata is retained.
 
 ### Desktop app
 

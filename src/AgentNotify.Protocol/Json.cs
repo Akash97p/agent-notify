@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>Shared JSON options so the API and CLI agree on formatting.</summary>
 public static class Json

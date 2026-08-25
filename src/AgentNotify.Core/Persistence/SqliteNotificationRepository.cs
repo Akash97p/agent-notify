@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Domain;
 
 namespace AgentNotify.Core.Persistence;
@@ -85,6 +85,16 @@ public sealed class SqliteNotificationRepository : INotificationRepository
         await using var command = connection.CreateCommand();
         command.CommandText = SelectColumns + " WHERE id = $id";
         command.Parameters.AddWithValue("$id", id);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? ReadNotification(reader) : null;
+    }
+
+    public async Task<Notification?> FindByKeyAsync(string key, CancellationToken ct = default)
+    {
+        await using var connection = CreateConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = SelectColumns + " WHERE key = $key ORDER BY created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$key", key);
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? ReadNotification(reader) : null;
     }

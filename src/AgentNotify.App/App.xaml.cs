@@ -2,7 +2,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using AgentNotify.Api;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Logging;

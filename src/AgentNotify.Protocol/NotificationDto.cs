@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>Notification as returned by the API.</summary>
 public sealed class NotificationDto

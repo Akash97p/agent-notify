@@ -20,7 +20,7 @@ agentnotify --help | -h | help [<command>]
 agentnotify --version
 ```
 
-When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
+When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `install-skill`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
 
 All commands that contact the broker use a 10-second HTTP timeout. Connection failure prints to stderr and exits non-zero (see Exit codes).
 
@@ -53,7 +53,7 @@ Base URL is `http://127.0.0.1:{port}`.
 
 ### Type identifiers
 
-`--type` values are normalized by `AgentNotify.Contracts.NotificationTypes.Normalize` (`src/AgentNotify.Contracts/NotificationTypes.cs`):
+`--type` values are normalized by `AgentNotify.Protocol.NotificationTypes.Normalize` (`src/AgentNotify.Protocol/NotificationTypes.cs`):
 
 - Trim, replace `-` with `_`, lower-case.
 - Map `inputrequired` to `input_required` and `permissionrequired` to `permission_required`.
@@ -73,7 +73,7 @@ That makes `high`, `HIGH`, `high-priority` styles accepted as long as letters ma
 
 Valid priorities for `--priority`: `low`, `normal`, `high`, `critical`. On failure: `--priority must be low, normal, high, or critical.`
 
-Valid statuses: `active`, `dismissed`, `resolved` (see `src/AgentNotify.Contracts/NotificationStatus.cs`).
+Valid statuses: `active`, `dismissed`, `resolved` (see `src/AgentNotify.Protocol/NotificationStatus.cs`).
 
 ---
 
@@ -257,10 +257,47 @@ TOKEN="$(agentnotify.exe token)"
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:47821/v1/health
 ```
 
+### `install-skill` — install the bundled agent skill
+
+```text
+agentnotify install-skill <codex|claude> [options]
+agentnotify install skill <codex|claude> [options]
+```
+
+The skill payload is embedded in the CLI, so installation is offline and needs no npm, Python, or
+separate download.
+
+| Flag | Value | Default | Notes |
+| --- | --- | --- | --- |
+| `--scope` | `user` or `project` | `user` | Select personal or current-repository discovery |
+| `--path` | directory | agent-specific skills root | Overrides `--scope`; the `agentnotify` folder is created beneath it |
+| `--force` | — | false | Replaces changed AgentNotify-owned files after explicit review |
+| `--dry-run` | — | false | Reports the destination without writing |
+
+Default personal destinations:
+
+```text
+Codex:       ~/.agents/skills/agentnotify
+Claude Code: ~/.claude/skills/agentnotify
+```
+
+Codex installs `SKILL.md` and `agents/openai.yaml`; Claude Code installs `SKILL.md`. Identical files
+are treated as already up to date. A changed existing file is never overwritten unless `--force` is
+passed. Files outside the `agentnotify` skill directory are never modified.
+
+Examples:
+
+```bash
+agentnotify install-skill codex
+agentnotify install-skill claude --scope project
+agentnotify install-skill codex --dry-run
+agentnotify install-skill codex --path /custom/skills/root
+```
+
 ### `help` and `--version`
 
 ```text
-agentnotify help [send|list|get|resolve|dismiss]
+agentnotify help [send|list|get|resolve|dismiss|install-skill]
 agentnotify --help
 agentnotify -h
 agentnotify --version

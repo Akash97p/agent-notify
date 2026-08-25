@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Tests;
 
@@ -60,5 +60,65 @@ public sealed class CliTests
     public async Task VersionSwitch_Works()
     {
         Assert.Equal(0, await AgentNotify.Cli.Program.Main(["--version"]));
+    }
+
+    [Theory]
+    [InlineData("codex")]
+    [InlineData("claude")]
+    public async Task InstallSkill_WritesBundledSkill(string agent)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentnotify-skill-{Guid.NewGuid():N}");
+        try
+        {
+            var exitCode = await AgentNotify.Cli.Program.Main(["install-skill", agent, "--path", root]);
+
+            Assert.Equal(0, exitCode);
+            var skill = Path.Combine(root, "agentnotify", "SKILL.md");
+            Assert.True(File.Exists(skill));
+            Assert.Contains("name: agentnotify", await File.ReadAllTextAsync(skill), StringComparison.Ordinal);
+            Assert.Equal(agent == "codex", File.Exists(Path.Combine(root, "agentnotify", "agents", "openai.yaml")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallSkill_ProtectsExistingCustomizationUnlessForced()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentnotify-skill-{Guid.NewGuid():N}");
+        var skillDirectory = Path.Combine(root, "agentnotify");
+        var skill = Path.Combine(skillDirectory, "SKILL.md");
+        try
+        {
+            Directory.CreateDirectory(skillDirectory);
+            await File.WriteAllTextAsync(skill, "custom instructions");
+
+            Assert.Equal(1, await AgentNotify.Cli.Program.Main(["install", "skill", "claude", "--path", root]));
+            Assert.Equal("custom instructions", await File.ReadAllTextAsync(skill));
+
+            Assert.Equal(0, await AgentNotify.Cli.Program.Main(["install-skill", "claude", "--path", root, "--force"]));
+            Assert.Contains("name: agentnotify", await File.ReadAllTextAsync(skill), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallSkill_DryRunDoesNotWrite()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentnotify-skill-{Guid.NewGuid():N}");
+        try
+        {
+            Assert.Equal(0, await AgentNotify.Cli.Program.Main(["install-skill", "codex", "--path", root, "--dry-run"]));
+            Assert.False(Directory.Exists(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 }

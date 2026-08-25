@@ -1,4 +1,4 @@
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Persistence;
 
@@ -100,6 +100,19 @@ public sealed class RepositoryTests : IAsyncLifetime
         await _repo.UpdateStatusAsync(a.Id, NotificationStatus.Resolved, DateTimeOffset.UtcNow);
         var after = await _repo.FindActiveByKeyAsync("my-key");
         Assert.Null(after);
+    }
+
+    [Fact]
+    public async Task FindByKey_IncludesResolvedHistory()
+    {
+        var created = await _repo.CreateAsync(Make("historical", key: "event-key"));
+        await _repo.UpdateStatusAsync(created.Id, NotificationStatus.Resolved, DateTimeOffset.UtcNow);
+
+        var found = await _repo.FindByKeyAsync("event-key");
+
+        Assert.NotNull(found);
+        Assert.Equal(created.Id, found!.Id);
+        Assert.Equal(NotificationStatus.Resolved, found.Status);
     }
 
     [Fact]

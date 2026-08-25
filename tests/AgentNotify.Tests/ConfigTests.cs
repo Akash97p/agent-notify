@@ -1,5 +1,5 @@
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 
 namespace AgentNotify.Tests;

@@ -1,5 +1,5 @@
 using System.Windows;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;

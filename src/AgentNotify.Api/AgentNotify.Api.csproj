@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
-    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+    <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
   </ItemGroup>
 
 </Project>

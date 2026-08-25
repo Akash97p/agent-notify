@@ -7,6 +7,7 @@ on:
       - "site/**"
       - "docs/**"
       - "assets/branding/an.png"
+      - "src/AgentNotify.Protocol/Schemas/**"
       - "scripts/build-site.sh"
       - "scripts/render-docs.py"
       - ".github/workflows/pages.yml"
@@ -43,4 +44,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

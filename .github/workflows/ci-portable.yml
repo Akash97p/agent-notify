@@ -32,7 +32,7 @@ jobs:
       - name: Build portable projects
         run: |
           for project in \
-            src/AgentNotify.Contracts/AgentNotify.Contracts.csproj \
+            src/AgentNotify.Protocol/AgentNotify.Protocol.csproj \
             src/AgentNotify.Core/AgentNotify.Core.csproj \
             src/AgentNotify.Api/AgentNotify.Api.csproj \
             src/AgentNotify.Cli/AgentNotify.Cli.csproj \
@@ -46,13 +46,36 @@ jobs:
         run: dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release
 
       # Exercises the paths that only exist off Windows: the key-file secret protector, owner-only
-      # file modes, the lock file, the loopback API, and signal-driven shutdown.
-      - name: Smoke test the broker
+      # file modes, the lock file, the loopback API, signal-driven shutdown, and the actual
+      # self-contained binaries users download rather than a framework-dependent `dotnet run`.
+      - name: Smoke test native CLI and broker binaries
         shell: bash
         run: |
           set -euo pipefail
           data="$(mktemp -d)"
-          dotnet run --project src/AgentNotify.Host/AgentNotify.Host.csproj --configuration Release -- \
+          publish="$RUNNER_TEMP/agentnotify-native"
+          case "$(uname -s)-$(uname -m)" in
+            Linux-x86_64) rid=linux-x64 ;;
+            Linux-aarch64|Linux-arm64) rid=linux-arm64 ;;
+            Darwin-x86_64) rid=osx-x64 ;;
+            Darwin-arm64) rid=osx-arm64 ;;
+            *) echo "unsupported runner architecture: $(uname -s)-$(uname -m)"; exit 1 ;;
+          esac
+
+          dotnet publish src/AgentNotify.Host/AgentNotify.Host.csproj --configuration Release \
+            --runtime "$rid" --self-contained true -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false \
+            --output "$publish/broker"
+          dotnet publish src/AgentNotify.Cli/AgentNotify.Cli.csproj --configuration Release \
+            --runtime "$rid" --self-contained true -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false \
+            --output "$publish/cli"
+
+          "$publish/cli/agentnotify" install-skill codex --path "$data/skills"
+          test -f "$data/skills/agentnotify/SKILL.md"
+          test -f "$data/skills/agentnotify/agents/openai.yaml"
+
+          "$publish/broker/agentnotifyd" \
             --port 47931 --config-dir "$data" --no-desktop > broker.log 2>&1 &
 
           for _ in $(seq 1 60); do

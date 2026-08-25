@@ -15,6 +15,7 @@
 - [x] SQLite history behind `INotificationRepository`
 - [x] Concurrent-safe keyed deduplication inside the single broker
 - [x] Request/body validation, rate limiting, and malformed JSON handling
+- [x] Experimental AEP 0.1 Human Attention profile for notification and question ingestion
 - [x] Local daily logs without token logging
 - [x] History retention pruning
 
@@ -36,12 +37,13 @@
 
 ## CLI and agent integration
 
-- [x] `send`, shorthand, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, and version commands
+- [x] `send`, shorthand, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `install-skill`, and version commands
 - [x] Snake-case and kebab-case CLI type parsing
 - [x] Friendly nonzero exits for invalid arguments, broker connection failures, and timeouts
 - [x] WSL wrapper and Windows user PATH installation
 - [x] Validated `agentnotify` skill and OpenAI UI metadata
 - [x] Offline browser guide with Copy/Download skill actions
+- [x] Offline Codex and Claude Code skill installation from the CLI
 
 ## Distribution and open source
 
@@ -65,7 +67,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 644 passed, 0 failed, 0 skipped
+- [x] Automated tests: 659 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

@@ -105,11 +105,33 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 37. Completed on `feature/about-section` and `chore/docs-and-release-0.0.3`: added an About tab to Settings and an "About AgentNotify" tray entry that opens it; added `docs/BUG.md`; removed machine-specific filesystem paths from all documentation, replacing them with `/path/to/agent-notify` and an environment variable for the external skill validator; and aligned every current-version reference and test count with the release. Version bumped to `0.0.3-alpha.1` (assembly/file metadata `0.0.3.0`). Gates: build 0/0, 644 tests, packaging rerun (installer SHA-256 `828db45c5b02ac0ce73b308d261433186042ac5e83ea9e694a0cb802d1dd9377`). The About tab and tray entry were confirmed working by the owner on Windows; the Telegram crash fix was likewise confirmed with a real bot, including a delivered notification.
 
 
+38. Active on `feature/aep-and-skill-installer`:
+    - Standards research found that Agent Approve had already published an Agent Event Protocol 0.1
+      review draft in May 2026, including `notification.sent` and `question.asked`. AgentNotify will
+      adopt that envelope through an explicitly partial Human Attention profile instead of claiming
+      or publishing a second incompatible AEP under the same name.
+    - The former `AgentNotify.Contracts` project is being promoted to `AgentNotify.Protocol`; it owns
+      native API contracts plus the profile model/schema, while projection remains in the API layer.
+    - `POST /v1/events` accepts only the two attention-relevant AEP event types, derives an idempotent
+      key from producer/event identity, retains bounded correlation metadata, and uses the existing
+      validation, SQLite, callbacks, routing, and outbox path. Event-identity retries return the
+      original projection across resolved history without another delivery; an explicit extension
+      key instead opts into the existing active-condition lifecycle.
+    - The CLI skill installer targets the current documented personal/project locations for Codex
+      (`.agents/skills`) and Claude Code (`.claude/skills`), embeds its offline payload, refuses to
+      overwrite changed files without `--force`, and supports `--dry-run` and custom roots.
+    - Local verification: the full solution cross-build completed with 0 warnings/0 errors using
+      `EnableWindowsTargeting`; all 659 portable tests passed; the static site and JSON Schema built;
+      and the skill-creator validator reported `Skill is valid!`. Native Windows CI/packaging,
+      self-contained Linux/macOS runner smoke tests, and Pages publication remain pending and must
+      not be claimed yet.
+
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 644 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 659 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 described in entries 33 and 34. The next steps are pushing so the Linux/macOS CI actually runs, then Phase 4 distribution (Homebrew tap, Winget) and Phase 5 native clients.
 

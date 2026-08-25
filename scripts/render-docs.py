@@ -24,6 +24,8 @@ PAGES = [
      "Every command, flag, output shape, and exit code of the agentnotify CLI."),
     ("docs/API.md", "api", "Local REST API", "Using AgentNotify",
      "The loopback /v1 HTTP API: routes, bodies, authentication, and errors."),
+    ("docs/AEP.md", "aep", "AEP attention profile", "Using AgentNotify",
+     "The experimental AEP 0.1 notification and question ingestion profile."),
     ("docs/CONFIGURATION.md", "configuration", "Configuration", "Using AgentNotify",
      "The on-disk config file, every setting and its default, and custom notification types."),
     ("docs/CHANNELS.md", "channels", "Outbound channels", "Using AgentNotify",

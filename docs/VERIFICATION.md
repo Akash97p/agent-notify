@@ -658,3 +658,26 @@ not a measurement of a rendered window. A human on Windows needs to confirm that
 visible at the window's minimum height, that `+ New provider` after selecting a saved profile clears
 the form and re-enables the type dropdown, that Escape does the same, and that saving afterwards
 creates a second profile rather than overwriting the first.
+
+## AEP profile and agent skill installer (`feature/aep-and-skill-installer`)
+
+Local verification on 2026-08-26:
+
+- `./scripts/build.sh -p:EnableWindowsTargeting=true` completed the full solution cross-build with
+  0 warnings and 0 errors under the Linux .NET 10 SDK. This compiles the WPF and setup projects but
+  is not a native Windows execution test.
+- `./scripts/test.sh --no-restore` passed 659 tests with 0 failures and 0 skips.
+- AEP coverage includes envelope validation, authentication, type defaults, extension projection,
+  unknown-extension policy, immutable replay after resolution, explicit condition-key updates, and
+  one-time outbound enqueue behavior.
+- CLI coverage installs the embedded skill for Codex and Claude Code, exercises both command forms,
+  protects changed files unless forced, and verifies dry-run behavior.
+- The skill-creator `quick_validate.py` check reported `Skill is valid!` for
+  `distribution/agentnotify`.
+- `./scripts/build-site.sh`, JSON Schema parsing, and the generated AEP/schema/skill page checks
+  completed successfully.
+
+Not yet verified at this checkpoint: the native Windows build and installer package, execution of
+the self-contained CLI/broker on GitHub's current Linux and macOS runners, and the deployed GitHub
+Pages output. These are required before merge and are not claimed here yet. No WPF visual behavior
+changed, and no new visual check is claimed.
