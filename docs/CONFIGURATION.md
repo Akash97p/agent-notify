@@ -19,7 +19,7 @@ Default directory and files (`src/AgentNotify.Core/Config/ConfigStore.cs`):
 
 `%LOCALAPPDATA%` is `Environment.SpecialFolder.LocalApplicationData`. All four paths are derived from the same config directory.
 
-Format: JSON serialized with `AgentNotify.Contracts.Json.Options` (`System.Text.Json` with `JsonSerializerDefaults.Web`, `PropertyNameCaseInsensitive: true`, `JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)`). JSON property names are therefore camelCase (`port`, `authToken`, `toastLocation`) while enum strings on the wire are snake_case.
+Format: JSON serialized with `AgentNotify.Protocol.Json.Options` (`System.Text.Json` with `JsonSerializerDefaults.Web`, `PropertyNameCaseInsensitive: true`, `JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)`). JSON property names are therefore camelCase (`port`, `authToken`, `toastLocation`) while enum strings on the wire are snake_case.
 
 Loading behavior:
 
@@ -55,7 +55,7 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `typeSoundFiles` | `object` | `{}` | Per-type override map: type ID → filename. Keys are normalized with `NotificationTypes.Normalize`; values normalized as for `defaultSoundFile`. Invalid entries are dropped; duplicate normalized keys keep the last value. Case-insensitive. Editable in Settings → Sounds per type. |
 | `playCriticalSoundsDuringDoNotDisturb` | `bool` | `false` | When `true`, critical-priority sounds play even when `doNotDisturb` is `true`. Editable in Settings → Sounds. See Sound policy. |
 | `maxRequestBodyBytes` | `long` | `65536` (`64*1024`) | Kestrel `MaxRequestBodySize`. When `<= 0` reset to `65536`. Not editable in Settings. Bodies larger than this are rejected before routing. |
-| `rateLimitPerSecond` | `int` | `30` | Simple fixed-window limit applied to every `POST` under `/v1/notifications` (per token, 1-second window); `GET` and `PATCH` are not limited. When `<= 0` reset to `30`. Not editable in Settings. Env does not override. |
+| `rateLimitPerSecond` | `int` | `30` | Simple fixed-window limit applied to every `POST` under `/v1/notifications` and to `POST /v1/events` (per token, 1-second window); `GET` and `PATCH` are not limited. When `<= 0` reset to `30`. Not editable in Settings. Env does not override. |
 | `maxMetadataBytes` | `int` | `8192` | Serialized metadata map size cap. When `<= 0` reset to `8192`. Not editable in Settings. Validation uses `JsonSerializer.SerializeToUtf8Bytes(metadata, Json.Options)`. |
 | `toastDurations` | `object` | see below | Map of type ID → auto-dismiss seconds. `0` means sticky until dismissed/resolved. Backfilled from defaults and normalized. Editable in Settings → Toasts per built-in type (0–86400). |
 | `customNotificationTypes` | `array` | `[]` | User-defined type definitions. See Custom types. Editable in Settings → Custom types. |

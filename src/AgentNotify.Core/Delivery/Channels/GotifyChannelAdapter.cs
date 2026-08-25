@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Core.Delivery.Channels;
 

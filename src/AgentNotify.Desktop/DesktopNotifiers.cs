@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
 

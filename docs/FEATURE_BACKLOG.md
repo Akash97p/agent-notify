@@ -101,7 +101,13 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ### A04 — SDKs and protocols
 
-Publish small PowerShell, shell, Python, JavaScript, and .NET clients; then evaluate an optional MCP server without replacing the stable REST/CLI path.
+- Status: protocol assembly and experimental AEP 0.1 Human Attention ingestion profile implemented;
+  language SDKs, ACP/stdout adapters, A2A bridges, and optional MCP server remain planned.
+- Publish small PowerShell, shell, Python, JavaScript, and .NET clients without replacing the stable
+  REST/CLI path.
+- Keep provider streams and future ACP/A2A adapters behind the same validation and persistence
+  boundary as direct AEP events.
+- Evaluate an optional MCP server after the event contract and response model stabilize.
 
 ## Product and platform tasks
 
@@ -110,4 +116,4 @@ Publish small PowerShell, shell, Python, JavaScript, and .NET clients; then eval
 - Signed x64/ARM64 releases, checksums, schema migration recovery, automatic updates, and rollback.
 - Accessibility, keyboard navigation, localization, high-contrast support, multi-DPI/multi-monitor verification.
 - Portable core extraction followed by native macOS menu-bar and Linux tray/desktop implementations.
-- Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes. The local `site/` source is already buildable; publishing it requires the owner to configure GitHub Pages after a future remote is intentionally added.
+- Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes. GitHub Pages is published by the repository workflow.

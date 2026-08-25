@@ -3,7 +3,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;

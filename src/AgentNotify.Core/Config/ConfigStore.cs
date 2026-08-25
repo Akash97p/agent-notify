@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Core.Config;
 

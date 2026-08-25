@@ -1,5 +1,5 @@
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Domain;
 
 namespace AgentNotify.Core.Persistence;
@@ -22,6 +22,7 @@ public interface INotificationRepository
 {
     Task<Notification> CreateAsync(Notification notification, CancellationToken ct = default);
     Task<Notification?> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Notification?> FindByKeyAsync(string key, CancellationToken ct = default);
     Task<Notification?> FindActiveByKeyAsync(string key, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> QueryAsync(NotificationQuery query, CancellationToken ct = default);
     Task<Notification?> UpdateAsync(Notification notification, CancellationToken ct = default);

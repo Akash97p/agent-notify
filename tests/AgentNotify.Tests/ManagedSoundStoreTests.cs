@@ -1,6 +1,6 @@
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Config;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Tests;
 

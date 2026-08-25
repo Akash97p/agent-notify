@@ -4,16 +4,22 @@ Prefer the installed `agentnotify.exe` CLI. It discovers the local port/token, p
 
 ## Install the agent skill
 
-Right-click the AgentNotify tray icon and select **Copy agent SKILL.md** or **Download agent SKILL.md…**. The offline getting-started page also provides Copy and Download actions.
-
-For Codex:
+Install the skill embedded in the CLI:
 
 ```bash
-mkdir -p ~/.codex/skills/agentnotify
-cp /path/to/downloaded/SKILL.md ~/.codex/skills/agentnotify/SKILL.md
+agentnotify install-skill codex
+agentnotify install-skill claude
 ```
 
-The canonical source is `distribution/agentnotify/SKILL.md`.
+For a repository-local installation:
+
+```bash
+agentnotify install-skill codex --scope project
+```
+
+The tray's Copy/Download actions remain available. The canonical source is
+`distribution/agentnotify/SKILL.md`; see [AGENT_SKILLS.md](AGENT_SKILLS.md) for paths, overwrite
+protection, WSL behavior, and manual installation.
 
 ## Availability check
 
@@ -107,6 +113,9 @@ The wrapper first uses `agentnotify.exe` from PATH, then the local packaged payl
 ## Direct HTTP fallback
 
 Use direct HTTP only when the CLI cannot be used. Obtain the token without echoing it into logs, send it as `Authorization: Bearer`, and follow `docs/API.md`. Never include the token in prompts, issue reports, notification metadata, or remote requests.
+
+Agents that already emit AEP can instead post the supported attention envelope to `/v1/events`. See
+[AEP.md](AEP.md). Provider-stream, ACP, and A2A translation are future adapters, not current claims.
 
 ## Prompt snippet
 

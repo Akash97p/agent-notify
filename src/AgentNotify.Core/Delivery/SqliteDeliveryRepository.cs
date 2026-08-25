@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Core.Delivery;

@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;

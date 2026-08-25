@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 
 namespace AgentNotify.Tests;
 

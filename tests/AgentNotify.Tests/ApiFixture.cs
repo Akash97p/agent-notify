@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text.Json;
 using AgentNotify.Api;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;

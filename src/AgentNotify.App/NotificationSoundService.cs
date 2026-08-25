@@ -1,6 +1,6 @@
 using System.IO;
 using System.Windows.Media;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Services;

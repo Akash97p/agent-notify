@@ -13,12 +13,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+    <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="AgentNotify.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md"
+                      LogicalName="AgentNotify.Cli.Resources.agentnotify.SKILL.md" />
+    <EmbeddedResource Include="..\..\distribution\agentnotify\agents\openai.yaml"
+                      LogicalName="AgentNotify.Cli.Resources.agentnotify.agents.openai.yaml" />
   </ItemGroup>
 
 </Project>

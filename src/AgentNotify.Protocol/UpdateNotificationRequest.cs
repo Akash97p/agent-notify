@@ -1,4 +1,4 @@
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>Payload used to update a notification (currently only status).</summary>
 public sealed class UpdateNotificationRequest

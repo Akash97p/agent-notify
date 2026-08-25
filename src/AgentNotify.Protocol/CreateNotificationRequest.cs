@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 /// <summary>
 /// Payload used to create a notification. Type and priority default to Info / Normal.

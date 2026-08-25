@@ -23,7 +23,7 @@
   <header class="topbar">
     <a class="brand" href="#top"><img src="an.png" alt=""><span>AgentNotify</span></a>
     <nav aria-label="Primary navigation">
-      <a href="docs/index.html">Documentation</a><a href="#platforms">Platforms</a><a href="#install">Install</a><a href="#agents">Agents</a><a href="#architecture">Architecture</a><a href="#contribute">Contribute</a>
+      <a href="docs/index.html">Documentation</a><a href="docs/aep.html">AEP</a><a href="#platforms">Platforms</a><a href="#install">Install</a><a href="#agents">Agents</a><a href="#architecture">Architecture</a><a href="#contribute">Contribute</a>
     </nav>
     <a class="github" href="https://github.com/Akash97p/agent-notify">GitHub ↗</a>
   </header>
@@ -40,7 +40,7 @@
       <div class="hero-card"><img src="an.png" alt="AgentNotify robot-bell icon"><strong>Local first</strong><span>Loopback API · encrypted token · SQLite history · no telemetry</span></div>
     </section>
 
-    <section class="stats" aria-label="Project highlights"><div><strong>8</strong><span>built-in notification types, plus custom</span></div><div><strong>1</strong><span>single-file installer</span></div><div><strong>644</strong><span>automated tests</span></div><div><strong>18</strong><span>implemented outbound adapters</span></div></section>
+    <section class="stats" aria-label="Project highlights"><div><strong>8</strong><span>built-in notification types, plus custom</span></div><div><strong>1</strong><span>single-file installer</span></div><div><strong>659</strong><span>automated tests</span></div><div><strong>18</strong><span>implemented outbound adapters</span></div></section>
 
     <section id="platforms" class="section"><p class="kicker">Platform support</p><h2>One broker. One graphical app, so far.</h2>
       <p class="wide-copy">Everything below the user interface—the CLI, the loopback API, the SQLite history, the eighteen outbound adapters—is portable and runs on all three platforms. The graphical half is not: the tray icon, the notification center, the custom toasts and the Settings window are WPF, and WPF is Windows. On macOS and Linux you run <code>agentnotifyd</code> as a daemon and edit <code>config.json</code> by hand.</p>
@@ -65,7 +65,7 @@ Akash97p/agent-notify/main/scripts/install.sh | sh</code></pre></article>
   --message "Choose A or B."</code></pre></article>
     </div></section>
 
-    <section id="agents" class="section split"><div><p class="kicker">Agent integration</p><h2>One small skill, every capable agent.</h2><p>Download or copy the bundled <code>SKILL.md</code> from the tray. Agents with skill discovery can install it in their skills directory; other tools can use the same policy in project instructions or a system prompt.</p><p>Stable keys update unresolved conditions in place. Agents capture the returned ID and resolve it when attention is no longer needed.</p><a class="text-link" href="docs/agent-skills.html">Agent setup guide →</a></div><pre><code>agentnotify.exe send \
+    <section id="agents" class="section split"><div><p class="kicker">Agent integration</p><h2>One small skill, every capable agent.</h2><p>Install the bundled skill offline with <code>agentnotify install-skill codex</code> or <code>agentnotify install-skill claude</code>. Other tools can use the same policy in project instructions or a system prompt.</p><p>Stable keys update unresolved conditions in place. Agents capture the returned ID and resolve it when attention is no longer needed.</p><a class="text-link" href="docs/agent-skills.html">Agent setup guide →</a></div><pre><code>agentnotify.exe send \
   --agent codex \
   --project payments \
   --type blocked \
@@ -76,11 +76,24 @@ Akash97p/agent-notify/main/scripts/install.sh | sh</code></pre></article>
 
 agentnotify.exe resolve NOTIFICATION_ID</code></pre></section>
 
+    <section class="section split"><div><p class="kicker">Open event contract</p><h2>AEP attention events, one local lifecycle.</h2><p>AgentNotify consumes the <code>notification.sent</code> and <code>question.asked</code> subset of the public AEP 0.1 draft through an authenticated loopback endpoint. It preserves agent/session identity and deduplicates retries before local history and optional routes.</p><p>The implementation is explicitly experimental and partial; AgentNotify adopts the existing draft instead of inventing a competing protocol with the same name.</p><a class="text-link" href="docs/aep.html">Read the AEP Human Attention profile →</a></div><pre><code>POST /v1/events
+{
+  "aep_version": "0.1",
+  "id": "evt_42",
+  "type": "question.asked",
+  "time": "2026-08-26T01:15:00Z",
+  "agent": { "slug": "codex" },
+  "content": [{
+    "type": "question",
+    "text": "May I deploy?"
+  }]
+}</code></pre></section>
+
     <section id="architecture" class="section"><p class="kicker">Architecture</p><h2>Local truth, optional delivery.</h2><div class="flow"><span>Coding agents</span><b>→</b><span>Authenticated loopback API</span><b>→</b><span>SQLite lifecycle</span><b>→</b><span>WPF toast + center</span></div><p class="wide-copy">The tray process owns the API, history, notification center, and custom non-activating toast stack. Opt-in webhook, email, and chat adapters—including Mattermost and Google Chat—subscribe after local persistence through a durable outbox, so network failures can never lose or reject a local notification.</p></section>
 
     <section id="roadmap" class="section"><p class="kicker">Where we are going</p><h2>The common attention layer for autonomous work.</h2><div class="grid two"><article><h3>Current focus</h3><ul><li>Human visual, accessibility, and multi-DPI verification</li><li>Quiet hours, routes, escalation, and delivery controls</li><li>Signed x64 releases, checksums, ARM64, and migration tooling</li><li>Agent responses, heartbeat, and richer SDKs</li></ul></article><article><h3>Implemented delivery</h3><p>Eighteen opt-in adapters cover webhooks, SMTP, chat, self-hosted push, paid SMS/WhatsApp templates, and MQTT 5. Credentials are encrypted, destinations are bounded, and delivery runs through the durable outbox.</p></article><article><h3>Paused candidates</h3><p>AWS SNS, Signal, provider email APIs, and additional SMS/mobile-push services remain backlog candidates. No AWS SNS implementation is currently active.</p></article><article><h3>More platforms</h3><p>Windows is the only platform with a graphical application today. macOS and Linux run the portable broker headlessly; native menu-bar and tray clients are planned on top of it, and contributors are welcome.</p></article></div><a class="text-link" href="docs/feature-backlog.html">Full feature backlog →</a></section>
 
-    <section id="contribute" class="section contribute"><div><p class="kicker">Open source</p><h2>Help build the agent communication standard.</h2><p>AgentNotify is MIT licensed and published by Kabani Tech Private Limited. Contributions across Windows, providers, security, accessibility, documentation, macOS, and Linux are welcome.</p></div><div class="actions"><a class="primary" href="https://github.com/Akash97p/agent-notify/blob/main/CONTRIBUTING.md">Contribution guide</a><a class="secondary" href="https://github.com/Akash97p/agent-notify">Browse source</a></div></section>
+    <section id="contribute" class="section contribute"><div><p class="kicker">Open source</p><h2>Help build dependable human-attention infrastructure.</h2><p>AgentNotify is MIT licensed and published by Kabani Tech Private Limited. Contributions across Windows, providers, protocols, security, accessibility, documentation, macOS, and Linux are welcome.</p></div><div class="actions"><a class="primary" href="https://github.com/Akash97p/agent-notify/blob/main/CONTRIBUTING.md">Contribution guide</a><a class="secondary" href="https://github.com/Akash97p/agent-notify">Browse source</a></div></section>
   </main>
 
   <footer><span>AgentNotify · Kabani Tech Private Limited</span><span>Author <a href="https://github.com/Akash97p">Akash P</a> · MIT License · Provided as is, without warranty</span></footer>

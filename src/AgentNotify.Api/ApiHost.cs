@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AgentNotify.Api.Auth;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
@@ -95,7 +95,9 @@ public static class ApiHost
                 }
             }
 
-            if (HttpMethods.IsPost(context.Request.Method) && context.Request.Path.StartsWithSegments($"{RootPath}/notifications"))
+            if (HttpMethods.IsPost(context.Request.Method) &&
+                (context.Request.Path.StartsWithSegments($"{RootPath}/notifications") ||
+                 context.Request.Path.Equals($"{RootPath}/events")))
             {
                 var key = token;
                 if (!limiter.TryAcquire(key))
@@ -138,6 +140,52 @@ public static class ApiHost
             }
 
             var result = await service.CreateAsync(request, http.RequestAborted);
+            if (result.Error is not null)
+                return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
+
+            var notification = result.Value!;
+            if (result.WasCreated)
+                await InvokePersistenceCallbackAsync(
+                    callbacks?.PersistOutbound,
+                    notification,
+                    logger);
+            InvokeCallback(
+                result.WasCreated ? callbacks?.Created : callbacks?.Updated,
+                notification,
+                logger);
+
+            return Results.Json(DtoMapper.ToDto(notification), statusCode: StatusCodes.Status201Created);
+        });
+
+        app.MapPost($"{RootPath}/events", async (HttpContext http) =>
+        {
+            AepEvent? aepEvent;
+            try
+            {
+                aepEvent = await http.Request.ReadFromJsonAsync<AepEvent>(Json.Options, http.RequestAborted);
+            }
+            catch (JsonException)
+            {
+                return Results.Json(new { error = "invalid JSON body" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            if (!AepAttentionProfileMapper.TryMap(
+                    aepEvent,
+                    out var request,
+                    out var usesEventIdentityKey,
+                    out var mappingError))
+                return Results.Json(new { error = mappingError }, statusCode: StatusCodes.Status400BadRequest);
+
+            // AEP events are immutable. When the profile-derived event identity is used, a replay
+            // returns the original local projection even after its notification has been resolved.
+            if (usesEventIdentityKey)
+            {
+                var existing = await repository.FindByKeyAsync(request!.Key!, http.RequestAborted);
+                if (existing is not null)
+                    return Results.Json(DtoMapper.ToDto(existing), statusCode: StatusCodes.Status200OK);
+            }
+
+            var result = await service.CreateAsync(request!, http.RequestAborted);
             if (result.Error is not null)
                 return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
 

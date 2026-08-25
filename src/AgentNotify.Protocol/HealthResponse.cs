@@ -1,4 +1,4 @@
-namespace AgentNotify.Contracts;
+namespace AgentNotify.Protocol;
 
 public sealed class HealthResponse
 {

@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.0.3--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-644%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-659%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -20,6 +20,7 @@
   <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
   <a href="docs/INSTALLATION.md">Installation</a> ·
   <a href="docs/API.md">API</a> ·
+  <a href="docs/AEP.md">AEP</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -160,17 +161,37 @@ AgentNotify ships with four built-in tones — Chime, Ping, Alert, and Knock —
 
 ## Give the skill to a coding agent
 
-Right-click the AgentNotify tray icon and choose either **Copy agent SKILL.md** or **Download agent SKILL.md…**. The post-install getting-started page has the same Copy and Download buttons.
+Install the bundled skill directly from the CLI—offline, with no npm or Python dependency:
 
-For Codex, place the file at:
+```bash
+agentnotify install-skill codex
+agentnotify install-skill claude
+```
+
+The default personal locations are:
 
 ```text
-~/.codex/skills/agentnotify/SKILL.md
+Codex:       ~/.agents/skills/agentnotify/SKILL.md
+Claude Code: ~/.claude/skills/agentnotify/SKILL.md
 ```
+
+Use `--scope project`, `--dry-run`, or `--path DIRECTORY` when needed. Changed existing files are
+protected unless `--force` is explicit. The tray's Copy/Download actions remain available.
 
 The source skill is at [distribution/agentnotify/SKILL.md](distribution/agentnotify/SKILL.md). It tells an agent when to notify, how to avoid notification spam, how to use stable deduplication keys, and how to resolve an attention request.
 
 See [Agent setup and skills](docs/AGENT_SKILLS.md) for Agent Skills-compatible tools and a portable instruction snippet for agents that use project rules or system prompts instead.
+
+## Agent Event Protocol
+
+AgentNotify implements an experimental Human Attention profile of the existing public Agent Event
+Protocol (AEP) 0.1 draft. AEP producers can post `notification.sent` and `question.asked` envelopes to
+the authenticated loopback `/v1/events` endpoint. Agent identity, session correlation, workspace,
+event ID, unresolved state, and deduplication survive the projection into local history.
+
+AgentNotify does not claim to define AEP or implement its complete activity/control surface. See the
+[AEP Human Attention profile](docs/AEP.md) for the supported subset, `x-agentnotify` extension,
+published JSON Schema, security boundaries, and future ACP/A2A adapter direction.
 
 ## Notification model
 
@@ -234,11 +255,13 @@ NotificationService ---- SQLite repository
 Project layout:
 
 ```text
-src/AgentNotify.Contracts   JSON contracts and enums
-src/AgentNotify.Core        domain rules, config, persistence, logging
+src/AgentNotify.Protocol    native API contracts and experimental AEP profile schema
+src/AgentNotify.Core        cross-platform domain rules, config, persistence, logging
 src/AgentNotify.Api         authenticated loopback Minimal API
 src/AgentNotify.App         WPF tray app, toasts, center, startup/single instance
 src/AgentNotify.Cli         self-contained command-line client
+src/AgentNotify.Desktop     portable macOS/Linux notification backends
+src/AgentNotify.Host        cross-platform headless broker
 src/AgentNotify.Setup       self-contained per-user WPF installer
 tests/AgentNotify.Tests     xUnit domain, persistence, API, auth, and CLI tests
 distribution/agentnotify   validated agent skill
@@ -331,7 +354,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 644 passing tests.
+The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 659 passing tests.
 
 ### Build the single-file installer
 

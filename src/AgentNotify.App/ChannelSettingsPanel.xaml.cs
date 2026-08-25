@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using AgentNotify.Contracts;
+using AgentNotify.Protocol;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core;
 

@@ -2,11 +2,14 @@ name: Documentation site
 
 on:
   push:
-    branches: [main]
+    # `main` is the release line; verified documentation merged to integration `dev` is also
+    # published so prerelease features can be documented without prematurely releasing them.
+    branches: [main, dev]
     paths:
       - "site/**"
       - "docs/**"
       - "assets/branding/an.png"
+      - "src/AgentNotify.Protocol/Schemas/**"
       - "scripts/build-site.sh"
       - "scripts/render-docs.py"
       - ".github/workflows/pages.yml"
@@ -43,4 +46,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

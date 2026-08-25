@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AgentNotify.Contracts\AgentNotify.Contracts.csproj" />
+    <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>
