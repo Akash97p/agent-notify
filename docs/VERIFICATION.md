@@ -689,5 +689,11 @@ Hosted verification on topic commit `d265ac0`:
   installed the embedded Codex skill with that CLI, started the published broker executable, and
   exercised API persistence, keyed deduplication, owner-only files, and signal-driven shutdown.
 
-Not yet verified at this checkpoint: the deployed GitHub Pages output. It is triggered by the
-verified merge to `dev`. No WPF visual behavior changed, and no new visual check is claimed.
+Documentation Actions run
+[`32893126444`](https://github.com/Akash97p/agent-notify/actions/runs/32893126444) deployed the site
+successfully. Direct HTTPS checks returned `200` and found the expected content at the published
+[AEP profile](https://akash97p.github.io/agent-notify/docs/aep.html),
+[JSON Schema](https://akash97p.github.io/agent-notify/schemas/aep-agentnotify-profile-0.1.schema.json),
+and [agent skill guide](https://akash97p.github.io/agent-notify/docs/agent-skills.html).
+
+No WPF visual behavior changed, and no new visual check is claimed.
