@@ -2,7 +2,9 @@ name: Documentation site
 
 on:
   push:
-    branches: [main]
+    # `main` is the release line; verified documentation merged to integration `dev` is also
+    # published so prerelease features can be documented without prematurely releasing them.
+    branches: [main, dev]
     paths:
       - "site/**"
       - "docs/**"

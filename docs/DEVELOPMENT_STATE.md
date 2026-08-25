@@ -120,6 +120,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - The CLI skill installer targets the current documented personal/project locations for Codex
       (`.agents/skills`) and Claude Code (`.claude/skills`), embeds its offline payload, refuses to
       overwrite changed files without `--force`, and supports `--dry-run` and custom roots.
+    - CI now runs on topic-branch pushes so native Windows/package and Linux/macOS binary gates can
+      pass before the required local merge. Pages publishes verified documentation from `dev` as
+      well as release-line `main`, allowing prerelease documentation updates without a release merge.
     - Local verification: the full solution cross-build completed with 0 warnings/0 errors using
       `EnableWindowsTargeting`; all 659 portable tests passed; the static site and JSON Schema built;
       and the skill-creator validator reported `Skill is valid!`. Native Windows CI/packaging,
