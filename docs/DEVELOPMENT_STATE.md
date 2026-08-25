@@ -8,7 +8,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Stable branch: `main`.
 - Integration branch: `dev`.
 - Imported working baseline: `4be4c1a` (`chore: import working AgentNotify baseline`).
-- Current integration head: `8186aed` (`merge: prepare v0.0.1-alpha.1 prerelease`).
+- Recorded AEP integration merge: `3ed89ee` (`merge: fix dev Pages deployment`). Use `git log dev`
+  for the current documentation-only descendants.
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
 - Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
@@ -105,7 +106,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 37. Completed on `feature/about-section` and `chore/docs-and-release-0.0.3`: added an About tab to Settings and an "About AgentNotify" tray entry that opens it; added `docs/BUG.md`; removed machine-specific filesystem paths from all documentation, replacing them with `/path/to/agent-notify` and an environment variable for the external skill validator; and aligned every current-version reference and test count with the release. Version bumped to `0.0.3-alpha.1` (assembly/file metadata `0.0.3.0`). Gates: build 0/0, 644 tests, packaging rerun (installer SHA-256 `828db45c5b02ac0ce73b308d261433186042ac5e83ea9e694a0cb802d1dd9377`). The About tab and tray entry were confirmed working by the owner on Windows; the Telegram crash fix was likewise confirmed with a real bot, including a delivered notification.
 
 
-38. Active on `feature/aep-and-skill-installer`:
+38. Completed on `feature/aep-and-skill-installer` and `fix/pages-dev-environment`:
     - Standards research found that Agent Approve had already published an Agent Event Protocol 0.1
       review draft in May 2026, including `notification.sent` and `question.asked`. AgentNotify will
       adopt that envelope through an explicitly partial Human Attention profile instead of claiming
@@ -129,12 +130,13 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Hosted verification on topic commit `d265ac0`: Windows run `32892500440` completed the native
       build, 659 tests, and installer/resource packaging; portable run `32892500455` passed on both
       Ubuntu and macOS, publishing and executing the self-contained CLI/broker and exercising the
-      embedded Codex skill installer. Pages publication remains pending until the verified branch is
-      merged and pushed to `dev`.
+      embedded Codex skill installer.
     - The first `dev` Pages run (`32892869704`) built and uploaded the site successfully, then GitHub
       rejected deployment because the existing `github-pages` environment allows only `main`.
       Keep that release-line protection unchanged; `dev` deployments use a distinct
       `github-pages-dev` environment, which `actions/deploy-pages` explicitly supports.
+    - Pages run `32893126444` then deployed successfully. Direct HTTPS checks returned `200` and the
+      expected content for the AEP profile, published JSON Schema, and agent-skill installation page.
 
 
 ## Current documentation/status snapshot
@@ -143,7 +145,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
 - Automated coverage is 659 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work continues on `dev` after cross-platform Phases 1-3 described in entries 33 and 34. The next steps are pushing so the Linux/macOS CI actually runs, then Phase 4 distribution (Homebrew tap, Winget) and Phase 5 native clients.
+- Work continues on `dev` after cross-platform Phases 1-3 and the AEP/skill-installation milestone.
+  Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
 ## Next resume action
 
