@@ -131,6 +131,10 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       Ubuntu and macOS, publishing and executing the self-contained CLI/broker and exercising the
       embedded Codex skill installer. Pages publication remains pending until the verified branch is
       merged and pushed to `dev`.
+    - The first `dev` Pages run (`32892869704`) built and uploaded the site successfully, then GitHub
+      rejected deployment because the existing `github-pages` environment allows only `main`.
+      Keep that release-line protection unchanged; `dev` deployments use a distinct
+      `github-pages-dev` environment, which `actions/deploy-pages` explicitly supports.
 
 
 ## Current documentation/status snapshot
