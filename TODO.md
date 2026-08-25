@@ -59,7 +59,7 @@
 - [x] Portable `agentnotifyd` broker for macOS and Linux
 - [x] Self-contained archives for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 with checksums
 - [x] Checksum-verifying POSIX `install.sh`
-- [ ] Green Linux/macOS CI run (workflow written, never executed)
+- [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
 - [ ] Native macOS menu-bar and Linux tray clients
 - [ ] Automatic updates and schema/config migration framework

@@ -125,9 +125,12 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       well as release-line `main`, allowing prerelease documentation updates without a release merge.
     - Local verification: the full solution cross-build completed with 0 warnings/0 errors using
       `EnableWindowsTargeting`; all 659 portable tests passed; the static site and JSON Schema built;
-      and the skill-creator validator reported `Skill is valid!`. Native Windows CI/packaging,
-      self-contained Linux/macOS runner smoke tests, and Pages publication remain pending and must
-      not be claimed yet.
+      and the skill-creator validator reported `Skill is valid!`.
+    - Hosted verification on topic commit `d265ac0`: Windows run `32892500440` completed the native
+      build, 659 tests, and installer/resource packaging; portable run `32892500455` passed on both
+      Ubuntu and macOS, publishing and executing the self-contained CLI/broker and exercising the
+      embedded Codex skill installer. Pages publication remains pending until the verified branch is
+      merged and pushed to `dev`.
 
 
 ## Current documentation/status snapshot

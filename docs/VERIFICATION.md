@@ -677,7 +677,17 @@ Local verification on 2026-08-26:
 - `./scripts/build-site.sh`, JSON Schema parsing, and the generated AEP/schema/skill page checks
   completed successfully.
 
-Not yet verified at this checkpoint: the native Windows build and installer package, execution of
-the self-contained CLI/broker on GitHub's current Linux and macOS runners, and the deployed GitHub
-Pages output. These are required before merge and are not claimed here yet. No WPF visual behavior
-changed, and no new visual check is claimed.
+Hosted verification on topic commit `d265ac0`:
+
+- Windows Actions run
+  [`32892500440`](https://github.com/Akash97p/agent-notify/actions/runs/32892500440) passed the native
+  solution build, all 659 tests, and `scripts/package.ps1`, including the installer and embedded
+  resources.
+- Portable Actions run
+  [`32892500455`](https://github.com/Akash97p/agent-notify/actions/runs/32892500455) passed on both
+  Ubuntu and macOS. Each runner published self-contained single-file CLI and broker executables,
+  installed the embedded Codex skill with that CLI, started the published broker executable, and
+  exercised API persistence, keyed deduplication, owner-only files, and signal-driven shutdown.
+
+Not yet verified at this checkpoint: the deployed GitHub Pages output. It is triggered by the
+verified merge to `dev`. No WPF visual behavior changed, and no new visual check is claimed.
