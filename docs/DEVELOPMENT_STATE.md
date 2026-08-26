@@ -167,6 +167,18 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       with 0 warnings/0 errors and all 666 tests passed. Packaging was not rerun because no installer
       payload, embedded application resource, publish setting, or release workflow changed.
 
+41. In progress on `feature/monochrome-brand`:
+    - Adopted the owner-supplied monochrome robot mark as the project identity. The optimized dark
+      mark is the canonical README/site asset; original-resolution dark/light PNG and AVIF variants
+      are retained under `assets/branding/` for future native and promotional use.
+    - Regenerated the complete web favicon set and both multi-resolution ICO files. The Windows ICO
+      contains 16, 24, 32, 48, 64, 128, and 256-pixel images and continues to flow through the tray,
+      CLI, setup executable, packed WPF About view, and installer using the existing resource paths.
+    - Local verification: the static site built all 21 routes and was visually inspected at 1440x900
+      and 390x844 with the new mark; the full solution build passed with 0 warnings/0 errors and all
+      666 tests passed. Local Windows packaging is unavailable because no Windows .NET SDK is installed
+      in this WSL environment; the topic branch must pass the hosted Windows packaging gate before merge.
+
 
 ## Current documentation/status snapshot
 

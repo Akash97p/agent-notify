@@ -743,3 +743,25 @@ Local verification on 2026-08-26:
   itself has not run remotely yet, so hosted deployment of this new implementation is not claimed.
 
 No WPF source or behavior changed, and no WPF visual or external-provider check was performed.
+
+## Monochrome brand assets (`feature/monochrome-brand`)
+
+Local verification on 2026-08-26:
+
+- The owner-supplied white-on-black and black-on-white sources were copied byte-for-byte into
+  `assets/branding/` as PNG and AVIF. The canonical 512-pixel PNG was regenerated from the dark source.
+- The application ICO contains seven images at 16, 24, 32, 48, 64, 128, and 256 pixels; the web ICO
+  contains 16, 32, and 48-pixel images. The Android, Apple touch, and standalone favicon PNGs have the
+  exact dimensions declared by their filenames and manifest.
+- `./scripts/build-site.sh` passed and generated all 21 routes. The export was served under the real
+  `/agent-notify/` base path and inspected in Google Chrome at 1440x900 and 390x844. The new mark is
+  sharp, aligned with the header text, readable at navigation size, and consistent with the black/white UI.
+- `./scripts/build.sh -p:EnableWindowsTargeting=true` completed with 0 warnings and 0 errors, including
+  the WPF tray, CLI, setup project, and their icon resource metadata. `./scripts/test.sh --no-restore`
+  passed all 666 tests with 0 failures and 0 skips.
+- `./scripts/package.sh` could not run locally because the configured Windows .NET SDK path is absent
+  and no other Windows `dotnet.exe` is installed. A Linux SDK can cross-compile but cannot drive the
+  repository's PowerShell/Windows packaging boundary. Hosted Windows packaging is required before merge.
+
+No Windows executable or WPF window was launched locally, so taskbar/tray rendering and the packed
+About/setup image remain pending native Windows or hosted executable verification.
