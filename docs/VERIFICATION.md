@@ -717,3 +717,29 @@ Local verification on 2026-08-26:
   package content; the Windows installer payload remains the tray and CLI executables.
 
 No WPF visual behavior changed, and no visual or real external-provider check is claimed.
+
+## Next.js and shadcn/ui documentation site (`feature/site-shadcn`)
+
+Local verification on 2026-08-26:
+
+- `./scripts/build-site.sh` completed from a clean `npm ci`, passed TypeScript checking, compiled the
+  optimized Next.js 16 application, and generated all 21 static routes. The wrapper copied the export
+  to `_site`, published the ARC schema and favicon set, and created compatibility aliases for the
+  former `.html` documentation URLs.
+- A generated-output checker inspected 39 HTML entry points and found no missing internal links,
+  scripts, stylesheets, fonts, images, schema files, or documentation targets. The schema published
+  at `_site/schemas/arc-0.1.schema.json` is byte-identical to the protocol project source.
+- `npm audit --prefix site --audit-level=high` reported zero known vulnerabilities. A semantic scan
+  of the current source and generated site found no reference to the superseded protocol name.
+- The generated site was served from its real `/agent-notify/` base path and inspected in headless
+  Google Chrome. Landing-page renders at 1440x1200 and 390x844 preserve hierarchy and do not overflow;
+  ARC renders at 1440x1100 and 390x844 show the desktop navigation/TOC and responsive documentation
+  menu respectively. This is an actual browser render check, not an inference from generated HTML.
+- `./scripts/build.sh -p:EnableWindowsTargeting=true` completed the full solution cross-build with
+  0 warnings and 0 errors. `./scripts/test.sh --no-restore` passed all 666 tests with 0 failures and
+  0 skips.
+- `git diff --check` passed. Packaging was not rerun because the site branch changes no installer
+  payload, embedded application resource, publish setting, or release workflow. The Pages workflow
+  itself has not run remotely yet, so hosted deployment of this new implementation is not claimed.
+
+No WPF source or behavior changed, and no WPF visual or external-provider check was performed.
