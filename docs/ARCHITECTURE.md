@@ -9,8 +9,8 @@ AgentNotify is one interactive per-user Windows process. It owns the tray icon, 
 ### Protocol
 
 `AgentNotify.Protocol` is the portable wire-contract assembly. It defines the local API DTOs, stable
-notification type identifiers, priority/status enums, shared `System.Text.Json` rules, and the
-experimental AEP 0.1 Human Attention profile model and JSON Schema. The original eight snake-case
+notification type identifiers, priority/status enums, shared `System.Text.Json` rules, and the ARC
+0.1 event model and JSON Schema. The original eight snake-case
 type IDs remain compatible while custom IDs are validated and persisted without an enum migration.
 
 ### Core
@@ -32,11 +32,12 @@ Keyed creation is guarded by a process-wide asynchronous gate in `NotificationSe
 
 API callbacks are instance-scoped. Callback exceptions are logged and isolated from the API response, so a toast-rendering failure cannot roll back a notification already persisted to SQLite.
 
-`POST /v1/events` accepts the AEP profile's `notification.sent` and `question.asked` envelopes and
-projects them into the same `CreateNotificationRequest` path as the native API. A stable key derived
-from the producer event ID makes retries idempotent across active and resolved history. An explicit
-profile key opts into the native active-condition lifecycle. Unsupported event families are rejected
-instead of becoming noisy desktop events, and only bounded correlation metadata is retained.
+`POST /v1/events` accepts ARC `request.created`, `request.updated`, and `request.resolved` envelopes.
+Created and updated events project into the native notification model; resolution closes the keyed
+condition through the same lifecycle service. A stable key derived from sender/event identity makes
+unkeyed retries idempotent across active and resolved history. An explicit request key opts into the
+active-condition lifecycle. Unknown core fields are rejected, and only bounded correlation metadata
+is retained.
 
 ### Desktop app
 

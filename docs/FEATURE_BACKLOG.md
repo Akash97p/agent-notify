@@ -101,12 +101,12 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ### A04 — SDKs and protocols
 
-- Status: protocol assembly and experimental AEP 0.1 Human Attention ingestion profile implemented;
+- Status: protocol assembly and ARC 0.1 create/update/resolve ingestion implemented;
   language SDKs, ACP/stdout adapters, A2A bridges, and optional MCP server remain planned.
 - Publish small PowerShell, shell, Python, JavaScript, and .NET clients without replacing the stable
   REST/CLI path.
 - Keep provider streams and future ACP/A2A adapters behind the same validation and persistence
-  boundary as direct AEP events.
+  boundary as direct ARC events.
 - Evaluate an optional MCP server after the event contract and response model stabilize.
 
 ## Product and platform tasks

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akash97p.github.io/agent-notify/schemas/arc-0.1.schema.json",
+  "title": "Attention Request Contract 0.1",
+  "description": "A transport-neutral event contract for creating, updating, and resolving bounded requests for human attention.",
+  "type": "object",
+  "required": ["arc_version", "event_id", "event_type", "occurred_at", "sender", "request"],
+  "properties": {
+    "arc_version": { "const": "0.1" },
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "event_type": { "enum": ["request.created", "request.updated", "request.resolved"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "sender": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "version": { "type": "string", "maxLength": 100 },
+        "instance_id": { "type": "string", "maxLength": 100 }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "maxLength": 100 },
+        "correlation_id": { "type": "string", "maxLength": 200 },
+        "project": { "type": "string", "maxLength": 200 },
+        "cwd": { "type": "string", "maxLength": 1024 },
+        "pid": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": ".*\\S.*" },
+        "kind": { "enum": ["information", "question", "permission", "blocked", "failure", "completion"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "priority": { "enum": ["low", "normal", "high", "critical"] }
+      },
+      "additionalProperties": false
+    },
+    "extensions": {
+      "type": "object",
+      "properties": {
+        "x-agentnotify": {
+          "type": "object",
+          "properties": {
+            "notification_type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "patternProperties": { "^x-[a-z0-9][a-z0-9.-]{0,63}$": true },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "enum": ["request.created", "request.updated"] } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "required": ["kind", "message"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "enum": ["request.updated", "request.resolved"] } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "required": ["key"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "request.resolved" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "required": ["key"],
+            "maxProperties": 1
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

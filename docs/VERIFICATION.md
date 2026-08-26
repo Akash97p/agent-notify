@@ -659,7 +659,7 @@ visible at the window's minimum height, that `+ New provider` after selecting a 
 the form and re-enables the type dropdown, that Escape does the same, and that saving afterwards
 creates a second profile rather than overwriting the first.
 
-## AEP profile and agent skill installer (`feature/aep-and-skill-installer`)
+## Initial event profile and agent skill installer
 
 Local verification on 2026-08-26:
 
@@ -667,14 +667,14 @@ Local verification on 2026-08-26:
   0 warnings and 0 errors under the Linux .NET 10 SDK. This compiles the WPF and setup projects but
   is not a native Windows execution test.
 - `./scripts/test.sh --no-restore` passed 659 tests with 0 failures and 0 skips.
-- AEP coverage includes envelope validation, authentication, type defaults, extension projection,
+- Event-profile coverage included envelope validation, authentication, type defaults, extension projection,
   unknown-extension policy, immutable replay after resolution, explicit condition-key updates, and
   one-time outbound enqueue behavior.
 - CLI coverage installs the embedded skill for Codex and Claude Code, exercises both command forms,
   protects changed files unless forced, and verifies dry-run behavior.
 - The skill-creator `quick_validate.py` check reported `Skill is valid!` for
   `distribution/agentnotify`.
-- `./scripts/build-site.sh`, JSON Schema parsing, and the generated AEP/schema/skill page checks
+- `./scripts/build-site.sh`, JSON Schema parsing, and the generated event/schema/skill page checks
   completed successfully.
 
 Hosted verification on topic commit `d265ac0`:
@@ -691,9 +691,29 @@ Hosted verification on topic commit `d265ac0`:
 
 Documentation Actions run
 [`32893126444`](https://github.com/Akash97p/agent-notify/actions/runs/32893126444) deployed the site
-successfully. Direct HTTPS checks returned `200` and found the expected content at the published
-[AEP profile](https://akash97p.github.io/agent-notify/docs/aep.html),
-[JSON Schema](https://akash97p.github.io/agent-notify/schemas/aep-agentnotify-profile-0.1.schema.json),
-and [agent skill guide](https://akash97p.github.io/agent-notify/docs/agent-skills.html).
+successfully. Direct HTTPS checks returned `200` for the then-current event documentation, JSON
+Schema, and [agent skill guide](https://akash97p.github.io/agent-notify/docs/agent-skills.html).
 
 No WPF visual behavior changed, and no new visual check is claimed.
+
+## ARC 0.1 (`feature/arc-contract`)
+
+Local verification on 2026-08-26:
+
+- `./scripts/build.sh -p:EnableWindowsTargeting=true` completed the full solution cross-build under
+  the Linux .NET 10 SDK with 0 warnings and 0 errors. This compiled the WPF and setup projects but
+  did not execute either Windows UI.
+- `./scripts/test.sh --no-restore` passed 666 tests with 0 failures and 0 skips. The 17 focused ARC
+  cases cover authentication, all request-kind defaults, strict field handling, vendor extensions,
+  immutable replay after resolution, one-time outbound enqueueing, active-only updates, idempotent
+  resolution, missing conditions, and AgentNotify presentation projection.
+- `./scripts/build-site.sh` generated the complete documentation set, including ARC, and
+  `python3 -m json.tool src/AgentNotify.Protocol/Schemas/arc-0.1.schema.json` parsed the published
+  schema successfully.
+- `git diff --check` passed, and a case-insensitive repository/site scan found no superseded protocol
+  name or field references in the current tree.
+- Packaging was not rerun because this branch changes no installer payload, embedded resource,
+  publish setting, or release automation. The protocol schema is published documentation and NuGet
+  package content; the Windows installer payload remains the tray and CLI executables.
+
+No WPF visual behavior changed, and no visual or real external-provider check is claimed.

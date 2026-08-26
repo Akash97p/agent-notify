@@ -8,7 +8,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Stable branch: `main`.
 - Integration branch: `dev`.
 - Imported working baseline: `4be4c1a` (`chore: import working AgentNotify baseline`).
-- Recorded AEP integration merge: `3ed89ee` (`merge: fix dev Pages deployment`). Use `git log dev`
+- Recorded protocol/skill integration merge: `3ed89ee` (`merge: fix dev Pages deployment`). Use `git log dev`
   for the current documentation-only descendants.
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
 - Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
@@ -106,18 +106,14 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 37. Completed on `feature/about-section` and `chore/docs-and-release-0.0.3`: added an About tab to Settings and an "About AgentNotify" tray entry that opens it; added `docs/BUG.md`; removed machine-specific filesystem paths from all documentation, replacing them with `/path/to/agent-notify` and an environment variable for the external skill validator; and aligned every current-version reference and test count with the release. Version bumped to `0.0.3-alpha.1` (assembly/file metadata `0.0.3.0`). Gates: build 0/0, 644 tests, packaging rerun (installer SHA-256 `828db45c5b02ac0ce73b308d261433186042ac5e83ea9e694a0cb802d1dd9377`). The About tab and tray entry were confirmed working by the owner on Windows; the Telegram crash fix was likewise confirmed with a real bot, including a delivered notification.
 
 
-38. Completed on `feature/aep-and-skill-installer` and `fix/pages-dev-environment`:
-    - Standards research found that Agent Approve had already published an Agent Event Protocol 0.1
-      review draft in May 2026, including `notification.sent` and `question.asked`. AgentNotify will
-      adopt that envelope through an explicitly partial Human Attention profile instead of claiming
-      or publishing a second incompatible AEP under the same name.
+38. Completed on the event-profile/skill-installer milestone and `fix/pages-dev-environment`:
+    - A first experimental event-ingestion profile was implemented and published. It was later
+      superseded by the independently designed Attention Request Contract recorded below.
     - The former `AgentNotify.Contracts` project is being promoted to `AgentNotify.Protocol`; it owns
       native API contracts plus the profile model/schema, while projection remains in the API layer.
-    - `POST /v1/events` accepts only the two attention-relevant AEP event types, derives an idempotent
-      key from producer/event identity, retains bounded correlation metadata, and uses the existing
-      validation, SQLite, callbacks, routing, and outbox path. Event-identity retries return the
-      original projection across resolved history without another delivery; an explicit extension
-      key instead opts into the existing active-condition lifecycle.
+    - `POST /v1/events` established the authenticated event projection, immutable retry behavior,
+      bounded correlation metadata, and reuse of the validation, SQLite, callbacks, routing, and
+      outbox path that ARC now replaces and extends.
     - The CLI skill installer targets the current documented personal/project locations for Codex
       (`.agents/skills`) and Claude Code (`.claude/skills`), embeds its offline payload, refuses to
       overwrite changed files without `--force`, and supports `--dry-run` and custom roots.
@@ -136,16 +132,33 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       Keep that release-line protection unchanged; `dev` deployments use a distinct
       `github-pages-dev` environment, which `actions/deploy-pages` explicitly supports.
     - Pages run `32893126444` then deployed successfully. Direct HTTPS checks returned `200` and the
-      expected content for the AEP profile, published JSON Schema, and agent-skill installation page.
+      expected content for the event profile, published JSON Schema, and agent-skill installation page.
+
+39. In progress on `feature/arc-contract`:
+    - The owner selected **ARC — Attention Request Contract** as the independent open contract for
+      agent-to-human attention. ARC is not a renamed compatibility profile.
+    - ARC 0.1 defines `request.created`, `request.updated`, and `request.resolved`, separates immutable
+      event identity from a stable condition key, and keeps transport, authentication, persistence,
+      routing, and presentation outside the base JSON contract.
+    - AgentNotify is the first reference implementation. `/v1/events` retains its loopback bearer
+      boundary and now maps the full ARC 0.1 lifecycle into local history. Missing updates do not
+      create conditions; resolution and unkeyed event replays are idempotent.
+    - Structured human responses remain outside ARC 0.1 until AgentNotify can implement the UI and
+      callback boundary end to end. The site will move next to a Next.js static export using actual
+      shadcn/ui components and a monochrome neutral theme.
+    - Verification: 17 focused ARC API tests pass; the full solution cross-build completes with
+      0 warnings and 0 errors; all 666 tests pass; the dependency-free site build and ARC JSON parse
+      pass. Packaging was not rerun because no installer payload, embedded resource, publish setting,
+      or release automation changed. No WPF visual behavior changed or was checked.
 
 
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 659 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 666 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
-- Work continues on `dev` after cross-platform Phases 1-3 and the AEP/skill-installation milestone.
+- Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
 ## Next resume action

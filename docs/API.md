@@ -59,19 +59,22 @@ Validation failures return `400` with `{ "error": "<message>" }`.
 
 ### `POST /v1/events`
 
-Accepts the experimental AEP 0.1 Human Attention profile. Supported event types are
-`notification.sent` with a `notification` content entry and `question.asked` with a `question`
-content entry. The optional `extensions.x-agentnotify` object supplies title, notification type,
-priority, key, project, and process ID projection hints.
+Accepts ARC 0.1 `request.created`, `request.updated`, and `request.resolved` events. The sender,
+execution context, semantic request kind, title, message, priority, and stable condition key project
+into the native notification lifecycle. `extensions.x-agentnotify.notification_type` may select a
+configured local type ID; other correctly namespaced vendor extensions are ignored.
 
-A stable key derived from `agent.slug` and the AEP event `id` makes delivery retries return the
-original notification, even after it is resolved. A new event returns `201 NotificationDto`; an
-idempotent replay returns `200 NotificationDto` without another outbound delivery. Supplying
-`x-agentnotify.key` opts into the native active-condition update lifecycle. The endpoint uses the
-same validation, persistence, callbacks, routes, and durable outbox as native creation.
-Invalid/unsupported envelopes return `400`.
+An unkeyed created event derives a stable key from `sender.id` and `event_id`, so a delivery retry
+returns the original notification even after resolution. An explicit `request.key` opts into the
+condition lifecycle. Updates require an existing active condition and never create a missing one;
+resolutions are idempotent.
 
-See [AEP.md](AEP.md) for the complete profile, mapping table, schema, security rules, and example.
+A newly persisted request returns `201 NotificationDto`. An update, resolution, keyed in-place
+refresh, or immutable replay returns `200 NotificationDto`. A missing update/resolution target
+returns `404`; invalid or unsupported envelopes return `400`. The endpoint uses the same validation,
+persistence, callbacks, routing, and durable outbox boundary as native creation.
+
+See [ARC.md](ARC.md) for the complete contract, lifecycle, schema, security rules, and examples.
 
 ### `GET /v1/notifications`
 
@@ -194,7 +197,7 @@ curl --fail-with-body -sS -X POST http://127.0.0.1:47821/v1/notifications \
 unset TOKEN
 ```
 
-### AEP event
+### ARC event
 
 ```bash
 TOKEN="$(agentnotify.exe token)"
@@ -202,13 +205,17 @@ curl --fail-with-body -sS -X POST http://127.0.0.1:47821/v1/events \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "aep_version":"0.1",
-    "id":"evt_build_42",
-    "type":"notification.sent",
-    "time":"2026-08-26T01:15:00Z",
-    "agent":{"slug":"codex","display_name":"Codex"},
-    "content":[{"type":"notification","text":"All tests passed."}],
-    "extensions":{"x-agentnotify":{"title":"Build complete","notification_type":"completed"}}
+    "arc_version":"0.1",
+    "event_id":"evt_build_42",
+    "event_type":"request.created",
+    "occurred_at":"2026-08-26T01:15:00Z",
+    "sender":{"id":"codex","name":"Codex"},
+    "context":{"project":"agent-notify"},
+    "request":{
+      "kind":"completion",
+      "title":"Build complete",
+      "message":"All tests passed."
+    }
   }'
 unset TOKEN
 ```

@@ -23,7 +23,7 @@
   <header class="topbar">
     <a class="brand" href="#top"><img src="an.png" alt=""><span>AgentNotify</span></a>
     <nav aria-label="Primary navigation">
-      <a href="docs/index.html">Documentation</a><a href="docs/aep.html">AEP</a><a href="#platforms">Platforms</a><a href="#install">Install</a><a href="#agents">Agents</a><a href="#architecture">Architecture</a><a href="#contribute">Contribute</a>
+      <a href="docs/index.html">Documentation</a><a href="docs/arc.html">ARC</a><a href="#platforms">Platforms</a><a href="#install">Install</a><a href="#agents">Agents</a><a href="#architecture">Architecture</a><a href="#contribute">Contribute</a>
     </nav>
     <a class="github" href="https://github.com/Akash97p/agent-notify">GitHub ↗</a>
   </header>
@@ -40,7 +40,7 @@
       <div class="hero-card"><img src="an.png" alt="AgentNotify robot-bell icon"><strong>Local first</strong><span>Loopback API · encrypted token · SQLite history · no telemetry</span></div>
     </section>
 
-    <section class="stats" aria-label="Project highlights"><div><strong>8</strong><span>built-in notification types, plus custom</span></div><div><strong>1</strong><span>single-file installer</span></div><div><strong>659</strong><span>automated tests</span></div><div><strong>18</strong><span>implemented outbound adapters</span></div></section>
+    <section class="stats" aria-label="Project highlights"><div><strong>8</strong><span>built-in notification types, plus custom</span></div><div><strong>1</strong><span>single-file installer</span></div><div><strong>666</strong><span>automated tests</span></div><div><strong>18</strong><span>implemented outbound adapters</span></div></section>
 
     <section id="platforms" class="section"><p class="kicker">Platform support</p><h2>One broker. One graphical app, so far.</h2>
       <p class="wide-copy">Everything below the user interface—the CLI, the loopback API, the SQLite history, the eighteen outbound adapters—is portable and runs on all three platforms. The graphical half is not: the tray icon, the notification center, the custom toasts and the Settings window are WPF, and WPF is Windows. On macOS and Linux you run <code>agentnotifyd</code> as a daemon and edit <code>config.json</code> by hand.</p>
@@ -76,17 +76,17 @@ Akash97p/agent-notify/main/scripts/install.sh | sh</code></pre></article>
 
 agentnotify.exe resolve NOTIFICATION_ID</code></pre></section>
 
-    <section class="section split"><div><p class="kicker">Open event contract</p><h2>AEP attention events, one local lifecycle.</h2><p>AgentNotify consumes the <code>notification.sent</code> and <code>question.asked</code> subset of the public AEP 0.1 draft through an authenticated loopback endpoint. It preserves agent/session identity and deduplicates retries before local history and optional routes.</p><p>The implementation is explicitly experimental and partial; AgentNotify adopts the existing draft instead of inventing a competing protocol with the same name.</p><a class="text-link" href="docs/aep.html">Read the AEP Human Attention profile →</a></div><pre><code>POST /v1/events
+    <section class="section split"><div><p class="kicker">Open attention contract</p><h2>ARC events, one local lifecycle.</h2><p>AgentNotify defines the Attention Request Contract for creating, updating, and resolving bounded requests for human attention. It preserves sender/session identity and deduplicates retries before local history and optional routes.</p><p>ARC is transport-neutral; the authenticated loopback endpoint is AgentNotify's reference binding.</p><a class="text-link" href="docs/arc.html">Read the ARC 0.1 specification →</a></div><pre><code>POST /v1/events
 {
-  "aep_version": "0.1",
-  "id": "evt_42",
-  "type": "question.asked",
-  "time": "2026-08-26T01:15:00Z",
-  "agent": { "slug": "codex" },
-  "content": [{
-    "type": "question",
-    "text": "May I deploy?"
-  }]
+  "arc_version": "0.1",
+  "event_id": "evt_42",
+  "event_type": "request.created",
+  "occurred_at": "2026-08-26T01:15:00Z",
+  "sender": { "id": "codex" },
+  "request": {
+    "kind": "permission",
+    "message": "May I deploy?"
+  }
 }</code></pre></section>
 
     <section id="architecture" class="section"><p class="kicker">Architecture</p><h2>Local truth, optional delivery.</h2><div class="flow"><span>Coding agents</span><b>→</b><span>Authenticated loopback API</span><b>→</b><span>SQLite lifecycle</span><b>→</b><span>WPF toast + center</span></div><p class="wide-copy">The tray process owns the API, history, notification center, and custom non-activating toast stack. Opt-in webhook, email, and chat adapters—including Mattermost and Google Chat—subscribe after local persistence through a durable outbox, so network failures can never lose or reject a local notification.</p></section>

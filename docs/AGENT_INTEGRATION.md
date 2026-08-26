@@ -114,8 +114,8 @@ The wrapper first uses `agentnotify.exe` from PATH, then the local packaged payl
 
 Use direct HTTP only when the CLI cannot be used. Obtain the token without echoing it into logs, send it as `Authorization: Bearer`, and follow `docs/API.md`. Never include the token in prompts, issue reports, notification metadata, or remote requests.
 
-Agents that already emit AEP can instead post the supported attention envelope to `/v1/events`. See
-[AEP.md](AEP.md). Provider-stream, ACP, and A2A translation are future adapters, not current claims.
+Agents can post ARC attention-request events to `/v1/events`. See [ARC.md](ARC.md). Provider-stream,
+ACP, and A2A translation are future adapters, not current claims.
 
 ## Prompt snippet
 
