@@ -57,7 +57,7 @@ public partial class ToastWindow : Window
         var accent = TypeVisuals.WpfColorFor(notification.Type, _config);
         var brush = new SolidColorBrush(accent);
         Root.Tag = brush;
-        Root.BorderBrush = brush;
+        Root.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x27, 0x2A));
         TypeLabel.Text = TypeVisuals.LabelFor(notification.Type, _config);
         TitleText.Text = notification.Title;
         MessageText.Text = notification.Message;

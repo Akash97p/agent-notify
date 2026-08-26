@@ -304,15 +304,18 @@ public partial class SettingsWindow : Window
     {
         StatusText.Text = message;
         StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FCA5A5"));
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F87171"));
     }
 
     private void SetSuccess(string message)
     {
         StatusText.Text = message;
         StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#86EFAC"));
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4ADE80"));
     }
 
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void Maximize_Click(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 }
