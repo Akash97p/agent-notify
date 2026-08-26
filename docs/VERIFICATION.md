@@ -791,7 +791,16 @@ Local verification on 2026-08-26:
   handlers compile. The subsequent full solution Release build also passed with 0 warnings and 0 errors.
 - `./scripts/test.sh --no-restore` passed all 666 tests with 0 failures and 0 skips.
 - Local packaging remains unavailable because this WSL environment has no Windows `dotnet.exe`. The topic
-  branch must pass the hosted Windows installer/resource job before merge.
+  branch therefore used the hosted Windows installer/resource job.
+
+Hosted verification on topic commit `807778c`:
+
+- Windows Actions run
+  [`32955922259`](https://github.com/Akash97p/agent-notify/actions/runs/32955922259) passed the native
+  solution build, all 666 tests, `scripts/package.ps1`, and installer/embedded-resource packaging.
+- Portable Actions run
+  [`32955922411`](https://github.com/Akash97p/agent-notify/actions/runs/32955922411) passed on both
+  Ubuntu and macOS, including native CLI/broker publish and smoke tests.
 
 **Not verified: no WPF surface was rendered or interacted with.** A Windows human still needs to inspect
 Settings at minimum/default/maximized sizes, provider and route editors, Notification Center active/recent
