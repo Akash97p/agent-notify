@@ -2,27 +2,32 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Dark theme for the settings surfaces.
+        Monochrome desktop design system for the settings surfaces.
 
         WPF's default control templates paint system-black text, which is
         unreadable against the dark settings background. These implicit styles
         restate every control the settings windows use. The dictionary is merged
-        into SettingsWindow only, so the toast and notification-center visuals
-        stay exactly as they are.
+        into SettingsWindow only. Other windows use the same token values in
+        layouts tailored to their interaction model.
     -->
 
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#0B1120"/>
-    <SolidColorBrush x:Key="PanelBrush" Color="#111827"/>
-    <SolidColorBrush x:Key="ControlBrush" Color="#1B2436"/>
-    <SolidColorBrush x:Key="ControlHoverBrush" Color="#232E44"/>
-    <SolidColorBrush x:Key="BorderBrush" Color="#334155"/>
-    <SolidColorBrush x:Key="BorderFocusBrush" Color="#6366F1"/>
-    <SolidColorBrush x:Key="TextBrush" Color="#EEF2FF"/>
-    <SolidColorBrush x:Key="MutedTextBrush" Color="#9CA3AF"/>
-    <SolidColorBrush x:Key="DisabledTextBrush" Color="#6B7280"/>
-    <SolidColorBrush x:Key="AccentBrush" Color="#4F46E5"/>
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#6366F1"/>
-    <SolidColorBrush x:Key="SelectionBrush" Color="#312E81"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#09090B"/>
+    <SolidColorBrush x:Key="PanelBrush" Color="#0E0E11"/>
+    <SolidColorBrush x:Key="ElevatedBrush" Color="#111113"/>
+    <SolidColorBrush x:Key="ControlBrush" Color="#18181B"/>
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#27272A"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#27272A"/>
+    <SolidColorBrush x:Key="BorderFocusBrush" Color="#FAFAFA"/>
+    <SolidColorBrush x:Key="TextBrush" Color="#FAFAFA"/>
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#A1A1AA"/>
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#52525B"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#FAFAFA"/>
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#E4E4E7"/>
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#09090B"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="#27272A"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#FACC15"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="#F87171"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="#4ADE80"/>
 
     <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -119,7 +124,7 @@
                                 Background="{StaticResource ControlBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                             <Path x:Name="Tick" Width="10" Height="10" Stretch="Uniform"
-                                  Stroke="White" StrokeThickness="2" Visibility="Collapsed"
+                                  Stroke="{StaticResource AccentTextBrush}" StrokeThickness="2" Visibility="Collapsed"
                                   Data="M 0,5 L 4,9 L 10,1"/>
                         </Border>
                         <ContentPresenter Margin="9,0,0,0" VerticalAlignment="Center"
@@ -246,8 +251,8 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SelectionBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -296,7 +301,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.84"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -312,8 +317,39 @@
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="WindowIconButton" TargetType="Button">
+        <Setter Property="Width" Value="38"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="2,0,0,0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHoverBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="TabItem">
@@ -382,7 +418,7 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border CornerRadius="5" Background="#3F4A61" Margin="2,0"/>
+                                            <Border CornerRadius="5" Background="#3F3F46" Margin="2,0"/>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>

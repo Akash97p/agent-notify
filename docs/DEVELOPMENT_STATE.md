@@ -179,6 +179,22 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       666 tests passed. Hosted Windows run `32953223592` then passed the native build, tests, installer,
       and embedded-resource package; portable run `32953223540` passed on Ubuntu and macOS.
 
+42. Completed on `feature/windows-monochrome-ui`:
+    - Applied the website's monochrome design language to Settings, channel management, Notification
+      Center, desktop toasts, and the standalone installer. Shared settings tokens now use near-black
+      surfaces, zinc borders, white primary actions, and neutral text hierarchy; semantic notification
+      type/status colors remain only where they communicate state.
+    - Settings and Notification Center now use resizable custom Windows chrome with branded title bars,
+      minimize/maximize/close controls, clearer page hierarchy, bordered content surfaces, and consistent
+      action footers. Existing control names, event handlers, persistence paths, and security behavior are
+      unchanged. Toasts use the same surfaces while retaining the narrow configured type accent.
+    - The installer now shares the mark, palette, controls, licence card, progress treatment, and publisher
+      footer. It remains a per-user, no-elevation installer with the same acceptance and payload behavior.
+    - Local verification: the full solution cross-build passed with 0 warnings/0 errors and all 666 tests
+      passed. Hosted Windows run `32955922259` passed native build, tests, and installer/resource packaging;
+      portable run `32955922411` passed on Ubuntu and macOS. No Windows UI could be launched from WSL,
+      so layout, DPI, keyboard, and screen-reader checks remain honestly unverified.
+
 
 ## Current documentation/status snapshot
 

@@ -1,8 +1,16 @@
 <Window x:Class="AgentNotify.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AgentNotify.App"
-        Title="AgentNotify Settings" Width="860" Height="700" MinWidth="700" MinHeight="580"
-        WindowStartupLocation="CenterScreen" Background="#0B1120" Foreground="#EEF2FF">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AgentNotify.App"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="AgentNotify Settings" Width="1040" Height="780" MinWidth="820" MinHeight="640"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
+        Background="#09090B" Foreground="#FAFAFA"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="8"
+                            GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -10,17 +18,40 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
-    <Grid Margin="28">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <StackPanel>
-            <TextBlock Text="Settings" FontSize="30" FontWeight="Bold" Margin="0"/>
-            <TextBlock Text="Configure local notifications. Secrets are never shown here." Foreground="#9CA3AF"/>
-        </StackPanel>
-        <TabControl Grid.Row="1" Margin="0,20,0,18" Background="#111827" Foreground="#EEF2FF">
+    <Grid Background="{StaticResource SurfaceBrush}">
+        <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="72"/></Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0,8,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Image Source="pack://application:,,,/Resources/an.ico" Width="24" Height="24"
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="AgentNotify" FontWeight="SemiBold" Margin="0"/>
+                    <TextBlock Text="/ Settings" Foreground="{StaticResource MutedTextBrush}" Margin="8,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#xE921;" Style="{StaticResource WindowIconButton}" Click="Minimize_Click" ToolTip="Minimize"/>
+                    <Button Content="&#xE922;" Style="{StaticResource WindowIconButton}" Click="Maximize_Click" ToolTip="Maximize or restore"/>
+                    <Button Content="&#xE8BB;" Style="{StaticResource WindowIconButton}" Click="Cancel_Click" ToolTip="Close"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="28,24,28,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <StackPanel>
+                <TextBlock Text="LOCAL CONTROL PLANE" FontSize="10" FontWeight="SemiBold"
+                           Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/>
+                <TextBlock Text="Settings" FontSize="30" FontWeight="SemiBold" Margin="0"/>
+                <TextBlock Text="Configure the local broker, attention surfaces, and opt-in delivery routes."
+                           Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0"/>
+            </StackPanel>
+            <TabControl Grid.Row="1" Margin="0,20,0,18" Background="{StaticResource PanelBrush}" Foreground="{StaticResource TextBrush}">
             <TabItem Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
                     <TextBlock Text="Local API port" FontWeight="SemiBold"/><TextBox x:Name="PortBox"/>
-                    <TextBlock Text="Changing the port requires restarting AgentNotify." Foreground="#FBBF24" Margin="0,0,0,16"/>
+                    <TextBlock Text="Changing the port requires restarting AgentNotify." Foreground="{StaticResource WarningBrush}" Margin="0,0,0,16"/>
                     <TextBlock Text="History retention (days)" FontWeight="SemiBold"/><TextBox x:Name="RetentionBox"/>
                     <CheckBox x:Name="PauseBox" Content="Pause desktop toasts (notifications are still stored)"/>
                     <CheckBox x:Name="DndBox" Content="Do not disturb"/>
@@ -80,13 +111,13 @@
                                VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="AgentNotify" FontSize="26" FontWeight="Bold"/>
-                            <TextBlock x:Name="AboutVersionText" Foreground="#9CA3AF" FontSize="13"/>
-                            <TextBlock x:Name="AboutPrereleaseText" Foreground="#FBBF24" FontSize="12"
+                            <TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedTextBrush}" FontSize="13"/>
+                            <TextBlock x:Name="AboutPrereleaseText" Foreground="{StaticResource WarningBrush}" FontSize="12"
                                        TextWrapping="Wrap" MaxWidth="520" Margin="0,4,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <TextBlock TextWrapping="Wrap" Foreground="#D1D5DB" Margin="0,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextBrush}" Margin="0,0,0,16">
                         The local human-attention broker for coding agents. Agents send a small authenticated
                         request over loopback; AgentNotify shows a desktop notification, keeps the event in local
                         SQLite history, and makes unresolved requests visible from the tray. It answers one
@@ -94,7 +125,7 @@
                     </TextBlock>
 
                     <TextBlock Text="Local first" FontWeight="SemiBold" Margin="0,6,0,4"/>
-                    <TextBlock TextWrapping="Wrap" Foreground="#9CA3AF" Margin="0,0,0,16">
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,16">
                         The API is bound to 127.0.0.1 and requires a bearer token. Notification history stays on
                         this machine. Outbound channels are opt-in and stay disabled until you configure and
                         enable both a provider and a matching route. There is no telemetry.
@@ -119,26 +150,33 @@
                     </TextBlock>
 
                     <TextBlock Text="Local data" FontWeight="SemiBold" Margin="0,6,0,4"/>
-                    <TextBlock x:Name="AboutDataPathText" Foreground="#9CA3AF" TextWrapping="Wrap"
+                    <TextBlock x:Name="AboutDataPathText" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
                                FontFamily="Consolas" FontSize="12" Margin="0,0,0,6"/>
-                    <TextBlock Foreground="#FCA5A5" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16">
+                    <TextBlock Foreground="{StaticResource ErrorBrush}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16">
                         config.json contains the local bearer token. Do not share or commit it.
                     </TextBlock>
 
-                    <Border Background="#111827" Padding="14" CornerRadius="6">
+                    <Border Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="16" CornerRadius="8">
                         <StackPanel>
-                            <TextBlock x:Name="AboutPublisherText" Foreground="#9CA3AF" FontSize="12"
+                            <TextBlock x:Name="AboutPublisherText" Foreground="{StaticResource MutedTextBrush}" FontSize="12"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Foreground="#6B7280" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                            <TextBlock Foreground="{StaticResource DisabledTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Text="MIT licensed. Provided as is, without warranty of any kind. Binaries are not code-signed."/>
                         </StackPanel>
                     </Border>
                 </StackPanel></ScrollViewer>
             </TabItem>
-        </TabControl>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#FCA5A5" Margin="0,0,12,0"/>
-            <Button Content="Cancel" Click="Cancel_Click"/><Button Content="Save settings" Click="Save_Click" Style="{StaticResource PrimaryButton}"/>
-        </StackPanel>
+            </TabControl>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="28,0">
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource ErrorBrush}" Margin="0,0,16,0"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="Cancel" Click="Cancel_Click"/>
+                    <Button Content="Save settings" Click="Save_Click" Style="{StaticResource PrimaryButton}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
