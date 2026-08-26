@@ -159,33 +159,45 @@ public static class ApiHost
 
         app.MapPost($"{RootPath}/events", async (HttpContext http) =>
         {
-            AepEvent? aepEvent;
+            ArcEvent? arcEvent;
             try
             {
-                aepEvent = await http.Request.ReadFromJsonAsync<AepEvent>(Json.Options, http.RequestAborted);
+                arcEvent = await http.Request.ReadFromJsonAsync<ArcEvent>(Json.Options, http.RequestAborted);
             }
             catch (JsonException)
             {
                 return Results.Json(new { error = "invalid JSON body" }, statusCode: StatusCodes.Status400BadRequest);
             }
 
-            if (!AepAttentionProfileMapper.TryMap(
-                    aepEvent,
-                    out var request,
-                    out var usesEventIdentityKey,
-                    out var mappingError))
+            if (!ArcEventMapper.TryMap(arcEvent, out var mapping, out var mappingError))
                 return Results.Json(new { error = mappingError }, statusCode: StatusCodes.Status400BadRequest);
 
-            // AEP events are immutable. When the profile-derived event identity is used, a replay
-            // returns the original local projection even after its notification has been resolved.
-            if (usesEventIdentityKey)
+            if (mapping!.Operation == ArcOperation.Resolve)
             {
-                var existing = await repository.FindByKeyAsync(request!.Key!, http.RequestAborted);
+                var resolution = await service.ResolveByKeyAsync(mapping.LocalKey, http.RequestAborted);
+                if (resolution.NotFound)
+                    return Results.Json(new { error = "ARC request not found" }, statusCode: StatusCodes.Status404NotFound);
+                if (resolution.Error is not null)
+                    return Results.Json(new { error = resolution.Error }, statusCode: StatusCodes.Status400BadRequest);
+
+                InvokeCallback(callbacks?.Updated, resolution.Value!, logger);
+                return Results.Json(DtoMapper.ToDto(resolution.Value!), statusCode: StatusCodes.Status200OK);
+            }
+
+            // An unkeyed request.created event is immutable. Its derived event-identity key makes
+            // delivery retries return the original local projection across resolved history.
+            if (mapping.UsesEventIdentityKey)
+            {
+                var existing = await repository.FindByKeyAsync(mapping.LocalKey, http.RequestAborted);
                 if (existing is not null)
                     return Results.Json(DtoMapper.ToDto(existing), statusCode: StatusCodes.Status200OK);
             }
 
-            var result = await service.CreateAsync(request!, http.RequestAborted);
+            var result = mapping.Operation == ArcOperation.Update
+                ? await service.UpdateActiveByKeyAsync(mapping.Request!, http.RequestAborted)
+                : await service.CreateAsync(mapping.Request!, http.RequestAborted);
+            if (result.NotFound)
+                return Results.Json(new { error = "active ARC request not found" }, statusCode: StatusCodes.Status404NotFound);
             if (result.Error is not null)
                 return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
 
@@ -200,7 +212,9 @@ public static class ApiHost
                 notification,
                 logger);
 
-            return Results.Json(DtoMapper.ToDto(notification), statusCode: StatusCodes.Status201Created);
+            return Results.Json(
+                DtoMapper.ToDto(notification),
+                statusCode: result.WasCreated ? StatusCodes.Status201Created : StatusCodes.Status200OK);
         });
 
         app.MapGet($"{RootPath}/notifications", async (HttpContext http, CancellationToken ct) =>

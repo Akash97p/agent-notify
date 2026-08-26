@@ -15,7 +15,7 @@
 - [x] SQLite history behind `INotificationRepository`
 - [x] Concurrent-safe keyed deduplication inside the single broker
 - [x] Request/body validation, rate limiting, and malformed JSON handling
-- [x] Experimental AEP 0.1 Human Attention profile for notification and question ingestion
+- [x] ARC 0.1 request creation, update, and resolution lifecycle
 - [x] Local daily logs without token logging
 - [x] History retention pruning
 
@@ -67,7 +67,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 659 passed, 0 failed, 0 skipped
+- [x] Automated tests: 666 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

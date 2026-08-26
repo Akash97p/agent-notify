@@ -90,6 +90,66 @@ public sealed class NotificationService
             : ServiceResult<Notification>.Ok(updated);
     }
 
+    /// <summary>Updates an existing active keyed condition without creating a replacement.</summary>
+    public async Task<ServiceResult<Notification>> UpdateActiveByKeyAsync(
+        CreateNotificationRequest request,
+        CancellationToken ct = default)
+    {
+        var validationError = NotificationValidator.Validate(request);
+        if (validationError is not null)
+            return ServiceResult<Notification>.Fail(validationError);
+        if (string.IsNullOrWhiteSpace(request.Key))
+            return ServiceResult<Notification>.Fail("key is required");
+
+        request.Type = NotificationTypes.Normalize(request.Type)!;
+        request.Priority ??= _config.DefaultPriorityFor(request.Type);
+        await _dedupGate.WaitAsync(ct);
+        try
+        {
+            var existing = await _repository.FindActiveByKeyAsync(request.Key.Trim(), ct);
+            if (existing is null)
+                return ServiceResult<Notification>.NotExist();
+
+            ApplyToExisting(existing, request, DateTimeOffset.UtcNow);
+            var updated = await _repository.UpdateAsync(existing, ct);
+            return updated is null
+                ? ServiceResult<Notification>.NotExist()
+                : ServiceResult<Notification>.Ok(updated);
+        }
+        finally { _dedupGate.Release(); }
+    }
+
+    /// <summary>Resolves an active keyed condition. Replaying an already-resolved condition is idempotent.</summary>
+    public async Task<ServiceResult<Notification>> ResolveByKeyAsync(string key, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return ServiceResult<Notification>.Fail("key is required");
+
+        await _dedupGate.WaitAsync(ct);
+        try
+        {
+            var existing = await _repository.FindByKeyAsync(key.Trim(), ct);
+            if (existing is null)
+                return ServiceResult<Notification>.NotExist();
+            if (existing.Status == NotificationStatus.Resolved)
+                return ServiceResult<Notification>.Ok(existing);
+
+            var transitionError = StatusTransitions.Validate(existing.Status, NotificationStatus.Resolved);
+            if (transitionError is not null)
+                return ServiceResult<Notification>.Fail(transitionError);
+
+            var updated = await _repository.UpdateStatusAsync(
+                existing.Id,
+                NotificationStatus.Resolved,
+                DateTimeOffset.UtcNow,
+                ct);
+            return updated is null
+                ? ServiceResult<Notification>.NotExist()
+                : ServiceResult<Notification>.Ok(updated);
+        }
+        finally { _dedupGate.Release(); }
+    }
+
     private static void ApplyToExisting(Notification existing, CreateNotificationRequest request, DateTimeOffset now)
     {
         existing.Key = string.IsNullOrWhiteSpace(request.Key) ? null : request.Key.Trim();

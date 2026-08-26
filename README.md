@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.0.3--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-659%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-666%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -20,7 +20,7 @@
   <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
   <a href="docs/INSTALLATION.md">Installation</a> ·
   <a href="docs/API.md">API</a> ·
-  <a href="docs/AEP.md">AEP</a> ·
+  <a href="docs/ARC.md">ARC</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -182,16 +182,16 @@ The source skill is at [distribution/agentnotify/SKILL.md](distribution/agentnot
 
 See [Agent setup and skills](docs/AGENT_SKILLS.md) for Agent Skills-compatible tools and a portable instruction snippet for agents that use project rules or system prompts instead.
 
-## Agent Event Protocol
+## Attention Request Contract
 
-AgentNotify implements an experimental Human Attention profile of the existing public Agent Event
-Protocol (AEP) 0.1 draft. AEP producers can post `notification.sent` and `question.asked` envelopes to
-the authenticated loopback `/v1/events` endpoint. Agent identity, session correlation, workspace,
-event ID, unresolved state, and deduplication survive the projection into local history.
+AgentNotify defines ARC 0.1, an open transport-neutral contract for creating, updating, and resolving
+bounded requests for human attention. ARC producers post `request.created`, `request.updated`, and
+`request.resolved` events to the authenticated loopback `/v1/events` endpoint. Sender identity,
+session and project context, immutable event identity, unresolved conditions, and deduplication
+survive projection into local history.
 
-AgentNotify does not claim to define AEP or implement its complete activity/control surface. See the
-[AEP Human Attention profile](docs/AEP.md) for the supported subset, `x-agentnotify` extension,
-published JSON Schema, security boundaries, and future ACP/A2A adapter direction.
+See the [Attention Request Contract](docs/ARC.md) for the lifecycle, field rules, published JSON
+Schema, security boundary, and future stdout/ACP/A2A adapter direction.
 
 ## Notification model
 
@@ -255,7 +255,7 @@ NotificationService ---- SQLite repository
 Project layout:
 
 ```text
-src/AgentNotify.Protocol    native API contracts and experimental AEP profile schema
+src/AgentNotify.Protocol    native API contracts and the ARC model/schema
 src/AgentNotify.Core        cross-platform domain rules, config, persistence, logging
 src/AgentNotify.Api         authenticated loopback Minimal API
 src/AgentNotify.App         WPF tray app, toasts, center, startup/single instance
@@ -354,7 +354,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 659 passing tests.
+The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 666 passing tests.
 
 ### Build the single-file installer
 

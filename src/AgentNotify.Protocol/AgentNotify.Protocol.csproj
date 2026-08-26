@@ -4,11 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Description>AgentNotify wire contracts and the experimental AEP Human Attention profile.</Description>
+    <Description>AgentNotify wire contracts and the Attention Request Contract specification.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Schemas\aep-agentnotify-profile-0.1.schema.json"
+    <None Include="Schemas\arc-0.1.schema.json"
           CopyToOutputDirectory="PreserveNewest"
           Pack="true"
           PackagePath="schemas/" />

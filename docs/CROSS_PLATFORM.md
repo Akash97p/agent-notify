@@ -36,7 +36,7 @@ Already portable — these target `net10.0` with no Windows-only API use:
 
 | Project | Role |
 | --- | --- |
-| `AgentNotify.Protocol` | Native DTOs, type IDs, JSON rules, experimental AEP profile/schema |
+| `AgentNotify.Protocol` | Native DTOs, type IDs, JSON rules, ARC model/schema |
 | `AgentNotify.Core` | Domain, validation, config, SQLite, logging, delivery adapters |
 | `AgentNotify.Api` | Loopback Minimal API host |
 | `AgentNotify.Cli` | `agentnotify` command-line client |
