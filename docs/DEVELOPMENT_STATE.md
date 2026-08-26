@@ -167,6 +167,34 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       with 0 warnings/0 errors and all 666 tests passed. Packaging was not rerun because no installer
       payload, embedded application resource, publish setting, or release workflow changed.
 
+41. Completed on `feature/monochrome-brand`:
+    - Adopted the owner-supplied monochrome robot mark as the project identity. The optimized dark
+      mark is the canonical README/site asset; original-resolution dark/light PNG and AVIF variants
+      are retained under `assets/branding/` for future native and promotional use.
+    - Regenerated the complete web favicon set and both multi-resolution ICO files. The Windows ICO
+      contains 16, 24, 32, 48, 64, 128, and 256-pixel images and continues to flow through the tray,
+      CLI, setup executable, packed WPF About view, and installer using the existing resource paths.
+    - Local verification: the static site built all 21 routes and was visually inspected at 1440x900
+      and 390x844 with the new mark; the full solution build passed with 0 warnings/0 errors and all
+      666 tests passed. Hosted Windows run `32953223592` then passed the native build, tests, installer,
+      and embedded-resource package; portable run `32953223540` passed on Ubuntu and macOS.
+
+42. Completed on `feature/windows-monochrome-ui`:
+    - Applied the website's monochrome design language to Settings, channel management, Notification
+      Center, desktop toasts, and the standalone installer. Shared settings tokens now use near-black
+      surfaces, zinc borders, white primary actions, and neutral text hierarchy; semantic notification
+      type/status colors remain only where they communicate state.
+    - Settings and Notification Center now use resizable custom Windows chrome with branded title bars,
+      minimize/maximize/close controls, clearer page hierarchy, bordered content surfaces, and consistent
+      action footers. Existing control names, event handlers, persistence paths, and security behavior are
+      unchanged. Toasts use the same surfaces while retaining the narrow configured type accent.
+    - The installer now shares the mark, palette, controls, licence card, progress treatment, and publisher
+      footer. It remains a per-user, no-elevation installer with the same acceptance and payload behavior.
+    - Local verification: the full solution cross-build passed with 0 warnings/0 errors and all 666 tests
+      passed. Hosted Windows run `32955922259` passed native build, tests, and installer/resource packaging;
+      portable run `32955922411` passed on Ubuntu and macOS. No Windows UI could be launched from WSL,
+      so layout, DPI, keyboard, and screen-reader checks remain honestly unverified.
+
 
 ## Current documentation/status snapshot
 

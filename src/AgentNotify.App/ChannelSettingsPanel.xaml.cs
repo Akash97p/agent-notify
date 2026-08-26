@@ -1902,7 +1902,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         ChannelStatusText.Text = message;
         ChannelStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(
-                success ? "#86EFAC" : "#FCA5A5"));
+                success ? "#4ADE80" : "#F87171"));
     }
 
     private static bool ReadAllowPrivate(string configJson)

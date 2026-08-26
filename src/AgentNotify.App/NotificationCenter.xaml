@@ -1,34 +1,74 @@
 <Window x:Class="AgentNotify.App.NotificationCenter"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="AgentNotify — Notification Center"
-        Height="560" Width="560" MinHeight="380" MinWidth="420"
-        WindowStartupLocation="CenterScreen"
-        ShowInTaskbar="True"
-        Background="#0F1117">
+        Height="640" Width="680" MinHeight="440" MinWidth="520"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
+        WindowStyle="None" ResizeMode="CanResize"
+        Background="#09090B" Foreground="#FAFAFA"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="8"
+                            GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
     <Window.Resources>
         <Style x:Key="Pill" TargetType="Border">
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="9"/>
             <Setter Property="Padding" Value="8,2"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style x:Key="GhostButton" TargetType="Button">
-            <Setter Property="Background" Value="#1F2431"/>
-            <Setter Property="Foreground" Value="#C6CADF"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Background" Value="#18181B"/>
+            <Setter Property="Foreground" Value="#D4D4D8"/>
+            <Setter Property="BorderBrush" Value="#27272A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="11,6"/>
             <Setter Property="Margin" Value="4,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#2A3044"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#27272A"/>
+                                <Setter Property="Foreground" Value="#FAFAFA"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WindowButton" TargetType="Button">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="2,0,0,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#A1A1AA"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#27272A"/>
+                                <Setter Property="Foreground" Value="#FAFAFA"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -36,70 +76,81 @@
             </Setter>
         </Style>
     </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="48"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="64"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Border Grid.Row="0" Background="#1A1F2B" Padding="16,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="AgentNotify" FontSize="16" FontWeight="SemiBold" Foreground="White"/>
-                    <TextBlock x:Name="Subtitle" Text="Notifications from your agents" FontSize="11" Foreground="#7B819A" Margin="0,2,0,0"/>
+        <Border Grid.Row="0" Background="#0E0E11" BorderBrush="#27272A" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0,8,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Image Source="pack://application:,,,/Resources/an.ico" Width="24" Height="24"
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="AgentNotify" FontWeight="SemiBold"/>
+                    <TextBlock Text="/ Attention inbox" Foreground="#A1A1AA" Margin="8,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#xE921;" Style="{StaticResource WindowButton}" Click="OnMinimizeClick" ToolTip="Minimize"/>
+                    <Button Content="&#xE922;" Style="{StaticResource WindowButton}" Click="OnMaximizeClick" ToolTip="Maximize or restore"/>
+                    <Button Content="&#xE8BB;" Style="{StaticResource WindowButton}" Click="OnHideClick" ToolTip="Close"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Needs attention header + count -->
-        <Grid Grid.Row="1" Margin="16,12,16,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Needs attention" FontWeight="SemiBold" FontSize="12" Foreground="#E8EAFF" VerticalAlignment="Center"/>
-                <Border x:Name="ActiveCountPill" Style="{StaticResource Pill}" Background="#2E9E5B" Margin="8,0,0,0" Visibility="Collapsed">
-                    <TextBlock x:Name="ActiveCountText" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                </Border>
+        <Grid Grid.Row="1" Margin="24,20,24,10">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Needs attention" FontWeight="SemiBold" FontSize="18" VerticalAlignment="Center"/>
+                    <Border x:Name="ActiveCountPill" Style="{StaticResource Pill}" Background="#FAFAFA"
+                            Margin="9,0,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="ActiveCountText" Foreground="#09090B" FontSize="11" FontWeight="SemiBold"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock x:Name="Subtitle" Text="Notifications from your agents" FontSize="12"
+                           Foreground="#A1A1AA" Margin="0,5,0,0"/>
             </StackPanel>
-            <Button Grid.Column="1" x:Name="DismissAllButton" Content="Dismiss all" Style="{StaticResource GhostButton}"
-                    Click="OnDismissAllClick"/>
+            <Button Grid.Column="1" x:Name="DismissAllButton" Content="Dismiss all"
+                    Style="{StaticResource GhostButton}" VerticalAlignment="Center" Click="OnDismissAllClick"/>
         </Grid>
 
-        <!-- Active list -->
-        <Border Grid.Row="2" Margin="16,0,16,0" Background="#171B25" CornerRadius="8">
+        <Border Grid.Row="2" Margin="24,0" Background="#0E0E11" BorderBrush="#27272A"
+                BorderThickness="1" CornerRadius="9">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel x:Name="ActivePanel" Margin="0,4,0,4"/>
+                <StackPanel x:Name="ActivePanel" Margin="0,5"/>
             </ScrollViewer>
         </Border>
-        <TextBlock x:Name="ActiveEmpty" Grid.Row="2" Text="Nothing needs attention." Foreground="#5E657E"
-                   FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+        <TextBlock x:Name="ActiveEmpty" Grid.Row="2" Text="Nothing needs attention."
+                   Foreground="#71717A" FontSize="12" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Visibility="Collapsed"/>
 
-        <!-- History header -->
-        <TextBlock Grid.Row="3" Text="Recent" FontWeight="SemiBold" FontSize="12" Foreground="#E8EAFF"
-                   Margin="16,14,16,6"/>
+        <TextBlock Grid.Row="3" Text="Recent activity" FontWeight="SemiBold" FontSize="13"
+                   Margin="24,18,24,8"/>
 
-        <!-- Recent list -->
-        <Border Grid.Row="4" Margin="16,0,16,0" Background="#171B25" CornerRadius="8">
+        <Border Grid.Row="4" Margin="24,0" Background="#0E0E11" BorderBrush="#27272A"
+                BorderThickness="1" CornerRadius="9">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel x:Name="RecentPanel" Margin="0,4,0,4"/>
+                <StackPanel x:Name="RecentPanel" Margin="0,5"/>
             </ScrollViewer>
         </Border>
-        <TextBlock x:Name="RecentEmpty" Grid.Row="4" Text="No recent notifications." Foreground="#5E657E"
-                   FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+        <TextBlock x:Name="RecentEmpty" Grid.Row="4" Text="No recent notifications."
+                   Foreground="#71717A" FontSize="12" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Visibility="Collapsed"/>
 
-        <!-- Footer -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="12,10">
-            <Button Content="Refresh" Style="{StaticResource GhostButton}" Click="OnRefreshClick"/>
-        </StackPanel>
+        <Border Grid.Row="5" Background="#0E0E11" BorderBrush="#27272A" BorderThickness="0,1,0,0">
+            <Grid Margin="24,0">
+                <TextBlock Text="LOCAL  ·  ENCRYPTED  ·  NO TELEMETRY" FontSize="10" FontWeight="SemiBold"
+                           Foreground="#71717A" VerticalAlignment="Center"/>
+                <Button Content="Refresh" Style="{StaticResource GhostButton}" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Click="OnRefreshClick"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

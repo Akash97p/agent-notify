@@ -79,11 +79,11 @@ public partial class NotificationCenter : Window
         var outer = new Border
         {
             Margin = new Thickness(8, 4, 8, 4),
-            Padding = new Thickness(10, 8, 8, 8),
-            Background = new SolidColorBrush(WpfColor.FromRgb(0x20, 0x24, 0x31)),
+            Padding = new Thickness(11, 9, 9, 9),
+            Background = new SolidColorBrush(WpfColor.FromRgb(0x11, 0x11, 0x13)),
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(WpfColor.FromRgb(0x2A, 0x30, 0x44))
+            BorderBrush = new SolidColorBrush(WpfColor.FromRgb(0x27, 0x27, 0x2A))
         };
 
         var grid = new Grid();
@@ -107,19 +107,19 @@ public partial class NotificationCenter : Window
             FontWeight = FontWeights.SemiBold,
             Foreground = accentBrush
         });
-        header.Children.Add(new TextBlock { Text = $"  {n.Agent}", FontSize = 10, Foreground = new SolidColorBrush(WpfColor.FromRgb(0x9A, 0xA0, 0xB4)) });
+        header.Children.Add(new TextBlock { Text = $"  {n.Agent}", FontSize = 10, Foreground = new SolidColorBrush(WpfColor.FromRgb(0xA1, 0xA1, 0xAA)) });
         header.Children.Add(new TextBlock
         {
             Text = $"  {n.CreatedAt.ToLocalTime():g}",
             FontSize = 10,
-            Foreground = new SolidColorBrush(WpfColor.FromRgb(0x6B, 0x70, 0x89))
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(0x71, 0x71, 0x7A))
         });
         if (!showActions)
             header.Children.Add(new TextBlock
             {
                 Text = $"  \u00b7 {n.Status}",
                 FontSize = 10,
-                Foreground = new SolidColorBrush(WpfColor.FromRgb(0x6B, 0x70, 0x89))
+                Foreground = new SolidColorBrush(WpfColor.FromRgb(0x71, 0x71, 0x7A))
             });
         Grid.SetColumn(header, 1);
         Grid.SetRow(header, 0);
@@ -139,7 +139,7 @@ public partial class NotificationCenter : Window
             {
                 Text = n.Message,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(WpfColor.FromRgb(0xC6, 0xCA, 0xDF)),
+                Foreground = new SolidColorBrush(WpfColor.FromRgb(0xD4, 0xD4, 0xD8)),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 2, 0, 0)
             });
@@ -150,8 +150,8 @@ public partial class NotificationCenter : Window
         if (showActions)
         {
             var actions = new StackPanel { Orientation = WpfOrientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-            var dismiss = GhostButton("Dismiss", "#9AA0B4", async (_, _) => { await ChangeStatus(n.Id, NotificationStatus.Dismissed); });
-            var resolve = GhostButton("Resolve", "#2E9E5B", async (_, _) => { await ChangeStatus(n.Id, NotificationStatus.Resolved); });
+            var dismiss = GhostButton("Dismiss", "#A1A1AA", async (_, _) => { await ChangeStatus(n.Id, NotificationStatus.Dismissed); });
+            var resolve = GhostButton("Resolve", "#FAFAFA", async (_, _) => { await ChangeStatus(n.Id, NotificationStatus.Resolved); });
             actions.Children.Add(dismiss);
             actions.Children.Add(resolve);
             Grid.SetColumn(actions, 2);
@@ -170,12 +170,11 @@ public partial class NotificationCenter : Window
         var b = new System.Windows.Controls.Button
         {
             Content = text,
+            Style = (Style)FindResource("GhostButton"),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(4, 0, 0, 0),
             FontSize = 11,
             Foreground = (SolidColorBrush)new BrushConverter().ConvertFromString(color)!,
-            Background = new SolidColorBrush(WpfColor.FromRgb(0x2A, 0x30, 0x44)),
-            BorderThickness = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand
         };
         b.Click += handler;
@@ -204,6 +203,10 @@ public partial class NotificationCenter : Window
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e) => await RefreshAsync();
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void OnMaximizeClick(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    private void OnHideClick(object sender, RoutedEventArgs e) => Hide();
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         if (!_allowClose)

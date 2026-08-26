@@ -27,6 +27,7 @@ coverage*.xml
 local/
 notification-tone/
 logs/
+temp/
 
 # OS / editor noise
 .DS_Store

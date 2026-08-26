@@ -743,3 +743,66 @@ Local verification on 2026-08-26:
   itself has not run remotely yet, so hosted deployment of this new implementation is not claimed.
 
 No WPF source or behavior changed, and no WPF visual or external-provider check was performed.
+
+## Monochrome brand assets (`feature/monochrome-brand`)
+
+Local verification on 2026-08-26:
+
+- The owner-supplied white-on-black and black-on-white sources were copied byte-for-byte into
+  `assets/branding/` as PNG and AVIF. The canonical 512-pixel PNG was regenerated from the dark source.
+- The application ICO contains seven images at 16, 24, 32, 48, 64, 128, and 256 pixels; the web ICO
+  contains 16, 32, and 48-pixel images. The Android, Apple touch, and standalone favicon PNGs have the
+  exact dimensions declared by their filenames and manifest.
+- `./scripts/build-site.sh` passed and generated all 21 routes. The export was served under the real
+  `/agent-notify/` base path and inspected in Google Chrome at 1440x900 and 390x844. The new mark is
+  sharp, aligned with the header text, readable at navigation size, and consistent with the black/white UI.
+- `./scripts/build.sh -p:EnableWindowsTargeting=true` completed with 0 warnings and 0 errors, including
+  the WPF tray, CLI, setup project, and their icon resource metadata. `./scripts/test.sh --no-restore`
+  passed all 666 tests with 0 failures and 0 skips.
+- `./scripts/package.sh` could not run locally because the configured Windows .NET SDK path is absent
+  and no other Windows `dotnet.exe` is installed. A Linux SDK can cross-compile but cannot drive the
+  repository's PowerShell/Windows packaging boundary.
+
+Hosted verification on topic commit `12fc681`:
+
+- Windows Actions run
+  [`32953223592`](https://github.com/Akash97p/agent-notify/actions/runs/32953223592) passed the native
+  solution build, all 666 tests, `scripts/package.ps1`, and installer/embedded-resource validation.
+- Portable Actions run
+  [`32953223540`](https://github.com/Akash97p/agent-notify/actions/runs/32953223540) passed on both
+  Ubuntu and macOS, including native CLI/broker publish and smoke tests.
+
+No Windows executable or WPF window was launched locally, so taskbar/tray rendering and the packed
+About/setup image remain pending native Windows or hosted executable verification.
+
+## Monochrome Windows UI (`feature/windows-monochrome-ui`)
+
+Local verification on 2026-08-26:
+
+- `Theme.xaml` now defines the neutral desktop tokens and control templates used by Settings and channel
+  management. A source sweep found none of the former blue/purple surface, border, focus, or action tokens
+  in the App or Setup XAML/C# files. Semantic success, warning, error, and notification-type accents were
+  deliberately retained where color conveys state rather than decoration.
+- Settings, channel management, Notification Center, toasts, and Setup retain every behavior-bearing
+  `x:Name`, selection handler, click handler, and binding referenced by their code-behind. The redesign is
+  confined to presentation plus minimize/maximize helpers for the new custom title bars.
+- Targeted Release builds of `AgentNotify.App` and `AgentNotify.Setup` passed with 0 warnings and 0 errors,
+  proving the XAML resources, control templates, WindowChrome declarations, packed icon URIs, and event
+  handlers compile. The subsequent full solution Release build also passed with 0 warnings and 0 errors.
+- `./scripts/test.sh --no-restore` passed all 666 tests with 0 failures and 0 skips.
+- Local packaging remains unavailable because this WSL environment has no Windows `dotnet.exe`. The topic
+  branch therefore used the hosted Windows installer/resource job.
+
+Hosted verification on topic commit `807778c`:
+
+- Windows Actions run
+  [`32955922259`](https://github.com/Akash97p/agent-notify/actions/runs/32955922259) passed the native
+  solution build, all 666 tests, `scripts/package.ps1`, and installer/embedded-resource packaging.
+- Portable Actions run
+  [`32955922411`](https://github.com/Akash97p/agent-notify/actions/runs/32955922411) passed on both
+  Ubuntu and macOS, including native CLI/broker publish and smoke tests.
+
+**Not verified: no WPF surface was rendered or interacted with.** A Windows human still needs to inspect
+Settings at minimum/default/maximized sizes, provider and route editors, Notification Center active/recent
+lists, stacked toasts, installer scrolling, 100/125/150/200% DPI, keyboard focus/order, high contrast, and
+screen-reader labels. Compilation is not a substitute for those checks.
