@@ -11,7 +11,7 @@
 > **Development status:** Pre-release `v0.0.3-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
 
 <p align="center">
-  <img src="assets/branding/an.png" alt="AgentNotify app icon" width="180" height="180">
+  <img src="assets/branding/an.png" alt="AgentNotify logo" width="180" height="180">
 </p>
 
 <p align="center">
