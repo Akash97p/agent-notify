@@ -10,7 +10,11 @@ The repository is published at [github.com/Akash97p/agent-notify](https://github
 4. Keep normal development on topic branches merged into `dev`; promote a tested release from `dev` to `main` through review.
 5. Obtain and configure Authenticode signing before presenting a public build as trusted. The current workflow produces unsigned binaries.
 
-The Pages workflow deploys the static `site/` documentation after changes reach `main`. It uses the official GitHub Pages actions and requests only read, Pages, and OIDC permissions.
+The Pages workflow builds the Next.js application in `site/` as a static export after changes reach
+`dev` or `main`. The site uses TypeScript, Tailwind CSS, and checked-in shadcn/ui source components;
+`scripts/build-site.sh` copies the ARC schema and branding assets, runs `npm ci`, type-checks, builds,
+and stages the export in `_site`. GitHub Actions then uploads that directory using the official Pages
+actions and requests only read, Pages, and OIDC permissions.
 
 ## Published prerelease: `v0.0.1-alpha.1`
 

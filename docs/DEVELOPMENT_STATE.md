@@ -134,7 +134,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Pages run `32893126444` then deployed successfully. Direct HTTPS checks returned `200` and the
       expected content for the event profile, published JSON Schema, and agent-skill installation page.
 
-39. In progress on `feature/arc-contract`:
+39. Completed on `feature/arc-contract`:
     - The owner selected **ARC — Attention Request Contract** as the independent open contract for
       agent-to-human attention. ARC is not a renamed compatibility profile.
     - ARC 0.1 defines `request.created`, `request.updated`, and `request.resolved`, separates immutable
@@ -144,12 +144,28 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       boundary and now maps the full ARC 0.1 lifecycle into local history. Missing updates do not
       create conditions; resolution and unkeyed event replays are idempotent.
     - Structured human responses remain outside ARC 0.1 until AgentNotify can implement the UI and
-      callback boundary end to end. The site will move next to a Next.js static export using actual
-      shadcn/ui components and a monochrome neutral theme.
+      callback boundary end to end.
     - Verification: 17 focused ARC API tests pass; the full solution cross-build completes with
       0 warnings and 0 errors; all 666 tests pass; the dependency-free site build and ARC JSON parse
       pass. Packaging was not rerun because no installer payload, embedded resource, publish setting,
       or release automation changed. No WPF visual behavior changed or was checked.
+
+40. Completed on `feature/site-shadcn`:
+    - Replaced the hand-written Pages site and Python Markdown renderer with a Next.js 16 static
+      export. The source uses TypeScript, Tailwind CSS 4, checked-in shadcn/ui components, Radix
+      primitives, and a deliberately monochrome neutral theme; no hosted UI runtime is required.
+    - The Markdown files under `docs/` remain authoritative. The build renders 17 documentation
+      pages with generated heading IDs and tables of contents, rewrites repository-relative links,
+      publishes the ARC schema, and preserves the former `.html` URLs as compatibility aliases.
+    - GitHub Actions installs Node 24 from `site/package-lock.json`, type-checks, builds all 21 Next
+      routes, and uploads the static `_site` directory. Next telemetry is disabled in the shared
+      build script, and the site itself still has no telemetry service.
+    - Local verification: the clean Pages script passed; all 39 generated HTML entry points have
+      valid internal links/assets; the published schema is byte-identical to its source; npm audit
+      reports zero known vulnerabilities; and Chromium renders were inspected at 1440-pixel desktop
+      and 390-pixel mobile widths for the landing and ARC pages. The full solution build also passed
+      with 0 warnings/0 errors and all 666 tests passed. Packaging was not rerun because no installer
+      payload, embedded application resource, publish setting, or release workflow changed.
 
 
 ## Current documentation/status snapshot
