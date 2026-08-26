@@ -761,7 +761,16 @@ Local verification on 2026-08-26:
   passed all 666 tests with 0 failures and 0 skips.
 - `./scripts/package.sh` could not run locally because the configured Windows .NET SDK path is absent
   and no other Windows `dotnet.exe` is installed. A Linux SDK can cross-compile but cannot drive the
-  repository's PowerShell/Windows packaging boundary. Hosted Windows packaging is required before merge.
+  repository's PowerShell/Windows packaging boundary.
+
+Hosted verification on topic commit `12fc681`:
+
+- Windows Actions run
+  [`32953223592`](https://github.com/Akash97p/agent-notify/actions/runs/32953223592) passed the native
+  solution build, all 666 tests, `scripts/package.ps1`, and installer/embedded-resource validation.
+- Portable Actions run
+  [`32953223540`](https://github.com/Akash97p/agent-notify/actions/runs/32953223540) passed on both
+  Ubuntu and macOS, including native CLI/broker publish and smoke tests.
 
 No Windows executable or WPF window was launched locally, so taskbar/tray rendering and the packed
 About/setup image remain pending native Windows or hosted executable verification.
