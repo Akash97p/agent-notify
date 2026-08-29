@@ -6,7 +6,7 @@ Use **Tray icon → Settings → Channels** to create a provider profile, enter 
 
 ## Implemented channel inventory
 
-The current `dev` integration branch contains 18 adapters. Each detailed section below documents its configuration contract, payload projection, acknowledgement policy, and verification boundary.
+The current `dev` integration branch contains 19 adapters. Each detailed section below documents its configuration contract, payload projection, acknowledgement policy, and verification boundary.
 
 | Group | Implemented adapters |
 |---|---|
@@ -479,6 +479,27 @@ QoS behavior must be chosen deliberately:
 - QoS 2 is exactly-once only inside the MQTT protocol session. AgentNotify uses a clean one-shot session; a later durable outbox attempt is a new application/session boundary and can duplicate. It therefore requires the same duplicate-risk acknowledgement as QoS 1.
 
 Broker authentication/topic rejection is permanent; broker busy, rate/quota, and transient implementation failures retry for acknowledged QoS 1/2. The adapter deliberately ignores server redirection so an MQTT broker cannot move delivery to an unconfigured destination. See the [OASIS MQTT 5 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html) and the [.NET Foundation MQTTnet project](https://github.com/dotnet/MQTTnet).
+
+## AgentNotify Relay
+
+Implementation status: adapter and native Settings fields complete for Custom (self-hosted) with experimental opaque transport; Relay Go hosted UI is visible but disabled until the hosted base URL and billing are ready; real-relay pairing and E2E review pending.
+
+Select **AgentNotify Relay** as the provider type, choose **Custom — self-hosted** (Relay Go is shown disabled as “coming soon”), and enter the relay base URL, an optional sender name, and the encrypted installation token (`inst_…`). The token is DPAPI current-user encrypted and sent only as `Authorization: Bearer`. A separate **Allow private/loopback destinations** consent permits private or loopback relay hosts; link-local, multicast, and documentation ranges remain blocked.
+
+```json
+{
+  "deployment": "custom",
+  "relay_url": "https://relay.example.com",
+  "sender_name": "My ThinkPad",
+  "allowPrivateNetwork": false
+}
+```
+
+The adapter posts an opaque envelope to `POST {relay_url}/v1/envelopes` with `Idempotency-Key: <outbox id>` and `Authorization: Bearer <installation_token>`. The envelope contains `envelope_version: "1"`, `client_event_id: <notificationId>`, `expires_at: <now+24h>`, `recipients: [{device_id, key_id, ciphertext}]`, and optional `sender_name`. `ciphertext` is currently a base64url opaque wire (`nonce 24 || ephemPub 32 || plaintext`) — experimental and not yet claimed as end-to-end encryption — and is bounded to 64 KiB. The transport disables redirects, cookies, ambient proxies, and automatic decompression, validates that every relay DNS result satisfies the private-network policy at socket-connect time (pinned-IP connection), and never logs the URL, token, or envelope body.
+
+Device discovery is via `GET {relay_url}/v1/devices` with the same bearer token; paired devices provide `device_id`/`key_id`/`public_key` for per-device fan-out (up to 10 recipients). If no devices are paired, the envelope uses a placeholder recipient and the relay returns `400` (permanent failure, dead-lettered) until a device is paired. `POST /v1/envelopes` returns `201` accepted or `200` duplicate (idempotent retry); `408`, `425`, `429`, `5xx`, and network failures retry through the durable outbox, while `3xx` redirects and other `4xx` responses are permanent. Response bodies are bounded to 64 KiB and parsed only for `envelope_id`/`status` acknowledgement.
+
+This adapter follows the same hardened `SocketsHttpHandler.ConnectCallback` pattern as the other HTTPS adapters and reuses `WebhookChannelAdapter.IsAddressAllowed` for destination policy. See the Relay envelope and API contracts in `agent-notify-relay/docs/ENVELOPE.md` and `agent-notify-relay/docs/API.md`. The local SQLite notification record remains authoritative even when the relay is unreachable.
 
 ## Planned adapters
 

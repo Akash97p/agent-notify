@@ -28,7 +28,7 @@ public sealed class CrossPlatformTests : IDisposable
     {
         var adapters = ChannelAdapterFactory.CreateAll();
 
-        Assert.Equal(18, adapters.Count);
+        Assert.Equal(19, adapters.Count);
         Assert.All(adapters, adapter => Assert.False(string.IsNullOrWhiteSpace(adapter.Kind)));
 
         var kinds = adapters.Select(adapter => adapter.Kind).ToArray();

@@ -29,6 +29,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
         MqttAuthenticationModeBox.SelectedIndex = 0;
         MqttQosBox.SelectedIndex = 1;
+        RelayDeploymentBox.SelectedIndex = 1;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -130,6 +131,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         LoadWhatsAppCloudConfiguration(profile);
         LoadTwilioWhatsAppConfiguration(profile);
         LoadMqttConfiguration(profile);
+        LoadRelayConfiguration(profile);
         StoredSecretsText.Text = profile.SecretNames.Count == 0
             ? "No encrypted values stored."
             : "Stored encrypted fields: " + string.Join(", ", profile.SecretNames);
@@ -268,6 +270,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MqttDuplicateRiskBox.IsChecked = false;
         MqttAnonymousBox.IsChecked = false;
         MqttExpiryBox.Text = "300";
+        RelayDeploymentBox.SelectedIndex = 1;
+        RelayBaseUrlBox.Text = "https://relay.example.com";
+        RelaySenderNameBox.Clear();
+        RelayInstallationTokenBox.Clear();
+        ClearRelayTokenBox.IsChecked = false;
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -306,6 +313,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "whatsapp_cloud" => await SaveWhatsAppCloudProviderAsync(existing),
             "twilio_whatsapp" => await SaveTwilioWhatsAppProviderAsync(existing),
             "mqtt" => await SaveMqttProviderAsync(existing),
+            "relay" => await SaveRelayProviderAsync(existing),
             _ => await SaveWebhookProviderAsync(existing)
         };
     }
@@ -1137,6 +1145,72 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         return saved;
     }
 
+    private async Task<ProviderProfile> SaveRelayProviderAsync(ProviderProfile? existing)
+    {
+        var secretNames = existing?.SecretNames ?? [];
+        var hasToken = secretNames.Contains("installation_token", StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password) && !hasToken)
+            throw new ArgumentException("Enter the Relay installation token (inst_…).");
+        if (!string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password) && !IsRelayInstallationToken(RelayInstallationTokenBox.Password.Trim()))
+            throw new ArgumentException("The Relay installation token must start with inst_ and contain base64url characters.");
+
+        var deployment = (RelayDeploymentBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "custom";
+        if (deployment != "custom" && deployment != "relay_go")
+            throw new ArgumentException("Select a Relay deployment.");
+        // Relay Go is coming soon — forbid saving it until hosted URL ready (UI disables it anyway)
+        if (deployment == "relay_go")
+            throw new ArgumentException("Relay Go is coming soon — choose Custom and enter your self-hosted base URL.");
+
+        var relayUrl = RelayBaseUrlBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(relayUrl))
+            throw new ArgumentException("Enter the Relay server base URL.");
+        if (relayUrl.Length > 2048)
+            throw new ArgumentException("Relay base URL is too long.");
+
+        var senderName = RelaySenderNameBox.Text.Trim();
+        if (senderName.Length > 100)
+            throw new ArgumentException("Relay sender name must be at most 100 characters.");
+        if (senderName.Any(char.IsControl))
+            throw new ArgumentException("Relay sender name contains invalid characters.");
+
+        var config = JsonSerializer.Serialize(new
+        {
+            deployment,
+            relay_url = relayUrl,
+            sender_name = string.IsNullOrWhiteSpace(senderName) ? null : senderName,
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true
+        }, Json.Options);
+
+        var changes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password))
+            changes["installation_token"] = RelayInstallationTokenBox.Password.Trim();
+
+        var saved = await _profiles.SaveAsync(
+            existing?.Id,
+            ProviderNameBox.Text,
+            "relay",
+            ProviderEnabledBox.IsChecked == true,
+            config,
+            existing is null ? changes : null);
+
+        if (existing is not null)
+        {
+            var remove = ClearRelayTokenBox.IsChecked == true && hasToken ? new[] { "installation_token" } : [];
+            // If user typed a new token, update; if they checked remove, delete.
+            if (changes.Count > 0 || remove.Length > 0)
+                await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
+        }
+
+        RelayInstallationTokenBox.Clear();
+        ClearRelayTokenBox.IsChecked = false;
+        return saved;
+    }
+
+    private static bool IsRelayInstallationToken(string value) =>
+        value.StartsWith("inst_", StringComparison.Ordinal) &&
+        value.Length >= 20 && value.Length <= 512 &&
+        value["inst_".Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-');
+
     private static bool IsMqttHost(string value)
     {
         if (value.Length is < 1 or > 253 || value.EndsWith('.') || value.Any(character => character > 127)) return false;
@@ -1243,6 +1317,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             "whatsapp_cloud" => 15,
             "twilio_whatsapp" => 16,
             "mqtt" => 17,
+            "relay" => 18,
             _ => 0
         };
         UpdateProviderFieldVisibility();
@@ -1273,6 +1348,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 "whatsapp_cloud" => "WhatsApp Cloud",
                 "twilio_whatsapp" => "Twilio WhatsApp",
                 "mqtt" => "MQTT",
+                "relay" => "AgentNotify Relay",
                 _ => "Webhook"
             };
     }
@@ -1297,7 +1373,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         var whatsAppCloud = kind == "whatsapp_cloud";
         var twilioWhatsApp = kind == "twilio_whatsapp";
         var mqtt = kind == "mqtt";
-        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp || mqtt ? Visibility.Collapsed : Visibility.Visible;
+        var relay = kind == "relay";
+        WebhookFields.Visibility = smtp || telegram || discord || slack || teams || zohoCliq || googleChat || mattermost || matrix || ntfy || gotify || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp || mqtt || relay ? Visibility.Collapsed : Visibility.Visible;
         SmtpFields.Visibility = smtp ? Visibility.Visible : Visibility.Collapsed;
         TelegramFields.Visibility = telegram ? Visibility.Visible : Visibility.Collapsed;
         DiscordFields.Visibility = discord ? Visibility.Visible : Visibility.Collapsed;
@@ -1315,6 +1392,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         WhatsAppCloudFields.Visibility = whatsAppCloud ? Visibility.Visible : Visibility.Collapsed;
         TwilioWhatsAppFields.Visibility = twilioWhatsApp ? Visibility.Visible : Visibility.Collapsed;
         MqttFields.Visibility = mqtt ? Visibility.Visible : Visibility.Collapsed;
+        RelayFields.Visibility = relay ? Visibility.Visible : Visibility.Collapsed;
         AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -1729,6 +1807,29 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         }
     }
 
+    private void LoadRelayConfiguration(ProviderProfile profile)
+    {
+        RelayInstallationTokenBox.Clear();
+        ClearRelayTokenBox.IsChecked = false;
+        if (profile.Kind != "relay") return;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var root = document.RootElement;
+            var deployment = GetJsonString(root, "deployment");
+            RelayDeploymentBox.SelectedIndex = deployment == "relay_go" ? 0 : 1;
+            RelayBaseUrlBox.Text = GetJsonString(root, "relay_url") != "" ? GetJsonString(root, "relay_url") : GetJsonString(root, "relayUrl");
+            RelaySenderNameBox.Text = GetJsonString(root, "sender_name") != "" ? GetJsonString(root, "sender_name") : GetJsonString(root, "senderName");
+            // allowPrivate is reflected via shared AllowPrivateBox already handled by ReadAllowPrivate
+        }
+        catch (JsonException)
+        {
+            RelayDeploymentBox.SelectedIndex = 1;
+            RelayBaseUrlBox.Text = "https://relay.example.com";
+            RelaySenderNameBox.Clear();
+        }
+    }
+
     private async void TestProvider_Click(object sender, RoutedEventArgs e)
     {
         await RunAsync(async () =>
@@ -1910,8 +2011,13 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         try
         {
             using var document = JsonDocument.Parse(configJson);
-            return document.RootElement.TryGetProperty("allowPrivateNetwork", out var value) &&
-                   value.ValueKind == JsonValueKind.True;
+            if (document.RootElement.TryGetProperty("allowPrivateNetwork", out var value) && value.ValueKind == JsonValueKind.True)
+                return true;
+            if (document.RootElement.TryGetProperty("allow_private_network", out var snake) && snake.ValueKind == JsonValueKind.True)
+                return true;
+            if (document.RootElement.TryGetProperty("AllowPrivateNetwork", out var pascal) && pascal.ValueKind == JsonValueKind.True)
+                return true;
+            return false;
         }
         catch (JsonException)
         {
