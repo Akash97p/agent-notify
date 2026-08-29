@@ -78,12 +78,13 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C17 | Twilio WhatsApp | Twilio Messages API + Content Templates | Adapter and Settings integration implemented with text-template attestation and consent/cost controls; real-account smoke and delivery status pending |
 | C18 | Signal | User-managed `signal-cli` process adapter | Experimental/unofficial; never imply official Signal support |
 | C19 | MQTT | MQTT 5 publish to configured TLS broker/topic | Adapter and Settings integration implemented with DNS pinning, platform trust/mTLS, fixed encrypted topic, and explicit QoS semantics; real-broker smoke pending |
-| C20 | AWS SNS | Signed AWS API/SDK publish | Paused/not implemented; revisit only with explicit static credentials, no ambient credential-chain inheritance, fixed destination, cost controls, and a provider-specific retry review |
-| C21 | Azure Communication Services | Email/SMS provider SDK/API | Medium; connection credentials and cost controls required |
-| C22 | SendGrid | Mail Send API | High; useful when SMTP is unavailable |
-| C23 | Mailgun | Messages API | High; region and domain configuration required |
-| C24 | Postmark | Email API | High; server token and sender validation required |
-| C25 | Apprise bridge | User-managed local Apprise CLI/API | Experimental bridge offering many community transports |
+| C20 | AgentNotify Relay | Self-hosted/Custom HTTPS envelope API with per-device opaque transport | Adapter and Settings integration implemented with encrypted installation token, DNS pinning, and durable outbox; Relay Go hosted UI disabled until base URL/billing ready; real-relay pairing, E2E crypto review, and delivery-status polling pending; experimental opaque transport |
+| C21 | AWS SNS | Signed AWS API/SDK publish | Paused/not implemented; revisit only with explicit static credentials, no ambient credential-chain inheritance, fixed destination, cost controls, and a provider-specific retry review |
+| C22 | Azure Communication Services | Email/SMS provider SDK/API | Medium; connection credentials and cost controls required |
+| C23 | SendGrid | Mail Send API | High; useful when SMTP is unavailable |
+| C24 | Mailgun | Messages API | High; region and domain configuration required |
+| C25 | Postmark | Email API | High; server token and sender validation required |
+| C26 | Apprise bridge | User-managed local Apprise CLI/API | Experimental bridge offering many community transports |
 
 ## Agent communication tasks
 

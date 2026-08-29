@@ -28,6 +28,7 @@ public static class ChannelAdapterFactory
         new TwilioSmsChannelAdapter(),
         new WhatsAppCloudChannelAdapter(),
         new TwilioWhatsAppChannelAdapter(),
-        new MqttChannelAdapter()
+        new MqttChannelAdapter(),
+        new RelayChannelAdapter()
     ];
 }

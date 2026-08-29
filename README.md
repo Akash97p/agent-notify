@@ -41,7 +41,7 @@ types, sounds, toast placement) has to be edited in `config.json` or left at its
 | CLI (`agentnotify`) | yes | yes | yes |
 | Loopback REST API | yes | yes | yes |
 | SQLite history, dedup keys, retention | yes | yes | yes |
-| Outbound channels (18 adapters) | yes | yes, config file only | yes, config file only |
+| Outbound channels (19 adapters) | yes | yes, config file only | yes, config file only |
 | Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
 | Tray icon and notification center | yes | **no** | **no** |
 | Settings window | yes | **no** | **no** |

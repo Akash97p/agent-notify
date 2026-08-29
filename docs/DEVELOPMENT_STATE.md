@@ -198,9 +198,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 ## Current documentation/status snapshot
 
-- Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
+- Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 666 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 693 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
