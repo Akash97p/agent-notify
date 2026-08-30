@@ -310,6 +310,10 @@ In **Tray icon → Settings → Channels**, create an **AgentNotify Relay** prov
 2. Confirm the short code on the approval page opened in your browser.
 3. When Settings shows the verified connection, press **Save provider**.
 
+Connecting pairs this computer as a sender; it does not create a recipient. Pair at least one phone
+before using **Send test**. If no active phone is present, AgentNotify reports that state locally and
+does not send a placeholder envelope that Relay would reject.
+
 The one-time installation credential is never displayed. It moves directly from the pairing poll
 into AgentNotify's protected provider secret store when you save. Headless Windows, macOS, and Linux
 hosts can use `agentnotify relay pair --url https://relay.example.com`; run

@@ -30,6 +30,8 @@ public sealed record RelayInstallation(
     string? CreatedAt,
     string? LastSeenAt);
 
+public sealed record RelayDeviceSummary(int ActiveDeviceCount);
+
 public sealed record RelayPairingProgress(
     TimeSpan Remaining,
     TimeSpan PollInterval,
@@ -264,6 +266,40 @@ public sealed class RelayPairingClient : IDisposable
             displayName,
             GetString(root, "created_at"),
             GetString(root, "last_seen_at"));
+    }
+
+    public async Task<RelayDeviceSummary> GetDevicesAsync(
+        Uri baseUri,
+        string installationToken,
+        CancellationToken ct)
+    {
+        var normalizedBase = ValidateBaseUri(baseUri);
+        if (!RelayChannelAdapter.IsInstallationToken(installationToken))
+            throw new ArgumentException("The Relay installation credential is invalid.", nameof(installationToken));
+
+        using var request = CreateRequest(HttpMethod.Get, new Uri(normalizedBase, "v1/devices"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", installationToken);
+        using var response = await SendAsync(request, "device_discovery_failed", ct).ConfigureAwait(false);
+        if (response.StatusCode != HttpStatusCode.OK)
+            throw new RelayPairingException(
+                "device_discovery_failed",
+                "The relay could not list paired devices.");
+
+        using var document = await ReadJsonAsync(response.Content, "device_discovery_failed", ct)
+            .ConfigureAwait(false);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("devices", out var devices) ||
+            devices.ValueKind != JsonValueKind.Array)
+            throw new RelayPairingException(
+                "device_discovery_failed",
+                "The relay returned an invalid device list.");
+
+        var count = devices.EnumerateArray().Count(device =>
+            device.ValueKind == JsonValueKind.Object &&
+            !string.IsNullOrWhiteSpace(GetString(device, "device_id")) &&
+            string.IsNullOrWhiteSpace(GetString(device, "revoked_at")));
+        return new RelayDeviceSummary(count);
     }
 
     public async Task<RelayPairingPoll> WaitForApprovalAsync(

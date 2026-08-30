@@ -1970,6 +1970,23 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 RelayConnectButton.Content = "Reconnect";
                 ClearRelayTokenBox.IsChecked = false;
                 SetRelayStatus("Connected. Press Save provider to finish.", "MutedTextBrush");
+                try
+                {
+                    var devices = await client.GetDevicesAsync(
+                        baseUri,
+                        poll.InstallationToken,
+                        cancellation.Token);
+                    if (devices.ActiveDeviceCount == 0)
+                        SetRelayStatus(
+                            "Connected to the relay, but no phone is paired yet. Pair a phone from the relay console, then send a test. Press Save provider to finish.",
+                            "WarningBrush");
+                }
+                catch (RelayPairingException exception) when (exception.Code == "device_discovery_failed")
+                {
+                    SetRelayStatus(
+                        "Connected. AgentNotify could not check paired phones; press Save provider, then try again.",
+                        "WarningBrush");
+                }
             }
             catch (RelayPairingException)
             {
@@ -2134,7 +2151,12 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             SetStatus(
                 result.Succeeded
                     ? $"Test delivered (provider status {result.StatusCode?.ToString() ?? "ok"})."
-                    : $"Test failed: {result.ErrorCode ?? "unspecified"}.",
+                    : result.ErrorCode switch
+                    {
+                        "no_devices_paired" => "Connected to the relay, but no phone is paired yet. Pair a phone from the relay console, then send a test.",
+                        "relay_device_not_found" => "The selected Relay phone is no longer paired. Pair it again or remove the pinned device setting, then send a test.",
+                        _ => $"Test failed: {result.ErrorCode ?? "unspecified"}."
+                    },
                 result.Succeeded);
         });
     }

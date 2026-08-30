@@ -8,6 +8,7 @@ namespace AgentNotify.Tests;
 public sealed class RelayChannelTests
 {
     private const string ValidToken = "inst_MivWSeeSbQhV1dS2mce82UQUmXoXg9oMWRRoIWN0nvI";
+    private const string DefaultDevicesJson = "{\"devices\":[{\"device_id\":\"dev123\",\"key_id\":\"k1\",\"public_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"revoked_at\":null}]}";
 
     [Fact]
     public async Task SendsEnvelopeWithIdempotencyAndAuth()
@@ -50,6 +51,60 @@ public sealed class RelayChannelTests
         var recipients = json.RootElement.GetProperty("recipients");
         Assert.Equal("dev123", recipients[0].GetProperty("device_id").GetString());
         Assert.Equal("k1", recipients[0].GetProperty("key_id").GetString());
+    }
+
+    [Fact]
+    public async Task EmptyDeviceListFailsWithoutPostingPlaceholder()
+    {
+        var handler = new RelayHandler(
+            HttpStatusCode.Created,
+            "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}",
+            devicesJson: "{\"devices\":[],\"total\":0}");
+        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
+
+        var result = await adapter.DeliverAsync(MakeDelivery(), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.Retryable);
+        Assert.Equal("no_devices_paired", result.ErrorCode);
+        Assert.Null(handler.PostUri);
+        Assert.Null(handler.PostBody);
+    }
+
+    [Fact]
+    public async Task UnknownPinnedDeviceFailsWithoutPosting()
+    {
+        var handler = new RelayHandler(HttpStatusCode.Created, "{}", devicesJson: DefaultDevicesJson);
+        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
+        var config = JsonSerializer.Serialize(new
+        {
+            deployment = "custom",
+            relay_url = "https://relay.example.com",
+            device_id = "missing-device"
+        });
+
+        var result = await adapter.DeliverAsync(MakeDelivery(config: config), CancellationToken.None);
+
+        Assert.Equal("relay_device_not_found", result.ErrorCode);
+        Assert.False(result.Retryable);
+        Assert.Null(handler.PostUri);
+    }
+
+    [Fact]
+    public void ParsesPairedInstallationIdentity()
+    {
+        var config = JsonSerializer.Serialize(new
+        {
+            deployment = "custom",
+            relay_url = "https://relay.example.com",
+            installation_id = "installation-1"
+        });
+
+        var parsed = RelayChannelAdapter.ParseAndValidateConfiguration(
+            config,
+            new Dictionary<string, string> { ["installation_token"] = ValidToken });
+
+        Assert.Equal("installation-1", parsed.InstallationId);
     }
 
     [Theory]
@@ -195,7 +250,7 @@ public sealed class RelayChannelTests
             // Simulate GET /v1/devices
             if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.Contains("/v1/devices"))
             {
-                var json = _devicesJson ?? "{\"devices\":[]}";
+                var json = _devicesJson ?? DefaultDevicesJson;
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
             }
 
