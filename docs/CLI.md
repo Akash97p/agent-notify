@@ -1,6 +1,6 @@
 # CLI reference
 
-The `agentnotify` command-line client talks to the local AgentNotify broker over HTTP. Every command except `health` (unauthenticated probe fallback) and `token` requires the broker to be running and a valid bearer token.
+The `agentnotify` command-line client talks to the local AgentNotify broker over HTTP. Every command except `health` (unauthenticated probe fallback), `token`, and `relay` requires the broker to be running and a valid bearer token. Relay commands talk directly to the configured Relay and local protected provider store.
 
 Binary name:
 
@@ -20,7 +20,7 @@ agentnotify --help | -h | help [<command>]
 agentnotify --version
 ```
 
-When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `install-skill`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
+When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
 
 All commands that contact the broker use a 10-second HTTP timeout. Connection failure prints to stderr and exits non-zero (see Exit codes).
 
@@ -257,6 +257,45 @@ TOKEN="$(agentnotify.exe token)"
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:47821/v1/health
 ```
 
+### `relay` — pair and verify Relay providers
+
+```text
+agentnotify relay pair --url URL [--name NAME] [--sender-name NAME] [--allow-private] [--json]
+agentnotify relay status [--json]
+```
+
+`relay pair` uses the same device-authorization client as the Windows Settings panel. It validates
+the base URL, checks `/.well-known/agentnotify-relay` for API `v1`, creates a sender pairing request,
+prints the verification URL and short code, polls until approval, verifies the returned installation,
+and writes the provider configuration and credential together through `ProviderProfileService`.
+The credential is never printed. A matching Relay URL updates its existing profile; a new profile is
+created disabled so delivery remains opt-in.
+
+| Flag | Value | Default | Notes |
+| --- | --- | --- | --- |
+| `--url` | absolute URL | — | Required; HTTPS except HTTP localhost development |
+| `--name` | text | verified Relay/display name | Provider profile name, at most 100 characters |
+| `--sender-name` | text | machine name | Label visible to the Relay and paired devices |
+| `--allow-private` | — | false | Explicit consent for private/loopback destinations; required for HTTP localhost |
+| `--json` | — | false | Writes one compact JSON object per state transition to stdout |
+
+Plain output writes the verification URL and code to stdout and countdown updates to stderr. Press
+Ctrl+C to cancel. Polling honors Relay `slow_down`, tolerates four consecutive transient network
+failures, and stops on rejection, expiry, consumption, invalid authentication, or cancellation.
+
+`relay status` loads every saved Relay provider and verifies its protected credential through
+`GET /v1/installation`. It never displays the credential. Without `--json`, each line reports the
+profile name, connection state, verified installation display name/ID, and whether the provider is
+disabled. With `--json`, it emits one object per profile.
+
+Examples:
+
+```bash
+agentnotify relay pair --url https://relay.example.com --name "Home relay"
+agentnotify relay pair --url http://localhost:4000 --allow-private --json
+agentnotify relay status
+```
+
 ### `install-skill` — install the bundled agent skill
 
 ```text
@@ -297,13 +336,13 @@ agentnotify install-skill codex --path /custom/skills/root
 ### `help` and `--version`
 
 ```text
-agentnotify help [send|list|get|resolve|dismiss|install-skill]
+agentnotify help [send|list|get|resolve|dismiss|relay|install-skill]
 agentnotify --help
 agentnotify -h
 agentnotify --version
 ```
 
-- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`). Unknown topic prints the general usage.
+- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`). Unknown topic prints the general usage.
 - `help` with no topic prints general usage (`PrintUsage`).
 - `--version` (`RunVersion`) prints `agentnotify {InformationalVersion}` derived from the CLI assembly.
 

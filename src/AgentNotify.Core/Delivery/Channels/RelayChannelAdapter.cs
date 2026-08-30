@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -17,18 +16,13 @@ namespace AgentNotify.Core.Delivery.Channels;
 /// </summary>
 public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 {
-    private static readonly HttpRequestOptionsKey<bool> RelayRequest =
-        new("AgentNotify.Relay.ValidatedEndpoint");
-    private static readonly HttpRequestOptionsKey<bool> AllowPrivateNetwork =
-        new("AgentNotify.Relay.AllowPrivateNetwork");
-
     private readonly HttpClient _client;
     private readonly bool _ownsClient;
 
     public RelayChannelAdapter(HttpClient? client = null)
     {
         _ownsClient = client is null;
-        _client = client ?? CreateHardenedClient();
+        _client = client ?? RelayHttpTransport.CreateClient();
     }
 
     public string Kind => "relay";
@@ -66,8 +60,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         {
             Content = new StringContent(envelopeJson, Encoding.UTF8, "application/json")
         };
-        request.Options.Set(RelayRequest, true);
-        request.Options.Set(AllowPrivateNetwork, config.AllowPrivateNetwork);
+        RelayHttpTransport.MarkValidated(request, config.AllowPrivateNetwork);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", installationToken);
         request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -197,7 +190,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         return config;
     }
 
-    internal static Uri ValidateRelayUrl(string value, bool allowPrivate)
+    public static Uri ValidateRelayUrl(string value, bool allowPrivate)
     {
         if (value.Length > 2048 ||
             !Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
@@ -211,7 +204,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         if (!isHttp && !isHttps)
             throw new ArgumentException("Relay server must be HTTPS, or HTTP only for localhost development.");
 
-        if (isHttp && !IsLocalhost(uri.Host))
+        if (isHttp && !RelayHttpTransport.IsLocalhost(uri.Host))
             throw new ArgumentException("HTTP is allowed only for localhost development.");
 
         if (!string.IsNullOrEmpty(uri.Query))
@@ -223,7 +216,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             throw new ArgumentException("Relay server address is not allowed.");
 
         // Host is localhost string — requires explicit private consent like other adapters.
-        if (IsLocalhost(uri.Host) && !allowPrivate)
+        if (RelayHttpTransport.IsLocalhost(uri.Host) && !allowPrivate)
             throw new ArgumentException("Private Relay destinations require explicit consent.");
 
         var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -241,20 +234,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         return new Uri(uri.AbsoluteUri.TrimEnd('/') + "/", UriKind.Absolute);
     }
 
-    private static bool IsLocalhost(string host)
-    {
-        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-            host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
-            return true;
-        var trimmed = host.TrimStart('[').TrimEnd(']');
-        if (trimmed.Equals("127.0.0.1", StringComparison.Ordinal) ||
-            trimmed.Equals("::1", StringComparison.Ordinal) ||
-            trimmed.Equals("0:0:0:0:0:0:0:1", StringComparison.Ordinal))
-            return true;
-        return false;
-    }
-
-    private static bool IsInstallationToken(string value)
+    public static bool IsInstallationToken(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length < 20 || value.Length > 512)
             return false;
@@ -287,7 +267,11 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
         // Try to discover devices via GET /v1/devices; fallback to explicit config or placeholder.
         var recipients = new List<RelayEnvelopeRecipient>();
-        var fetched = await TryFetchDevicesAsync(relayBase, installationToken, cancellationToken);
+        var fetched = await TryFetchDevicesAsync(
+            relayBase,
+            installationToken,
+            config.AllowPrivateNetwork,
+            cancellationToken);
         if (fetched is { Count: > 0 })
         {
             foreach (var d in fetched)
@@ -343,14 +327,14 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
     private async Task<List<FetchedDevice>?> TryFetchDevicesAsync(
         Uri relayBase,
         string installationToken,
+        bool allowPrivateNetwork,
         CancellationToken cancellationToken)
     {
         try
         {
             var endpoint = new Uri(relayBase, "v1/devices");
             using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-            request.Options.Set(RelayRequest, true);
-            request.Options.Set(AllowPrivateNetwork, true); // allow private for fetch; validation already done
+            RelayHttpTransport.MarkValidated(request, allowPrivateNetwork);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", installationToken);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AgentNotify", "1.0"));
@@ -470,53 +454,6 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         catch (JsonException)
         {
             return false;
-        }
-    }
-
-    private static HttpClient CreateHardenedClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            AllowAutoRedirect = false,
-            UseCookies = false,
-            UseProxy = false,
-            AutomaticDecompression = DecompressionMethods.None,
-            ConnectTimeout = TimeSpan.FromSeconds(10),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            MaxConnectionsPerServer = 2,
-            ConnectCallback = ConnectRelayAsync
-        };
-        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-    }
-
-    private static async ValueTask<Stream> ConnectRelayAsync(
-        SocketsHttpConnectionContext context,
-        CancellationToken cancellationToken)
-    {
-        if (!context.InitialRequestMessage.Options.TryGetValue(RelayRequest, out var validated) || !validated)
-            throw new HttpRequestException("Relay transport refused an unvalidated destination.");
-        var allowPrivate = context.InitialRequestMessage.Options.TryGetValue(AllowPrivateNetwork, out var configured) && configured;
-
-        // For http localhost dev, allow private even if flag false — validated via ValidateRelayUrl already.
-        var host = context.DnsEndPoint.Host;
-        var isLocalhost = IsLocalhost(host);
-        var effectiveAllowPrivate = allowPrivate || (isLocalhost && context.DnsEndPoint.Port != 443);
-
-        var addresses = await Dns.GetHostAddressesAsync(host, AddressFamily.Unspecified, cancellationToken);
-        var allowed = addresses.Where(a => WebhookChannelAdapter.IsAddressAllowed(a, effectiveAllowPrivate)).ToArray();
-        if (allowed.Length == 0 || allowed.Length != addresses.Length)
-            throw new HttpRequestException("Relay server resolved to a disallowed address.");
-
-        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-        try
-        {
-            await socket.ConnectAsync(allowed, context.DnsEndPoint.Port, cancellationToken);
-            return new NetworkStream(socket, true);
-        }
-        catch
-        {
-            socket.Dispose();
-            throw;
         }
     }
 

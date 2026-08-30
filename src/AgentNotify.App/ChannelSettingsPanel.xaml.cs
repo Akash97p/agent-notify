@@ -1,8 +1,12 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Delivery;
+using AgentNotify.Core.Delivery.Channels;
 using AgentNotify.Core;
 
 namespace AgentNotify.App;
@@ -13,6 +17,10 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private DeliveryRouteService _routes = null!;
     private DeliveryDispatcher _dispatcher = null!;
     private bool _initialized;
+    private CancellationTokenSource? _relayPairingCts;
+    private string? _pendingRelayInstallationToken;
+    private string? _pendingRelayInstallationId;
+    private string? _pendingRelayName;
 
     public ChannelSettingsPanel()
     {
@@ -67,6 +75,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
     private void Provider_Selected(object sender, SelectionChangedEventArgs e)
     {
+        CancelRelayPairing(clearPending: true);
         // Selection runs outside RunAsync, so anything thrown here reaches the WPF dispatcher
         // unhandled and terminates the tray process, taking the broker and its API down with it.
         // A stored profile must never be able to do that: report it and leave the fields cleared.
@@ -165,6 +174,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
     private void ResetProviderForm()
     {
+        CancelRelayPairing(clearPending: true);
         ProviderEditorHeader.Text = "New provider";
         ProviderBackToNewButton.Visibility = Visibility.Collapsed;
         ProviderNameBox.Text = "Webhook";
@@ -275,6 +285,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         RelaySenderNameBox.Clear();
         RelayInstallationTokenBox.Clear();
         ClearRelayTokenBox.IsChecked = false;
+        ResetRelayConnectionPresentation(hasStoredCredential: false);
         ClearAuthorizationBox.IsChecked = false;
         ClearHmacBox.IsChecked = false;
         AllowPrivateBox.IsChecked = false;
@@ -1149,10 +1160,16 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     {
         var secretNames = existing?.SecretNames ?? [];
         var hasToken = secretNames.Contains("installation_token", StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password) && !hasToken)
-            throw new ArgumentException("Enter the Relay installation token (inst_…).");
-        if (!string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password) && !IsRelayInstallationToken(RelayInstallationTokenBox.Password.Trim()))
+        var enteredToken = RelayInstallationTokenBox.Password.Trim();
+        var selectedToken = _pendingRelayInstallationToken ??
+                            (string.IsNullOrWhiteSpace(enteredToken) ? null : enteredToken);
+        if (selectedToken is null && !hasToken)
+            throw new ArgumentException("Press Connect to link this computer to your relay, or enter a token under Advanced.");
+        if (selectedToken is not null && !IsRelayInstallationToken(selectedToken))
             throw new ArgumentException("The Relay installation token must start with inst_ and contain base64url characters.");
+        var removesStoredToken = selectedToken is null &&
+                                 ClearRelayTokenBox.IsChecked == true &&
+                                 hasToken;
 
         var deployment = (RelayDeploymentBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "custom";
         if (deployment != "custom" && deployment != "relay_go")
@@ -1178,12 +1195,14 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             deployment,
             relay_url = relayUrl,
             sender_name = string.IsNullOrWhiteSpace(senderName) ? null : senderName,
-            allowPrivateNetwork = AllowPrivateBox.IsChecked == true
+            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
+            installation_id = _pendingRelayInstallationId ?? ReadRelayConfigValue(existing, "installation_id"),
+            relay_name = _pendingRelayName ?? ReadRelayConfigValue(existing, "relay_name")
         }, Json.Options);
 
         var changes = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(RelayInstallationTokenBox.Password))
-            changes["installation_token"] = RelayInstallationTokenBox.Password.Trim();
+        if (selectedToken is not null)
+            changes["installation_token"] = selectedToken;
 
         var saved = await _profiles.SaveAsync(
             existing?.Id,
@@ -1195,7 +1214,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
         if (existing is not null)
         {
-            var remove = ClearRelayTokenBox.IsChecked == true && hasToken ? new[] { "installation_token" } : [];
+            var remove = removesStoredToken
+                ? new[] { "installation_token" }
+                : [];
             // If user typed a new token, update; if they checked remove, delete.
             if (changes.Count > 0 || remove.Length > 0)
                 await _profiles.UpdateSecretsAsync(saved.Id, changes, remove);
@@ -1203,13 +1224,31 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
         RelayInstallationTokenBox.Clear();
         ClearRelayTokenBox.IsChecked = false;
+        _pendingRelayInstallationToken = null;
+        _pendingRelayInstallationId = null;
+        _pendingRelayName = null;
+        ResetRelayConnectionPresentation(hasStoredCredential: !removesStoredToken);
         return saved;
     }
 
     private static bool IsRelayInstallationToken(string value) =>
-        value.StartsWith("inst_", StringComparison.Ordinal) &&
-        value.Length >= 20 && value.Length <= 512 &&
-        value["inst_".Length..].All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-');
+        RelayChannelAdapter.IsInstallationToken(value);
+
+    private static string? ReadRelayConfigValue(ProviderProfile? profile, string propertyName)
+    {
+        if (profile is null)
+            return null;
+        try
+        {
+            using var document = JsonDocument.Parse(profile.ConfigJson);
+            var value = GetJsonString(document.RootElement, propertyName);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static bool IsMqttHost(string value)
     {
@@ -1327,6 +1366,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     {
         if (!IsInitialized)
             return;
+        if (SelectedProviderKind != "relay")
+            CancelRelayPairing(clearPending: true);
         UpdateProviderFieldVisibility();
         if (ProviderList.SelectedItem is null)
             ProviderNameBox.Text = SelectedProviderKind switch
@@ -1807,11 +1848,262 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         }
     }
 
+    private async void RelayConnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (_relayPairingCts is not null)
+            return;
+
+        Uri baseUri;
+        var allowPrivate = AllowPrivateBox.IsChecked == true;
+        try
+        {
+            baseUri = RelayChannelAdapter.ValidateRelayUrl(RelayBaseUrlBox.Text.Trim(), allowPrivate);
+        }
+        catch (ArgumentException exception)
+        {
+            SetRelayStatus(exception.Message, "ErrorBrush");
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _relayPairingCts = cancellation;
+        _pendingRelayInstallationToken = null;
+        _pendingRelayInstallationId = null;
+        _pendingRelayName = null;
+        RelayConnectButton.IsEnabled = false;
+        RelayCancelButton.Visibility = Visibility.Collapsed;
+        RelayCodePanel.Visibility = Visibility.Collapsed;
+        RelayConnectedText.Visibility = Visibility.Collapsed;
+        SetRelayStatus("Checking the Relay server…", "MutedTextBrush");
+
+        try
+        {
+            using var client = new RelayPairingClient(allowPrivateNetwork: allowPrivate);
+            await client.DiscoverAsync(baseUri, cancellation.Token);
+            if (!ReferenceEquals(_relayPairingCts, cancellation))
+                return;
+            SetRelayStatus("Starting a secure connection request…", "MutedTextBrush");
+
+            var senderName = string.IsNullOrWhiteSpace(RelaySenderNameBox.Text)
+                ? Environment.MachineName
+                : RelaySenderNameBox.Text.Trim();
+            var pairing = await client.BeginAsync(
+                baseUri,
+                senderName,
+                CurrentRelayPlatform(),
+                CurrentRelayClientVersion(),
+                cancellation.Token);
+
+            if (!ReferenceEquals(_relayPairingCts, cancellation))
+                return;
+            RelayPairingClient.EnsureSameOrigin(baseUri, pairing.VerificationUriComplete);
+            RelayUserCodeText.Text = pairing.UserCode;
+            RelayCodeHintText.Text = "Approve this code in your browser to connect this computer.";
+            RelayCodePanel.Visibility = Visibility.Visible;
+            RelayCancelButton.Visibility = Visibility.Visible;
+            SetRelayStatus("Waiting for approval…", "MutedTextBrush");
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(pairing.VerificationUriComplete.AbsoluteUri)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                RelayCodeHintText.Text =
+                    RelayPairingPresentation.ManualApprovalText(pairing);
+            }
+
+            var poll = await client.WaitForApprovalAsync(
+                baseUri,
+                pairing,
+                progress => Dispatcher.InvokeAsync(() =>
+                {
+                    if (!ReferenceEquals(_relayPairingCts, cancellation))
+                        return;
+                    var recovering = progress.ConsecutiveNetworkFailures > 0
+                        ? $"Connection interrupted ({progress.ConsecutiveNetworkFailures}/5) — retrying"
+                        : "Waiting for approval";
+                    SetRelayStatus(
+                        $"{recovering} — {RelayPairingPresentation.FormatRemaining(progress.Remaining)} left",
+                        progress.Remaining < TimeSpan.FromMinutes(1) ? "WarningBrush" : "MutedTextBrush");
+                }).Task,
+                cancellation.Token);
+
+            if (!ReferenceEquals(_relayPairingCts, cancellation))
+                return;
+            if (poll.Status == "denied")
+            {
+                SetRelayStatus("Rejected in the browser.", "ErrorBrush");
+                RelayCodePanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+            if (poll.Status == "expired")
+            {
+                SetRelayStatus("Request expired — try Connect again.", "ErrorBrush");
+                RelayCodePanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+            if (poll.Status != "approved" || poll.InstallationToken is null || poll.InstallationId is null)
+                throw new RelayPairingException("poll_failed", "The relay returned an invalid pairing result.");
+
+            _pendingRelayInstallationToken = poll.InstallationToken;
+            _pendingRelayInstallationId = poll.InstallationId;
+            _pendingRelayName = poll.RelayName;
+            RelayCodePanel.Visibility = Visibility.Collapsed;
+            RelayCancelButton.Visibility = Visibility.Collapsed;
+            SetRelayStatus("Verifying the new connection…", "MutedTextBrush");
+
+            try
+            {
+                var installation = await client.VerifyAsync(
+                    baseUri,
+                    poll.InstallationToken,
+                    cancellation.Token);
+                if (!ReferenceEquals(_relayPairingCts, cancellation))
+                    return;
+                var displayName = installation.DisplayName ?? poll.RelayName ?? installation.InstallationId;
+                RelayConnectedText.Text = $"Connected as {displayName}";
+                RelayConnectedText.Visibility = Visibility.Visible;
+                RelayConnectButton.Content = "Reconnect";
+                ClearRelayTokenBox.IsChecked = false;
+                SetRelayStatus("Connected. Press Save provider to finish.", "MutedTextBrush");
+            }
+            catch (RelayPairingException)
+            {
+                _pendingRelayInstallationToken = null;
+                _pendingRelayInstallationId = null;
+                _pendingRelayName = null;
+                RelayConnectedText.Visibility = Visibility.Collapsed;
+                SetRelayStatus(
+                    "Paired, but the relay did not accept the credential. Try Connect again.",
+                    "ErrorBrush");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (ReferenceEquals(_relayPairingCts, cancellation))
+                SetRelayStatus("Connection cancelled.", "MutedTextBrush");
+        }
+        catch (RelayPairingException exception)
+        {
+            if (ReferenceEquals(_relayPairingCts, cancellation))
+            {
+                RelayCodePanel.Visibility = Visibility.Collapsed;
+                RelayConnectedText.Visibility = Visibility.Collapsed;
+                SetRelayStatus(RelayPairingErrorMessage(exception), "ErrorBrush");
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            if (ReferenceEquals(_relayPairingCts, cancellation))
+                SetRelayStatus(exception.Message, "ErrorBrush");
+        }
+        finally
+        {
+            if (ReferenceEquals(_relayPairingCts, cancellation))
+            {
+                _relayPairingCts = null;
+                RelayCancelButton.Visibility = Visibility.Collapsed;
+                RelayConnectButton.IsEnabled = true;
+                RelayConnectButton.Content = HasRelayCredentialInEditor() ? "Reconnect" : "Connect";
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private void RelayCancel_Click(object sender, RoutedEventArgs e) => _relayPairingCts?.Cancel();
+
+    private void ChannelSettingsPanel_Unloaded(object sender, RoutedEventArgs e) =>
+        StopRelayPairing();
+
+    public void StopRelayPairing() => CancelRelayPairing(clearPending: true);
+
+    private void CancelRelayPairing(bool clearPending)
+    {
+        var cancellation = _relayPairingCts;
+        _relayPairingCts = null;
+        cancellation?.Cancel();
+        if (clearPending)
+        {
+            _pendingRelayInstallationToken = null;
+            _pendingRelayInstallationId = null;
+            _pendingRelayName = null;
+        }
+        RelayCancelButton.Visibility = Visibility.Collapsed;
+        RelayConnectButton.IsEnabled = true;
+        RelayCodePanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void ResetRelayConnectionPresentation(bool hasStoredCredential)
+    {
+        RelayCodePanel.Visibility = Visibility.Collapsed;
+        RelayCancelButton.Visibility = Visibility.Collapsed;
+        RelayConnectButton.IsEnabled = true;
+        RelayConnectButton.Content = hasStoredCredential ? "Reconnect" : "Connect";
+        RelayConnectedText.Text = hasStoredCredential ? "Connected — credential stored" : "";
+        RelayConnectedText.Visibility = hasStoredCredential ? Visibility.Visible : Visibility.Collapsed;
+        SetRelayStatus(hasStoredCredential ? "Connected" : "Not connected", "MutedTextBrush");
+    }
+
+    private bool HasRelayCredentialInEditor() =>
+        _pendingRelayInstallationToken is not null ||
+        ProviderList.SelectedItem is ProviderProfile profile &&
+        profile.Kind == "relay" &&
+        profile.SecretNames.Contains("installation_token", StringComparer.Ordinal) &&
+        ClearRelayTokenBox.IsChecked != true;
+
+    private void SetRelayStatus(string message, string brushKey)
+    {
+        RelayStatusText.Text = message;
+        if (TryFindResource(brushKey) is System.Windows.Media.Brush brush)
+            RelayStatusText.Foreground = brush;
+    }
+
+    private static string RelayPairingErrorMessage(RelayPairingException exception)
+    {
+        return exception.Code switch
+        {
+            "not_relay" => "That URL is not an AgentNotify Relay.",
+            "discovery_failed" => "Could not reach the relay. Check the URL and try again.",
+            "rate_limited" when exception.RetryAfterMilliseconds is int milliseconds =>
+                $"The relay is rate-limiting pairing requests. Try again in {Math.Max(1, (int)Math.Ceiling(milliseconds / 1000d))} seconds.",
+            "rate_limited" => "The relay is rate-limiting pairing requests. Try again shortly.",
+            "unexpected_verification_uri" => "The relay returned an unexpected verification URL.",
+            "network_error" => "Could not reach the relay after several attempts. Check your connection and try again.",
+            "consumed" => "The pairing credential was already collected. Try Connect again.",
+            _ => exception.Message
+        };
+    }
+
+    private static string CurrentRelayPlatform()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "windows";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return "macos";
+        return "linux";
+    }
+
+    private static string CurrentRelayClientVersion()
+    {
+        var assembly = typeof(ChannelSettingsPanel).Assembly;
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ??
+                      assembly.GetName().Version?.ToString(3) ??
+                      "0.0.0";
+        return version.Length <= 32 ? version : version[..32];
+    }
+
     private void LoadRelayConfiguration(ProviderProfile profile)
     {
+        CancelRelayPairing(clearPending: true);
         RelayInstallationTokenBox.Clear();
         ClearRelayTokenBox.IsChecked = false;
-        if (profile.Kind != "relay") return;
+        if (profile.Kind != "relay")
+        {
+            ResetRelayConnectionPresentation(hasStoredCredential: false);
+            return;
+        }
         try
         {
             using var document = JsonDocument.Parse(profile.ConfigJson);
@@ -1828,6 +2120,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             RelayBaseUrlBox.Text = "https://relay.example.com";
             RelaySenderNameBox.Clear();
         }
+        ResetRelayConnectionPresentation(
+            profile.SecretNames.Contains("installation_token", StringComparer.Ordinal));
     }
 
     private async void TestProvider_Click(object sender, RoutedEventArgs e)
