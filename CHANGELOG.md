@@ -9,6 +9,24 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
+## [Unreleased]
+
+### Added
+
+- **Browser-based AgentNotify Relay connection.** The Windows Channels panel now discovers a Relay,
+  opens its approval page, displays a short verification code, polls with cancellation and bounded
+  retry, verifies the approved installation, and saves the one-time credential only when the
+  provider is saved. Manual credential entry remains under a collapsed Advanced section.
+- **Headless Relay pairing.** `agentnotify relay pair` runs the same device-authorization handshake
+  on Windows, macOS, and Linux, while `agentnotify relay status` verifies saved Relay providers.
+  `--json` provides line-delimited state transitions for scripts.
+
+### Security
+
+- Relay discovery, pairing, verification, and delivery now share one redirect-free, proxy-free,
+  DNS-pinned HTTP transport. Browser approval URLs must match the configured Relay origin exactly;
+  polling and installation credentials are never placed in URLs, UI text, logs, or exceptions.
+
 ## [0.0.3-alpha.1] - 2026-08-12
 
 Fixes a crash that could close the application, and adds an About section.

@@ -206,18 +206,49 @@ This is the durable handoff record for long-running AgentNotify development. Upd
      - Tests: `RelayChannelTests` covers successful envelope with `Idempotency-Key`/`Authorization` and no token in URL, sender-name projection, device-fetch fan-out, unsafe-server rejection (http, userinfo, query, fragment, link-local, private without consent, and `http://localhost` without consent), explicit private subpath/port and `http://localhost` with consent, invalid `inst_…` token rejection, status classification (`408`/`425`/`429`/`5xx` retry vs `401`/`403`/`3xx` permanent), malformed-success retry, `duplicate` acceptance, and `relay_go` rejection. `CrossPlatformTests.AdapterFactory_CreatesEveryImplementedAdapter` now expects 19.
      - Gates: Release build 0 warnings/0 errors, 693 passing tests. Packaging not rerun (no installer payload/embedded resource change). No WPF visual check performed and none claimed; no live relay pairing or real-device decryption was exercised (experimental transport, per `docs/ENVELOPE.md` review checklist).
 
+44. Completed on `feature/relay-connect` (Relay sender device authorization):
+     - `RelayPairingClient` in Core implements discovery, sender pairing, bearer-header polling,
+       `slow_down`, bounded countdown/expiry, cancellation, five-failure transient-network tolerance,
+       terminal rejection/expiry/consumption, and post-approval installation verification. Responses
+       are capped at 64 KiB, calls and response reads are time-bounded, and exceptions are sanitized.
+     - Pairing and envelope delivery share `RelayHttpTransport`: redirect/cookie/proxy/decompression
+       suppression, validated-request marking, connect-time all-address policy, pinned-IP sockets, and
+       explicit private-network consent are no longer duplicated. Both verification URLs are required
+       to match the configured Relay scheme, host, and port before the desktop can open a browser.
+     - The Windows Channels panel replaces default manual credential entry with Connect/Cancel,
+       accessible live status, readable short code, browser launch plus no-browser fallback, countdown,
+       verified connection identity, Reconnect state, and cancellation on provider-kind/profile/window
+       changes. The credential remains memory-only until Save and is never rendered; manual entry and
+       removal remain in the collapsed Advanced expander.
+     - `agentnotify relay pair` exposes the same flow for Windows/macOS/Linux headless hosts, with
+       optional JSON-lines state output and explicit `--allow-private`; `relay status` verifies protected
+       saved credentials. Pairing creates disabled providers by default and updates a profile that has
+       the same normalized Relay URL.
+     - Automated coverage adds 13 pairing tests for request metadata, bearer placement, pending/approved
+       flow, terminal states, `slow_down`, transient failure limits, cross-origin rejection, URL policy,
+       exception redaction, cancellation, discovery, and verification. Gates: Release build 0 warnings/
+       0 errors; all 706 tests passed; packaging completed with installer SHA-256
+       `b9ff26b2b800ce58b331a27c57482361c75f134dc88b155e78936de47f1f0b9e`; the distributable skill
+       validator passed. Packaging still emits the pre-existing `SettingsWindow.xaml.cs` IL3000 warning
+       about `Assembly.Location` under single-file publish.
+     - Not verified: no Relay server was available for a live browser approval, credential persistence,
+       log scan, test envelope, or real-device flow; no WPF surface was rendered. These manual checks remain
+       required and are not inferred from compilation or fake-handler tests.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 693 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 706 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
 ## Next resume action
 
-Inspect the current branch and status, keep documentation aligned with the merged `dev` head, and create a new topic branch only when the next capability is explicitly resumed.
+Run the Relay server and perform the manual `http://localhost:4000` pairing checklist recorded in
+`docs/VERIFICATION.md`, including cancellation/lifecycle and credential-log scans. Keep the experimental
+envelope/E2E review separate from the now-implemented pairing transport.
 
 Two items are waiting on the repository owner rather than on code:
 

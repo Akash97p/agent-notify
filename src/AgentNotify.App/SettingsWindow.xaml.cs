@@ -48,6 +48,12 @@ public partial class SettingsWindow : Window
     /// <summary>Selects the About tab, used by the tray menu's About entry.</summary>
     public void ShowAboutTab() => AboutTab.IsSelected = true;
 
+    protected override void OnClosed(EventArgs e)
+    {
+        ChannelPanel.StopRelayPairing();
+        base.OnClosed(e);
+    }
+
     private void LoadAbout()
     {
         var assembly = Assembly.GetExecutingAssembly();
