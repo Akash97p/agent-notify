@@ -207,6 +207,20 @@ public sealed class RelayPairingTests
         Assert.Equal("Bearer " + InstallationToken, handler.Requests[1].Authorization);
     }
 
+    [Fact]
+    public async Task DeviceDiscoveryReportsNoActivePhones()
+    {
+        var handler = new PairingHandler(_ => Json(
+            HttpStatusCode.OK,
+            "{\"devices\":[{\"device_id\":\"revoked\",\"revoked_at\":\"2026-08-30T00:00:00Z\"}],\"total\":1}"));
+        using var client = new RelayPairingClient(new HttpClient(handler));
+
+        var devices = await client.GetDevicesAsync(BaseUri, InstallationToken, default);
+
+        Assert.Equal(0, devices.ActiveDeviceCount);
+        Assert.Equal("Bearer " + InstallationToken, Assert.Single(handler.Requests).Authorization);
+    }
+
     private static RelayPairingClient CreateFastClient(PairingHandler handler, TestClock clock) =>
         new(
             new HttpClient(handler),

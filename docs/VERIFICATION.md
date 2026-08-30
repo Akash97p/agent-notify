@@ -838,3 +838,27 @@ post-pairing runtime log directory was available for the required `inst_`/`pol_`
 window was rendered or exercised. A Windows human must still test Connect → browser approval → verified
 identity → Save provider → Send test, plus Cancel, window close, provider switch, browser-launch failure,
 expiry, rejection, DPI, keyboard, and screen-reader behavior.
+
+## Relay no-device handling (`fix/relay-no-devices`)
+
+Local verification on 2026-08-31:
+
+- A user verified the sender approval flow against a Relay running on `http://localhost:4000`; the
+  connection succeeded and the old test-send path reproduced `relay_400`. Source inspection confirmed
+  the adapter had sent `relay-placeholder-device` because sender pairing had not created a phone.
+- Focused `RelayChannelTests` and `RelayPairingTests` passed all 44 tests. New regression coverage proves
+  an empty or revoked-only device list reports zero active phones, `no_devices_paired` is permanent and
+  issues no envelope POST, an unknown pinned device issues no POST, and the paired installation identity
+  is retained in parsed delivery configuration.
+- `./scripts/build.sh` completed the full Release solution build, including WPF XAML, with 0 warnings and
+  0 errors. `./scripts/test.sh --no-restore` passed all 710 tests with 0 failures and 0 skips.
+- `./scripts/package.sh` rebuilt the Windows application and installer. The resulting
+  `artifacts/AgentNotifySetup.exe` SHA-256 is
+  `7d617019d08abc3383bcaff9b4fdbee15ef9454efd26473f3a171be3860a8689`. Publish emitted only the existing
+  `SettingsWindow.xaml.cs` IL3000 warning about `Assembly.Location` in a single-file app.
+- `git diff --check` passed. The distributable skill was unchanged, so skill validation was not required.
+
+**Not verified:** no phone client is present in this workspace, no receiving device was enrolled, and no
+successful envelope/device delivery was claimed. The updated WPF message was compiled but not visually
+inspected. After installing this build, the reported no-phone state should be retested against the live
+localhost Relay; a successful test delivery still requires an enrolled phone.

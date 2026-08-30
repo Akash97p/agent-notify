@@ -27,6 +27,12 @@ build.
   DNS-pinned HTTP transport. Browser approval URLs must match the configured Relay origin exactly;
   polling and installation credentials are never placed in URLs, UI text, logs, or exceptions.
 
+### Fixed
+
+- Relay test sends no longer submit a synthetic `relay-placeholder-device` after sender pairing.
+  An installation with no active phone now returns `no_devices_paired` locally and the Channels UI
+  explains the required next step; an unknown pinned device is rejected before any envelope is sent.
+
 ## [0.0.3-alpha.1] - 2026-08-12
 
 Fixes a crash that could close the application, and adds an About section.

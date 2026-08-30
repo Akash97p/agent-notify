@@ -50,6 +50,12 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         {
             throw;
         }
+        catch (RelayPreparationException exception)
+        {
+            return exception.Retryable
+                ? DeliveryResult.Retry(exception.Code, exception.StatusCode)
+                : DeliveryResult.PermanentFailure(exception.Code, exception.StatusCode);
+        }
         catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException)
         {
             return DeliveryResult.PermanentFailure("configuration_invalid");
@@ -162,6 +168,16 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             throw new ArgumentException("Relay installation token secret name is invalid.");
         config.InstallationTokenSecretName = tokenSecretName.Trim();
 
+        var installationId = GetString(root, "installation_id") ?? GetString(root, "installationId");
+        if (!string.IsNullOrWhiteSpace(installationId))
+        {
+            installationId = installationId.Trim();
+            if (installationId.Length > 128 ||
+                installationId.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-' or '.')))
+                throw new ArgumentException("Relay installation ID is invalid.");
+            config.InstallationId = installationId;
+        }
+
         // Optional explicit device pinning for tests or manual config
         var deviceId = GetString(root, "deviceId") ?? GetString(root, "device_id");
         if (!string.IsNullOrWhiteSpace(deviceId))
@@ -265,50 +281,45 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             clientEventId = delivery.OutboxId;
         var expiresAt = DateTimeOffset.UtcNow.AddHours(24).ToString("O");
 
-        // Try to discover devices via GET /v1/devices; fallback to explicit config or placeholder.
+        // Discover the active devices before building the envelope. A sender pairing creates an
+        // installation, not a recipient, so an empty list is an actionable configuration state.
         var recipients = new List<RelayEnvelopeRecipient>();
         var fetched = await TryFetchDevicesAsync(
             relayBase,
             installationToken,
             config.AllowPrivateNetwork,
             cancellationToken);
-        if (fetched is { Count: > 0 })
+        if (!string.IsNullOrWhiteSpace(config.DeviceId))
         {
-            foreach (var d in fetched)
-            {
-                var ciphertext = GenerateCiphertext(
-                    plaintext,
-                    senderInstallationId: "local-installation",
-                    deviceId: d.DeviceId,
-                    keyId: d.KeyId ?? "k1",
-                    clientEventId: clientEventId,
-                    expiresAt: expiresAt,
-                    devicePublicKey: d.PublicKey);
-                recipients.Add(new RelayEnvelopeRecipient(d.DeviceId, d.KeyId ?? "k1", ciphertext));
-                if (recipients.Count >= 10) break;
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(config.DeviceId))
-        {
-            var keyId = string.IsNullOrWhiteSpace(config.KeyId) ? "k1" : config.KeyId!;
-            var ciphertext = GenerateCiphertext(plaintext, "local-installation", config.DeviceId!, keyId, clientEventId, expiresAt, null);
-            recipients.Add(new RelayEnvelopeRecipient(config.DeviceId!, keyId, ciphertext));
+            var pinned = fetched.FirstOrDefault(device =>
+                string.Equals(device.DeviceId, config.DeviceId, StringComparison.Ordinal));
+            if (pinned is null)
+                throw new RelayPreparationException("relay_device_not_found", retryable: false);
+            AddRecipient(pinned, config.KeyId);
         }
         else
         {
-            // Fallback single placeholder recipient — works for mocked handler tests and for relay
-            // instances with a single device where the server will validate the actual device_id.
-            // In production with no devices, the server will return 400 and we will surface
-            // configuration_invalid at the next retry boundary (dead-letter, not endless retry).
-            var keyId = string.IsNullOrWhiteSpace(config.KeyId) ? "k1" : config.KeyId!;
-            // Use a deterministic placeholder so tests can assert shape without fetching.
-            var placeholderDeviceId = "relay-placeholder-device";
-            var ciphertext = GenerateCiphertext(plaintext, "local-installation", placeholderDeviceId, keyId, clientEventId, expiresAt, null);
-            recipients.Add(new RelayEnvelopeRecipient(placeholderDeviceId, keyId, ciphertext));
+            if (fetched.Count == 0)
+                throw new RelayPreparationException("no_devices_paired", retryable: false);
+            foreach (var device in fetched.Take(10))
+                AddRecipient(device, keyIdOverride: null);
         }
 
-        if (recipients.Count == 0)
-            throw new InvalidOperationException("No Relay recipients available.");
+        void AddRecipient(FetchedDevice device, string? keyIdOverride)
+        {
+            var keyId = string.IsNullOrWhiteSpace(keyIdOverride)
+                ? device.KeyId ?? "k1"
+                : keyIdOverride;
+            var ciphertext = GenerateCiphertext(
+                plaintext,
+                senderInstallationId: config.InstallationId ?? "local-installation",
+                deviceId: device.DeviceId,
+                keyId: keyId,
+                clientEventId: clientEventId,
+                expiresAt: expiresAt,
+                devicePublicKey: device.PublicKey);
+            recipients.Add(new RelayEnvelopeRecipient(device.DeviceId, keyId, ciphertext));
+        }
 
         var envelope = new RelayEnvelopeRequest(
             envelope_version: "1",
@@ -324,7 +335,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         return json;
     }
 
-    private async Task<List<FetchedDevice>?> TryFetchDevicesAsync(
+    private async Task<List<FetchedDevice>> TryFetchDevicesAsync(
         Uri relayBase,
         string installationToken,
         bool allowPrivateNetwork,
@@ -340,8 +351,12 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             request.Headers.UserAgent.Add(new ProductInfoHeaderValue("AgentNotify", "1.0"));
 
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if ((int)response.StatusCode is < 200 or > 299)
-                return null;
+            var status = (int)response.StatusCode;
+            if (status is < 200 or > 299)
+                throw new RelayPreparationException(
+                    $"relay_devices_{status}",
+                    retryable: status is 408 or 425 or 429 || status >= 500,
+                    status);
 
             const int maxBytes = 64 * 1024;
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -352,13 +367,13 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
                 var read = await stream.ReadAsync(buffer, cancellationToken);
                 if (read == 0) break;
                 if (ms.Length + read > maxBytes)
-                    throw new InvalidDataException("Relay devices response too large.");
+                    throw new RelayPreparationException("relay_invalid_response", retryable: true);
                 ms.Write(buffer, 0, read);
             }
             using var doc = JsonDocument.Parse(ms.GetBuffer().AsMemory(0, (int)ms.Length));
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("devices", out var devices) || devices.ValueKind != JsonValueKind.Array)
-                return null;
+                throw new RelayPreparationException("relay_invalid_response", retryable: true);
             var list = new List<FetchedDevice>();
             foreach (var d in devices.EnumerateArray())
             {
@@ -374,9 +389,14 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             return list;
         }
         catch (OperationCanceledException) { throw; }
-        catch
+        catch (RelayPreparationException) { throw; }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
-            return null;
+            throw new RelayPreparationException("network_error", retryable: true);
+        }
+        catch (JsonException)
+        {
+            throw new RelayPreparationException("relay_invalid_response", retryable: true);
         }
     }
 
@@ -477,6 +497,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         public string? SenderName { get; set; }
         public bool AllowPrivateNetwork { get; set; }
         public string InstallationTokenSecretName { get; set; } = "installation_token";
+        public string? InstallationId { get; set; }
         public string? DeviceId { get; set; }
         public string? KeyId { get; set; }
     }
@@ -493,4 +514,18 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         [property: JsonPropertyName("recipients")] IReadOnlyList<RelayEnvelopeRecipient> recipients,
         [property: JsonPropertyName("sender_name")] string? sender_name,
         [property: JsonPropertyName("sender_id")] string? sender_id);
+
+    private sealed class RelayPreparationException : Exception
+    {
+        public RelayPreparationException(string code, bool retryable, int? statusCode = null)
+        {
+            Code = code;
+            Retryable = retryable;
+            StatusCode = statusCode;
+        }
+
+        public string Code { get; }
+        public bool Retryable { get; }
+        public int? StatusCode { get; }
+    }
 }
