@@ -40,7 +40,7 @@ Coding agent → ARC → AgentNotify (local history, toast)
 | The relay service | Open source, self-hostable today |
 | The desktop provider | Shipped in AgentNotify — pairing, sending, revocation |
 | The operator console | Shipped with the relay — sign-in, pairing, live delivery view |
-| The mobile app | **Not built yet.** Flutter client is planned |
+| The mobile app | **Not built yet.** An Expo/TypeScript client is planned |
 | Relay Go (hosted) | **Not available yet.** Visible in the UI as *coming soon* |
 
 Until the mobile app exists you can still run the whole chain end to end — the relay repository
