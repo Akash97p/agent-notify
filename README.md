@@ -57,7 +57,9 @@ Everywhere:
 - A loopback-only, bearer-authenticated REST API at `127.0.0.1:47821`.
 - A self-contained `agentnotify` CLI, including an `agentnotify.exe` for Windows and WSL agents.
 - SQLite history, deduplication keys, configurable retention, and local logs.
-- Eighteen opt-in outbound channel adapters with encrypted credentials.
+- Nineteen opt-in outbound channel adapters with encrypted credentials, including
+  [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
+  transport from your computers to your phone.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:

@@ -295,6 +295,15 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         // which is valid RFC 3339 but which many JSON schema validators reject.
         var expiresAt = DateTime.UtcNow.AddHours(24).ToString("O", CultureInfo.InvariantCulture);
 
+        // One value for both the AAD and the wire. The recipient rebuilds the AAD
+        // from the sender_id the relay hands it, so these two must never diverge —
+        // if they do, every envelope fails authentication on the device. Pairing
+        // always supplies an installation id; the fallback only covers a provider
+        // configured by hand before pairing existed.
+        var senderId = string.IsNullOrWhiteSpace(config.InstallationId)
+            ? "local-installation"
+            : config.InstallationId!;
+
         // Discover the active devices before building the envelope. A sender pairing creates an
         // installation, not a recipient, so an empty list is an actionable configuration state.
         var recipients = new List<RelayEnvelopeRecipient>();
@@ -326,7 +335,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
                 : keyIdOverride;
             var ciphertext = GenerateCiphertext(
                 plaintext,
-                senderInstallationId: config.InstallationId ?? "local-installation",
+                senderInstallationId: senderId,
                 deviceId: device.DeviceId,
                 keyId: keyId,
                 clientEventId: clientEventId,
@@ -341,7 +350,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             expires_at: expiresAt,
             recipients: recipients,
             sender_name: string.IsNullOrWhiteSpace(config.SenderName) ? null : config.SenderName,
-            sender_id: null);
+            sender_id: senderId);
 
         var json = JsonSerializer.Serialize(envelope, RelayJsonOptions);
         if (Encoding.UTF8.GetByteCount(json) > 64 * 1024)

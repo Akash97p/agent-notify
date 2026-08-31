@@ -482,6 +482,11 @@ Broker authentication/topic rejection is permanent; broker busy, rate/quota, and
 
 ## AgentNotify Relay
 
+Relay is a separate open-source service you host yourself:
+[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay). See
+[AgentNotify Relay](RELAY.md) for what it is and how to run one; this section covers the provider
+settings only.
+
 Implementation status: adapter, browser/device-grant pairing, CLI pairing/status, and native Settings integration complete for Custom (self-hosted) with experimental opaque transport; Relay Go hosted UI is visible but disabled until the hosted base URL and billing are ready; live-relay interoperability and E2E review pending.
 
 Select **AgentNotify Relay** as the provider type, choose **Custom — self-hosted** (Relay Go is shown disabled as “coming soon”), and use this flow:

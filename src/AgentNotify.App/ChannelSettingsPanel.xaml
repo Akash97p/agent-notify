@@ -286,7 +286,19 @@
                         </Grid>
                         <TextBlock Text="A route sends matching new notifications to one provider." Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                         <TextBlock Text="Route name"/><TextBox x:Name="RouteNameBox"/>
-                        <TextBlock Text="Provider"/><ComboBox x:Name="RouteProviderBox" DisplayMemberPath="Name"/>
+                        <TextBlock Text="Provider"/>
+                        <!-- An explicit ItemTemplate rather than DisplayMemberPath: the themed
+                             ComboBox template renders the closed control through
+                             SelectionBoxItemTemplate, which is populated from ItemTemplate.
+                             With only DisplayMemberPath set it stayed empty, so the
+                             ContentPresenter fell back to ToString() and showed the type name. -->
+                        <ComboBox x:Name="RouteProviderBox">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                         <CheckBox x:Name="RouteEnabledBox" Content="Enable this route"/>
                         <TextBlock Text="Minimum priority"/><ComboBox x:Name="RoutePriorityBox"/>
                         <TextBlock Text="Type ID (blank = any)"/><TextBox x:Name="RouteTypeBox"/>

@@ -18,6 +18,7 @@ export function SiteHeader() {
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/">Documentation</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/arc/">ARC</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/channels/">Channels</Link>
+          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/relay/">Relay</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/architecture/">Architecture</Link>
         </nav>
         <div className="ml-auto flex items-center gap-1">
