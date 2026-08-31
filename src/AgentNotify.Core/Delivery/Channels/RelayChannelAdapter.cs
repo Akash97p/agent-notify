@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -16,6 +17,16 @@ namespace AgentNotify.Core.Delivery.Channels;
 /// </summary>
 public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 {
+    /// <summary>
+    /// Relay-specific serialization. Absent optional metadata must be omitted
+    /// rather than written as an explicit null: the Relay treats a null on an
+    /// optional field as a type error, and "not provided" is what is meant.
+    /// Scoped to this adapter because <see cref="Json.Options"/> is shared with
+    /// every other outbound channel.
+    /// </summary>
+    private static readonly JsonSerializerOptions RelayJsonOptions =
+        new(Json.Options) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
     private readonly HttpClient _client;
     private readonly bool _ownsClient;
 
@@ -279,7 +290,10 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
         var clientEventId = delivery.NotificationId;
         if (string.IsNullOrWhiteSpace(clientEventId) || clientEventId.Length > 128)
             clientEventId = delivery.OutboxId;
-        var expiresAt = DateTimeOffset.UtcNow.AddHours(24).ToString("O");
+        // DateTime (not DateTimeOffset) with Kind.Utc renders the round-trip format
+        // with a trailing Z. DateTimeOffset.ToString("O") emits "+00:00" instead,
+        // which is valid RFC 3339 but which many JSON schema validators reject.
+        var expiresAt = DateTime.UtcNow.AddHours(24).ToString("O", CultureInfo.InvariantCulture);
 
         // Discover the active devices before building the envelope. A sender pairing creates an
         // installation, not a recipient, so an empty list is an actionable configuration state.
@@ -329,7 +343,7 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             sender_name: string.IsNullOrWhiteSpace(config.SenderName) ? null : config.SenderName,
             sender_id: null);
 
-        var json = JsonSerializer.Serialize(envelope, Json.Options);
+        var json = JsonSerializer.Serialize(envelope, RelayJsonOptions);
         if (Encoding.UTF8.GetByteCount(json) > 64 * 1024)
             throw new InvalidOperationException("Relay envelope is too large.");
         return json;
