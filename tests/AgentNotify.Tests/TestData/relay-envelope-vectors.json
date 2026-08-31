@@ -1,0 +1,51 @@
+{
+  "version": "1-experimental",
+  "generated": "2026-08-27T04:42:54.698Z",
+  "note": "Deterministic vectors for envelope spec v1. Do not claim E2E until .NET/Dart/TS all pass and review is done. Keys are fixed test fixtures, not real device keys.",
+  "vectors": [
+    {
+      "name": "opaque-validation-accepts-base64url",
+      "ciphertext": "dGVzdC1jaXBoZXJ0ZXh0LWZvci10ZXN0aW5nLXB1cnBvc2Vz",
+      "valid": true
+    },
+    {
+      "name": "opaque-validation-rejects-empty",
+      "ciphertext": "",
+      "valid": false
+    },
+    {
+      "name": "envelope-v1-deterministic-1",
+      "description": "Deterministic envelope-v1-deterministic-1",
+      "version": "1",
+      "senderId": "inst_test_123",
+      "recipientId": "device_test_456",
+      "keyId": "key-1",
+      "eventId": "evt-001",
+      "expiresAt": "2026-08-27T12:00:00Z",
+      "plaintext": "{\"title\":\"Agent needs input\",\"body\":\"hello\",\"level\":\"info\"}",
+      "recipientPrivateKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "recipientPublicKey": "j0DFrbaPJWJK5bIU6nZ6bslNgp09e14a0bpvPiE4KF8",
+      "ephemeralPrivateKey": "Hx4dHBsaGRgXFhUUExIREA8ODQwLCgkIBwYFBAMCAQA",
+      "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+      "ciphertext": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXh5aMHBZCvQYA9q2Gm4j5LJYj0N_ETwHe_-Icmt09yl8pMURC39S5CN2H9PZYXuvvjGWrdRNBBzmZlx8W6Ic4c2PkNAlMV9kFrvivk7jjYAE4cYMkDERTLJ3niKN1qFR8WAnffHIOeYie6xk",
+      "aad": "1|inst_test_123|device_test_456|key-1|evt-001|2026-08-27T12:00:00Z"
+    },
+    {
+      "name": "envelope-v1-deterministic-2",
+      "description": "Deterministic envelope-v1-deterministic-2",
+      "version": "1",
+      "senderId": "inst_test_123",
+      "recipientId": "device_test_456",
+      "keyId": "key-1",
+      "eventId": "evt-002",
+      "expiresAt": "2026-08-27T13:00:00Z",
+      "plaintext": "deterministic-plaintext",
+      "recipientPrivateKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "recipientPublicKey": "j0DFrbaPJWJK5bIU6nZ6bslNgp09e14a0bpvPiE4KF8",
+      "ephemeralPrivateKey": "AAIEBggKDA4QEhQWGBocHiAiJCYoKiwuMDI0Njg6PD4",
+      "nonce": "EBESExQVFhcYGRobHB0eHyAhIiMkJSYn",
+      "ciphertext": "EBESExQVFhcYGRobHB0eHyAhIiMkJSYnommQj5KJoeHRLhbHyA2RzNXBeJ_Xz4p1vJUsozZzhXz3oDppCWPZpuYVCsulA5Am8QYWE9Hn-1Vxe7fndCb9lIplPNPwFEw",
+      "aad": "1|inst_test_123|device_test_456|key-1|evt-002|2026-08-27T13:00:00Z"
+    }
+  ]
+}
