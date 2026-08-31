@@ -11,6 +11,18 @@ build.
 
 ## [Unreleased]
 
+## [0.0.4-alpha.1] - 2026-08-31
+
+Adds AgentNotify Relay: a self-hostable service that carries notifications from your computers to
+your phone, without routing them through somebody else's messaging product. Connecting a computer
+is now a browser approval rather than a pasted token.
+
+Relay is a separate open-source project —
+[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay) — and is
+documented at [Relay](https://akash97p.github.io/agent-notify/docs/relay/). The mobile client and
+the hosted Relay Go plan do not exist yet, and the desktop still sends an experimental opaque
+transport rather than a sealed box, so end-to-end confidentiality is not yet delivered.
+
 ### Added
 
 - **Browser-based AgentNotify Relay connection.** The Windows Channels panel now discovers a Relay,
@@ -32,6 +44,21 @@ build.
 - Relay test sends no longer submit a synthetic `relay-placeholder-device` after sender pairing.
   An installation with no active phone now returns `no_devices_paired` locally and the Channels UI
   explains the required next step; an unknown pinned device is rejected before any envelope is sent.
+- **Every Relay send failed with `relay_400`.** Two serialization details were rejected by the
+  Relay before any handler ran: `expires_at` used `DateTimeOffset.ToString("O")`, which emits a
+  numeric offset instead of the trailing `Z` the schema accepted, and absent optional metadata was
+  written as an explicit `null`. Timestamps now use the `Z` form and nulls are omitted.
+- **The route editor's provider dropdown showed a type name** instead of each provider's name, so
+  every entry looked identical. The themed ComboBox draws the closed control from
+  `SelectionBoxItemTemplate`, which `DisplayMemberPath` alone leaves empty; an explicit
+  `ItemTemplate` now drives both the list and the selection.
+- **Envelopes carried a `sender_id` that did not match the value sealed into the ciphertext.** The
+  recipient rebuilds its authentication data from the `sender_id` it is given, so the mismatch
+  would have made every envelope fail authentication on the device once the transport is really
+  encrypted. Both now come from one value.
+- **The setup window and settings header rendered a soft, low-resolution logo.** Windows selects a
+  small icon frame for an image with an explicit size; on-screen logos now use the 512px source
+  while window and executable icons keep the multi-resolution `.ico`.
 
 ## [0.0.3-alpha.1] - 2026-08-12
 

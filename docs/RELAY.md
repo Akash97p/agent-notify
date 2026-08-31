@@ -104,27 +104,51 @@ outside your computer, regardless of transport.
 
 ## Running your own relay
 
-Full instructions, configuration reference, and the API contract live in the relay repository. The
-short version:
+A prebuilt container image is published on every release, so you do not need to clone the
+repository or install anything to build it. Save this as `compose.yaml`, change the four values at
+the top, and run `docker compose up -d`:
 
-```bash
-git clone https://github.com/Akash97p/agent-notify-relay
-cd agent-notify-relay
-bun install
+```yaml
+services:
+  relay:
+    image: ghcr.io/akash97p/agent-notify-relay:latest
+    restart: unless-stopped
+    ports:
+      # Change the left number to publish on a different port.
+      - "4000:8787"
+    environment:
+      # --- change these four ---
+      RELAY_ADMIN_EMAIL: you@example.com
+      RELAY_ADMIN_PASSWORD: change-me-to-a-long-passphrase
+      # The address AgentNotify and your phone will reach this relay at.
+      # Must match the published port above, and be https:// once it is not local.
+      RELAY_PUBLIC_URL: http://localhost:4000
+      # 32 random bytes. Generate with: openssl rand -base64 32
+      RELAY_ENCRYPTION_KEY: replace-with-openssl-rand-base64-32
+      # --- sensible defaults ---
+      RELAY_DATABASE_URL: sqlite:///data/relay.db
+      # Leave true until you have configured Firebase; deliveries still progress.
+      RELAY_FCM_STUB: "true"
+    volumes:
+      - relay-data:/data
 
-RELAY_PORT=4000 RELAY_PUBLIC_URL=http://localhost:4000 \
-RELAY_ENCRYPTION_KEY=$(openssl rand -base64 32) \
-RELAY_ADMIN_EMAIL=you@example.com RELAY_ADMIN_PASSWORD=a-long-passphrase \
-RELAY_DATABASE_URL=sqlite:///data/relay.db RELAY_FCM_STUB=true \
-bun run apps/api/src/index.ts
+volumes:
+  relay-data:
 ```
 
-The console is then at `http://localhost:4000`. SQLite is the default for a single instance;
-PostgreSQL is supported for multi-instance deployments. A Dockerfile and Compose file are included.
+Open `http://localhost:4000` and sign in with the email and password you set. That is the address
+you then give AgentNotify when you press **Connect**.
 
-For anything internet-facing, put it behind TLS and set a real `RELAY_ENCRYPTION_KEY` — the relay
-refuses to start in production without a configured operator account, and rejects the development
-placeholder key.
+The password must be at least 12 characters — the relay refuses to start in production without an
+operator account, and rejects the development encryption key. `RELAY_ENCRYPTION_KEY` protects push
+tokens at rest, so losing it means re-pairing every phone. Put anything internet-facing behind TLS
+and set `RELAY_PUBLIC_URL` to the `https://` address, since that value is what the desktop
+validates and what your phone scans.
+
+SQLite is the default and is right for a single instance; PostgreSQL is supported for
+multi-instance deployments. Running from source, the configuration reference, and the full API
+contract are documented in the
+[relay repository](https://github.com/Akash97p/agent-notify-relay).
 
 ---
 
