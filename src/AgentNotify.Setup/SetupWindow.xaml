@@ -132,7 +132,7 @@
                     CornerRadius="11,11,0,0" MouseLeftButtonDown="OnDragWindow">
                 <Grid Margin="16,0,8,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="/Resources/an.ico" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <Image Source="/Resources/an.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock Text="AgentNotify" Foreground="#FAFAFA" Margin="9,0,0,0" FontWeight="SemiBold"/>
                         <TextBlock Text="/ Setup" Foreground="#A1A1AA" Margin="8,0,0,0"/>
                     </StackPanel>
@@ -144,7 +144,9 @@
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="42,30,42,26">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="/Resources/an.ico" Width="76" Height="76" Margin="0,0,20,0"
+                        <!-- PNG rather than ICO: the icon decoder selects a low-resolution
+                             frame for a sized Image, which looks soft at 76px. -->
+                        <Image Source="/Resources/an.png" Width="76" Height="76" Margin="0,0,20,0"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="AgentNotify" Foreground="#FAFAFA" FontWeight="SemiBold" FontSize="32"/>

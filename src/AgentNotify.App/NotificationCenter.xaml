@@ -90,7 +90,7 @@
         <Border Grid.Row="0" Background="#0E0E11" BorderBrush="#27272A" BorderThickness="0,0,0,1">
             <Grid Margin="16,0,8,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <Image Source="pack://application:,,,/Resources/an.ico" Width="24" Height="24"
+                <Image Source="pack://application:,,,/Resources/an.png" Width="24" Height="24"
                        VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="AgentNotify" FontWeight="SemiBold"/>
