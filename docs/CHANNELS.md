@@ -487,7 +487,7 @@ Relay is a separate open-source service you host yourself:
 [AgentNotify Relay](RELAY.md) for what it is and how to run one; this section covers the provider
 settings only.
 
-Implementation status: adapter, browser/device-grant pairing, CLI pairing/status, and native Settings integration complete for Custom (self-hosted) with experimental opaque transport; Relay Go hosted UI is visible but disabled until the hosted base URL and billing are ready; live-relay interoperability and E2E review pending.
+Implementation status: adapter, browser/device-grant pairing, CLI pairing/status, and native Settings integration complete for Custom (self-hosted). Payloads are sealed per recipient device with X25519 + XChaCha20-Poly1305 before they leave the machine, verified byte for byte against the relay's shared test vectors, so the relay stores ciphertext it cannot read. A device with no registered public key is skipped rather than sent in the clear. Relay Go hosted UI is visible but disabled until the hosted base URL and billing are ready. The envelope format has not had an independent cryptographic review, and the mobile client that completes the chain is not built yet.
 
 Select **AgentNotify Relay** as the provider type, choose **Custom — self-hosted** (Relay Go is shown disabled as “coming soon”), and use this flow:
 

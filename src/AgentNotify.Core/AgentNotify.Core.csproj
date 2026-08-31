@@ -8,6 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- X25519 and ChaCha20-Poly1305 for relay envelope sealing. Pure managed, so
+         the single-file installer carries no native binary per runtime identifier. -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
     <PackageReference Include="MQTTnet" Version="5.2.0.1603" />
