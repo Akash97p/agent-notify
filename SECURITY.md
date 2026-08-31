@@ -103,4 +103,16 @@ The Twilio WhatsApp adapter encrypts the Account and credential SIDs/secrets, si
 
 The MQTT adapter encrypts the exact non-wildcard topic, username/password, and optional client-certificate thumbprint. TLS 1.2/1.3 with normal Windows chain, hostname, and revocation validation is mandatory; there is no certificate-bypass setting. Every DNS answer is validated against the explicit public/private network policy, then MQTTnet connects to a pinned IP endpoint while using the configured broker host for SNI and certificate verification. mTLS private keys remain in the Windows Current User Personal certificate store and are never copied into SQLite; selection requires a currently valid private-key certificate with compatible digital-signature and client-authentication usage. Publishes are MQTT 5 JSON, non-retained, bounded to 16 KiB, and carry stable opaque delivery identifiers for consumer deduplication. QoS 0 is not replayed after handled ambiguity; QoS 1/2 require explicit duplicate-risk acknowledgement because a new AgentNotify outbox attempt or session can still duplicate despite protocol-level guarantees. Anonymous TLS requires separate acknowledgement. Link-local, metadata, multicast, documentation, and mixed-policy DNS answers remain blocked.
 
+The AgentNotify Relay adapter and pairing client share one hardened transport: redirects, cookies,
+ambient proxies, and automatic decompression are disabled; every DNS answer is checked immediately
+before a pinned-IP connection; private destinations require explicit consent; and HTTP is accepted
+only for consented localhost development. Pairing first verifies the Relay discovery document and
+requires the returned browser approval URL to have the configured Relay's exact scheme, host, and
+port. The poll credential remains only in memory, is sent only in an authorization header, and is
+discarded on completion or cancellation. The one-time installation credential is validated,
+self-tested, never rendered, and encrypted through the same provider secret store used by delivery.
+Both response sizes and call times are bounded, and sanitized exceptions cannot contain either
+credential. The manual credential field remains collapsed under Advanced for explicitly provisioned
+or headless recovery workflows.
+
 Never extend the current bearer token directly to an internet-facing API.

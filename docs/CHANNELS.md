@@ -6,7 +6,7 @@ Use **Tray icon → Settings → Channels** to create a provider profile, enter 
 
 ## Implemented channel inventory
 
-The current `dev` integration branch contains 18 adapters. Each detailed section below documents its configuration contract, payload projection, acknowledgement policy, and verification boundary.
+The current `dev` integration branch contains 19 adapters. Each detailed section below documents its configuration contract, payload projection, acknowledgement policy, and verification boundary.
 
 | Group | Implemented adapters |
 |---|---|
@@ -479,6 +479,63 @@ QoS behavior must be chosen deliberately:
 - QoS 2 is exactly-once only inside the MQTT protocol session. AgentNotify uses a clean one-shot session; a later durable outbox attempt is a new application/session boundary and can duplicate. It therefore requires the same duplicate-risk acknowledgement as QoS 1.
 
 Broker authentication/topic rejection is permanent; broker busy, rate/quota, and transient implementation failures retry for acknowledged QoS 1/2. The adapter deliberately ignores server redirection so an MQTT broker cannot move delivery to an unconfigured destination. See the [OASIS MQTT 5 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html) and the [.NET Foundation MQTTnet project](https://github.com/dotnet/MQTTnet).
+
+## AgentNotify Relay
+
+Relay is a separate open-source service you host yourself:
+[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay). See
+[AgentNotify Relay](RELAY.md) for what it is and how to run one; this section covers the provider
+settings only.
+
+Implementation status: adapter, browser/device-grant pairing, CLI pairing/status, and native Settings integration complete for Custom (self-hosted) with experimental opaque transport; Relay Go hosted UI is visible but disabled until the hosted base URL and billing are ready; live-relay interoperability and E2E review pending.
+
+Select **AgentNotify Relay** as the provider type, choose **Custom — self-hosted** (Relay Go is shown disabled as “coming soon”), and use this flow:
+
+1. Enter the Relay base URL and optional sender name, then press **Connect**.
+2. Confirm the displayed short code on the approval page opened in the browser. If a browser cannot
+   be opened, Settings keeps polling and displays the URL and code for use on another device.
+3. After the Relay verifies the approved installation, press **Save provider**.
+
+The poll credential is memory-only. The one-time installation credential is never rendered and is
+written to the platform-protected provider secret store only with the saved profile. Existing
+credential delivery remains `Authorization: Bearer`; manual entry is retained only under the
+collapsed **Advanced** section for recovery, CI, and externally provisioned installations. A
+separate **Allow private/loopback destinations** consent permits private or loopback Relay hosts;
+link-local, multicast, and documentation ranges remain blocked.
+
+Headless hosts use the same Core protocol client:
+
+```bash
+agentnotify relay pair --url https://relay.example.com --name "Home relay"
+agentnotify relay status
+```
+
+Add `--allow-private` explicitly for a private address or `http://localhost:4000`. `--json` emits one
+JSON object per pairing state transition. The CLI saves a new provider disabled by default, or
+replaces the credential for an existing profile with the same normalized Relay URL.
+
+```json
+{
+  "deployment": "custom",
+  "relay_url": "https://relay.example.com",
+  "sender_name": "My ThinkPad",
+  "allowPrivateNetwork": false,
+  "installation_id": "7f3a…",
+  "relay_name": "Home relay"
+}
+```
+
+Before pairing, AgentNotify calls `/.well-known/agentnotify-relay` and requires API `v1`. It then
+uses the RFC 8628-style `/v1/pairing/sender` flow, requires the browser URL to have the same scheme,
+host, and port as the configured Relay, tolerates four consecutive transient poll failures, obeys
+`slow_down`, and verifies the resulting credential through `/v1/installation`. Every call has a
+10-second timeout and bounded response body; neither credential can appear in an exception.
+
+The adapter posts an opaque envelope to `POST {relay_url}/v1/envelopes` with `Idempotency-Key: <outbox id>` and `Authorization: Bearer <installation_token>`. The envelope contains `envelope_version: "1"`, `client_event_id: <notificationId>`, `expires_at: <now+24h>`, `recipients: [{device_id, key_id, ciphertext}]`, and optional `sender_name`. `ciphertext` is currently a base64url opaque wire (`nonce 24 || ephemPub 32 || plaintext`) — experimental and not yet claimed as end-to-end encryption — and is bounded to 64 KiB. The transport disables redirects, cookies, ambient proxies, and automatic decompression, validates that every relay DNS result satisfies the private-network policy at socket-connect time (pinned-IP connection), and never logs the URL, token, or envelope body.
+
+Device discovery is via `GET {relay_url}/v1/devices` with the same bearer token; paired devices provide `device_id`/`key_id` metadata for per-device fan-out (up to 10 recipients). Sender pairing does not pair a phone. If no active phone is paired, the adapter returns the permanent `no_devices_paired` result without posting a synthetic recipient, and the desktop explains how to pair a phone before testing. A configured pinned device must appear in the active device list or delivery returns `relay_device_not_found` without posting. `POST /v1/envelopes` returns `201` accepted or `200` duplicate (idempotent retry); `408`, `425`, `429`, `5xx`, and network failures retry through the durable outbox, while `3xx` redirects and other `4xx` responses are permanent. Response bodies are bounded to 64 KiB and parsed only for `envelope_id`/`status` acknowledgement.
+
+This adapter follows the same hardened `SocketsHttpHandler.ConnectCallback` pattern as the other HTTPS adapters and reuses `WebhookChannelAdapter.IsAddressAllowed` for destination policy. See the Relay envelope and API contracts in `agent-notify-relay/docs/ENVELOPE.md` and `agent-notify-relay/docs/API.md`. The local SQLite notification record remains authoritative even when the relay is unreachable.
 
 ## Planned adapters
 

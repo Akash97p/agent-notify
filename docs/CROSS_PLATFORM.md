@@ -57,7 +57,7 @@ The three things that actually block non-Windows use:
    injected key and is used only by tests; there is no production key source on other platforms.
 3. There is no desktop notification path other than WPF toast windows.
 
-Everything else — SQLite, the outbox, all eighteen delivery adapters, the API, the CLI — is
+Everything else — SQLite, the outbox, all nineteen delivery adapters, the API, the CLI — is
 expected to work unchanged.
 
 ---
@@ -66,7 +66,7 @@ expected to work unchanged.
 
 ### 1.1 Shared channel adapter list
 
-`App.xaml.cs` constructs all eighteen adapters inline. Move that construction into
+`App.xaml.cs` constructs all nineteen adapters inline. Move that construction into
 `AgentNotify.Core` so the WPF app and the new headless host cannot drift apart.
 
 *Done when:* a single factory in Core returns the adapter list, `App.xaml.cs` uses it, and the

@@ -806,3 +806,59 @@ Hosted verification on topic commit `807778c`:
 Settings at minimum/default/maximized sizes, provider and route editors, Notification Center active/recent
 lists, stacked toasts, installer scrolling, 100/125/150/200% DPI, keyboard focus/order, high contrast, and
 screen-reader labels. Compilation is not a substitute for those checks.
+
+## Relay browser/device-grant connection (`feature/relay-connect`)
+
+Local verification on 2026-08-31:
+
+- `./scripts/build.sh --no-restore` completed the full Release solution build, including WPF XAML,
+  with 0 warnings and 0 errors.
+- `./scripts/test.sh --no-restore` passed all 706 tests with 0 failures and 0 skips. The 13 new
+  `RelayPairingTests` cases cover sender metadata, authorization-header placement, pending-to-approved,
+  denial/expiry/consumption, RFC-style `slow_down`, four tolerated transient failures and failure five,
+  cross-origin browser URL rejection, HTTP/localhost policy, exception credential redaction,
+  cancellation before a poll, discovery, and installation verification.
+- `./scripts/package.sh` rebuilt the self-contained tray, CLI, and setup payload and created
+  `artifacts/AgentNotifySetup.exe` with SHA-256
+  `b9ff26b2b800ce58b331a27c57482361c75f134dc88b155e78936de47f1f0b9e`. Packaging succeeded but
+  emitted the existing IL3000 single-file warning at `SettingsWindow.xaml.cs` for
+  `Assembly.Location`; this branch did not introduce that line.
+- `python3 /home/akash/.codex/skills/.system/skill-creator/scripts/quick_validate.py distribution/agentnotify`
+  reported `Skill is valid!`.
+- The packaged Windows CLI was launched through Windows PowerShell from the WSL workspace.
+  `agentnotify.exe relay --help` printed the new command reference and exited `0`; a no-network
+  validation smoke with `relay pair --url http://relay.example.com` rejected non-local HTTP and
+  exited `1`.
+- `git diff --check` passed. The default Relay UI source contains no credential value, and fake-handler
+  tests prove synthetic poll/installation credentials are absent from URLs and thrown exception text.
+
+**Not verified:** no live Relay server was available. The browser was not opened for a real approval,
+no real one-time credential was persisted, no test envelope reached a Relay console/device, and no
+post-pairing runtime log directory was available for the required `inst_`/`pol_` value scan. No WPF
+window was rendered or exercised. A Windows human must still test Connect → browser approval → verified
+identity → Save provider → Send test, plus Cancel, window close, provider switch, browser-launch failure,
+expiry, rejection, DPI, keyboard, and screen-reader behavior.
+
+## Relay no-device handling (`fix/relay-no-devices`)
+
+Local verification on 2026-08-31:
+
+- A user verified the sender approval flow against a Relay running on `http://localhost:4000`; the
+  connection succeeded and the old test-send path reproduced `relay_400`. Source inspection confirmed
+  the adapter had sent `relay-placeholder-device` because sender pairing had not created a phone.
+- Focused `RelayChannelTests` and `RelayPairingTests` passed all 44 tests. New regression coverage proves
+  an empty or revoked-only device list reports zero active phones, `no_devices_paired` is permanent and
+  issues no envelope POST, an unknown pinned device issues no POST, and the paired installation identity
+  is retained in parsed delivery configuration.
+- `./scripts/build.sh` completed the full Release solution build, including WPF XAML, with 0 warnings and
+  0 errors. `./scripts/test.sh --no-restore` passed all 710 tests with 0 failures and 0 skips.
+- `./scripts/package.sh` rebuilt the Windows application and installer. The resulting
+  `artifacts/AgentNotifySetup.exe` SHA-256 is
+  `7d617019d08abc3383bcaff9b4fdbee15ef9454efd26473f3a171be3860a8689`. Publish emitted only the existing
+  `SettingsWindow.xaml.cs` IL3000 warning about `Assembly.Location` in a single-file app.
+- `git diff --check` passed. The distributable skill was unchanged, so skill validation was not required.
+
+**Not verified:** no phone client is present in this workspace, no receiving device was enrolled, and no
+successful envelope/device delivery was claimed. The updated WPF message was compiled but not visually
+inspected. After installing this build, the reported no-phone state should be retested against the live
+localhost Relay; a successful test delivery still requires an enrolled phone.

@@ -36,6 +36,20 @@ Run Windows .NET tooling through the repository scripts from WSL:
 ./scripts/package.sh
 ```
 
+**Always go through these scripts. Never invoke `dotnet.exe` off the Windows PATH.**
+
+The scripts resolve the SDK through `AGENTNOTIFY_DOTNET_EXE`, which defaults to
+`/mnt/d/dev/dotnet/dotnet.exe`. That is the only .NET 10 SDK on this machine:
+
+- `C:\Program Files\dotnet` is **runtime-only** — it has no SDKs, so it rejects
+  `global.json` with "No .NET SDKs were found" and cannot build anything. It is
+  what `dotnet.exe` resolves to on the Windows PATH, which makes the failure look
+  like a broken `global.json` rather than the wrong tool.
+- There is **no Linux .NET SDK in WSL**, so a bare `dotnet` is not available either.
+
+If a build appears impossible, the cause is almost always one of those two, not the
+project. Set `AGENTNOTIFY_DOTNET_EXE` and use the scripts.
+
 For narrow iterations, targeted tests are acceptable during development; the full build and test suite are required before merging to `dev`. Packaging is required when installer payload, embedded resources, publish settings, or release automation changes.
 
 Validate the distributable skill after modifying it:

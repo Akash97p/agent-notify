@@ -41,7 +41,7 @@ types, sounds, toast placement) has to be edited in `config.json` or left at its
 | CLI (`agentnotify`) | yes | yes | yes |
 | Loopback REST API | yes | yes | yes |
 | SQLite history, dedup keys, retention | yes | yes | yes |
-| Outbound channels (18 adapters) | yes | yes, config file only | yes, config file only |
+| Outbound channels (19 adapters) | yes | yes, config file only | yes, config file only |
 | Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
 | Tray icon and notification center | yes | **no** | **no** |
 | Settings window | yes | **no** | **no** |
@@ -57,7 +57,9 @@ Everywhere:
 - A loopback-only, bearer-authenticated REST API at `127.0.0.1:47821`.
 - A self-contained `agentnotify` CLI, including an `agentnotify.exe` for Windows and WSL agents.
 - SQLite history, deduplication keys, configurable retention, and local logs.
-- Eighteen opt-in outbound channel adapters with encrypted credentials.
+- Nineteen opt-in outbound channel adapters with encrypted credentials, including
+  [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
+  transport from your computers to your phone.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:
@@ -300,7 +302,26 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
-The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, direct WhatsApp Cloud API, Twilio WhatsApp, or MQTT 5 profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
+The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, direct WhatsApp Cloud API, Twilio WhatsApp, MQTT 5, or AgentNotify Relay profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
+
+### Connect to AgentNotify Relay
+
+In **Tray icon → Settings → Channels**, create an **AgentNotify Relay** provider:
+
+1. Enter the self-hosted Relay base URL and press **Connect**.
+2. Confirm the short code on the approval page opened in your browser.
+3. When Settings shows the verified connection, press **Save provider**.
+
+Connecting pairs this computer as a sender; it does not create a recipient. Pair at least one phone
+before using **Send test**. If no active phone is present, AgentNotify reports that state locally and
+does not send a placeholder envelope that Relay would reject.
+
+The one-time installation credential is never displayed. It moves directly from the pairing poll
+into AgentNotify's protected provider secret store when you save. Headless Windows, macOS, and Linux
+hosts can use `agentnotify relay pair --url https://relay.example.com`; run
+`agentnotify relay status` to verify saved connections. Relay Go remains unavailable, and the
+self-hosted opaque envelope transport remains experimental rather than a claim of end-to-end
+encryption.
 
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
 
@@ -354,7 +375,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 666 passing tests.
+The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 706 passing tests.
 
 ### Build the single-file installer
 
@@ -403,7 +424,7 @@ Content-Type: application/json
 - The macOS build and the graphical notification backends have not been run on real hardware; see [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Eighteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, and MQTT 5 over TLS/mTLS.
+- Nineteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, MQTT 5 over TLS/mTLS, and the experimental self-hosted AgentNotify Relay transport.
 - Real-provider interoperability is not claimed by automated tests. Configure and test each provider with your own account, destination, consent, quotas, and compliance controls.
 - AWS SNS, Signal, provider email APIs, additional SMS/mobile-push services, quiet hours/escalation, agent callbacks, and SDK/MCP work remain backlog items; AWS SNS is currently paused and has no implementation in this branch.
 

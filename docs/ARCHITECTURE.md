@@ -95,4 +95,4 @@ After a notification is committed locally, matching enabled routes are idempoten
 
 ## Adding a new outbound adapter
 
-The rules below apply to every adapter, including the eighteen already implemented. External delivery subscribes to lifecycle events after local persistence. Each adapter is isolated behind a delivery interface and the durable outbox, and must never block API persistence or the desktop UI thread. Provider credentials must not be stored in notification metadata or the config token field. See [CHANNELS.md](CHANNELS.md) for the per-provider security policies that a new adapter is expected to match.
+The rules below apply to every adapter, including the nineteen already implemented. External delivery subscribes to lifecycle events after local persistence. Each adapter is isolated behind a delivery interface and the durable outbox, and must never block API persistence or the desktop UI thread. Provider credentials must not be stored in notification metadata or the config token field. See [CHANNELS.md](CHANNELS.md) for the per-provider security policies that a new adapter is expected to match.

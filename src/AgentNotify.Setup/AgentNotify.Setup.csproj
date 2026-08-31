@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <Resource Include="..\..\assets\branding\an.ico" Link="Resources\an.ico" />
+    <!-- 512x512 source for on-screen logos. WPF's ICO decoder picks a small frame
+         when an Image is sized without DecodePixelWidth, which renders blurry. -->
+    <Resource Include="..\..\assets\branding\an.png" Link="Resources\an.png" />
     <EmbeddedResource Include="$(PayloadDir)\AgentNotify.Tray.exe" LogicalName="Payload.AgentNotify.Tray.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\AgentNotify.Tray.exe')" />
     <EmbeddedResource Include="$(PayloadDir)\agentnotify.exe" LogicalName="Payload.agentnotify.exe" Condition="'$(RequirePayload)' == 'true' and Exists('$(PayloadDir)\agentnotify.exe')" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="Payload.SKILL.md" />

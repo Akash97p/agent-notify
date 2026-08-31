@@ -23,6 +23,9 @@
 
   <ItemGroup>
     <Resource Include="..\..\assets\branding\an.ico" Link="Resources\an.ico" />
+    <!-- 512x512 source for on-screen logos; the ICO decoder picks a small frame
+         for a sized Image and renders soft. -->
+    <Resource Include="..\..\assets\branding\an.png" Link="Resources\an.png" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Resources.SKILL.md" />
     <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="AgentNotify.Resources.GettingStarted.html" />
     <EmbeddedResource Include="..\..\assets\tones\*.wav" LogicalName="AgentNotify.Resources.Tones.%(Filename)%(Extension)" />

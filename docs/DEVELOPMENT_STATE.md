@@ -196,18 +196,69 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       so layout, DPI, keyboard, and screen-reader checks remain honestly unverified.
 
 
+43. Completed on `feature/channel-relay` (AgentNotify Relay, per `RELAY_ADAPTER_SPEC.md` in `agent-notify-relay`):
+
+     - `RelayChannelAdapter` posts an experimental opaque envelope to a Custom self-hosted relay (`https://` or `http://localhost` for dev) via `POST {relay_url}/v1/envelopes`. The adapter reuses the hardened `SocketsHttpHandler` pattern (redirect/cookie/proxy/decompression disabled, 10 s connect timeout, pinned-IP DNS validation via `WebhookChannelAdapter.IsAddressAllowed`) and never logs the URL, installation token, or envelope body.
+     - Provider configuration is plain `{"deployment":"custom","relay_url":"https://relay.example.com","sender_name":"My ThinkPad","allowPrivateNetwork":false}`; the `installation_token` (`inst_…`) is DPAPI-encrypted as `installation_token`. Deployment `relay_go` is validated but rejected until the hosted base URL and billing are ready — the Settings UI shows “Relay Go — hosted, paid (coming soon)” disabled, with “Custom — self-hosted” as the selectable default.
+     - Envelope shape is `envelope_version:"1"`, `client_event_id:<notificationId>`, `expires_at:<now+24h>`, `recipients:[{device_id,key_id,ciphertext}]`, optional `sender_name`. `ciphertext` is currently `base64url(nonce 24 || ephemPub 32 || plaintext)` (≥72 B) — an experimental opaque wire, not yet claimed as E2E, deliberately bounded to 64 KiB and honest per `docs/SECURITY.md` “Visible metadata”. Per-device fan-out queries `GET {relay_url}/v1/devices` with the same bearer token. A sender with no active device now returns permanent `no_devices_paired` locally without posting; an unknown pinned device returns `relay_device_not_found`.
+     - Delivery semantics: `201`/`200` duplicate → success, `408`/`425`/`429`/`5xx`/network → retry, `3xx` → permanent redirect, other `4xx` → permanent failure with stable `relay_*` / `configuration_invalid` codes. Response bodies are bounded to 64 KiB and accepted only with `envelope_id`/`status:accepted|duplicate`. `Idempotency-Key:<outboxId>` and `Authorization: Bearer <installation_token>` are set, `Accept: application/json` and `User-Agent: AgentNotify/1.0` added, and the dispatcher’s outer 15 s timeout plus six-attempt jittered backoff apply.
+     - `ChannelAdapterFactory` now lists nineteen adapters in dispatch order; both `AgentNotify.App` and `AgentNotify.Host` consume this single source. `ChannelSettingsPanel.xaml` adds **AgentNotify Relay** to `ProviderKindBox` and a `RelayFields` panel (deployment ComboBox with Relay Go disabled, base-URL and sender-name TextBoxes, `installation_token` PasswordBox with clear checkbox, and the shared `Allow private/loopback destinations` consent). `SaveRelayProviderAsync` mirrors the `SaveWebhookProviderAsync` blank-means-preserve pattern and `LoadRelayConfiguration` restores the fields; the dispatcher’s test-send path is unchanged.
+     - Tests: `RelayChannelTests` covers successful envelope with `Idempotency-Key`/`Authorization` and no token in URL, sender-name projection, device-fetch fan-out, unsafe-server rejection (http, userinfo, query, fragment, link-local, private without consent, and `http://localhost` without consent), explicit private subpath/port and `http://localhost` with consent, invalid `inst_…` token rejection, status classification (`408`/`425`/`429`/`5xx` retry vs `401`/`403`/`3xx` permanent), malformed-success retry, `duplicate` acceptance, and `relay_go` rejection. `CrossPlatformTests.AdapterFactory_CreatesEveryImplementedAdapter` now expects 19.
+     - Gates: Release build 0 warnings/0 errors, 693 passing tests. Packaging not rerun (no installer payload/embedded resource change). No WPF visual check performed and none claimed; no live relay pairing or real-device decryption was exercised (experimental transport, per `docs/ENVELOPE.md` review checklist).
+
+44. Completed on `feature/relay-connect` (Relay sender device authorization):
+     - `RelayPairingClient` in Core implements discovery, sender pairing, bearer-header polling,
+       `slow_down`, bounded countdown/expiry, cancellation, five-failure transient-network tolerance,
+       terminal rejection/expiry/consumption, and post-approval installation verification. Responses
+       are capped at 64 KiB, calls and response reads are time-bounded, and exceptions are sanitized.
+     - Pairing and envelope delivery share `RelayHttpTransport`: redirect/cookie/proxy/decompression
+       suppression, validated-request marking, connect-time all-address policy, pinned-IP sockets, and
+       explicit private-network consent are no longer duplicated. Both verification URLs are required
+       to match the configured Relay scheme, host, and port before the desktop can open a browser.
+     - The Windows Channels panel replaces default manual credential entry with Connect/Cancel,
+       accessible live status, readable short code, browser launch plus no-browser fallback, countdown,
+       verified connection identity, Reconnect state, and cancellation on provider-kind/profile/window
+       changes. The credential remains memory-only until Save and is never rendered; manual entry and
+       removal remain in the collapsed Advanced expander.
+     - `agentnotify relay pair` exposes the same flow for Windows/macOS/Linux headless hosts, with
+       optional JSON-lines state output and explicit `--allow-private`; `relay status` verifies protected
+       saved credentials. Pairing creates disabled providers by default and updates a profile that has
+       the same normalized Relay URL.
+     - Automated coverage adds 13 pairing tests for request metadata, bearer placement, pending/approved
+       flow, terminal states, `slow_down`, transient failure limits, cross-origin rejection, URL policy,
+       exception redaction, cancellation, discovery, and verification. Gates: Release build 0 warnings/
+       0 errors; all 706 tests passed; packaging completed with installer SHA-256
+       `b9ff26b2b800ce58b331a27c57482361c75f134dc88b155e78936de47f1f0b9e`; the distributable skill
+       validator passed. Packaging still emits the pre-existing `SettingsWindow.xaml.cs` IL3000 warning
+       about `Assembly.Location` under single-file publish.
+     - Not verified: no Relay server was available for a live browser approval, credential persistence,
+       log scan, test envelope, or real-device flow; no WPF surface was rendered. These manual checks remain
+     required and are not inferred from compilation or fake-handler tests.
+
+45. Fixed the post-pairing no-device path on `fix/relay-no-devices` after a live localhost Relay
+    exposed the missed §6a requirement in `temp/RELAY_CONNECT_IMPLEMENTATION.md`. The adapter no
+    longer synthesizes `relay-placeholder-device`: an empty active-device list returns permanent
+    `no_devices_paired`, an unrecognized pinned device returns permanent `relay_device_not_found`,
+    and neither state issues `POST /v1/envelopes`. The Channels panel translates both codes into
+    actionable text and checks for an empty device list immediately after Connect. The paired
+    `installation_id` is parsed from provider configuration and used as the envelope's sender
+    identity input instead of the old hard-coded value. Targeted Relay coverage passed 44 tests;
+    full build/test/package results are recorded in `docs/VERIFICATION.md`.
+
 ## Current documentation/status snapshot
 
-- Implemented outbound adapters: 18 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, and MQTT 5.
+- Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 666 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 710 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
 ## Next resume action
 
-Inspect the current branch and status, keep documentation aligned with the merged `dev` head, and create a new topic branch only when the next capability is explicitly resumed.
+Run the Relay server and perform the manual `http://localhost:4000` pairing checklist recorded in
+`docs/VERIFICATION.md`, including cancellation/lifecycle and credential-log scans. Keep the experimental
+envelope/E2E review separate from the now-implemented pairing transport.
 
 Two items are waiting on the repository owner rather than on code:
 
