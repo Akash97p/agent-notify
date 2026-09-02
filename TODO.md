@@ -44,6 +44,12 @@
 - [x] Validated `agentnotify` skill and OpenAI UI metadata
 - [x] Offline browser guide with Copy/Download skill actions
 - [x] Offline Codex and Claude Code skill installation from the CLI
+- [ ] Durable interaction/response model with expiry, cancellation, idempotency, and host acceptance
+- [ ] Local permission and single-choice response UI with first-valid-response-wins
+- [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
+- [ ] Native adapters for synchronous host hooks/plugins/SDKs/gateways
+- [ ] Relay reverse response envelopes with reconnect/backfill and replay defense
+- [ ] Mobile allow/deny and single-choice UI with desktop/host outcome feedback
 
 ## Distribution and open source
 
@@ -67,7 +73,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 706 passed, 0 failed, 0 skipped
+- [x] Automated tests: 720 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -98,8 +104,8 @@
 - [ ] Email provider API adapters
 - [ ] Additional SMS and mobile push adapters
 - [ ] Quiet hours, snooze, escalation, grouping, and per-project routing
-- [ ] Response buttons and acknowledgement callbacks to agents
-- [ ] MCP server and richer language SDKs
+- [ ] Response buttons and acknowledgement callbacks to agents (tracked as A01/A02)
+- [ ] Optional MCP elicitation/server and richer language SDKs after the interaction model stabilizes
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
 

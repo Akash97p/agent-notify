@@ -862,3 +862,34 @@ Local verification on 2026-08-31:
 successful envelope/device delivery was claimed. The updated WPF message was compiled but not visually
 inspected. After installing this build, the reported no-phone state should be retested against the live
 localhost Relay; a successful test delivery still requires an enrolled phone.
+
+## Relay and Android mobile live status (owner report)
+
+Manual report on 2026-09-03:
+
+- The owner reports that the current `agent-notify-relay` and `agent-notify-relay-mobile` builds were
+  tested working, including the live Relay/mobile path.
+- This supersedes the earlier statement that no phone client existed. The Android Expo/TypeScript
+  receiver now exists in its separate repository.
+
+This AgentNotify documentation branch did not repeat the device test, inspect the phone, or capture a
+step-by-step pairing/delivery/decryption/acknowledgement log. Treat the result as an owner-performed
+integration confirmation, not as an independently reproduced security or compatibility audit.
+
+## Bidirectional communication research (`docs/bidirectional-agent-communication`)
+
+Local verification on 2026-09-03:
+
+- With local Node 22 selected, `./scripts/build-site.sh` type-checked the site, compiled it, and
+  generated all 23 static pages, including the new bidirectional research page. The first attempt
+  with the shell's Node 18.20.4 stopped before compilation because Next.js 16 requires Node 20.9 or
+  newer; no product defect was involved.
+- `./scripts/build.sh` completed the full Release solution build with 0 warnings and 0 errors.
+- `./scripts/test.sh` passed all 720 tests with 0 failures and 0 skips.
+- `git diff --check` passed. Packaging was not rerun because no installer payload, embedded resource,
+  publish setting, or release automation changed. The distributable skill was not modified.
+
+No coding-agent adapter, response API, SQLite interaction migration, desktop response UI, Relay
+reverse channel, or mobile response control was implemented or integration-tested. The new document
+is a researched plan, and every feasibility rating remains a future adapter claim to prove against a
+pinned host version.

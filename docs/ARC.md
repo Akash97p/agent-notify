@@ -26,6 +26,12 @@ authentication, discovery, network transport, broker storage, or outbound delive
 yet define structured human responses. AgentNotify will add response events only after its UI and
 agent callback boundary can implement and verify them end to end.
 
+The non-normative research and implementation plan for that next step is
+[Bidirectional agent communication](BIDIRECTIONAL_AGENT_COMMUNICATION.md). The plan keeps ARC as the
+transport-neutral semantic contract, uses Agent Client Protocol and native host APIs as adapters,
+and requires separate submitted, accepted, expired, cancelled, and host-acceptance state. Nothing in
+that plan changes ARC 0.1 conformance.
+
 ## Event lifecycle
 
 ARC 0.1 defines three event types:

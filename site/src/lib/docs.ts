@@ -31,6 +31,7 @@ export const docs: DocDefinition[] = [
   { source: "docs/RELAY.md", slug: "relay", title: "AgentNotify Relay", section: "Using AgentNotify", description: "Self-hosted transport from your computers to your phone." },
   { source: "docs/AGENT_INTEGRATION.md", slug: "agent-integration", title: "Agent integration", section: "Agents", description: "When and how an agent should request attention." },
   { source: "docs/AGENT_SKILLS.md", slug: "agent-skills", title: "Agent skills", section: "Agents", description: "Install the bundled skill into Codex or Claude Code." },
+  { source: "docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md", slug: "bidirectional-agent-communication", title: "Bidirectional agent communication", section: "Agents", description: "Interaction architecture, standards research, security, and host feasibility." },
   { source: "docs/ARCHITECTURE.md", slug: "architecture", title: "Architecture", section: "Project", description: "Process model, components, persistence, and failure behavior." },
   { source: "docs/CROSS_PLATFORM.md", slug: "cross-platform", title: "Cross-platform plan", section: "Project", description: "Portable boundaries and native-client roadmap." },
   { source: "docs/ROADMAP.md", slug: "roadmap", title: "Roadmap", section: "Project", description: "Current direction and explicitly uncommitted work." },
