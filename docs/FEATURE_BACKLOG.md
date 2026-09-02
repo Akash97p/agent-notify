@@ -92,9 +92,23 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 
 Allow an agent to provide a safe loopback callback or polling correlation ID and observe delivered, viewed, dismissed, resolved, or failed state.
 
+- Keep transport delivery, human view, human response, and native-host acceptance as separate
+  states.
+- Prefer authenticated polling or a broker-owned adapter connection over arbitrary callback URLs.
+
 ### A02 — Structured response actions
 
 Support buttons and bounded text choices that return a structured response to a waiting agent without executing arbitrary commands.
+
+- Status: architecture, standards, host feasibility, and security research recorded in
+  [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md); implementation has
+  not started.
+- Add versioned interaction, choice, response, expiry/cancellation, and host-acceptance persistence.
+- Implement first-valid-response-wins across local desktop and mobile surfaces.
+- Start with permission allow-once/deny and single choice; add multiselect/text/form and wider grant
+  scopes only when the native host exposes matching semantics.
+- Bind every remote response to the installation, session/turn, native request, request digest,
+  expiry, and one-time nonce. Reject replay, stale, changed, and wrong-session responses.
 
 ### A03 — Agent registry and heartbeat
 
@@ -103,12 +117,18 @@ Track live agent instances, projects, working directories, last activity, and wa
 ### A04 — SDKs and protocols
 
 - Status: protocol assembly and ARC 0.1 create/update/resolve ingestion implemented;
-  language SDKs, ACP/stdout adapters, A2A bridges, and optional MCP server remain planned.
+  agent-host research is complete; language SDKs and adapters remain planned.
 - Publish small PowerShell, shell, Python, JavaScript, and .NET clients without replacing the stable
   REST/CLI path.
-- Keep provider streams and future ACP/A2A adapters behind the same validation and persistence
+- Implement an Agent Client Protocol client as the common managed-session bridge. Do not confuse it
+  with the Agent Communication Protocol that moved into A2A.
+- Add direct native adapters for existing sessions where hosts expose synchronous hooks, plugins,
+  SDKs, gateways, or RPC. Initial targets are Hermes, Claude Code, Codex, Copilot CLI, OpenCode, and
+  Kilo Code.
+- Keep provider streams and ACP/A2A/AEP adapters behind the same validation and persistence
   boundary as direct ARC events.
-- Evaluate an optional MCP server after the event contract and response model stabilize.
+- Treat A2A, both current Agent Event Protocol drafts, and MCP elicitation as optional projections
+  after the interaction contract and response model stabilize.
 
 ## Product and platform tasks
 

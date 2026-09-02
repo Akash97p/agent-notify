@@ -40,12 +40,11 @@ Coding agent → ARC → AgentNotify (local history, toast)
 | The relay service | Open source, self-hostable today |
 | The desktop provider | Shipped in AgentNotify — pairing, sending, revocation |
 | The operator console | Shipped with the relay — sign-in, pairing, live delivery view |
-| The mobile app | **Not built yet.** An Expo/TypeScript client is planned |
+| The mobile app | Android Expo/TypeScript receiver implemented in [`agent-notify-relay-mobile`](https://github.com/Akash97p/agent-notify-relay-mobile); owner-reported live flow working on 2026-09-03 |
 | Relay Go (hosted) | **Not available yet.** Visible in the UI as *coming soon* |
 
-Until the mobile app exists you can still run the whole chain end to end — the relay repository
-ships `scripts/dummy-device.ts`, a command-line stand-in that pairs, receives, decrypts, and
-acknowledges exactly as a phone will.
+The relay repository also retains `scripts/dummy-device.ts`, a command-line stand-in for contract
+and deployment checks without an Android device.
 
 ---
 
@@ -97,8 +96,9 @@ bound field is altered. A device that has not registered a public key is skipped
 sent in the clear.
 
 > **Scope of the claim.** The envelope format has not had an independent cryptographic review,
-> and the mobile client that completes the chain does not exist yet. Confidentiality against the
-> relay operator is implemented and tested; treat it as unreviewed rather than as an audited
+> and the mobile implementation is Android-first. The owner reports a successful live end-to-end
+> device test on 2026-09-03; this documentation branch did not repeat it. Confidentiality against
+> the relay operator is implemented and tested; treat it as unreviewed rather than as an audited
 > guarantee.
 
 Per-route, the **Include notification message off-device** switch controls whether the message body

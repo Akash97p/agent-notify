@@ -7,6 +7,8 @@ AgentNotify keeps the local broker, notification lifecycle, and history as the s
 - Keep the completed native Settings UI, custom notification definitions, managed WAV/MP3 sounds, and channel diagnostics stable while human visual/audio/accessibility checks are completed.
 - Quiet hours, schedules, snooze, escalation, routing, grouping, cooldowns, and coalescing controls.
 - Response/acknowledgement buttons with a safe path back to the waiting agent.
+- A durable bidirectional interaction broker, native host adapters, and a managed Agent Client
+  Protocol bridge. See [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
 - Better “Open Agent” support for Windows Terminal tabs, editors, and virtual desktops.
 - ARM64 builds, Authenticode-signed releases, checksums, and update/migration tooling.
 
@@ -29,7 +31,9 @@ WhatsApp must use the official business platform rather than browser automation 
 
 ## Agent ecosystem
 
-- Optional MCP server.
+- Agent Client Protocol client for AgentNotify-managed coding sessions.
+- Native synchronous hook/plugin/SDK/gateway adapters for existing coding-agent sessions.
+- Optional MCP elicitation and A2A/AEP projections after the response contract is stable.
 - Small SDKs for PowerShell, .NET, Python, JavaScript, and shell environments.
 - Agent heartbeat and “currently waiting” status.
 - Acknowledgement callbacks and structured user responses.

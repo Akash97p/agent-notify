@@ -115,7 +115,10 @@ The wrapper first uses `agentnotify.exe` from PATH, then the local packaged payl
 Use direct HTTP only when the CLI cannot be used. Obtain the token without echoing it into logs, send it as `Authorization: Bearer`, and follow `docs/API.md`. Never include the token in prompts, issue reports, notification metadata, or remote requests.
 
 Agents can post ARC attention-request events to `/v1/events`. See [ARC.md](ARC.md). Provider-stream,
-ACP, and A2A translation are future adapters, not current claims.
+ACP, and A2A translation are future adapters, not current claims. The researched bidirectional
+response design, including the distinction between Agent Client Protocol and Agent Communication
+Protocol/A2A, is in
+[BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
 
 ## Prompt snippet
 

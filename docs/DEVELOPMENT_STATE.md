@@ -25,6 +25,17 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 6. Prefer official APIs. Signal support, if added through `signal-cli`, is experimental and must be clearly labeled as an unofficial user-managed bridge.
 7. No commits or edits on `main`; remote pushes and tags require an explicit user request. The owner explicitly authorized the `dev` push and `v0.0.1-alpha.1` tag for the first prerelease.
 8. Future macOS and Linux clients are first-class roadmap goals. Avoid putting portable routing/domain logic in WPF classes.
+9. Keep ARC and AgentNotify SQLite as the canonical human-attention and interaction record. External
+   agent protocols are adapters or projections, not replacements for the local lifecycle.
+10. Implement bidirectional coding-agent communication in two modes: direct native adapters for
+    existing terminal/editor sessions, and an Agent Client Protocol client for AgentNotify-managed
+    subprocess sessions.
+11. A skill or ordinary MCP tool cannot intercept a host-native approval. The adapter must own a
+    synchronous host hook, plugin/SDK/gateway/RPC request, or ACP server-initiated request and return
+    the human answer through that same control surface.
+12. Treat remote answers as authorization messages: bind them to the exact installation,
+    session/turn, native request and request digest; expire them; reject replay/stale responses; and
+    keep Relay acceptance distinct from human response and native-host acceptance.
 
 ## Active sequence
 
@@ -245,20 +256,64 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     identity input instead of the old hard-coded value. Targeted Relay coverage passed 44 tests;
     full build/test/package results are recorded in `docs/VERIFICATION.md`.
 
+46. Completed on `docs/bidirectional-agent-communication`:
+    - Added the durable research and implementation plan for returning permissions, choices, text,
+      and structured input from desktop/mobile to waiting coding agents. It defines the two-mode
+      adapter architecture, normalized interaction state, Relay reverse path, authorization
+      boundary, implementation sequence, and open decisions.
+    - Evaluated Agent Client Protocol, Agent Communication Protocol/A2A, MCP elicitation, Agent
+      Approve AEP, and the separate agenteventprotocol project. Recorded feasibility and preferred
+      integration surfaces for Codex, Claude Code, OpenCode, Kilo Code, Hermes, OpenClaw, Gemini CLI,
+      Muse Code, Pi, Copilot CLI, Cursor, and Roo Code.
+    - Linked the plan from ARC, architecture, agent integration, roadmap, backlog, TODO, docs index,
+      and the generated site. Corrected the stale claim that the mobile receiver did not exist and
+      recorded the owner's 2026-09-03 live Relay/mobile result without claiming it was repeated in
+      this branch. Recorded the Relay MIT/mobile proprietary licence split.
+    - Gates: Node 22 site type-check/static export passed with all 23 pages; the full Release build
+      passed with 0 warnings and 0 errors; all 720 tests passed; `git diff --check` passed. Packaging
+      and distributable-skill validation were not required because their inputs were unchanged.
+
+## Bidirectional communication research (2026-09-03)
+
+- The complete recommendation, protocol assessment, security design, staged implementation plan,
+  and feasibility notes for Codex, Claude Code, OpenCode, Kilo Code, Hermes, OpenClaw, Gemini CLI,
+  Muse Code, Pi, Copilot CLI, Cursor, and Roo Code are recorded in
+  `docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md`.
+- Agent Client Protocol is the preferred common managed-session integration because it is a
+  bidirectional coding-agent/client JSON-RPC protocol with permission requests. The similarly named
+  Agent Communication Protocol is now part of A2A and targets agent-to-agent interoperability.
+- Direct adapters remain required because ACP normally owns a subprocess and cannot attach to every
+  already-running TUI/editor session. Strong native surfaces exist across the priority agents:
+  synchronous hooks, permission plugins/SDKs, approval transports, gateways, and RPC UI requests.
+- Agent Approve AEP and the separate agenteventprotocol project contain useful event/control,
+  mapping, replay, and acknowledgement patterns. Both are pre-1.0 research inputs, not selected
+  AgentNotify core dependencies.
+- MCP elicitation is useful for structured input during an MCP call but is not a general replacement
+  for a coding host's shell/file/tool permission system.
+- The owner reports that `agent-notify-relay` and the Android
+  `agent-notify-relay-mobile` flow were tested working end to end on 2026-09-03. This documentation
+  branch did not independently repeat the device test.
+- Repository licensing is deliberately separate: AgentNotify Relay is MIT; the publicly visible
+  mobile repository has a proprietary licence. Public visibility alone does not make the mobile
+  source open source.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 710 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 720 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
+- The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
+  desktop clients for macOS/Linux remain planned.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
 ## Next resume action
 
-Run the Relay server and perform the manual `http://localhost:4000` pairing checklist recorded in
-`docs/VERIFICATION.md`, including cancellation/lifecycle and credential-log scans. Keep the experimental
-envelope/E2E review separate from the now-implemented pairing transport.
+Begin A02 Phase 1 on a new feature branch: finalize the versioned interaction/response model,
+SQLite migration, idempotency, expiry/cancellation, first-valid-response-wins rule, loopback API,
+and host-acceptance state before building a vendor adapter. Keep the detailed sequence and security
+tests in `docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md` as the design baseline.
 
 Two items are waiting on the repository owner rather than on code:
 
