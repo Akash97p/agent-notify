@@ -92,6 +92,17 @@ AgentNotify. Otherwise prefer the portable built-in types above.
 Keep the title short and put the concrete question, result, or blocker in the message. "Task
 finished" tells the user nothing; "Migration applied, 3 tests still failing in checkout" does.
 
+## Write for someone who is not at the keyboard
+
+A notification may be forwarded to the user's phone. That is a setting they control and nothing you
+can see from here, so write every message as though it will be read away from the machine: name the
+project, the decision, and the options. "Which one?" is useless on a lock screen. "auth-service:
+migrate to Postgres now, or ship on SQLite and migrate after the release?" is not.
+
+The forwarding path is end-to-end encrypted and the push that wakes the phone carries no content, so
+nothing you send is readable by the server in between. That is not a reason to put secrets in a
+message: it will be stored on the user's devices, and a notification is not a private channel.
+
 ## Resolve attention requests
 
 `send` prints the created notification as JSON. Capture its `id`. Once the question is answered or
@@ -112,6 +123,9 @@ agentnotify.exe list --unresolved true
 agentnotify.exe get NOTIFICATION_ID
 agentnotify.exe dismiss NOTIFICATION_ID
 ```
+
+`list --unresolved true` is worth running when picking work back up: it is the set of questions the
+user has not yet answered, and re-asking one of them is worse than not asking.
 
 Quote titles, messages, paths, and project names. Never read, print, or transmit the local bearer
 token unless direct API debugging is explicitly required.

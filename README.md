@@ -163,11 +163,16 @@ AgentNotify ships with four built-in tones — Chime, Ping, Alert, and Knock —
 
 ## Give the skill to a coding agent
 
-Install the bundled skill directly from the CLI—offline, with no npm or Python dependency:
+Right-click the tray icon and choose **Install agent skill…**. The Install tab lists every agent
+AgentNotify knows a folder for, shows where the file will go, and says whether it is already there.
+Anything else installs to a folder you pick.
+
+The same install from the CLI—offline, with no npm or Python dependency:
 
 ```bash
 agentnotify install-skill codex
 agentnotify install-skill claude
+agentnotify install-skill opencode
 ```
 
 The default personal locations are:
@@ -175,6 +180,7 @@ The default personal locations are:
 ```text
 Codex:       ~/.agents/skills/agentnotify/SKILL.md
 Claude Code: ~/.claude/skills/agentnotify/SKILL.md
+OpenCode:    ~/.config/opencode/skill/agentnotify/SKILL.md
 ```
 
 Use `--scope project`, `--dry-run`, or `--path DIRECTORY` when needed. Changed existing files are

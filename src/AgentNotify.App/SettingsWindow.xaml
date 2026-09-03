@@ -104,6 +104,59 @@
             <TabItem Header="Channels">
                 <local:ChannelSettingsPanel x:Name="ChannelPanel"/>
             </TabItem>
+            <TabItem Header="Install" x:Name="InstallTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
+                    <TextBlock Text="Install the agent skill" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,4">
+                        The skill is a Markdown file that teaches a coding agent when to notify you: before it
+                        waits on a decision, when a long task finishes, when something blocks it. Installing copies
+                        it into that agent&#39;s own skills folder. Nothing else on this machine changes, and nothing
+                        is sent anywhere.
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,18">
+                        An agent picks the file up the next time it starts.
+                    </TextBlock>
+
+                    <ItemsControl x:Name="SkillTargetList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource ElevatedBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14"/>
+                                            <TextBlock Text="{Binding Note}" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            <TextBlock Text="{Binding Destination}" Foreground="{StaticResource DisabledTextBrush}"
+                                                       FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                            <TextBlock Text="{Binding Status}" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="Choose folder&#8230;" Tag="{Binding}" Click="ChooseSkillFolder_Click"
+                                                    ToolTip="Point this at the folder your agent loads skills from"/>
+                                            <Button Content="Open" Tag="{Binding}" Click="OpenSkillFolder_Click"
+                                                    IsEnabled="{Binding CanInstall}" ToolTip="Show the folder in Explorer"/>
+                                            <Button Content="{Binding ActionLabel}" Tag="{Binding}" Click="InstallSkill_Click"
+                                                    IsEnabled="{Binding CanInstall}" Style="{StaticResource PrimaryButton}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,10,0,0">
+                        The same install is available without this window:
+                        <Run FontFamily="Consolas" Foreground="{StaticResource TextBrush}">agentnotify install-skill claude</Run>
+                        &#8212; add <Run FontFamily="Consolas">--scope project</Run> to install it into the current repository instead.
+                    </TextBlock>
+                </StackPanel></ScrollViewer>
+            </TabItem>
             <TabItem Header="About" x:Name="AboutTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="22">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,18">

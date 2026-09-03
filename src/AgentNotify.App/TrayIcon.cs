@@ -21,7 +21,8 @@ public sealed class TrayIcon : IDisposable
 
     public TrayIcon(Icon icon, string logsDir,
         Func<bool> isPaused, Func<bool> isStartupEnabled,
-        Action onShowCenter, Action onOpenSettings, Action onOpenGettingStarted, Action onCopySkill, Action onSaveSkill,
+        Action onShowCenter, Action onOpenSettings, Action onOpenGettingStarted,
+        Action onInstallSkill, Action onCopySkill, Action onSaveSkill,
         Action onTogglePause, Action onToggleStartup, Action onOpenAbout, Action onExit)
     {
         _isPaused = isPaused;
@@ -54,6 +55,10 @@ public sealed class TrayIcon : IDisposable
         });
         var gettingStarted = new WinForms.ToolStripMenuItem("Getting started", null, (_, _) => onOpenGettingStarted());
         var settings = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onOpenSettings());
+        // First of the three, because it is the one that finishes the job:
+        // copying and downloading both leave the person holding a file with
+        // somewhere to put it.
+        var installSkill = new WinForms.ToolStripMenuItem("Install agent skill…", null, (_, _) => onInstallSkill());
         var copySkill = new WinForms.ToolStripMenuItem("Copy agent SKILL.md", null, (_, _) => onCopySkill());
         var saveSkill = new WinForms.ToolStripMenuItem("Download agent SKILL.md…", null, (_, _) => onSaveSkill());
         var about = new WinForms.ToolStripMenuItem("About AgentNotify", null, (_, _) => onOpenAbout());
@@ -61,7 +66,7 @@ public sealed class TrayIcon : IDisposable
 
         _menu = new WinForms.ContextMenuStrip();
         _menu.Items.AddRange([_centerItem, settings, new WinForms.ToolStripSeparator(),
-            gettingStarted, copySkill, saveSkill, new WinForms.ToolStripSeparator(),
+            gettingStarted, installSkill, copySkill, saveSkill, new WinForms.ToolStripSeparator(),
             _pauseItem, _startupItem, new WinForms.ToolStripSeparator(), openLogs, new WinForms.ToolStripSeparator(), about, exit]);
         _menu.Opening += (_, _) => RefreshChecks();
 
