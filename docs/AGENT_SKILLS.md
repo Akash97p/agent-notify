@@ -16,8 +16,10 @@ agentnotify install-skill claude
 under the current repository, `--dry-run` to inspect the destination, `--path DIRECTORY` for a custom
 skills root, or `--force` after reviewing a locally modified existing skill.
 
-The Windows tray menu’s **Copy agent SKILL.md** and **Download agent SKILL.md…** commands remain
-available. The canonical distributable file is `distribution/agentnotify/SKILL.md`.
+The Windows tray menu’s **Install agent skill…** command opens Settings on the Install tab, which
+does the same thing with a button per agent and reports whether each one already has the file. Its
+**Copy agent SKILL.md** and **Download agent SKILL.md…** commands remain available for agents that
+are not listed. The canonical distributable file is `distribution/agentnotify/SKILL.md`.
 
 For agents that support Agent Skills, create an `agentnotify` skill directory in the agent’s
 configured skills location and place the file at `agentnotify/SKILL.md`.
@@ -27,13 +29,19 @@ Current personal defaults are:
 ```text
 Codex:       ~/.agents/skills/agentnotify/SKILL.md
 Claude Code: ~/.claude/skills/agentnotify/SKILL.md
+OpenCode:    ~/.config/opencode/skill/agentnotify/SKILL.md
 ```
 
 These paths follow the current
 [OpenAI Codex skill documentation](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)
 and [Claude Code skill documentation](https://code.claude.com/docs/en/slash-commands#where-skills-live).
-Codex also receives `agents/openai.yaml`; Claude Code needs only `SKILL.md`. Both products discover
-project skills from their corresponding repository-local directory.
+Codex also receives `agents/openai.yaml`; Claude Code and OpenCode need only `SKILL.md`. All three
+discover project skills from their corresponding repository-local directory.
+
+Each entry is a claim about another product's on-disk layout, and a wrong claim writes the file
+somewhere that agent never reads — which looks exactly like a successful install. When one of them
+moves, correct `AgentSkillCatalog` rather than adding a second list; the CLI and the tray app share
+it. Any agent not listed is installed with `--path`, or from the Install tab's **Another agent** row.
 
 When a Windows `agentnotify.exe` is invoked from WSL, its user home is the Windows profile. To install
 for a Linux-native Codex/Claude process, run the Linux CLI or pass the WSL skills root explicitly with

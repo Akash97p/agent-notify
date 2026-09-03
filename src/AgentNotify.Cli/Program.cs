@@ -8,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Skills;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Delivery.Channels;
 
@@ -767,13 +768,15 @@ internal static class Program
             return args.Any(a => a is "--help" or "-h") ? 0 : 1;
         }
 
-        SkillAgent agent;
-        switch (args[0].ToLowerInvariant())
-        {
-            case "codex": agent = SkillAgent.Codex; break;
-            case "claude": case "claude-code": agent = SkillAgent.Claude; break;
-            default: return Fail("install-skill target must be codex or claude.");
-        }
+        // "claude-code" is accepted because that is what the product is called;
+        // the id stays "claude" so existing scripts keep working.
+        var requested = args[0].ToLowerInvariant() == "claude-code" ? "claude" : args[0];
+        var agent = AgentSkillCatalog.Find(requested);
+        if (agent is null || !agent.HasDefaultLocation && requested.ToLowerInvariant() != AgentSkillCatalog.Custom.Id)
+            return Fail(
+                "install-skill target must be one of: "
+                + string.Join(", ", AgentSkillCatalog.WithKnownLocations.Select(t => t.Id))
+                + ".");
 
         var projectScope = false;
         var force = false;
@@ -802,8 +805,11 @@ internal static class Program
 
         try
         {
-            var skillsRoot = path ?? SkillInstaller.DefaultSkillsRoot(agent, projectScope);
-            var result = SkillInstaller.Install(agent, skillsRoot, force, dryRun);
+            var skillsRoot = path ?? AgentSkillCatalog.DefaultSkillsRoot(
+                agent,
+                projectScope ? Directory.GetCurrentDirectory() : null);
+            var result = SkillInstaller.Install(
+                agent.DisplayName, skillsRoot, SkillPayload.For(agent), force, dryRun);
             if (result.Success)
                 Console.WriteLine(result.Message);
             else
@@ -987,8 +993,8 @@ internal static class Program
             agentnotify install-skill — install the bundled AgentNotify skill
 
             Usage:
-              agentnotify install-skill <codex|claude> [options]
-              agentnotify install skill <codex|claude> [options]
+              agentnotify install-skill <codex|claude|opencode> [options]
+              agentnotify install skill <codex|claude|opencode> [options]
 
             Options:
               --scope user|project   Install for the current user (default) or current project
@@ -999,6 +1005,9 @@ internal static class Program
             Default user locations:
               Codex        ~/.agents/skills/agentnotify
               Claude Code  ~/.claude/skills/agentnotify
+              OpenCode     ~/.config/opencode/skill/agentnotify
+
+            Any other agent: pass --path with the folder it loads skills from.
             """);
     }
 
