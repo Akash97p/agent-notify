@@ -375,7 +375,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 706 passing tests.
+The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 720 passing tests.
 
 ### Build the single-file installer
 

@@ -20,6 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Copied verbatim from packages/crypto/test-vectors.json in the relay
+         repository. RelayEnvelopeCryptoTests reproduces every vector byte for
+         byte, so a drift between the two implementations fails the build. -->
+    <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AgentNotify.Api\AgentNotify.Api.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Cli\AgentNotify.Cli.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />

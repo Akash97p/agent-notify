@@ -40,12 +40,11 @@ Coding agent → ARC → AgentNotify (local history, toast)
 | The relay service | Open source, self-hostable today |
 | The desktop provider | Shipped in AgentNotify — pairing, sending, revocation |
 | The operator console | Shipped with the relay — sign-in, pairing, live delivery view |
-| The mobile app | **Not built yet.** Flutter client is planned |
+| The mobile app | Android Expo/TypeScript receiver implemented in [`agent-notify-relay-mobile`](https://github.com/Akash97p/agent-notify-relay-mobile); owner-reported live flow working on 2026-09-03 |
 | Relay Go (hosted) | **Not available yet.** Visible in the UI as *coming soon* |
 
-Until the mobile app exists you can still run the whole chain end to end — the relay repository
-ships `scripts/dummy-device.ts`, a command-line stand-in that pairs, receives, decrypts, and
-acknowledges exactly as a phone will.
+The relay repository also retains `scripts/dummy-device.ts`, a command-line stand-in for contract
+and deployment checks without an Android device.
 
 ---
 
@@ -90,11 +89,17 @@ device it is for, the key id, timestamps, sizes, and delivery state. Your sender
 you set one. Push wake-ups carry an envelope id and nothing else, so the push provider never
 receives content.
 
-> **Current limitation.** The desktop adapter still emits a placeholder transport rather than a real
-> sealed box, so today's envelopes are not yet genuinely encrypted end to end. The envelope format,
-> key exchange, and device key registration are implemented and verified on the relay side; the
-> desktop encryption is the remaining piece. Treat end-to-end confidentiality as *not yet delivered*
-> until this page says otherwise.
+Sealing is implemented on both sides and verified against shared test vectors: the .NET
+adapter reproduces the relay's TypeScript output byte for byte, and an envelope sealed on the
+desktop decrypts correctly with the relay's own implementation and fails authentication if any
+bound field is altered. A device that has not registered a public key is skipped rather than
+sent in the clear.
+
+> **Scope of the claim.** The envelope format has not had an independent cryptographic review,
+> and the mobile implementation is Android-first. The owner reports a successful live end-to-end
+> device test on 2026-09-03; this documentation branch did not repeat it. Confidentiality against
+> the relay operator is implemented and tested; treat it as unreviewed rather than as an audited
+> guarantee.
 
 Per-route, the **Include notification message off-device** switch controls whether the message body
 leaves the machine at all. Leave it off for routes carrying anything you would not want stored

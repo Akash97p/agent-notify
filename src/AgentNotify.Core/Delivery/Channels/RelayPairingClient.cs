@@ -22,7 +22,8 @@ public sealed record RelayPairingPoll(
     string? InstallationId = null,
     string? InstallationToken = null,
     string? RelayName = null,
-    int? RetryAfterMilliseconds = null);
+    int? RetryAfterMilliseconds = null,
+    bool Reconnected = false);
 
 public sealed record RelayInstallation(
     string InstallationId,
@@ -131,12 +132,20 @@ public sealed class RelayPairingClient : IDisposable
         return new RelayDiscovery(service!, versions);
     }
 
+    /// <param name="installId">
+    /// A value this installation generates once and keeps. It is what lets the
+    /// relay recognise a machine that reconnects instead of listing it a second
+    /// time, so it must survive re-pairing — including a re-pair prompted by the
+    /// credential being revoked. It is an identity hint and never a credential:
+    /// the operator still has to approve the user code shown on screen.
+    /// </param>
     public async Task<RelayPairingRequest> BeginAsync(
         Uri baseUri,
         string? senderName,
         string platform,
         string clientVersion,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? installId = null)
     {
         var normalizedBase = ValidateBaseUri(baseUri);
         senderName = NormalizeOptional(senderName);
@@ -146,8 +155,11 @@ public sealed class RelayPairingClient : IDisposable
             throw new ArgumentException("Relay platform is invalid.", nameof(platform));
         if (string.IsNullOrWhiteSpace(clientVersion) || clientVersion.Length > 32 || clientVersion.Any(char.IsControl))
             throw new ArgumentException("Relay client version is invalid.", nameof(clientVersion));
+        installId = NormalizeOptional(installId);
+        if (installId is not null && (installId.Length is < 8 or > 128 || installId.Any(char.IsControl)))
+            throw new ArgumentException("Relay install identifier is invalid.", nameof(installId));
 
-        var payload = JsonSerializer.Serialize(new BeginRequest(senderName, platform, clientVersion));
+        var payload = JsonSerializer.Serialize(new BeginRequest(senderName, platform, clientVersion, installId));
         using var request = CreateRequest(HttpMethod.Post, new Uri(normalizedBase, "v1/pairing/sender"));
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         using var response = await SendAsync(request, "pairing_failed", ct).ConfigureAwait(false);
@@ -235,7 +247,10 @@ public sealed class RelayPairingClient : IDisposable
         if (relayName is { Length: > 100 } || relayName?.Any(char.IsControl) == true)
             throw new RelayPairingException("poll_failed", "The relay returned invalid installation details.");
 
-        return new RelayPairingPoll("approved", installationId, installationToken, relayName);
+        var reconnected = root.TryGetProperty("reconnected", out var reconnectedElement)
+            && reconnectedElement.ValueKind == JsonValueKind.True;
+
+        return new RelayPairingPoll("approved", installationId, installationToken, relayName, null, reconnected);
     }
 
     public async Task<RelayInstallation> VerifyAsync(
@@ -578,5 +593,8 @@ public sealed class RelayPairingClient : IDisposable
     private sealed record BeginRequest(
         [property: JsonPropertyName("sender_name")] string? SenderName,
         [property: JsonPropertyName("platform")] string Platform,
-        [property: JsonPropertyName("client_version")] string ClientVersion);
+        [property: JsonPropertyName("client_version")] string ClientVersion,
+        // Omitted entirely when absent: an older relay rejects unknown fields,
+        // and a null would be an unknown field with a null in it.
+        [property: JsonPropertyName("install_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstallId = null);
 }

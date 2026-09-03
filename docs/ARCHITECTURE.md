@@ -39,6 +39,22 @@ unkeyed retries idempotent across active and resolved history. An explicit reque
 active-condition lifecycle. Unknown core fields are rejected, and only bounded correlation metadata
 is retained.
 
+### Planned interaction and host-adapter boundary
+
+Bidirectional permission and question handling is planned as a portable Core/Protocol capability,
+not as vendor logic inside WPF. A host adapter will translate a coding agent's synchronous hook,
+plugin, SDK, gateway, RPC, or Agent Client Protocol request into one durable AgentNotify
+interaction. SQLite will remain authoritative for the pending request, response, expiry, and native
+host acceptance; desktop and mobile are competing response surfaces under a deterministic
+first-valid-response-wins rule.
+
+The adapter that owns the live native request also owns the in-memory waiter. Relay transports a
+sealed response back to the desktop, but neither Relay nor the language model completes the waiter
+directly. A response is successful only after the desktop validates and persists it and the native
+host accepts the mapped decision. See
+[BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md) for the researched
+protocol split, security boundary, and agent-by-agent feasibility.
+
 ### Desktop app
 
 `AgentNotify.App` owns the application lifetime. Startup order is:

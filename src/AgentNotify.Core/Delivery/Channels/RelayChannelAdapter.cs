@@ -330,17 +330,36 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
         void AddRecipient(FetchedDevice device, string? keyIdOverride)
         {
+            // A device with no registered public key cannot be encrypted to. Skipping it is
+            // the only safe response: sending plaintext instead would hand the relay exactly
+            // what the whole design exists to keep from it. The relay accepts an envelope
+            // with fewer recipients and reports the difference, so the send still succeeds.
+            if (string.IsNullOrWhiteSpace(device.PublicKey))
+                return;
+
             var keyId = string.IsNullOrWhiteSpace(keyIdOverride)
                 ? device.KeyId ?? "k1"
                 : keyIdOverride;
-            var ciphertext = GenerateCiphertext(
-                plaintext,
-                senderInstallationId: senderId,
-                deviceId: device.DeviceId,
-                keyId: keyId,
-                clientEventId: clientEventId,
-                expiresAt: expiresAt,
-                devicePublicKey: device.PublicKey);
+
+            string ciphertext;
+            try
+            {
+                ciphertext = RelayEnvelopeCrypto.Seal(
+                    plaintext,
+                    recipientPublicKeyBase64Url: device.PublicKey!,
+                    senderInstallationId: senderId,
+                    deviceId: device.DeviceId,
+                    keyId: keyId,
+                    clientEventId: clientEventId,
+                    expiresAt: expiresAt);
+            }
+            catch (Exception exception) when (exception is ArgumentException or FormatException)
+            {
+                // A malformed key belongs to one device, not to the envelope. Dropping that
+                // recipient keeps the others deliverable.
+                return;
+            }
+
             recipients.Add(new RelayEnvelopeRecipient(device.DeviceId, keyId, ciphertext));
         }
 
@@ -422,36 +441,6 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
             throw new RelayPreparationException("relay_invalid_response", retryable: true);
         }
     }
-
-    private static string GenerateCiphertext(
-        string plaintext,
-        string senderInstallationId,
-        string deviceId,
-        string keyId,
-        string clientEventId,
-        string expiresAt,
-        string? devicePublicKey)
-    {
-        // Experimental opaque transport: for now, produce base64url(nonce 24 || ephemPub 32 || plaintextUtf8).
-        // When a device public key is available and NSec is added, replace with X25519+XChaCha20Poly1305
-        // using AAD = "1|sender|device|keyId|eventId|expiresAt".
-        // This placeholder is intentionally not claimed as E2E.
-
-        // If we have a real public key and could do crypto, we would use it here.
-        // For determinism in tests when plaintext is small, this still produces >=72 bytes.
-
-        var plainBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = RandomNumberGenerator.GetBytes(24);
-        var ephemPub = RandomNumberGenerator.GetBytes(32);
-        var wire = new byte[24 + 32 + plainBytes.Length];
-        Buffer.BlockCopy(nonce, 0, wire, 0, 24);
-        Buffer.BlockCopy(ephemPub, 0, wire, 24, 32);
-        Buffer.BlockCopy(plainBytes, 0, wire, 56, plainBytes.Length);
-        return Base64UrlEncode(wire);
-    }
-
-    private static string Base64UrlEncode(byte[] data) =>
-        Convert.ToBase64String(data).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
     private static string? GetString(JsonElement element, string name)
     {

@@ -27,6 +27,56 @@ public sealed class RelayPairingTests
         Assert.Equal("windows", body.RootElement.GetProperty("platform").GetString());
         Assert.Equal("1.0.0", body.RootElement.GetProperty("client_version").GetString());
         Assert.Equal("W899-SUX9", result.UserCode);
+        // Omitted rather than sent as null: a relay that predates the field
+        // rejects unknown properties outright.
+        Assert.False(body.RootElement.TryGetProperty("install_id", out _));
+    }
+
+    [Fact]
+    public async Task BeginSendsTheInstallIdWhenThisComputerHasOne()
+    {
+        var handler = new PairingHandler(_ => Json(HttpStatusCode.Created, BeginResponse()));
+        using var client = new RelayPairingClient(new HttpClient(handler));
+
+        await client.BeginAsync(BaseUri, "ThinkPad", "windows", "1.0.0", default, "9f2c4d6e8a0b1c3d");
+
+        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        Assert.Equal("9f2c4d6e8a0b1c3d", body.RootElement.GetProperty("install_id").GetString());
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("has\u0007control")]
+    public async Task BeginRejectsAnUnusableInstallId(string installId)
+    {
+        var handler = new PairingHandler(_ => Json(HttpStatusCode.Created, BeginResponse()));
+        using var client = new RelayPairingClient(new HttpClient(handler));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.BeginAsync(BaseUri, "ThinkPad", "windows", "1.0.0", default, installId));
+    }
+
+    [Fact]
+    public async Task PollReportsWhetherTheRelayRecognisedThisComputer()
+    {
+        var handler = new PairingHandler(_ => Json(HttpStatusCode.OK, ApprovedResponse(reconnected: true)));
+        using var client = new RelayPairingClient(new HttpClient(handler));
+
+        var result = await client.PollAsync(BaseUri, "a1b2c3d4e5f60718", PollToken, default);
+
+        Assert.Equal("approved", result.Status);
+        Assert.True(result.Reconnected);
+    }
+
+    [Fact]
+    public async Task PollDefaultsToNotReconnectedWhenTheRelayIsOlder()
+    {
+        var handler = new PairingHandler(_ => Json(HttpStatusCode.OK, ApprovedResponse()));
+        using var client = new RelayPairingClient(new HttpClient(handler));
+
+        var result = await client.PollAsync(BaseUri, "a1b2c3d4e5f60718", PollToken, default);
+
+        Assert.False(result.Reconnected);
     }
 
     [Fact]
@@ -260,8 +310,8 @@ public sealed class RelayPairingTests
         }
         """;
 
-    private static string ApprovedResponse() =>
-        $$"""{"status":"approved","installation_id":"installation-1","installation_token":"{{InstallationToken}}","relay_name":"Home relay"}""";
+    private static string ApprovedResponse(bool reconnected = false) =>
+        $$"""{"status":"approved","installation_id":"installation-1","installation_token":"{{InstallationToken}}","relay_name":"Home relay","reconnected":{{(reconnected ? "true" : "false")}}}""";
 
     private sealed class TestClock
     {

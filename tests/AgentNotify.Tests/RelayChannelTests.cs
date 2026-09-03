@@ -8,7 +8,12 @@ namespace AgentNotify.Tests;
 public sealed class RelayChannelTests
 {
     private const string ValidToken = "inst_MivWSeeSbQhV1dS2mce82UQUmXoXg9oMWRRoIWN0nvI";
-    private const string DefaultDevicesJson = "{\"devices\":[{\"device_id\":\"dev123\",\"key_id\":\"k1\",\"public_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"revoked_at\":null}]}";
+    // A real X25519 public key, taken from the relay's envelope test vectors. An
+    // all-zero key was used here previously; it is a small-order point, and the
+    // agreement now refuses it rather than encrypting under a shared secret an
+    // attacker could also derive.
+    private const string DevicePublicKey = "j0DFrbaPJWJK5bIU6nZ6bslNgp09e14a0bpvPiE4KF8";
+    private const string DefaultDevicesJson = "{\"devices\":[{\"device_id\":\"dev123\",\"key_id\":\"k1\",\"public_key\":\"" + DevicePublicKey + "\",\"revoked_at\":null}]}";
 
     [Fact]
     public async Task SendsEnvelopeWithIdempotencyAndAuth()
@@ -44,13 +49,56 @@ public sealed class RelayChannelTests
     [Fact]
     public async Task HonorsDeviceFetchWhenAvailable()
     {
-        var handler = new RelayHandler(HttpStatusCode.Created, "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}", devicesJson: "{\"devices\":[{\"device_id\":\"dev123\",\"key_id\":\"k1\",\"public_key\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}]}");
+        var handler = new RelayHandler(HttpStatusCode.Created, "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}", devicesJson: "{\"devices\":[{\"device_id\":\"dev123\",\"key_id\":\"k1\",\"public_key\":\"" + DevicePublicKey + "\"}]}");
         using var adapter = new RelayChannelAdapter(new HttpClient(handler));
         await adapter.DeliverAsync(MakeDelivery(), CancellationToken.None);
         using var json = JsonDocument.Parse(handler.PostBody!);
         var recipients = json.RootElement.GetProperty("recipients");
         Assert.Equal("dev123", recipients[0].GetProperty("device_id").GetString());
         Assert.Equal("k1", recipients[0].GetProperty("key_id").GetString());
+    }
+
+    [Fact]
+    public async Task SealsThePayloadSoTheRelayCannotReadIt()
+    {
+        var handler = new RelayHandler(HttpStatusCode.Created, "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}");
+        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
+
+        await adapter.DeliverAsync(MakeDelivery(), CancellationToken.None);
+
+        // The adapter used to emit base64url(random nonce || random key || plaintext),
+        // which the relay could read by decoding it. Nothing recognisable may survive.
+        using var json = JsonDocument.Parse(handler.PostBody!);
+        var ciphertext = json.RootElement.GetProperty("recipients")[0].GetProperty("ciphertext").GetString()!;
+        var wire = RelayEnvelopeCrypto.DecodeBase64Url(ciphertext);
+        var decoded = System.Text.Encoding.UTF8.GetString(wire);
+
+        Assert.DoesNotContain("Title", decoded, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Body", decoded, StringComparison.OrdinalIgnoreCase);
+        Assert.True(wire.Length >= RelayEnvelopeCrypto.MinimumWireLength);
+    }
+
+    [Fact]
+    public async Task SkipsADeviceWithNoPublicKeyRatherThanSendingPlaintext()
+    {
+        var handler = new RelayHandler(
+            HttpStatusCode.Created,
+            "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}",
+            devicesJson: "{\"devices\":[" +
+                "{\"device_id\":\"keyless\",\"key_id\":\"k1\",\"public_key\":null}," +
+                "{\"device_id\":\"malformed\",\"key_id\":\"k1\",\"public_key\":\"not-a-key\"}," +
+                "{\"device_id\":\"good\",\"key_id\":\"k1\",\"public_key\":\"" + DevicePublicKey + "\"}]}");
+        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
+
+        var result = await adapter.DeliverAsync(MakeDelivery(), CancellationToken.None);
+
+        // There is nothing to encrypt to, and sending in the clear would hand the relay
+        // exactly what it is designed never to see. The keyed device still receives it.
+        Assert.True(result.Succeeded);
+        using var json = JsonDocument.Parse(handler.PostBody!);
+        var recipients = json.RootElement.GetProperty("recipients");
+        Assert.Equal(1, recipients.GetArrayLength());
+        Assert.Equal("good", recipients[0].GetProperty("device_id").GetString());
     }
 
     [Fact]
