@@ -21,6 +21,13 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
     private string? _pendingRelayInstallationToken;
     private string? _pendingRelayInstallationId;
     private string? _pendingRelayName;
+    /// <summary>
+    /// The identity this computer presents when it pairs, generated once and
+    /// then kept in the provider config. Reconnecting without it made the relay
+    /// mint a fresh sender every time, so one machine turned into a column of
+    /// identically-named rows with only the newest one reachable.
+    /// </summary>
+    private string? _pendingRelayInstallId;
 
     public ChannelSettingsPanel()
     {
@@ -1197,7 +1204,11 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             sender_name = string.IsNullOrWhiteSpace(senderName) ? null : senderName,
             allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
             installation_id = _pendingRelayInstallationId ?? ReadRelayConfigValue(existing, "installation_id"),
-            relay_name = _pendingRelayName ?? ReadRelayConfigValue(existing, "relay_name")
+            relay_name = _pendingRelayName ?? ReadRelayConfigValue(existing, "relay_name"),
+            // Written back on every save so it outlives the credential it was
+            // paired with. Losing it does not break anything; it only costs the
+            // relay its ability to recognise this machine next time.
+            install_id = _pendingRelayInstallId ?? ReadRelayConfigValue(existing, "install_id")
         }, Json.Options);
 
         var changes = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -1227,6 +1238,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         _pendingRelayInstallationToken = null;
         _pendingRelayInstallationId = null;
         _pendingRelayName = null;
+        _pendingRelayInstallId = null;
         ResetRelayConnectionPresentation(hasStoredCredential: !removesStoredToken);
         return saved;
     }
@@ -1887,12 +1899,21 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             var senderName = string.IsNullOrWhiteSpace(RelaySenderNameBox.Text)
                 ? Environment.MachineName
                 : RelaySenderNameBox.Text.Trim();
+            // Reuse this computer's identity if it has one; otherwise mint it
+            // now and let SaveRelayProviderAsync write it down. Not derived from
+            // the machine name or any hardware id on purpose — it is scoped to
+            // this provider profile, so two profiles pointing at two relays stay
+            // separate, and nothing about the machine leaks into it.
+            _pendingRelayInstallId = ReadRelayConfigValue(ProviderList.SelectedItem as ProviderProfile, "install_id")
+                ?? _pendingRelayInstallId
+                ?? Guid.NewGuid().ToString("N");
             var pairing = await client.BeginAsync(
                 baseUri,
                 senderName,
                 CurrentRelayPlatform(),
                 CurrentRelayClientVersion(),
-                cancellation.Token);
+                cancellation.Token,
+                _pendingRelayInstallId);
 
             if (!ReferenceEquals(_relayPairingCts, cancellation))
                 return;
@@ -1965,7 +1986,12 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                 if (!ReferenceEquals(_relayPairingCts, cancellation))
                     return;
                 var displayName = installation.DisplayName ?? poll.RelayName ?? installation.InstallationId;
-                RelayConnectedText.Text = $"Connected as {displayName}";
+                // "Reconnected" is worth saying: it is the difference between
+                // this computer being on the relay's list once and being on it
+                // twice, which is what the operator is trying to avoid.
+                RelayConnectedText.Text = poll.Reconnected
+                    ? $"Reconnected as {displayName}"
+                    : $"Connected as {displayName}";
                 RelayConnectedText.Visibility = Visibility.Visible;
                 RelayConnectButton.Content = "Reconnect";
                 ClearRelayTokenBox.IsChecked = false;
