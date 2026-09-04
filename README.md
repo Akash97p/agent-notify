@@ -1,14 +1,14 @@
 # AgentNotify
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.3--alpha.1-2563eb.svg)](Directory.Build.props)
+[![Version](https://img.shields.io/badge/version-0.0.4--alpha.1-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-666%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-738%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
-> **Development status:** Pre-release `v0.0.3-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
+> **Development status:** Pre-release `v0.0.4-alpha.1` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
 
 <p align="center">
   <img src="assets/branding/an.png" alt="AgentNotify logo" width="180" height="180">
@@ -45,7 +45,7 @@ types, sounds, toast placement) has to be edited in `config.json` or left at its
 | Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
 | Tray icon and notification center | yes | **no** | **no** |
 | Settings window | yes | **no** | **no** |
-| Verified on real hardware | yes | **no**, CI only | yes |
+| Verified on real hardware | yes | Intel yes (2026-09-04), Apple Silicon **no** | yes |
 
 Native macOS and Linux clients are a roadmap goal, not a shipped feature; the portable broker exists
 so that they can be built on top of it. See [Cross-platform plan](docs/CROSS_PLATFORM.md).
@@ -108,8 +108,13 @@ same `/v1` API as on Windows.
 **There is no graphical application on macOS or Linux.** No tray icon, no notification center and no
 Settings window: `agentnotifyd` is a headless daemon you run under systemd or launchd, and every
 setting is edited in `config.json` by hand. Desktop notifications go to `notify-send` on Linux,
-Notification Center on macOS, or standard output when no desktop session is available. The macOS
-build has only ever run on CI, never on real hardware.
+Notification Center on macOS, or standard output when no desktop session is available.
+
+The macOS build ran on real Intel hardware for the first time on 2026-09-04, and the
+`osascript` notification backend was seen displaying a banner. The binaries are adhoc-signed
+rather than notarized, so a fresh download is quarantined until you run
+`xattr -dr com.apple.quarantine <dir>` — no `sudo` needed. Apple Silicon has still never
+executed one.
 
 See [Installing on macOS and Linux](docs/INSTALLATION_UNIX.md).
 
@@ -427,7 +432,7 @@ Content-Type: application/json
 
 - The Windows tray application, notification center, Settings UI, and installer are x64 Windows only.
 - macOS and Linux run the broker headlessly through `agentnotifyd`; there is no tray or Settings UI there yet.
-- The macOS build and the graphical notification backends have not been run on real hardware; see [docs/VERIFICATION.md](docs/VERIFICATION.md).
+- The macOS Intel build and its `osascript` notification backend have now run on real hardware; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on macOS have not. Linux's `notify-send` backend has never been seen displaying anything. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
 - Nineteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, MQTT 5 over TLS/mTLS, and the experimental self-hosted AgentNotify Relay transport.

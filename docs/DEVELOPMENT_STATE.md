@@ -325,6 +325,19 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       `AgentNotifySetup.exe` SHA-256 `928673f7136fdf834803c577ceeec0a773f91864ac24cbed555885df6ca95ff1`;
       the skill-creator validator reported `Skill is valid!`.
 
+48. Recorded on `docs/mac-hardware-verification` (docs only, no code): first real-Mac
+    hardware run, 2026-09-04, owner Intel i5-10400H on macOS 26.6.2 with the extracted
+    `osx-x64` archive (`0.0.4-alpha.1`). **The published release archive, not a build from
+    `dev`** — nothing merged after that tag was present, so the Relay channel in particular
+    has still never run on macOS. Quarantine had to be cleared with `xattr -dr` (no `sudo`
+    needed); binaries are adhoc-signed so Gatekeeper still flags fresh downloads. Broker
+    reports Keychain secrets and `osascript` notifications; health, keyed dedup,
+    `get`/`list`/`resolve`, single-instance refusal, loopback-only listen, `0700`/`0600`
+    state, and clean `SIGTERM` all confirmed. The owner visually confirmed an `osascript`
+    banner and default-path token discovery. Full detail is in `docs/VERIFICATION.md`.
+    Still unverified: `osx-arm64` execution, the `terminal-notifier` path, the launchd unit,
+    `install.sh` end to end, the Relay channel on macOS, and any signed/notarized install.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
@@ -333,6 +346,10 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
+- The macOS portable build has now run on real hardware (2026-09-04) and its `osascript`
+  notification backend has been seen working. That was the released `0.0.4-alpha.1`
+  archive; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on
+  macOS all remain unobserved.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
