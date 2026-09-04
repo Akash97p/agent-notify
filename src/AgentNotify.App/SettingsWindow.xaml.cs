@@ -5,6 +5,7 @@ using System.Windows;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Services;
+using AgentNotify.Core.Skills;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AgentNotify.App;
@@ -21,6 +22,7 @@ public partial class SettingsWindow : Window
     private string? _defaultSound;
     private readonly Dictionary<string, string> _typeSounds;
     private bool _syncingSoundUi;
+    private List<SkillInstallRow> _skillTargets = [];
 
     public SettingsWindow(
         AgentNotifyConfig config,
@@ -42,11 +44,91 @@ public partial class SettingsWindow : Window
         _typeSounds = new Dictionary<string, string>(config.TypeSoundFiles, StringComparer.OrdinalIgnoreCase);
         LoadValues();
         LoadAbout();
+        LoadSkillTargets();
         ChannelPanel.Initialize(providerProfiles, routes, dispatcher);
     }
 
     /// <summary>Selects the About tab, used by the tray menu's About entry.</summary>
     public void ShowAboutTab() => AboutTab.IsSelected = true;
+
+    /// <summary>
+    /// Selects the Install tab, used by the tray menu's "Install agent skill"
+    /// entry.
+    /// </summary>
+    /// <remarks>
+    /// Re-reads every destination on the way in. The window is kept alive
+    /// between openings, so a skill installed from the command line — or an
+    /// agent uninstalled — since the last look would otherwise still be
+    /// described by whatever was true then.
+    /// </remarks>
+    public void ShowInstallTab()
+    {
+        foreach (var row in _skillTargets) row.Refresh();
+        InstallTab.IsSelected = true;
+    }
+
+    private void LoadSkillTargets()
+    {
+        _skillTargets = AgentSkillCatalog.All
+            .Select(target => new SkillInstallRow(target, AgentResources.SkillFiles))
+            .ToList();
+        SkillTargetList.ItemsSource = _skillTargets;
+    }
+
+    private static SkillInstallRow? RowOf(object sender) =>
+        (sender as FrameworkElement)?.Tag as SkillInstallRow;
+
+    private void ChooseSkillFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is not { } row) return;
+
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = $"Choose the skills folder for {row.DisplayName}",
+            // Starting where the agent's convention says it should be turns the
+            // common case into a confirmation rather than a search.
+            InitialDirectory = Directory.Exists(row.SkillsRoot) ? row.SkillsRoot : null
+        };
+        if (dialog.ShowDialog(this) == true)
+            row.UseFolder(dialog.FolderName);
+    }
+
+    private void InstallSkill_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is not { } row) return;
+
+        var result = row.Install(force: false);
+        if (result.Success) return;
+
+        // The only refusal worth a second question is an edited skill: someone
+        // added a project convention to it and would lose that silently.
+        var replace = System.Windows.MessageBox.Show(
+            this,
+            $"{row.DisplayName} already has a different AgentNotify skill installed.\n\n"
+            + "Replace it with the version this build carries? Any local edits to it are lost.",
+            "Replace the installed skill?",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (replace == MessageBoxResult.Yes) row.Install(force: true);
+    }
+
+    private void OpenSkillFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (RowOf(sender) is not { } row || row.SkillsRoot is null) return;
+
+        try
+        {
+            // The skill's own folder when it exists, the skills root otherwise —
+            // opening a directory that was never created just fails.
+            var target = Directory.Exists(row.Destination) ? row.Destination : row.SkillsRoot;
+            Directory.CreateDirectory(target);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{target}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            StatusText.Text = $"Could not open that folder: {ex.Message}";
+        }
+    }
 
     protected override void OnClosed(EventArgs e)
     {

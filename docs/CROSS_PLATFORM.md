@@ -161,8 +161,10 @@ possible without a rewrite.
 
 ## Verification honesty
 
-The maintainer's development machine is Windows with WSL and has no macOS host, no Linux desktop
-session, and no Linux .NET SDK. What can and cannot be claimed:
+The maintainer's development machine is Windows with WSL and has no Linux desktop session and no
+Linux .NET SDK. It had no macOS host either until 2026-09-04, when the released `osx-x64`
+archive was run on owner Intel hardware — that run is the source of every macOS "verified" below
+that is not marked as CI. What can and cannot be claimed:
 
 WSL turned out to be more useful than expected: it is a real Linux x64 userland, so a
 `linux-x64` self-contained publish of `agentnotifyd` and `agentnotify` runs natively there. That
@@ -176,7 +178,10 @@ made it possible to verify the Linux broker end to end rather than only compile 
 | Owner-only `0600`/`0700` local state on Unix | **Verified** in WSL on real files |
 | The key-file fallback and its warning | **Verified** in WSL |
 | Single-instance locking and clean `SIGTERM` shutdown | **Verified** in WSL |
-| `notify-send` and macOS notifiers actually display a notification | **Unverified** — needs a graphical Linux session and a Mac |
+| `notify-send` actually displays a notification | **Unverified** — needs a graphical Linux session |
+| macOS `osascript` notifier actually displays a notification | **Verified** 2026-09-04 on owner Intel Mac hardware (banner seen on screen; see [VERIFICATION.md](VERIFICATION.md)) |
+| macOS `terminal-notifier` backend | **Unverified** — not installed on the verification machine |
+| AgentNotify Relay channel on macOS | **Unverified** — it postdates the `0.0.4-alpha.1` archive that was tested |
 | macOS Keychain key store | **Verified** on the macOS CI runner |
 | Linux `secret-tool` key store | **Unverified** — not installed on the CI runners; Linux exercises the key-file fallback |
 | ARM64 binaries execute | **Unverified** — no ARM64 machine |

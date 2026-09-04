@@ -11,6 +11,86 @@ build.
 
 ## [Unreleased]
 
+## [0.0.4-alpha.2] - 2026-09-04
+
+The previous release shipped Relay but said plainly that it did not yet deliver
+end-to-end confidentiality: the desktop sent an experimental opaque transport rather
+than a sealed box. **It does now.** Notifications are sealed on your computer for one
+specific device and can only be opened there — the relay stores ciphertext it cannot
+read, and the push that wakes your phone carries no content at all.
+
+There is also a phone to receive them. The Android client is real, and a receiver no
+longer has to be a phone: an ESP32, a Raspberry Pi or anything that speaks MQTT can be
+added from the console and will get the same sealed envelopes.
+
+Still an alpha. The binaries are unsigned, the hosted Relay Go service does not exist,
+and Relay remains something you host yourself.
+
+### Added
+
+- **End-to-end encrypted notifications.** Envelopes are sealed with X25519 key agreement
+  and XChaCha20-Poly1305. Your phone generates its own key pair and the relay only ever
+  sees the public half, so a relay operator — including you — cannot read what passes
+  through. The sender, the recipient, the key, the event id and the expiry are all bound
+  into the envelope's authenticated data, so none of them can be swapped in transit.
+- **An Android client.** [agent-notify-relay-mobile](https://github.com/Akash97p/agent-notify-relay-mobile)
+  pairs by scanning a QR code from the console. Notifications arrive whether or not the app
+  is open, and an operator can sign in to see senders, receivers and the audit log from the
+  phone.
+- **Hardware receivers over MQTT.** The console's Receivers tab can add a device that has
+  no camera and no app store — an ESP32 display, a Raspberry Pi, a desk gadget. It is given
+  broker credentials and a single-use enrollment token, generates its own key pair on first
+  boot, and receives the same sealed envelopes. Seven receiver libraries are published at
+  [agent-notify-relay-sdk](https://github.com/Akash97p/agent-notify-relay-sdk): portable C,
+  Arduino, ESP-IDF, MicroPython, Rust, Python and Node.
+- **An Install tab, and `Install agent skill…` in the tray menu.** One row per coding agent,
+  showing where the skill will go and whether it is already there and current. Claude Code,
+  Codex and OpenCode have known locations; anything else installs into a folder you pick.
+  `agentnotify install-skill opencode` does the same from a terminal.
+- **A device page in the Relay console.** Clicking a receiver's name opens its connection
+  details — broker address, username, topics, whether it ever enrolled — rather than only
+  offering a rename. The broker password and enrollment token cannot be shown again, because
+  neither is stored in a readable form, so the dialog offers to replace them instead.
+
+### Changed
+
+- **Reconnecting a computer no longer creates a duplicate.** A sender now carries a stable
+  installation identity across reconnects, so pressing Connect again re-enables the existing
+  entry instead of leaving a second row with the same name beside a phantom of the first.
+  Reconnecting a revoked computer says so before you approve it.
+- **Revoking and deleting are separate everywhere.** Revoking a sender or a receiver stops it
+  immediately and keeps the row, marked, so you can still tell what it was; deleting is a
+  second, deliberate act offered only on an already-revoked row.
+- **The Getting Started page** was rewritten to match the application's own appearance, and
+  corrected: it had been telling people to install the Codex skill to `~/.codex/skills`, a
+  path the CLI has never used.
+- **The bundled agent skill** now tells an agent that a notification may be forwarded to a
+  phone, and to write accordingly. "Which one?" is useless on a lock screen.
+
+### Fixed
+
+- A notification deleted on the phone could reappear as new on the next refresh. The delivery
+  worker wrote a job's status back unconditionally after a push, and because the push is what
+  causes the phone to fetch, an acknowledgement arriving mid-flight was overwritten — leaving
+  the notification pending forever while the phone believed it had dealt with it.
+- Deleting a receiver failed with a foreign-key error when it had ever been through pairing.
+
+### Verified
+
+- The macOS build ran on real hardware for the first time (Intel, macOS 26.6.2), and the
+  `osascript` notification backend was seen displaying a banner. Apple Silicon has still never
+  executed one of these binaries, and the Relay channel has not been exercised on macOS.
+  [VERIFICATION.md](docs/VERIFICATION.md) records exactly what was and was not observed.
+
+### Known limitations
+
+- Binaries are adhoc-signed, not notarized or Authenticode-signed. macOS quarantines a fresh
+  download until you run `xattr -dr com.apple.quarantine <dir>`; Windows SmartScreen will warn.
+- There is still no graphical application on macOS or Linux — the broker runs headless and
+  every setting is edited in `config.json` by hand.
+- Relay is self-hosted only. There is no hosted service.
+- Sticky attention types degrade to ordinary banners under `osascript`.
+
 ## [0.0.4-alpha.1] - 2026-08-31
 
 Adds AgentNotify Relay: a self-hostable service that carries notifications from your computers to

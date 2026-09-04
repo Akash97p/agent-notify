@@ -5,50 +5,124 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>AgentNotify — Getting Started</title>
+  <!--
+    Styled to match the application it was installed by, not to look like a
+    marketing page. The palette, the radii, the flat panels and the white
+    primary button are the same values Theme.xaml uses, so opening this from the
+    tray reads as another surface of the same program.
+  -->
   <style>
-    :root { --bg:#090d16; --panel:#111827; --panel2:#172033; --line:#26334b; --text:#f5f7ff; --muted:#9ba8c2; --violet:#8b5cf6; --cyan:#38bdf8; --green:#34d399; }
+    :root {
+      --surface:#09090B; --panel:#0E0E11; --elevated:#111113; --control:#18181B;
+      --line:#27272A; --text:#FAFAFA; --muted:#A1A1AA; --dim:#52525B;
+      --ok:#4ADE80; --warn:#FACC15; --bad:#F87171;
+      --radius:8px;
+    }
     * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(circle at 15% 5%,#242056 0,transparent 34%),radial-gradient(circle at 92% 15%,#08374c 0,transparent 30%),var(--bg); font:15px/1.6 Inter,"Segoe UI",system-ui,sans-serif; }
-    .shell { width:min(1060px,calc(100% - 32px)); margin:0 auto; padding:54px 0 72px; }
-    header { display:grid; grid-template-columns:1fr auto; gap:24px; align-items:center; margin-bottom:34px; }
-    .eyebrow { color:#c4b5fd; text-transform:uppercase; letter-spacing:.16em; font-size:12px; font-weight:750; }
-    h1 { display:inline-block; margin:7px 0 5px; padding:0 0 .12em; font-size:clamp(36px,7vw,68px); line-height:1.12; letter-spacing:-.055em; }
-    .gradient { background:linear-gradient(100deg,#fff 20%,#c4b5fd 56%,#67e8f9); color:transparent; background-clip:text; -webkit-background-clip:text; }
-    .lead { max-width:690px; margin:0; color:#c2cbe0; font-size:18px; }
-    .status { display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #235943; border-radius:999px; background:#0c2b20; color:#a7f3d0; white-space:nowrap; }
-    .dot { width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 16px var(--green); }
-    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:18px; }
-    .card { grid-column:span 6; padding:26px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(150deg,rgba(23,32,51,.96),rgba(13,19,32,.96)); box-shadow:0 24px 70px rgba(0,0,0,.25); }
+    body {
+      margin:0; min-height:100vh; background:var(--surface); color:var(--text);
+      font:15px/1.6 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    .shell { width:min(980px,calc(100% - 40px)); margin:0 auto; padding:56px 0 72px; }
+
+    header { display:grid; grid-template-columns:1fr auto; gap:24px; align-items:end; margin-bottom:36px; }
+    .eyebrow { color:var(--muted); text-transform:uppercase; letter-spacing:.14em; font-size:10px; font-weight:700; }
+    h1 { margin:8px 0 6px; font-size:38px; font-weight:600; letter-spacing:-.02em; }
+    .lead { max-width:660px; margin:0; color:var(--muted); }
+    .status {
+      display:flex; gap:9px; align-items:center; padding:8px 14px; white-space:nowrap;
+      border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ok); font-size:13px;
+    }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); }
+
+    .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; }
+    .card {
+      grid-column:span 6; padding:24px; border:1px solid var(--line);
+      border-radius:var(--radius); background:var(--elevated);
+    }
     .card.wide { grid-column:1/-1; }
-    .step { display:inline-grid; place-items:center; width:30px; height:30px; margin-bottom:12px; border-radius:9px; background:#2b2058; color:#ddd6fe; font-weight:800; }
-    h2 { margin:0 0 8px; font-size:20px; letter-spacing:-.02em; }
-    p { margin:0 0 16px; color:var(--muted); }
-    code { font-family:"Cascadia Code","SFMono-Regular",Consolas,monospace; }
-    pre { overflow:auto; margin:15px 0 0; padding:16px 18px; border:1px solid #293854; border-radius:13px; background:#080c14; color:#dbeafe; font-size:13px; line-height:1.55; }
-    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:17px; }
-    button,.button { appearance:none; border:0; border-radius:10px; padding:11px 15px; color:white; background:linear-gradient(110deg,#7c3aed,#4f46e5); font:inherit; font-weight:700; cursor:pointer; text-decoration:none; }
-    button.secondary,.button.secondary { border:1px solid #34425f; background:#1a253a; color:#dbe5f8; }
-    button:hover,.button:hover { filter:brightness(1.12); transform:translateY(-1px); }
-    .types { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
-    .type { padding:9px 10px; border:1px solid #293752; border-radius:10px; color:#cbd5e1; background:#101725; font:12px "Cascadia Code",Consolas,monospace; }
-    .note { margin-top:18px; padding:13px 15px; border-left:3px solid var(--cyan); border-radius:7px; background:#0c2230; color:#b9ddec; }
-    footer { margin-top:30px; padding-top:20px; border-top:1px solid #202b3e; color:#77839d; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; font-size:13px; }
-    footer a { color:#a5b4fc; }
-    .github-link { display:inline-flex; align-items:center; gap:7px; color:#dbe5f8; font-weight:700; text-decoration:none; }
-    .github-link:hover { color:white; text-decoration:underline; }
-    .github-link svg { width:18px; height:18px; fill:currentColor; flex:0 0 auto; }
-    #toast { position:fixed; right:22px; bottom:22px; padding:12px 16px; border:1px solid #32664f; border-radius:11px; background:#0c2b20; color:#a7f3d0; opacity:0; transform:translateY(12px); transition:.2s; pointer-events:none; }
+    .step {
+      display:inline-grid; place-items:center; width:26px; height:26px; margin-bottom:12px;
+      border:1px solid var(--line); border-radius:6px; background:var(--control);
+      color:var(--muted); font-size:13px; font-weight:600;
+    }
+    h2 { margin:0 0 8px; font-size:17px; font-weight:600; letter-spacing:-.01em; }
+    p { margin:0 0 14px; color:var(--muted); }
+    p:last-child { margin-bottom:0; }
+    strong { color:var(--text); font-weight:600; }
+
+    code { font-family:Consolas,"Cascadia Code","SFMono-Regular",monospace; color:var(--text); }
+    pre {
+      overflow:auto; margin:14px 0 0; padding:14px 16px; border:1px solid var(--line);
+      border-radius:var(--radius); background:var(--surface); color:#D4D4D8;
+      font-size:12.5px; line-height:1.6;
+    }
+    pre code { color:inherit; }
+
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    button, .button {
+      appearance:none; padding:8px 14px; border:1px solid var(--line); border-radius:6px;
+      background:var(--control); color:var(--text); font:inherit; font-size:14px; cursor:pointer;
+      text-decoration:none; transition:background .12s ease, border-color .12s ease;
+    }
+    button:hover, .button:hover { background:#27272A; }
+    button.primary { background:var(--text); border-color:var(--text); color:var(--surface); font-weight:600; }
+    button.primary:hover { background:#E4E4E7; }
+
+    .types { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 0 0; }
+    .type {
+      padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--control);
+      color:#D4D4D8; font:12px Consolas,monospace;
+    }
+    .type span { display:block; margin-top:3px; color:var(--dim); font:11px/1.4 inherit; font-family:inherit; }
+
+    dl.paths { margin:14px 0 0; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:baseline; }
+    dl.paths dt { color:var(--text); font-size:13px; }
+    dl.paths dd { margin:0; color:var(--muted); font:12.5px Consolas,monospace; }
+
+    .note {
+      margin-top:16px; padding:12px 14px; border:1px solid var(--line); border-left:2px solid var(--muted);
+      border-radius:6px; background:var(--panel); color:var(--muted); font-size:13.5px;
+    }
+
+    footer {
+      margin-top:32px; padding-top:20px; border-top:1px solid var(--line); color:var(--dim);
+      display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; font-size:13px;
+    }
+    footer a { color:var(--muted); }
+    .github-link { display:inline-flex; align-items:center; gap:7px; color:var(--muted); text-decoration:none; }
+    .github-link:hover { color:var(--text); }
+    .github-link svg { width:16px; height:16px; fill:currentColor; flex:0 0 auto; }
+
+    #toast {
+      position:fixed; right:22px; bottom:22px; padding:10px 15px; border:1px solid var(--line);
+      border-radius:var(--radius); background:var(--elevated); color:var(--ok); font-size:13.5px;
+      opacity:0; transform:translateY(10px); transition:opacity .16s ease, transform .16s ease; pointer-events:none;
+    }
     #toast.show { opacity:1; transform:none; }
-    @media (max-width:760px) { header { grid-template-columns:1fr; } .status { width:max-content; } .card { grid-column:1/-1; } .types { grid-template-columns:repeat(2,1fr); } }
+
+    @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+    @media (max-width:760px) {
+      header { grid-template-columns:1fr; align-items:start; }
+      .status { width:max-content; }
+      .card { grid-column:1/-1; }
+      .types { grid-template-columns:repeat(2,1fr); }
+      dl.paths { grid-template-columns:1fr; gap:2px 0; }
+      dl.paths dd { margin-bottom:8px; }
+    }
   </style>
 </head>
 <body>
   <main class="shell">
     <header>
       <div>
-        <div class="eyebrow">Human attention broker</div>
-        <h1 class="gradient">AgentNotify</h1>
-        <p class="lead">Your coding agents can now ask for input, report blockers, and announce completed work without getting lost in another terminal or virtual desktop.</p>
+        <div class="eyebrow">Local human-attention broker</div>
+        <h1>AgentNotify</h1>
+        <p class="lead">
+          Your coding agents can ask for input, report blockers and announce finished work without
+          it being lost in a terminal you are not looking at. Everything runs on this machine.
+        </p>
       </div>
       <div class="status"><span class="dot"></span> Installed and ready</div>
     </header>
@@ -56,38 +130,82 @@
     <section class="grid">
       <article class="card">
         <div class="step">1</div>
-        <h2>Send a notification</h2>
+        <h2>Send one yourself</h2>
         <p>Open PowerShell, Command Prompt, or a new WSL shell and run:</p>
         <pre><code>agentnotify.exe send ^
   --type input_required ^
   --priority high ^
   --title "Need your decision" ^
   --message "Choose option A or B."</code></pre>
-        <div class="note">In Bash/WSL, replace each <code>^</code> with <code>\</code>, or put the command on one line.</div>
+        <div class="note">
+          In Bash or WSL, replace each <code>^</code> with <code>\</code> — or put it all on one line.
+        </div>
       </article>
 
       <article class="card">
         <div class="step">2</div>
         <h2>Teach your coding agent</h2>
-        <p>Download or copy the agent skill, then place it in your agent’s skills directory. For Codex: <code>~/.codex/skills/agentnotify/SKILL.md</code>.</p>
+        <p>
+          The skill is a Markdown file that tells an agent <em>when</em> to notify you. The
+          fastest way to install it is the tray icon: right-click it and choose
+          <strong>Install agent skill…</strong>, which opens the Install tab with a button for each
+          agent it knows.
+        </p>
+        <p>From a terminal, the same thing:</p>
+        <pre><code>agentnotify.exe install-skill claude
+agentnotify.exe install-skill codex --scope project</code></pre>
+        <dl class="paths">
+          <dt>Claude Code</dt><dd>~/.claude/skills/agentnotify/</dd>
+          <dt>Codex</dt><dd>~/.agents/skills/agentnotify/</dd>
+          <dt>OpenCode</dt><dd>~/.config/opencode/skill/agentnotify/</dd>
+        </dl>
+        <p style="margin-top:14px">Using something else? Copy the file and drop it wherever that agent loads skills from.</p>
         <div class="actions">
-          <button onclick="copySkill()">Copy SKILL.md</button>
-          <button class="secondary" onclick="downloadSkill()">Download SKILL.md</button>
+          <button class="primary" onclick="copySkill()">Copy SKILL.md</button>
+          <button onclick="downloadSkill()">Download SKILL.md</button>
         </div>
-        <p style="margin-top:16px">You can always find the same actions by right-clicking the AgentNotify tray icon.</p>
       </article>
 
       <article class="card wide">
         <div class="step">3</div>
         <h2>Use the right signal</h2>
-        <p>Action-required types stay visible; completion and informational notifications dismiss automatically.</p>
+        <p>
+          The type decides how long a notification lives. The four on the left need you and stay
+          until you resolve them; the four on the right report and fade.
+        </p>
         <div class="types">
-          <div class="type">input_required</div><div class="type">permission_required</div><div class="type">blocked</div><div class="type">error</div>
-          <div class="type">completed</div><div class="type">success</div><div class="type">warning</div><div class="type">info</div>
+          <div class="type">input_required<span>a decision blocks progress</span></div>
+          <div class="type">permission_required<span>approval needed</span></div>
+          <div class="type">blocked<span>waiting on something external</span></div>
+          <div class="type">error<span>an operation failed</span></div>
+          <div class="type">completed<span>the work is finished</span></div>
+          <div class="type">success<span>a step worth knowing about</span></div>
+          <div class="type">warning<span>worth a look, not urgent</span></div>
+          <div class="type">info<span>a milestone; use sparingly</span></div>
         </div>
+        <p style="margin-top:16px">
+          Give a recurring condition a stable <code>--key</code> so an update replaces the old
+          notification instead of stacking another one beside it, and clear it when it is answered:
+        </p>
         <pre><code>agentnotify.exe health
-agentnotify.exe list --unresolved
+agentnotify.exe list --unresolved true
 agentnotify.exe resolve NOTIFICATION_ID</code></pre>
+      </article>
+
+      <article class="card wide">
+        <div class="step">4</div>
+        <h2>Optional: reach your phone</h2>
+        <p>
+          By default nothing leaves this computer. If you want notifications to follow you, open
+          <strong>Settings → Channels</strong> and connect an AgentNotify Relay — a small server you
+          host yourself. Your phone pairs with it by scanning a QR code, and from then on the same
+          <code>agentnotify send</code> reaches both the desktop and the phone.
+        </p>
+        <p>
+          The relay never sees what your notifications say. Each one is encrypted for a specific
+          device before it leaves this machine, and the push that wakes the phone carries no
+          content at all — so write messages that make sense to someone away from their desk.
+        </p>
       </article>
     </section>
 
@@ -97,18 +215,48 @@ agentnotify.exe resolve NOTIFICATION_ID</code></pre>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.23c-3.23.7-3.91-1.37-3.91-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.1-.75.41-1.27.74-1.56-2.58-.29-5.29-1.29-5.29-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.16 1.18a10.96 10.96 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.41-2.72 5.39-5.3 5.68.42.36.79 1.06.79 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
         GitHub repository
       </a>
-      <span>Open source under the MIT License · Provided “as is”, without warranty</span>
+      <span>Open source under the MIT License · Provided "as is", without warranty</span>
     </footer>
   </main>
+
   <div id="toast" role="status">Copied to clipboard</div>
   <script>
     const skillText = __AGENTNOTIFY_SKILL_JSON__;
-    function flash(message) { const el=document.getElementById('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>el.classList.remove('show'),2200); }
-    async function copySkill() {
-      try { await navigator.clipboard.writeText(skillText); flash('SKILL.md copied'); }
-      catch (_) { const area=document.createElement('textarea'); area.value=skillText; area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); flash('SKILL.md copied'); }
+    function flash(message) {
+      const el = document.getElementById('toast');
+      el.textContent = message;
+      el.classList.add('show');
+      clearTimeout(window.__t);
+      window.__t = setTimeout(() => el.classList.remove('show'), 2200);
     }
-    function downloadSkill() { const blob=new Blob([skillText],{type:'text/markdown;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='SKILL.md'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); flash('SKILL.md downloaded'); }
+    async function copySkill() {
+      try {
+        await navigator.clipboard.writeText(skillText);
+        flash('SKILL.md copied');
+      } catch (_) {
+        // A file:// page in an older browser has no clipboard API.
+        const area = document.createElement('textarea');
+        area.value = skillText;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+        flash('SKILL.md copied');
+      }
+    }
+    function downloadSkill() {
+      const blob = new Blob([skillText], { type: 'text/markdown;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'SKILL.md';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      flash('SKILL.md downloaded');
+    }
   </script>
 </body>
 </html>

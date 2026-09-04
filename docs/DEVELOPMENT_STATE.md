@@ -11,9 +11,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Recorded protocol/skill integration merge: `3ed89ee` (`merge: fix dev Pages deployment`). Use `git log dev`
   for the current documentation-only descendants.
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
-- Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `2000b536dc8eac4b72821d0ac6df7b79cb258f4ce7b2f0bfb7456a4df3d7e78b`.
+- Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `a4c5c68138a11113469b97c74b292d768020d74f10aaa8b84fe1ad93dc522ac4` (`v0.0.4-alpha.2`).
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
-- Current product version: `0.0.3-alpha.1`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
+- Current product version: `0.0.4-alpha.2`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
 
 ## Decisions that must survive context compaction
 
@@ -297,14 +297,59 @@ This is the durable handoff record for long-running AgentNotify development. Upd
   mobile repository has a proprietary licence. Public visibility alone does not make the mobile
   source open source.
 
+47. Completed on `feature/install-tab`:
+    - The tray menu gained **Install agent skill…**, which opens Settings on a new **Install** tab.
+      Each known agent gets a row showing its destination folder, whether the skill is already there
+      and whether it matches this build, and one button that installs, updates or reinstalls.
+      **Another agent** has no default location on purpose and installs to a folder chosen in a
+      picker.
+    - The agent catalogue and the installer moved from `AgentNotify.Cli` into
+      `AgentNotify.Core/Skills`, because the tray app and `agentnotify install-skill` now write the
+      same files to the same folders and two lists would drift. The CLI keeps only its embedded
+      payload (`SkillPayload`). `AgentSkillCatalog` is the single place an agent's path is claimed.
+    - OpenCode was added as a third known target (`~/.config/opencode/skill`). Every entry is a claim
+      about another product's layout: a wrong one writes a file that agent never reads, which looks
+      exactly like success. Correct the catalogue rather than adding a parallel list.
+    - The installer still refuses to replace a changed skill without `--force`; the GUI asks before
+      forcing, naming what is lost. `SkillInstaller.Inspect` treats a partial install as outdated
+      rather than up to date.
+    - `SKILL.md` gained a section on writing for someone away from their keyboard, because a
+      notification may be forwarded to a phone and "Which one?" is useless on a lock screen. It also
+      states that the relay cannot read what it forwards and that a notification is still not a
+      private channel.
+    - `GettingStarted.html` was rewritten against Theme.xaml's palette instead of the old purple
+      gradient, and its content corrected: it had been telling people to install the Codex skill to
+      `~/.codex/skills`, which the CLI has never used.
+    - Gates: Release build 0 warnings/0 errors; 738 tests passed (one earlier run hit a Kestrel port
+      bind flake in the API fixture and passed on repeat); packaging produced
+      `AgentNotifySetup.exe` SHA-256 `928673f7136fdf834803c577ceeec0a773f91864ac24cbed555885df6ca95ff1`;
+      the skill-creator validator reported `Skill is valid!`.
+
+48. Recorded on `docs/mac-hardware-verification` (docs only, no code): first real-Mac
+    hardware run, 2026-09-04, owner Intel i5-10400H on macOS 26.6.2 with the extracted
+    `osx-x64` archive (`0.0.4-alpha.1`). **The published release archive, not a build from
+    `dev`** — nothing merged after that tag was present, so the Relay channel in particular
+    has still never run on macOS. Quarantine had to be cleared with `xattr -dr` (no `sudo`
+    needed); binaries are adhoc-signed so Gatekeeper still flags fresh downloads. Broker
+    reports Keychain secrets and `osascript` notifications; health, keyed dedup,
+    `get`/`list`/`resolve`, single-instance refusal, loopback-only listen, `0700`/`0600`
+    state, and clean `SIGTERM` all confirmed. The owner visually confirmed an `osascript`
+    banner and default-path token discovery. Full detail is in `docs/VERIFICATION.md`.
+    Still unverified: `osx-arm64` execution, the `terminal-notifier` path, the launchd unit,
+    `install.sh` end to end, the Relay channel on macOS, and any signed/notarized install.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 720 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 738 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
+- The macOS portable build has now run on real hardware (2026-09-04) and its `osascript`
+  notification backend has been seen working. That was the released `0.0.4-alpha.1`
+  archive; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on
+  macOS all remain unobserved.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 

@@ -318,9 +318,11 @@ Default personal destinations:
 ```text
 Codex:       ~/.agents/skills/agentnotify
 Claude Code: ~/.claude/skills/agentnotify
+OpenCode:    ~/.config/opencode/skill/agentnotify
 ```
 
-Codex installs `SKILL.md` and `agents/openai.yaml`; Claude Code installs `SKILL.md`. Identical files
+Codex installs `SKILL.md` and `agents/openai.yaml`; Claude Code and OpenCode install `SKILL.md`.
+Any other agent is installed by passing its skills root to `--path`. Identical files
 are treated as already up to date. A changed existing file is never overwritten unless `--force` is
 passed. Files outside the `agentnotify` skill directory are never modified.
 

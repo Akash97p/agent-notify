@@ -3,19 +3,41 @@ using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Skills;
 
 namespace AgentNotify.App;
 
 internal static class AgentResources
 {
     private const string SkillResource = "AgentNotify.Resources.SKILL.md";
+    private const string OpenAiMetadataResource = "AgentNotify.Resources.openai.yaml";
     private const string GettingStartedResource = "AgentNotify.Resources.GettingStarted.html";
     private const string SkillPlaceholder = "__AGENTNOTIFY_SKILL_JSON__";
 
     private static readonly Lazy<string> Skill = new(() => ReadEmbedded(SkillResource));
+    private static readonly Lazy<string> OpenAiMetadata = new(() => ReadEmbedded(OpenAiMetadataResource));
     private static readonly Lazy<string> GettingStarted = new(() => ReadEmbedded(GettingStartedResource));
 
     public static string SkillText => Skill.Value;
+
+    /// <summary>
+    /// The files that make up the skill for one agent.
+    /// </summary>
+    /// <remarks>
+    /// Same shape the CLI installs, from the same source file — the tray app and
+    /// <c>agentnotify install-skill</c> must not be able to put different bytes
+    /// in the same place.
+    /// </remarks>
+    public static IReadOnlyList<SkillInstaller.SkillFile> SkillFiles(AgentSkillTarget target)
+    {
+        var files = new List<SkillInstaller.SkillFile>
+        {
+            new("SKILL.md", SkillText)
+        };
+        if (target.Id == AgentSkillCatalog.Codex.Id)
+            files.Add(new(Path.Combine("agents", "openai.yaml"), OpenAiMetadata.Value));
+        return files;
+    }
 
     public static string WriteGettingStarted()
     {

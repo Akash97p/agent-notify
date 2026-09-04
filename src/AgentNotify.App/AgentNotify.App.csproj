@@ -27,6 +27,9 @@
          for a sized Image and renders soft. -->
     <Resource Include="..\..\assets\branding\an.png" Link="Resources\an.png" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Resources.SKILL.md" />
+    <!-- Codex reads a descriptor beside the Markdown, so the Install tab has to
+         be able to write one. Every other agent gets the Markdown alone. -->
+    <EmbeddedResource Include="..\..\distribution\agentnotify\agents\openai.yaml" LogicalName="AgentNotify.Resources.openai.yaml" />
     <EmbeddedResource Include="..\..\assets\GettingStarted.html" LogicalName="AgentNotify.Resources.GettingStarted.html" />
     <EmbeddedResource Include="..\..\assets\tones\*.wav" LogicalName="AgentNotify.Resources.Tones.%(Filename)%(Extension)" />
   </ItemGroup>

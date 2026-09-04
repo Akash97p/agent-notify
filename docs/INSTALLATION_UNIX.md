@@ -6,10 +6,14 @@ command-line client that agents already use. The API, the bearer token, the noti
 `SKILL.md` are identical on all three platforms, so an agent written against the Windows build needs
 no changes.
 
-> **Status.** These builds are part of the `0.0.3-alpha.1` prerelease. The broker itself has been
-> run and exercised end to end on Linux, but the macOS build and the graphical notification backends
-> have not been run on real hardware yet. See [VERIFICATION.md](VERIFICATION.md) for exactly what
-> has and has not been observed.
+> **Status.** These builds are part of the prerelease line. The broker itself has been run and
+> exercised end to end on Linux and, since 2026-09-04, on real Intel Mac hardware, where the
+> `osascript` notification backend was also seen displaying a banner. The Linux graphical
+> notification backend has still not been observed, and neither has any Apple Silicon machine.
+> See [VERIFICATION.md](VERIFICATION.md) for exactly what has and has not been observed.
+>
+> The binaries are adhoc-signed rather than notarized, so macOS quarantines a fresh download.
+> `xattr -dr com.apple.quarantine <dir>` clears it, and needs no `sudo`.
 
 ## Install
 

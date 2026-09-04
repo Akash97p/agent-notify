@@ -199,6 +199,7 @@ public partial class App : System.Windows.Application
             onShowCenter: () => _center.ShowAndActivate(),
             onOpenSettings: () => ShowSettings(),
             onOpenGettingStarted: () => RunTrayAction("Getting started", AgentResources.OpenGettingStarted),
+            onInstallSkill: () => ShowSettings(showInstall: true),
             onCopySkill: () => RunTrayAction("Agent skill", () =>
             {
                 System.Windows.Clipboard.SetText(AgentResources.SkillText);
@@ -238,7 +239,7 @@ public partial class App : System.Windows.Application
         _pruneTimer.Start();
     }
 
-    private void ShowSettings(bool showAbout = false)
+    private void ShowSettings(bool showAbout = false, bool showInstall = false)
     {
         if (_settings is null)
         {
@@ -261,6 +262,7 @@ public partial class App : System.Windows.Application
         _settings.Show();
         _settings.Activate();
         if (showAbout) _settings.ShowAboutTab();
+        if (showInstall) _settings.ShowInstallTab();
     }
 
     private async Task RestoreAttentionToastsAsync()
