@@ -938,3 +938,13 @@ Not verified: the `osx-arm64` binary has never executed (no ARM64 hardware); the
 and `install.sh` have never been exercised end to end; the AgentNotify Relay channel
 postdates the tested archive and has never run on macOS; and the binaries remain
 adhoc-signed, so Gatekeeper quarantine clearing is still required on every fresh download.
+
+## Release packaging for `v0.0.4-alpha.2`
+
+Built on 2026-09-04 from `chore/release-0.0.4-alpha.2`: Release build 0 warnings / 0 errors,
+738 tests passed, `scripts/package.sh` produced `AgentNotifySetup.exe` with SHA-256
+`a4c5c68138a11113469b97c74b292d768020d74f10aaa8b84fe1ad93dc522ac4`.
+
+This is the local packaging run. The tag workflow builds, tests and packages independently
+on a hosted Windows runner and publishes its own artifacts; the two checksums are not
+expected to match, because the installer embeds build-time paths.
