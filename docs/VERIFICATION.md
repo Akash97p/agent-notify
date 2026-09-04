@@ -893,3 +893,48 @@ No coding-agent adapter, response API, SQLite interaction migration, desktop res
 reverse channel, or mobile response control was implemented or integration-tested. The new document
 is a researched plan, and every feasibility rating remains a future adapter claim to prove against a
 pinned host version.
+
+## First real-Mac hardware verification (`docs/mac-hardware-verification`)
+
+Verified on 2026-09-04 on owner hardware: Intel i5-10400H, macOS 26.6.2, running the
+extracted `agentnotify-osx-x64` archive (CLI and broker both report `0.0.4-alpha.1`).
+This is the first time the macOS build has run outside CI, and the first time the
+`osascript` notifier path has displayed a notification anywhere.
+
+**This was the published `0.0.4-alpha.1` release archive from GitHub, not a build from
+`dev`.** Nothing merged after that tag was present — in particular the AgentNotify Relay
+channel is newer, so its behaviour on macOS remains entirely unobserved. What follows is
+a statement about the released binary and nothing else.
+
+Observed:
+
+- Both downloaded binaries carried `com.apple.quarantine` and both are adhoc-signed
+  (`spctl -a` rejects them, as expected for an unsigned prerelease). One
+  `xattr -dr com.apple.quarantine <dir>` cleared execution with no `sudo` required; the
+  executable bits were already set. No elevation was needed at any point.
+- `agentnotify --version` and `--help` work immediately after the quarantine clear.
+- The broker starts and reports `secrets: macOS login keychain` and
+  `notifications: osascript` (`terminal-notifier` is not installed on this machine).
+- A login-keychain entry (service `AgentNotify`, account `provider-secrets`) is created and
+  no `secret.key` fallback file is written, matching the CI-runner behaviour on a real
+  login session.
+- End-to-end broker behaviour confirmed against an isolated `--config-dir` on port 47899 and
+  against the default data directory on port 47821: `health` returns `ok`, `send` creates,
+  a second `send` with the same `--key` returns the same id (keyed dedup), `get`/`list`/`resolve`
+  round-trip, a second broker instance refuses with `AgentNotify is already running for this
+  user`, and `SIGTERM` shuts the broker down cleanly (`agentnotifyd stopped` in the log).
+- The listening socket is loopback-only (`TCP 127.0.0.1:47899 (LISTEN)`).
+- Owner-only state confirmed in both directories: data dir `0700`, `config.json` and
+  `agentnotify.db` `0600`, `logs/` `0700`.
+- A direct `osascript display notification` banner was shown on screen and confirmed by the
+  owner, so the macOS notifier backend is proven end to end for the first time. Sticky
+  attention types still degrade to ordinary banners under `osascript`, as documented.
+- Default-path token discovery confirmed by the owner: `agentnotify health` and `send` work
+  with no `--token` flag against the default `~/Library/Application Support/AgentNotify`
+  data directory.
+
+Not verified: the `osx-arm64` binary has never executed (no ARM64 hardware); the
+`terminal-notifier` backend path has never run (not installed here); the launchd agent unit
+and `install.sh` have never been exercised end to end; the AgentNotify Relay channel
+postdates the tested archive and has never run on macOS; and the binaries remain
+adhoc-signed, so Gatekeeper quarantine clearing is still required on every fresh download.
