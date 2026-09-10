@@ -939,6 +939,45 @@ and `install.sh` have never been exercised end to end; the AgentNotify Relay cha
 postdates the tested archive and has never run on macOS; and the binaries remain
 adhoc-signed, so Gatekeeper quarantine clearing is still required on every fresh download.
 
+## macOS installer, launch agent, and agent skills (`fix/macos-unix-installer`)
+
+Verified on 2026-09-10 on the same owner Intel Mac running macOS 26.6.2:
+
+- The first real `install.sh` run exposed three release-path defects: macOS `/bin/sh` treated a
+  Unicode ellipsis after each of two unbraced variables as part of the parameter name under
+  `set -u`; the script requested the Windows-only `SHA256SUMS.txt` instead of
+  `SHA256SUMS-portable.txt`; and GitHub's `/releases/latest` download route returned 404 because all
+  AgentNotify releases are prereleases.
+- After correcting those defects, `/bin/sh -n scripts/install.sh` passed. An unpinned
+  `./scripts/install.sh` resolved `v0.0.4-alpha.2`, downloaded `agentnotify-osx-x64.tar.gz`, matched
+  it against the published portable checksum, and installed both executables to `~/.local/bin`.
+  `agentnotify --version` and `agentnotifyd --version` both reported `0.0.4-alpha.2`.
+- A valid `~/Library/LaunchAgents/dev.agentnotify.broker.plist` was bootstrapped in the user's GUI
+  domain. launchd reported the service running, `lsof` showed only `127.0.0.1:47821`, and
+  `agentnotify health` returned `status: ok`, API `v1`, and version `0.0.4-alpha.2`. The broker log
+  reported the `osascript` notifier and AES-GCM protection under the macOS login keychain.
+- `agentnotify install-skill codex`, `claude`, and `opencode` installed the bundled skill at
+  `~/.agents/skills/agentnotify`, `~/.claude/skills/agentnotify`, and
+  `~/.config/opencode/skill/agentnotify`. Each installed `SKILL.md` matched the distribution copy;
+  Codex also received `agents/openai.yaml`.
+- Relay configuration was attempted only through read-only discovery. The supplied hostname
+  `an.relay.dev.kabnitech.com` returned DNS `NXDOMAIN` from the system resolver and public resolvers
+  `1.1.1.1` and `8.8.8.8`. Pairing was therefore not started, and
+  `agentnotify relay status --json` remained `not_configured`.
+- `/bin/sh -n scripts/install.sh tests/install-script-test.sh`, the offline mocked-release installer
+  check, and `git diff --check` passed locally. `./scripts/build.sh` could not start on this Mac
+  because the repository gate intentionally requires a Windows .NET 10 SDK path from WSL; no local
+  .NET build was claimed.
+- Hosted Windows Actions run
+  [`34482095178`](https://github.com/Akash97p/agent-notify/actions/runs/34482095178) passed restore,
+  the full Release build, tests, and installer/embedded-resource packaging. Portable run
+  [`34482095194`](https://github.com/Akash97p/agent-notify/actions/runs/34482095194) passed the build,
+  tests, installer regression check, and native CLI/broker smoke test on both Ubuntu and macOS.
+
+Still unverified: Apple Silicon execution, `terminal-notifier`, a successful Relay pairing or
+delivery from macOS, and signed/notarized installation. The launchd registration and skill files are
+local user configuration, not repository artifacts.
+
 ## Release packaging for `v0.0.4-alpha.2`
 
 Built on 2026-09-04 from `chore/release-0.0.4-alpha.2`: Release build 0 warnings / 0 errors,

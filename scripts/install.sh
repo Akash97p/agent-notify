@@ -4,10 +4,11 @@
 #   curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/install.sh | sh
 #
 # Downloads the release archive for this machine, verifies its SHA-256 against the published
-# SHA256SUMS.txt, and installs the agentnotify CLI and the agentnotifyd broker into ~/.local/bin.
+# portable checksum file, and installs the agentnotify CLI and the agentnotifyd broker into
+# ~/.local/bin.
 #
 # Environment:
-#   AGENTNOTIFY_VERSION   Release tag to install (default: latest).
+#   AGENTNOTIFY_VERSION   Release tag to install (default: newest published release).
 #   AGENTNOTIFY_PREFIX    Install directory   (default: $HOME/.local/bin).
 set -eu
 
@@ -54,21 +55,28 @@ archive="agentnotify-$rid.tar.gz"
 
 version="${AGENTNOTIFY_VERSION:-}"
 if [ -z "$version" ]; then
-    base="https://github.com/$REPO/releases/latest/download"
-else
-    base="https://github.com/$REPO/releases/download/$version"
+    # GitHub's /releases/latest URL excludes prereleases. AgentNotify is currently
+    # prerelease-only, so ask the public releases API for the newest published tag.
+    version="$(fetch_stdout "https://api.github.com/repos/$REPO/releases?per_page=1" \
+        | awk -F '"' '/"tag_name":/ { print $4; exit }')"
+    [ -n "$version" ] || fail "could not determine the newest published release."
 fi
+base="https://github.com/$REPO/releases/download/$version"
 
 tmp="$(mktemp -d)"
 # shellcheck disable=SC2064
 trap "rm -rf '$tmp'" EXIT INT TERM
 
-echo "Downloading $archive…"
+echo "Downloading ${archive} from ${version}…"
 fetch "$base/$archive" "$tmp/$archive" || fail "could not download $base/$archive"
 
 # Verifying the checksum is not optional: this script pipes a downloaded binary straight onto PATH.
 echo "Verifying checksum…"
-fetch "$base/SHA256SUMS.txt" "$tmp/SHA256SUMS.txt" || fail "could not download the checksum file."
+if ! fetch "$base/SHA256SUMS-portable.txt" "$tmp/SHA256SUMS.txt"; then
+    # v0.0.1-alpha.1 predates the separate Windows and portable checksum filenames.
+    fetch "$base/SHA256SUMS.txt" "$tmp/SHA256SUMS.txt" \
+        || fail "could not download the portable checksum file."
+fi
 
 expected="$(grep " $archive\$" "$tmp/SHA256SUMS.txt" | awk '{print $1}')"
 [ -n "$expected" ] || fail "no checksum published for $archive."
@@ -83,7 +91,7 @@ fi
 
 [ "$actual" = "$expected" ] || fail "checksum mismatch for $archive. Expected $expected, got $actual."
 
-echo "Installing to $PREFIX…"
+echo "Installing to ${PREFIX}…"
 mkdir -p "$PREFIX"
 tar -xzf "$tmp/$archive" -C "$tmp"
 for binary in agentnotify agentnotifyd; do
