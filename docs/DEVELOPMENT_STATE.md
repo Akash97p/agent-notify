@@ -338,6 +338,27 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     Still unverified: `osx-arm64` execution, the `terminal-notifier` path, the launchd unit,
     `install.sh` end to end, the Relay channel on macOS, and any signed/notarized install.
 
+49. Completed on `fix/macos-unix-installer` after running the documented installer on the owner
+    Intel Mac:
+    - Fixed two unbraced shell variables followed by a Unicode ellipsis; macOS `/bin/sh` otherwise
+      parsed the ellipsis as part of the parameter name under `set -u`.
+    - The installer now verifies portable archives against `SHA256SUMS-portable.txt`, with a
+      `SHA256SUMS.txt` fallback for the original release layout. It no longer mistakes the current
+      Windows-installer-only checksum file for the portable checksum list.
+    - With no version override, the installer resolves the newest published release through GitHub's
+      public releases API. GitHub's `/releases/latest` download path excludes prereleases and returned
+      404 while AgentNotify had only prerelease releases.
+    - The corrected unpinned installer selected `v0.0.4-alpha.2`, downloaded and verified the
+      `osx-x64` archive, and installed both binaries to `~/.local/bin`. A real per-user launchd agent
+      then kept the broker running on loopback, and `agentnotify health` returned `ok` for
+      `0.0.4-alpha.2`.
+    - The bundled offline installer placed exact skill copies in the supported personal locations
+      for Codex, Claude Code, and OpenCode. Global `AGENTS.md`/`CLAUDE.md` files were not needed.
+    - Live Relay pairing remains blocked outside the repository: the owner-provided hostname
+      `an.relay.dev.kabnitech.com` returned DNS `NXDOMAIN` from the system resolver, Cloudflare, and
+      Google DNS on 2026-09-10. `agentnotify relay status --json` remained `not_configured`, so no
+      Relay credential was created or stored.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
@@ -346,10 +367,10 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
-- The macOS portable build has now run on real hardware (2026-09-04) and its `osascript`
-  notification backend has been seen working. That was the released `0.0.4-alpha.1`
-  archive; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on
-  macOS all remain unobserved.
+- The macOS portable build has now run on real hardware. The first `0.0.4-alpha.1` run proved the
+  broker and `osascript` banner; the 2026-09-10 `0.0.4-alpha.2` run additionally proved the corrected
+  Unix installer, per-user launchd startup, and personal agent-skill installation. Apple Silicon,
+  `terminal-notifier`, and the Relay channel on macOS remain unobserved.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 
