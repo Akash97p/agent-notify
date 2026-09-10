@@ -974,9 +974,33 @@ Verified on 2026-09-10 on the same owner Intel Mac running macOS 26.6.2:
   [`34482095194`](https://github.com/Akash97p/agent-notify/actions/runs/34482095194) passed the build,
   tests, installer regression check, and native CLI/broker smoke test on both Ubuntu and macOS.
 
-Still unverified: Apple Silicon execution, `terminal-notifier`, a successful Relay pairing or
-delivery from macOS, and signed/notarized installation. The launchd registration and skill files are
-local user configuration, not repository artifacts.
+### First live macOS Relay pairing
+
+The owner corrected the Relay hostname to `https://an.relay.dev.kabanitech.com` during the same
+2026-09-10 session. Public Cloudflare and Google DNS both resolved it to `212.227.243.171`, and its
+`/.well-known/agentnotify-relay` response identified AgentNotify Relay `0.1.0`, API `v1`, envelope
+version `1`, and the experimental opaque-transport capability.
+
+`agentnotify relay pair` completed a real browser approval, verified the returned installation
+credential, and saved provider **Hosted relay** without printing the credential. A subsequent
+`agentnotify relay status --json` reported `status: connected`, identity `Akashs-MacBook-Pro`, and
+`enabled: false`. A boolean scan of broker logs found no `inst_` or `pol_` credential prefix.
+
+The pairing command deliberately saved the new provider disabled. The owner then explicitly asked to
+enable it and route all priorities to the connected phone. **All notifications to mobile** was
+created enabled with minimum priority `Low`, no type/project/agent filters, and
+`include_message: true`. The provider was enabled without changing its encrypted credential.
+
+A `success` test at priority `Low` with key `agent-notify-mac-relay-test` exercised the lowest route
+threshold. Its durable outbox row changed from `Processing` to `Delivered`; attempt 1 succeeded with
+HTTP `201` and no error code. This proves the live macOS broker matched the route, sealed the payload,
+and had the hosted Relay accept the envelope. The owner then confirmed that the **Mac Relay test**
+notification appeared on the connected mobile app, completing the first verified macOS-to-mobile
+Relay path.
+
+Still unverified: Apple Silicon execution, `terminal-notifier`, and signed/notarized installation.
+The launchd registration, provider, route, and skill files are local user configuration, not
+repository artifacts.
 
 ## Release packaging for `v0.0.4-alpha.2`
 
