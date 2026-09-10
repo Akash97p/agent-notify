@@ -361,9 +361,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       the **Hosted relay** provider connected as `Akashs-MacBook-Pro`. The owner then explicitly
       requested an enabled catch-all route: **All notifications to mobile** has minimum priority
       `Low`, no type/project/agent filters, and includes the notification message off-device. A
-      Low-priority test was delivered on its first attempt and the Relay returned `201`; confirmation
-      that the mobile app displayed it is still pending. Broker logs contained no `inst_` or `pol_`
-      credential prefixes.
+      Low-priority test was delivered on its first attempt, the Relay returned `201`, and the owner
+      confirmed that **Mac Relay test** appeared on the connected mobile app. Broker logs contained
+      no `inst_` or `pol_` credential prefixes.
     - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
       scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
       path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
@@ -381,8 +381,8 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - The macOS portable build has now run on real hardware. The first `0.0.4-alpha.1` run proved the
   broker and `osascript` banner; the 2026-09-10 `0.0.4-alpha.2` run additionally proved the corrected
   Unix installer, per-user launchd startup, personal agent-skill installation, and live Relay
-  discovery, pairing, routing, encryption, and server acceptance. Apple Silicon, `terminal-notifier`,
-  and mobile receipt of the macOS test remain unobserved.
+  discovery, pairing, routing, encryption, server acceptance, and mobile display. Apple Silicon and
+  `terminal-notifier` remain unobserved.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 

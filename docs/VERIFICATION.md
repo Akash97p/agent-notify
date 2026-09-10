@@ -994,12 +994,13 @@ created enabled with minimum priority `Low`, no type/project/agent filters, and
 A `success` test at priority `Low` with key `agent-notify-mac-relay-test` exercised the lowest route
 threshold. Its durable outbox row changed from `Processing` to `Delivered`; attempt 1 succeeded with
 HTTP `201` and no error code. This proves the live macOS broker matched the route, sealed the payload,
-and had the hosted Relay accept the envelope. The owner had not yet confirmed mobile display when
-this result was recorded.
+and had the hosted Relay accept the envelope. The owner then confirmed that the **Mac Relay test**
+notification appeared on the connected mobile app, completing the first verified macOS-to-mobile
+Relay path.
 
-Still unverified: Apple Silicon execution, `terminal-notifier`, phone receipt of the accepted macOS
-envelope, and signed/notarized installation. The launchd registration, provider, route, and skill
-files are local user configuration, not repository artifacts.
+Still unverified: Apple Silicon execution, `terminal-notifier`, and signed/notarized installation.
+The launchd registration, provider, route, and skill files are local user configuration, not
+repository artifacts.
 
 ## Release packaging for `v0.0.4-alpha.2`
 

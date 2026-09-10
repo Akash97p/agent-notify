@@ -181,7 +181,7 @@ made it possible to verify the Linux broker end to end rather than only compile 
 | `notify-send` actually displays a notification | **Unverified** — needs a graphical Linux session |
 | macOS `osascript` notifier actually displays a notification | **Verified** 2026-09-04 on owner Intel Mac hardware (banner seen on screen; see [VERIFICATION.md](VERIFICATION.md)) |
 | macOS `terminal-notifier` backend | **Unverified** — not installed on the verification machine |
-| AgentNotify Relay channel on macOS | **Partially verified** 2026-09-10 — live discovery, browser approval, protected credential save, catch-all routing, encryption, and first-attempt envelope acceptance (`201`) succeeded; phone receipt awaits owner confirmation |
+| AgentNotify Relay channel on macOS | **Verified end to end** 2026-09-10 — live discovery, browser approval, protected credential save, catch-all routing, encryption, first-attempt envelope acceptance (`201`), and mobile display all succeeded |
 | macOS Keychain key store | **Verified** on the macOS CI runner |
 | Linux `secret-tool` key store | **Unverified** — not installed on the CI runners; Linux exercises the key-file fallback |
 | ARM64 binaries execute | **Unverified** — no ARM64 machine |
