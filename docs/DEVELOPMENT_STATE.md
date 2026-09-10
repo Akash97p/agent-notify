@@ -338,6 +338,38 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     Still unverified: `osx-arm64` execution, the `terminal-notifier` path, the launchd unit,
     `install.sh` end to end, the Relay channel on macOS, and any signed/notarized install.
 
+49. Completed on `fix/macos-unix-installer` after running the documented installer on the owner
+    Intel Mac:
+    - Fixed two unbraced shell variables followed by a Unicode ellipsis; macOS `/bin/sh` otherwise
+      parsed the ellipsis as part of the parameter name under `set -u`.
+    - The installer now verifies portable archives against `SHA256SUMS-portable.txt`, with a
+      `SHA256SUMS.txt` fallback for the original release layout. It no longer mistakes the current
+      Windows-installer-only checksum file for the portable checksum list.
+    - With no version override, the installer resolves the newest published release through GitHub's
+      public releases API. GitHub's `/releases/latest` download path excludes prereleases and returned
+      404 while AgentNotify had only prerelease releases.
+    - The corrected unpinned installer selected `v0.0.4-alpha.2`, downloaded and verified the
+      `osx-x64` archive, and installed both binaries to `~/.local/bin`. A real per-user launchd agent
+      then kept the broker running on loopback, and `agentnotify health` returned `ok` for
+      `0.0.4-alpha.2`.
+    - The bundled offline installer placed exact skill copies in the supported personal locations
+      for Codex, Claude Code, and OpenCode. Global `AGENTS.md`/`CLAUDE.md` files were not needed.
+    - The initially supplied Relay hostname `an.relay.dev.kabnitech.com` returned DNS `NXDOMAIN`.
+      After the owner corrected it to `an.relay.dev.kabanitech.com`, public DNS and HTTPS discovery
+      succeeded, the live browser pairing was approved, and the one-time credential was verified and
+      saved through the macOS protected secret store without being rendered. `relay status` reports
+      the **Hosted relay** provider connected as `Akashs-MacBook-Pro`. The owner then explicitly
+      requested an enabled catch-all route: **All notifications to mobile** has minimum priority
+      `Low`, no type/project/agent filters, and includes the notification message off-device. A
+      Low-priority test was delivered on its first attempt, the Relay returned `201`, and the owner
+      confirmed that **Mac Relay test** appeared on the connected mobile app. Broker logs contained
+      no `inst_` or `pol_` credential prefixes.
+    - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
+      scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
+      path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
+      and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
+      including the new installer regression check and native CLI/broker smoke test on both hosts.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
@@ -346,10 +378,11 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
-- The macOS portable build has now run on real hardware (2026-09-04) and its `osascript`
-  notification backend has been seen working. That was the released `0.0.4-alpha.1`
-  archive; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on
-  macOS all remain unobserved.
+- The macOS portable build has now run on real hardware. The first `0.0.4-alpha.1` run proved the
+  broker and `osascript` banner; the 2026-09-10 `0.0.4-alpha.2` run additionally proved the corrected
+  Unix installer, per-user launchd startup, personal agent-skill installation, and live Relay
+  discovery, pairing, routing, encryption, server acceptance, and mobile display. Apple Silicon and
+  `terminal-notifier` remain unobserved.
 - Work continues on `dev` after cross-platform Phases 1-3 and the protocol/skill-installation milestone.
   Next distribution work is the Homebrew tap and Winget manifest, followed by native clients.
 

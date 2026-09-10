@@ -23,7 +23,8 @@ curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/
 
 The script detects your platform, downloads the matching archive from GitHub Releases, **verifies
 its SHA-256 against the published checksum file**, and installs both binaries into `~/.local/bin`.
-It refuses to install anything it cannot verify.
+It refuses to install anything it cannot verify. With no version override, it selects the newest
+published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an exact tag.
 
 To install elsewhere or pin a version:
 
