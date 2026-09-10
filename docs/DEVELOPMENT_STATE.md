@@ -358,6 +358,11 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       `an.relay.dev.kabnitech.com` returned DNS `NXDOMAIN` from the system resolver, Cloudflare, and
       Google DNS on 2026-09-10. `agentnotify relay status --json` remained `not_configured`, so no
       Relay credential was created or stored.
+    - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
+      scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
+      path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
+      and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
+      including the new installer regression check and native CLI/broker smoke test on both hosts.
 
 ## Current documentation/status snapshot
 

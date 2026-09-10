@@ -964,6 +964,15 @@ Verified on 2026-09-10 on the same owner Intel Mac running macOS 26.6.2:
   `an.relay.dev.kabnitech.com` returned DNS `NXDOMAIN` from the system resolver and public resolvers
   `1.1.1.1` and `8.8.8.8`. Pairing was therefore not started, and
   `agentnotify relay status --json` remained `not_configured`.
+- `/bin/sh -n scripts/install.sh tests/install-script-test.sh`, the offline mocked-release installer
+  check, and `git diff --check` passed locally. `./scripts/build.sh` could not start on this Mac
+  because the repository gate intentionally requires a Windows .NET 10 SDK path from WSL; no local
+  .NET build was claimed.
+- Hosted Windows Actions run
+  [`34482095178`](https://github.com/Akash97p/agent-notify/actions/runs/34482095178) passed restore,
+  the full Release build, tests, and installer/embedded-resource packaging. Portable run
+  [`34482095194`](https://github.com/Akash97p/agent-notify/actions/runs/34482095194) passed the build,
+  tests, installer regression check, and native CLI/broker smoke test on both Ubuntu and macOS.
 
 Still unverified: Apple Silicon execution, `terminal-notifier`, a successful Relay pairing or
 delivery from macOS, and signed/notarized installation. The launchd registration and skill files are
