@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""AgentNotify hook bridge for Codex and Claude Code.
+"""AgentNotify hook bridge for Codex, Claude Code, Gemini CLI, Copilot CLI, Cursor, and Muse Code.
 
 Called by the host's hook system (stdin JSON + argv event name). It sends
 one best-effort `agentnotify send` and always exits 0 so a notification
 failure can never block the coding session.
 
 Usage:
-    agentnotify_hook.py <codex|claude> <event> [--project NAME]
+    agentnotify_hook.py <codex|claude|gemini|copilot|cursor|muse> <event> [--project NAME]
 
-<event> is one of: permission, notification, stop, session-end.
+<event> depends on the host (each host only wires its own names):
+  codex:   permission, stop, session-end
+  claude:  notification, stop
+  gemini:  notification, after-agent, session-end
+  copilot: notification, agent-stop, session-end, error-occurred
+  cursor:  stop, session-end
+  muse:    permission-request, stop
 Stdin is the host's hook JSON payload (up to 64 KiB); unreadable or
 unexpected shapes fall back to generic text rather than failing.
 
-Install with:  agentnotify install-harness <codex|claude>
+Install with:  agentnotify install-harness <agent>
 Only the Python standard library is used.
 """
 
@@ -27,6 +33,10 @@ MAX_TEXT = 1000
 AGENTS = {
     "codex": "Codex",
     "claude": "Claude Code",
+    "gemini": "Gemini CLI",
+    "copilot": "Copilot CLI",
+    "cursor": "Cursor",
+    "muse": "Muse Code",
 }
 
 
@@ -174,7 +184,7 @@ def main(argv):
     )
     detail = " ".join(part for part in (tool, message_text) if part).strip()
 
-    if event in ("permission", "permissionrequest", "notification"):
+    if event in ("permission", "permissionrequest", "permission-request", "notification"):
         title = f"{label} waiting for approval"
         body = f"{project}: approval needed"
         if detail:
@@ -183,14 +193,15 @@ def main(argv):
             body += "."
         send(agent_id, project, "permission_required", "high", title, body,
              key=f"{project}-{sid}-permission")
-    elif event in ("stop", "session-end", "sessionend", "completed"):
+    elif event in ("stop", "session-end", "sessionend", "completed",
+                   "after-agent", "afteragent", "agent-stop", "agentstop"):
         title = f"{label} ready for review"
         body = f"{project}: session {sid} finished."
         if detail and event == "stop":
             # Keep stop messages short; the transcript stays in the host.
             pass
         send(agent_id, project, "completed", "normal", title, body)
-    elif event in ("error", "failure"):
+    elif event in ("error", "failure", "error-occurred", "erroroccurred"):
         title = f"{label} session error"
         body = f"{project}: session {sid} reported an error."
         if detail:

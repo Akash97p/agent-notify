@@ -1,0 +1,38 @@
+{
+  "$comment": "AgentNotify harness example for Copilot CLI. Copy this file to ~/.copilot/hooks/agentnotify.json (or <repo>/.github/hooks/agentnotify.json for a project) and replace HOOK_DIR with the folder holding agentnotify_hook.py. Prefer `agentnotify install-harness copilot`, which writes absolute paths for you. The notification event is fire-and-forget and never blocks the session.",
+  "version": 1,
+  "hooks": {
+    "notification": [
+      {
+        "type": "command",
+        "bash": "python3 HOOK_DIR/agentnotify_hook.py copilot notification",
+        "powershell": "python HOOK_DIR/agentnotify_hook.py copilot notification",
+        "timeoutSec": 10
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "python3 HOOK_DIR/agentnotify_hook.py copilot agent-stop",
+        "powershell": "python HOOK_DIR/agentnotify_hook.py copilot agent-stop",
+        "timeoutSec": 10
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "python3 HOOK_DIR/agentnotify_hook.py copilot session-end",
+        "powershell": "python HOOK_DIR/agentnotify_hook.py copilot session-end",
+        "timeoutSec": 10
+      }
+    ],
+    "errorOccurred": [
+      {
+        "type": "command",
+        "bash": "python3 HOOK_DIR/agentnotify_hook.py copilot error-occurred",
+        "powershell": "python HOOK_DIR/agentnotify_hook.py copilot error-occurred",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

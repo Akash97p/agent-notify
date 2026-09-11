@@ -1,0 +1,38 @@
+{
+  "$comment": "AgentNotify harness example for Gemini CLI. Merge the hooks object into your real settings file (~/.gemini/settings.json for you, or <repo>/.gemini/settings.json for a project) and replace HOOK_DIR with the folder holding agentnotify_hook.py. Prefer `agentnotify install-harness gemini` so the merge is idempotent and your other hooks survive. All three events are advisory: the hook only notifies and never blocks.",
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py gemini notification"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py gemini after-agent"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py gemini session-end"
+          }
+        ]
+      }
+    ]
+  }
+}

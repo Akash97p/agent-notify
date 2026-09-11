@@ -209,6 +209,175 @@ public sealed class HarnessInstallerTests : IDisposable
         Assert.True(again.Success);
         Assert.False(again.Changed);
     }
+
+    // ---- Gemini harness ----
+
+    [Fact]
+    public void GeminiHarness_WritesScriptAndAllThreeHookEvents()
+    {
+        var geminiDir = Path.Combine(_root, ".gemini");
+        var result = HarnessInstaller.InstallGeminiHarness(geminiDir, ScriptContent, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(ScriptContent, File.ReadAllText(Path.Combine(geminiDir, "agentnotify", "agentnotify_hook.py")));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(geminiDir, "settings.json")));
+        var hooks = doc.RootElement.GetProperty("hooks");
+        foreach (var evt in new[] { "Notification", "AfterAgent", "SessionEnd" })
+        {
+            Assert.True(hooks.TryGetProperty(evt, out var array));
+            Assert.Contains(array.EnumerateArray(), group =>
+                group.ToString().Contains("gemini notification", StringComparison.Ordinal)
+                || group.ToString().Contains("gemini after-agent", StringComparison.Ordinal)
+                || group.ToString().Contains("gemini session-end", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void GeminiHarness_IsIdempotentAndPreservesOtherKeys()
+    {
+        var geminiDir = Path.Combine(_root, ".gemini");
+        Directory.CreateDirectory(geminiDir);
+        File.WriteAllText(Path.Combine(geminiDir, "settings.json"), """{"theme":"dark"}""");
+
+        var result = HarnessInstaller.InstallGeminiHarness(geminiDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(result.Success);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(geminiDir, "settings.json")));
+        Assert.Equal("dark", doc.RootElement.GetProperty("theme").GetString());
+
+        var again = HarnessInstaller.InstallGeminiHarness(geminiDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+    }
+
+    // ---- Copilot harness ----
+
+    [Fact]
+    public void CopilotHarness_WritesScriptAndOwnedHooksFile()
+    {
+        var copilotDir = Path.Combine(_root, ".copilot");
+        var result = HarnessInstaller.InstallCopilotHarness(copilotDir, ScriptContent, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(ScriptContent, File.ReadAllText(Path.Combine(copilotDir, "agentnotify", "agentnotify_hook.py")));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(copilotDir, "hooks", "agentnotify.json")));
+        Assert.Equal(1, doc.RootElement.GetProperty("version").GetInt32());
+        var hooks = doc.RootElement.GetProperty("hooks");
+        foreach (var evt in new[] { "notification", "agentStop", "sessionEnd", "errorOccurred" })
+            Assert.True(hooks.TryGetProperty(evt, out _));
+    }
+
+    [Fact]
+    public void CopilotHarness_IsIdempotentAndProtectsEdits()
+    {
+        var copilotDir = Path.Combine(_root, ".copilot");
+        HarnessInstaller.InstallCopilotHarness(copilotDir, ScriptContent, force: false, dryRun: false);
+        var again = HarnessInstaller.InstallCopilotHarness(copilotDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+
+        File.WriteAllText(Path.Combine(copilotDir, "hooks", "agentnotify.json"), """{"version":1,"hooks":{}}""");
+        var refused = HarnessInstaller.InstallCopilotHarness(copilotDir, ScriptContent, force: false, dryRun: false);
+        Assert.False(refused.Success);
+        var forced = HarnessInstaller.InstallCopilotHarness(copilotDir, ScriptContent, force: true, dryRun: false);
+        Assert.True(forced.Success);
+        Assert.True(forced.Changed);
+    }
+
+    // ---- Cursor harness ----
+
+    [Fact]
+    public void CursorHarness_WritesScriptAndMergesVersionedHooks()
+    {
+        var cursorDir = Path.Combine(_root, ".cursor");
+        var result = HarnessInstaller.InstallCursorHarness(cursorDir, ScriptContent, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(ScriptContent, File.ReadAllText(Path.Combine(cursorDir, "agentnotify", "agentnotify_hook.py")));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(cursorDir, "hooks.json")));
+        Assert.Equal(1, doc.RootElement.GetProperty("version").GetInt32());
+        var hooks = doc.RootElement.GetProperty("hooks");
+        foreach (var evt in new[] { "stop", "sessionEnd" })
+        {
+            Assert.True(hooks.TryGetProperty(evt, out var array));
+            Assert.Contains(array.EnumerateArray(), entry =>
+                entry.ToString().Contains("agentnotify_hook.py", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void CursorHarness_PreservesUnrelatedHooksAndRefusesInvalidJson()
+    {
+        var cursorDir = Path.Combine(_root, ".cursor");
+        Directory.CreateDirectory(cursorDir);
+        File.WriteAllText(Path.Combine(cursorDir, "hooks.json"),
+            """{"version":1,"hooks":{"afterFileEdit":[{"command":"./format.sh"}]}}""");
+
+        var result = HarnessInstaller.InstallCursorHarness(cursorDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(cursorDir, "hooks.json")));
+        Assert.True(doc.RootElement.GetProperty("hooks").TryGetProperty("afterFileEdit", out _));
+        Assert.True(doc.RootElement.GetProperty("hooks").TryGetProperty("stop", out _));
+
+        File.WriteAllText(Path.Combine(cursorDir, "hooks.json"), "nope");
+        Assert.False(HarnessInstaller.InstallCursorHarness(cursorDir, ScriptContent, force: false, dryRun: false).Success);
+        Assert.True(HarnessInstaller.InstallCursorHarness(cursorDir, ScriptContent, force: true, dryRun: false).Success);
+    }
+
+    // ---- Muse harness ----
+
+    [Fact]
+    public void MuseHarness_UserScopeSeedsSchemaVersion()
+    {
+        var museDir = Path.Combine(_root, ".config", "muse");
+        var result = HarnessInstaller.InstallMuseHarness(museDir, ScriptContent, force: false, dryRun: false, projectScope: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(ScriptContent, File.ReadAllText(Path.Combine(museDir, "agentnotify", "agentnotify_hook.py")));
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(museDir, "settings.json")));
+        Assert.Equal(1, doc.RootElement.GetProperty("schema_version").GetInt32());
+        var hooks = doc.RootElement.GetProperty("hooks");
+        Assert.True(hooks.TryGetProperty("PermissionRequest", out _));
+        Assert.True(hooks.TryGetProperty("Stop", out _));
+
+        var again = HarnessInstaller.InstallMuseHarness(museDir, ScriptContent, force: false, dryRun: false, projectScope: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+    }
+
+    [Fact]
+    public void MuseHarness_ProjectScopeWritesHooksFile()
+    {
+        var museDir = Path.Combine(_root, ".muse");
+        var result = HarnessInstaller.InstallMuseHarness(museDir, ScriptContent, force: false, dryRun: false, projectScope: true);
+
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(museDir, "hooks.json")));
+        Assert.True(doc.RootElement.TryGetProperty("PermissionRequest", out _));
+        Assert.True(doc.RootElement.TryGetProperty("Stop", out _));
+    }
+
+    [Fact]
+    public void MuseHarness_PreservesExistingSchemaVersion()
+    {
+        var museDir = Path.Combine(_root, ".config", "muse");
+        Directory.CreateDirectory(museDir);
+        File.WriteAllText(Path.Combine(museDir, "settings.json"), """{"schema_version":1,"model":"x"}""");
+
+        var result = HarnessInstaller.InstallMuseHarness(museDir, ScriptContent, force: false, dryRun: false, projectScope: false);
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(museDir, "settings.json")));
+        Assert.Equal(1, doc.RootElement.GetProperty("schema_version").GetInt32());
+        Assert.Equal("x", doc.RootElement.GetProperty("model").GetString());
+    }
 }
 
 public sealed class HarnessCatalogTests
@@ -217,6 +386,10 @@ public sealed class HarnessCatalogTests
     [InlineData("opencode", ".config")]
     [InlineData("codex", ".codex")]
     [InlineData("claude", ".claude")]
+    [InlineData("gemini", ".gemini")]
+    [InlineData("copilot", ".copilot")]
+    [InlineData("cursor", ".cursor")]
+    [InlineData("muse", ".config")]
     public void PersonalDir_SitsUnderTheHomeDirectory(string id, string firstSegment)
     {
         var target = HarnessCatalog.Find(id);
@@ -258,6 +431,10 @@ public sealed class InstallHarnessCliTests
     [InlineData("opencode")]
     [InlineData("codex")]
     [InlineData("claude")]
+    [InlineData("gemini")]
+    [InlineData("copilot")]
+    [InlineData("cursor")]
+    [InlineData("muse")]
     public async Task InstallHarness_WritesBundledHarness(string agent)
     {
         var root = Path.Combine(Path.GetTempPath(), $"agentnotify-harness-{Guid.NewGuid():N}");
