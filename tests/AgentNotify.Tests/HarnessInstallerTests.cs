@@ -378,6 +378,101 @@ public sealed class HarnessInstallerTests : IDisposable
         Assert.Equal(1, doc.RootElement.GetProperty("schema_version").GetInt32());
         Assert.Equal("x", doc.RootElement.GetProperty("model").GetString());
     }
+
+    // ---- Kilo harness ----
+
+    [Fact]
+    public void KiloHarness_WritesRetargetedPlugin()
+    {
+        var kiloDir = Path.Combine(_root, "plugin");
+        var result = HarnessInstaller.InstallKiloPlugin(kiloDir, PluginContent, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(PluginContent, File.ReadAllText(Path.Combine(kiloDir, "agentnotify.js")));
+
+        var again = HarnessInstaller.InstallKiloPlugin(kiloDir, PluginContent, force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+
+        File.WriteAllText(Path.Combine(kiloDir, "agentnotify.js"), "// edited");
+        Assert.False(HarnessInstaller.InstallKiloPlugin(kiloDir, PluginContent, force: false, dryRun: false).Success);
+        var forced = HarnessInstaller.InstallKiloPlugin(kiloDir, PluginContent, force: true, dryRun: false);
+        Assert.True(forced.Success);
+        Assert.True(forced.Changed);
+    }
+
+    // ---- OpenClaw bridge ----
+
+    [Fact]
+    public void OpenClawBridge_WritesWatcherScript()
+    {
+        var openClawDir = Path.Combine(_root, ".openclaw");
+        var result = HarnessInstaller.InstallOpenClawBridge(openClawDir, ScriptContent, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(ScriptContent, File.ReadAllText(Path.Combine(openClawDir, "agentnotify", "agentnotify_openclaw.py")));
+
+        var again = HarnessInstaller.InstallOpenClawBridge(openClawDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+    }
+
+    // ---- Hermes plugin ----
+
+    private const string HermesYaml = "name: agentnotify\n";
+    private const string HermesInit = "def register(ctx):\n    pass\n";
+
+    [Fact]
+    public void HermesPlugin_WritesBothFiles()
+    {
+        var pluginsDir = Path.Combine(_root, "plugins");
+        var result = HarnessInstaller.InstallHermesPlugin(pluginsDir, HermesYaml, HermesInit, force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal(HermesYaml, File.ReadAllText(Path.Combine(pluginsDir, "agentnotify", "plugin.yaml")));
+        Assert.Equal(HermesInit, File.ReadAllText(Path.Combine(pluginsDir, "agentnotify", "__init__.py")));
+        Assert.Contains("transport: agentnotify", result.Message);
+
+        var again = HarnessInstaller.InstallHermesPlugin(pluginsDir, HermesYaml, HermesInit, force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+    }
+
+    [Fact]
+    public void HermesPlugin_ProtectsEditedFilesIndependently()
+    {
+        var pluginsDir = Path.Combine(_root, "plugins");
+        HarnessInstaller.InstallHermesPlugin(pluginsDir, HermesYaml, HermesInit, force: false, dryRun: false);
+        File.WriteAllText(Path.Combine(pluginsDir, "agentnotify", "__init__.py"), "# edited");
+
+        var refused = HarnessInstaller.InstallHermesPlugin(pluginsDir, HermesYaml, HermesInit, force: false, dryRun: false);
+        Assert.False(refused.Success);
+        // The untouched manifest must not have been rewritten by the refusal path.
+        Assert.Equal(HermesYaml, File.ReadAllText(Path.Combine(pluginsDir, "agentnotify", "plugin.yaml")));
+    }
+
+    // ---- Pi extension ----
+
+    [Fact]
+    public void PiExtension_WritesSingleFile()
+    {
+        var extensionsDir = Path.Combine(_root, "extensions");
+        var result = HarnessInstaller.InstallPiExtension(extensionsDir, "// pi", force: false, dryRun: false);
+
+        Assert.True(result.Success);
+        Assert.True(result.Changed);
+        Assert.Equal("// pi", File.ReadAllText(Path.Combine(extensionsDir, "agentnotify.ts")));
+
+        var again = HarnessInstaller.InstallPiExtension(extensionsDir, "// pi", force: false, dryRun: false);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+
+        File.WriteAllText(Path.Combine(extensionsDir, "agentnotify.ts"), "// edited");
+        Assert.False(HarnessInstaller.InstallPiExtension(extensionsDir, "// pi", force: false, dryRun: false).Success);
+    }
 }
 
 public sealed class HarnessCatalogTests
@@ -390,6 +485,10 @@ public sealed class HarnessCatalogTests
     [InlineData("copilot", ".copilot")]
     [InlineData("cursor", ".cursor")]
     [InlineData("muse", ".config")]
+    [InlineData("kilo", ".config")]
+    [InlineData("openclaw", ".openclaw")]
+    [InlineData("hermes", ".hermes")]
+    [InlineData("pi", ".pi")]
     public void PersonalDir_SitsUnderTheHomeDirectory(string id, string firstSegment)
     {
         var target = HarnessCatalog.Find(id);
@@ -435,6 +534,10 @@ public sealed class InstallHarnessCliTests
     [InlineData("copilot")]
     [InlineData("cursor")]
     [InlineData("muse")]
+    [InlineData("kilo")]
+    [InlineData("openclaw")]
+    [InlineData("hermes")]
+    [InlineData("pi")]
     public async Task InstallHarness_WritesBundledHarness(string agent)
     {
         var root = Path.Combine(Path.GetTempPath(), $"agentnotify-harness-{Guid.NewGuid():N}");
@@ -443,11 +546,34 @@ public sealed class InstallHarnessCliTests
             var exitCode = await AgentNotify.Cli.Program.Main(["install-harness", agent, "--path", root]);
 
             Assert.Equal(0, exitCode);
-            if (agent == "opencode")
+            if (agent is "opencode" or "kilo")
             {
                 var plugin = Path.Combine(root, "agentnotify.js");
                 Assert.True(File.Exists(plugin));
-                Assert.Contains("AgentNotify", await File.ReadAllTextAsync(plugin), StringComparison.Ordinal);
+                var text = await File.ReadAllTextAsync(plugin);
+                Assert.Contains("AgentNotify", text, StringComparison.Ordinal);
+                if (agent == "kilo")
+                {
+                    Assert.Contains("const AGENT = \"kilo\"", text, StringComparison.Ordinal);
+                    Assert.DoesNotContain("const AGENT = \"opencode\"", text, StringComparison.Ordinal);
+                }
+            }
+            else if (agent == "hermes")
+            {
+                Assert.True(File.Exists(Path.Combine(root, "agentnotify", "plugin.yaml")));
+                Assert.True(File.Exists(Path.Combine(root, "agentnotify", "__init__.py")));
+            }
+            else if (agent == "pi")
+            {
+                var extension = Path.Combine(root, "agentnotify.ts");
+                Assert.True(File.Exists(extension));
+                Assert.Contains("agentnotify", await File.ReadAllTextAsync(extension), StringComparison.Ordinal);
+            }
+            else if (agent == "openclaw")
+            {
+                var script = Path.Combine(root, "agentnotify", "agentnotify_openclaw.py");
+                Assert.True(File.Exists(script));
+                Assert.Contains("agentnotify", await File.ReadAllTextAsync(script), StringComparison.Ordinal);
             }
             else
             {

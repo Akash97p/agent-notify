@@ -841,6 +841,9 @@ internal static class Program
             : lowered is "github-copilot" or "copilot-cli" ? "copilot"
             : lowered is "muse-code" ? "muse"
             : lowered is "gemini-cli" ? "gemini"
+            : lowered is "kilo-code" or "kilocode" ? "kilo"
+            : lowered is "hermes-agent" ? "hermes"
+            : lowered is "pi-agent" ? "pi"
             : args[0];
         var target = HarnessCatalog.Find(requested);
         if (target is null)
@@ -902,6 +905,18 @@ internal static class Program
                 var id when id == HarnessCatalog.Muse.Id =>
                     HarnessInstaller.InstallMuseHarness(
                         harnessDir, HarnessPayload.HookScript(), force, dryRun, projectScope),
+                var id when id == HarnessCatalog.Kilo.Id =>
+                    HarnessInstaller.InstallKiloPlugin(
+                        harnessDir, HarnessPayload.KiloPlugin(), force, dryRun),
+                var id when id == HarnessCatalog.OpenClaw.Id =>
+                    HarnessInstaller.InstallOpenClawBridge(
+                        harnessDir, HarnessPayload.OpenClawWatcher(), force, dryRun),
+                var id when id == HarnessCatalog.Hermes.Id =>
+                    HarnessInstaller.InstallHermesPlugin(
+                        harnessDir, HarnessPayload.HermesPluginYaml(), HarnessPayload.HermesPluginInit(), force, dryRun),
+                var id when id == HarnessCatalog.Pi.Id =>
+                    HarnessInstaller.InstallPiExtension(
+                        harnessDir, HarnessPayload.PiExtension(), force, dryRun),
                 _ => null!,
             };
             if (result is null)
@@ -1393,7 +1408,7 @@ internal static class Program
               agentnotify install-harness <agent> [options]
               agentnotify install harness <agent> [options]
 
-            Agents: opencode, codex, claude, gemini, copilot, cursor, muse.
+            Agents: opencode, codex, claude, gemini, copilot, cursor, muse, kilo, openclaw, hermes, pi.
 
             The harness notifies automatically at attention boundaries, without
             relying on the model to remember the skill: permission prompts,
@@ -1409,6 +1424,10 @@ internal static class Program
                                       Copilot:  the .copilot directory (.github for projects)
                                       Cursor:   the .cursor directory
                                       Muse:     the .config/muse directory (.muse for projects)
+                                      Kilo:     the plugin directory itself
+                                      OpenClaw: the .openclaw directory
+                                      Hermes:  the .hermes/plugins directory
+                                      Pi:       the extensions directory itself
               --force               Replace changed harness files / rewrite invalid hook JSON
               --dry-run             Print the destination without writing files
 
@@ -1420,6 +1439,10 @@ internal static class Program
               Copilot CLI  ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
               Cursor       ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
               Muse Code    ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
+              Kilo Code    ~/.config/kilo/plugin/agentnotify.js
+              OpenClaw     ~/.openclaw/agentnotify/agentnotify_openclaw.py (run: python3 ... watch)
+              Hermes Agent ~/.hermes/plugins/agentnotify/ (plus config.yaml edits)
+              Pi           ~/.pi/agent/extensions/agentnotify.ts
 
             Hooks only notify; they never approve, deny, or block. Existing hook
             entries are preserved. Restart the host session after installing.

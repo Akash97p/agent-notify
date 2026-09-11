@@ -75,8 +75,36 @@ public static class HarnessCatalog
         ProjectSegments: [".muse"],
         Note: "Hook script plus settings.json entries (beta host; verify the hook fires).");
 
+    public static readonly HarnessTarget Kilo = new(
+        Id: "kilo",
+        DisplayName: "Kilo Code",
+        PersonalSegments: [".config", "kilo", "plugin"],
+        ProjectSegments: [".kilo", "plugin"],
+        Note: "Retargeted OpenCode event plugin (same V1 surface). Legacy dirs: .kilocode/plugin, .opencode/plugin.");
+
+    public static readonly HarnessTarget OpenClaw = new(
+        Id: "openclaw",
+        DisplayName: "OpenClaw",
+        PersonalSegments: [".openclaw"],
+        ProjectSegments: [".openclaw"],
+        Note: "Polling approval bridge (watch daemon); resolves via the openclaw CLI.");
+
+    public static readonly HarnessTarget Hermes = new(
+        Id: "hermes",
+        DisplayName: "Hermes Agent",
+        PersonalSegments: [".hermes", "plugins"],
+        ProjectSegments: [".hermes", "plugins"],
+        Note: "Approval-transport plugin; needs plugins.enabled + approval.transport in config.yaml.");
+
+    public static readonly HarnessTarget Pi = new(
+        Id: "pi",
+        DisplayName: "Pi coding agent",
+        PersonalSegments: [".pi", "agent", "extensions"],
+        ProjectSegments: [".pi", "extensions"],
+        Note: "TypeScript extension: settled/prompt notify plus prompt capture.");
+
     public static readonly IReadOnlyList<HarnessTarget> All =
-        [OpenCode, Codex, ClaudeCode, Gemini, Copilot, Cursor, Muse];
+        [OpenCode, Codex, ClaudeCode, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi];
 
     public static HarnessTarget? Find(string id) =>
         All.FirstOrDefault(target => string.Equals(target.Id, id, StringComparison.OrdinalIgnoreCase));

@@ -432,6 +432,29 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: build 0/0; 804 tests passed; `py_compile` + example-JSON parses; `git diff --check`
       clean. Real-host display smoke still pending for all harnesses.
 
+53. Completed on `feature/harness-kilo-openclaw-hermes-pi` (last four harnesses):
+    - Kilo Code: the OpenCode V1 plugin retargeted at install time (`kilo` agent id, Kilo
+      titles, kilo project fallback) with drift assertions — a changed source file fails the
+      build of the payload instead of shipping a half-renamed plugin. Verified no leftover
+      identity and `node --check` clean.
+    - OpenClaw: stdlib-only `agentnotify_openclaw.py watch` daemon polling
+      `openclaw approvals pending --json`, opening one broker interaction per approval,
+      notifying, waiting, and resolving via `openclaw approvals resolve`. E2E-verified
+      against fake binaries (request → notify → wait → resolve). Unsettled approvals stay
+      pending; the gateway-operator client (`operator.approvals`) remains the planned upgrade.
+    - Hermes: `agentnotify` approval-transport plugin (`plugin.yaml` + `__init__.py`) using
+      only confirmed APIs (`register_approval_transport`, `register_hook`, `request.respond`,
+      `plugins.enabled`, `security.approval.transport`). Transport waits for the broker answer
+      and returns it; errors raise so Hermes denies closed. Installer prints the two
+      `config.yaml` consent steps (YAML is never machine-edited).
+    - Pi: dependency-free `agentnotify.ts` using only confirmed APIs (`agent_settled`,
+      `ui_prompt_start/end`, `ctx.ui.notify`, `ctx.cwd`): settled → completed, blocking
+      dialogs → permission notice + broker capture auto-cancelled on close. Typechecked with
+      the repo's TypeScript against a stubbed `ExtensionAPI`.
+    - `install-harness` covers all eleven hosts; 13 new installer/catalog/CLI tests.
+    - Gates: build 0/0; 817 tests passed; `py_compile` on both Python bridges; `git diff
+      --check` clean. Real-host smoke still pending across the board.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).

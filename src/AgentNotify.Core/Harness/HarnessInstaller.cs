@@ -462,6 +462,118 @@ public static class HarnessInstaller
                 : $"AgentNotify harness for Muse Code is already up to date at '{baseDir}'.");
     }
 
+    // ---- Kilo Code plugin (retargeted OpenCode plugin, single file) ----
+
+    public static HarnessInstallResult InstallKiloPlugin(
+        string pluginDir,
+        string content,
+        bool force,
+        bool dryRun)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginDir);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var destination = Path.Combine(Path.GetFullPath(pluginDir), HarnessCatalog.PluginFileName);
+        return WriteOwnedFile("Kilo Code", destination, content, force, dryRun,
+            installed => $"Installed the AgentNotify harness for Kilo Code at '{installed}'. Restart Kilo to load it.");
+    }
+
+    // ---- OpenClaw bridge (watch script, no host config to merge) ----
+
+    public static HarnessInstallResult InstallOpenClawBridge(
+        string openClawDir,
+        string scriptContent,
+        bool force,
+        bool dryRun)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(openClawDir);
+        ArgumentNullException.ThrowIfNull(scriptContent);
+
+        var baseDir = Path.GetFullPath(openClawDir);
+        var destination = Path.Combine(baseDir, "agentnotify", "agentnotify_openclaw.py");
+        var result = WriteOwnedFile("OpenClaw", destination, scriptContent, force, dryRun,
+            installed => $"Installed the AgentNotify bridge for OpenClaw at '{installed}'. Run it with: python3 \"{installed}\" watch");
+        if (result.Success && result.Changed && !dryRun)
+            TryMakeExecutable(destination);
+        return result;
+    }
+
+    // ---- Hermes plugin (plugin directory with manifest + module) ----
+
+    public static HarnessInstallResult InstallHermesPlugin(
+        string pluginsDir,
+        string pluginYaml,
+        string pluginInit,
+        bool force,
+        bool dryRun)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginsDir);
+        ArgumentNullException.ThrowIfNull(pluginYaml);
+        ArgumentNullException.ThrowIfNull(pluginInit);
+
+        var pluginDir = Path.Combine(Path.GetFullPath(pluginsDir), "agentnotify");
+        var yamlPath = Path.Combine(pluginDir, "plugin.yaml");
+        var initPath = Path.Combine(pluginDir, "__init__.py");
+
+        var yaml = PlanOwnedFile(yamlPath, pluginYaml, force);
+        if (!yaml.Success)
+            return Fail(pluginDir, yaml.Message);
+        var init = PlanOwnedFile(initPath, pluginInit, force);
+        if (!init.Success)
+            return Fail(pluginDir, init.Message);
+
+        var changed = yaml.Changed || init.Changed;
+        if (dryRun)
+            return new HarnessInstallResult(true, false, pluginDir,
+                $"Would install the AgentNotify harness for Hermes Agent at '{pluginDir}'.");
+
+        if (yaml.Changed)
+            WriteOwnedFile("Hermes Agent", yamlPath, pluginYaml, force, dryRun: false, _ => string.Empty);
+        if (init.Changed)
+            WriteOwnedFile("Hermes Agent", initPath, pluginInit, force, dryRun: false, _ => string.Empty);
+
+        const string configSnippet =
+            "Then enable it in ~/.hermes/config.yaml (two separate consent steps):\n" +
+            "  plugins:\n    enabled: [agentnotify]\n" +
+            "  security:\n    approval:\n      transport: agentnotify\n" +
+            "      transport_fallback: deny   # or: builtin (ordinary prompt on failure)";
+        return new HarnessInstallResult(true, changed, pluginDir,
+            changed
+                ? $"Installed the AgentNotify harness for Hermes Agent at '{pluginDir}'. {configSnippet}"
+                : $"AgentNotify harness for Hermes Agent is already up to date at '{pluginDir}'.");
+    }
+
+    // ---- Pi extension (single .ts file in the extensions directory) ----
+
+    public static HarnessInstallResult InstallPiExtension(
+        string extensionsDir,
+        string content,
+        bool force,
+        bool dryRun)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(extensionsDir);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var destination = Path.Combine(Path.GetFullPath(extensionsDir), "agentnotify.ts");
+        return WriteOwnedFile("Pi", destination, content, force, dryRun,
+            installed => $"Installed the AgentNotify harness for Pi at '{installed}'. Run /reload in Pi to load it.");
+    }
+
+    private static void TryMakeExecutable(string path)
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            // Best effort: the script runs fine via an explicit interpreter either way.
+        }
+    }
+
     private static JsonPlan MergeMuseSettingsHooks(
         string settingsPath,
         (string Event, string Command)[] wanted,
