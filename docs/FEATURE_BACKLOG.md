@@ -100,9 +100,13 @@ Allow an agent to provide a safe loopback callback or polling correlation ID and
 
 Support buttons and bounded text choices that return a structured response to a waiting agent without executing arbitrary commands.
 
-- Status: architecture, standards, host feasibility, and security research recorded in
-  [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md); implementation has
-  not started.
+- Status: broker side shipped. Durable interaction model (SQLite, keyed idempotency,
+  supersede, first-valid-response-wins, digest/nonce binding, TTL, waiters) with loopback
+  API (`request/list/get/wait/respond/cancel/publish`) and `interactions` CLI lives in
+  [INTERACTIONS.md](INTERACTIONS.md). Host answer return works for Codex/Claude ask mode,
+  Hermes transport, and the OpenClaw watcher; Relay publish + response polling works broker
+  side per [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md). Remaining: local desktop response
+  UI, dispatcher-integrated polling, mobile UI (owner builds against the contract).
 - Add versioned interaction, choice, response, expiry/cancellation, and host-acceptance persistence.
 - Implement first-valid-response-wins across local desktop and mobile surfaces.
 - Start with permission allow-once/deny and single choice; add multiselect/text/form and wider grant
@@ -117,10 +121,10 @@ Track live agent instances, projects, working directories, last activity, and wa
 ### A04 — SDKs and protocols
 
 - Status: protocol assembly and ARC 0.1 create/update/resolve ingestion implemented;
-  agent-host research is complete; notify-only auto-notify harnesses for OpenCode
-  (event plugin), Codex (hooks), and Claude Code (hooks) implemented with
-  `install-harness`, embedded payloads, JSON-preserving merges, and 25 tests —
-  real-host display smoke pending; bidirectional response and language SDKs remain planned.
+  agent-host research is complete; auto-notify harnesses for all eleven hosts (OpenCode,
+  Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi) implemented with
+  `install-harness`, embedded payloads, JSON-preserving merges, and ask mode for Codex/Claude —
+  real-host smoke pending; ACP bridge and language SDKs remain planned.
 - Publish small PowerShell, shell, Python, JavaScript, and .NET clients without replacing the stable
   REST/CLI path.
 - Implement an Agent Client Protocol client as the common managed-session bridge. Do not confuse it
