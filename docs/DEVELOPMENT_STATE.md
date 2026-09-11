@@ -364,17 +364,40 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       Low-priority test was delivered on its first attempt, the Relay returned `201`, and the owner
       confirmed that **Mac Relay test** appeared on the connected mobile app. Broker logs contained
       no `inst_` or `pol_` credential prefixes.
-    - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
-      scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
-      path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
-      and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
-      including the new installer regression check and native CLI/broker smoke test on both hosts.
+  - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
+    scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
+    path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
+    and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
+    including the new installer regression check and native CLI/broker smoke test on both hosts.
+
+50. Completed on `feature/harness-opencode-codex-claude` (notify-only auto-notify harnesses):
+    - OpenCode: dependency-free `distribution/harness/opencode/agentnotify.js` V1 event plugin
+      (`session.idle`/`session.status` → completed, `session.error` → error,
+      `permission.asked`/`permission.updated` → permission_required,
+      `question` tool → input_required). No imports, named + default export, child-session
+      suppression unless `AGENTNOTIFY_INCLUDE_SUBAGENTS=1`, 8 s bounded best-effort sends.
+    - Codex/Claude Code: stdlib-only `distribution/harness/shared/agentnotify_hook.py` bridge
+      (stdin JSON, argv agent/event, always exits 0, never returns a host decision) plus
+      `hooks.example.json` / `settings.example.json` templates.
+    - `agentnotify install-harness <opencode|codex|claude>` (alias `install harness`) with
+      `--scope user|project`, `--path`, `--force`, `--dry-run`; `HarnessCatalog` owns all three
+      layouts; `HarnessInstaller` copies the plugin/script with edit protection and merges
+      `hooks.json`/`settings.json` preserving unrelated entries without duplicating on reinstall.
+    - Payloads embedded in the CLI (`HarnessPayload`); 25 new tests (installer, catalog, CLI);
+      gates on macOS with user-local .NET 10.0.401: full-solution Release build 0 warnings/
+      0 errors (`-p:EnableWindowsTargeting=true`), 763 tests passed, `node --check` on the
+      plugin, `py_compile` on the hook script, JSON parse on both examples.
+    - Explicitly unverified: no real OpenCode/Codex/Claude Code session has loaded these
+      harnesses; no desktop notification from a harness has been seen. Owner manual checklist
+      is in `docs/HARNESS.md`; results belong in `docs/VERIFICATION.md`. Packaging was not
+      rerun locally (Windows-only script); the next hosted Windows run must confirm
+      installer/resource packaging with the two new embedded CLI files.
 
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 738 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 763 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
@@ -388,7 +411,9 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 ## Next resume action
 
-Begin A02 Phase 1 on a new feature branch: finalize the versioned interaction/response model,
+Owner verification of the three harnesses per `docs/HARNESS.md` (OpenCode first,
+then Codex, then Claude Code), with results recorded in `docs/VERIFICATION.md`.
+Then resume A02 Phase 1 on a new feature branch: finalize the versioned interaction/response model,
 SQLite migration, idempotency, expiry/cancellation, first-valid-response-wins rule, loopback API,
 and host-acceptance state before building a vendor adapter. Keep the detailed sequence and security
 tests in `docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md` as the design baseline.

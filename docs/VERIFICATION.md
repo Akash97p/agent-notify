@@ -1011,3 +1011,22 @@ Built on 2026-09-04 from `chore/release-0.0.4-alpha.2`: Release build 0 warnings
 This is the local packaging run. The tag workflow builds, tests and packages independently
 on a hosted Windows runner and publishes its own artifacts; the two checksums are not
 expected to match, because the installer embeds build-time paths.
+
+## Notify-only harnesses (`feature/harness-opencode-codex-claude`, 2026-09-11)
+
+Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=true`):
+
+- Full-solution Release build: 0 warnings, 0 errors.
+- Full suite: 763 tests passed (738 baseline + 25 new harness tests), 0 failed.
+- `node --check distribution/harness/opencode/agentnotify.js` passed.
+- `python3 -m py_compile distribution/harness/shared/agentnotify_hook.py` passed, and the
+  script exits `0` on a sample permission payload with no broker running.
+- Both `hooks.example.json` (Codex) and `settings.example.json` (Claude Code) parse as JSON.
+- `git diff --check` passed. No WPF surface changed or rendered. Packaging was not rerun:
+  two new files are now embedded in the CLI (an installer-payload change), but
+  `scripts/package.sh` requires the Windows .NET SDK and PowerShell, which this Mac does not
+  have. The next hosted Windows run must confirm installer/resource packaging.
+
+Not verified: no real OpenCode, Codex, or Claude Code session has loaded these harnesses,
+and no harness-sent desktop notification has been observed. The owner manual checklist in
+`docs/HARNESS.md` is the acceptance test. Record the outcome here when run.

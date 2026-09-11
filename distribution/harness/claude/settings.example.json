@@ -1,0 +1,27 @@
+{
+  "$comment": "AgentNotify harness example for Claude Code. Merge the hooks object into your real settings file (~/.claude/settings.json for you, or <repo>/.claude/settings.json for a project) and replace HOOK_DIR with the folder holding agentnotify_hook.py. Prefer `agentnotify install-harness claude` so the merge is idempotent and your other hooks survive. The hook only notifies; it never approves or blocks — exit 0 always.",
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py claude notification"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py claude stop"
+          }
+        ]
+      }
+    ]
+  }
+}

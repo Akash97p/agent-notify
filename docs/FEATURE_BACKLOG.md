@@ -117,14 +117,18 @@ Track live agent instances, projects, working directories, last activity, and wa
 ### A04 — SDKs and protocols
 
 - Status: protocol assembly and ARC 0.1 create/update/resolve ingestion implemented;
-  agent-host research is complete; language SDKs and adapters remain planned.
+  agent-host research is complete; notify-only auto-notify harnesses for OpenCode
+  (event plugin), Codex (hooks), and Claude Code (hooks) implemented with
+  `install-harness`, embedded payloads, JSON-preserving merges, and 25 tests —
+  real-host display smoke pending; bidirectional response and language SDKs remain planned.
 - Publish small PowerShell, shell, Python, JavaScript, and .NET clients without replacing the stable
   REST/CLI path.
 - Implement an Agent Client Protocol client as the common managed-session bridge. Do not confuse it
   with the Agent Communication Protocol that moved into A2A.
 - Add direct native adapters for existing sessions where hosts expose synchronous hooks, plugins,
-  SDKs, gateways, or RPC. Initial targets are Hermes, Claude Code, Codex, Copilot CLI, OpenCode, and
-  Kilo Code.
+  SDKs, gateways, or RPC. Initial notify-only targets are shipped: OpenCode, Codex, and
+  Claude Code (see `docs/HARNESS.md`). Hermes, Copilot CLI, and Kilo Code remain planned,
+  as does returning the human answer into the waiting call.
 - Keep provider streams and ACP/A2A/AEP adapters behind the same validation and persistence
   boundary as direct ARC events.
 - Treat A2A, both current Agent Event Protocol drafts, and MCP elicitation as optional projections

@@ -12,6 +12,19 @@ agentnotify install-skill codex
 agentnotify install-skill claude
 ```
 
+A skill relies on the model remembering to call AgentNotify. For automatic
+notification at permission prompts, questions, and session completion,
+install the host harness as well (notify-only hooks/plugin, no model
+cooperation needed):
+
+```bash
+agentnotify install-harness opencode
+agentnotify install-harness codex
+agentnotify install-harness claude
+```
+
+See [HARNESS.md](HARNESS.md).
+
 `agentnotify install skill codex` is accepted as a readable alias. Add `--scope project` to install
 under the current repository, `--dry-run` to inspect the destination, `--path DIRECTORY` for a custom
 skills root, or `--force` after reviewing a locally modified existing skill.
