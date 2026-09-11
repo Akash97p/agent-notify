@@ -393,6 +393,23 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       rerun locally (Windows-only script); the next hosted Windows run must confirm
       installer/resource packaging with the two new embedded CLI files.
 
+51. Completed on `feature/interaction-broker` (A02 Phase 1: durable interaction model):
+    - New `AgentNotify.Protocol` contracts (`InteractionKind/Status/Choice`, create/respond
+      requests, DTOs) with explicit `snake_case` wire names, matching the ARC convention.
+    - New portable core: `Domain/Interaction`, `SqliteInteractionRepository` (`interactions`
+      table in the shared broker database), and `InteractionService` implementing keyed
+      idempotency, prompt-change supersede, first-valid-response-wins, response-id replay,
+      digest/nonce binding, TTL expiry sweep, cancellation, retention pruning, and in-process
+      long-poll waiters.
+    - New loopback API (`request`, list, get, `wait`, `respond`, `cancel`) behind the existing
+      bearer boundary and create rate limit; 404/400/409 semantics documented in
+      `docs/INTERACTIONS.md`. Wired into both the Windows tray broker and `agentnotifyd`.
+    - New CLI group `agentnotify interactions` (request/list/get/wait/respond/cancel) with
+      `help` text and `docs/CLI.md` reference.
+    - Gates: full-solution Release build 0 warnings/0 errors; 787 tests passed (763 + 24 new
+      service/API/CLI tests, full suite run twice); `git diff --check` clean. No WPF visual
+      behavior changed or checked; packaging deferred to the hosted Windows run.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).

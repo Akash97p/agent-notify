@@ -1,0 +1,102 @@
+# Interactions (waiting questions and permissions)
+
+A notification tells the human something happened. An **interaction** asks the
+human something and waits for the answer: a permission (`allow once` /
+`deny`), one of a bounded list of choices, or a short text. The broker owns
+exactly one durable record per question and accepts at most one answer —
+first valid response wins.
+
+This document covers the broker model, the loopback API, and the CLI. Host
+harness capture (hooks that open interactions and return the answer) is in
+[HARNESS.md](HARNESS.md); the Relay/mobile wire contract is in
+[RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
+
+## Model
+
+| Field | Purpose |
+| --- | --- |
+| `id` | Broker-assigned identity (`N` hex) |
+| `key` | Optional logical key: a repeated key reuses the pending interaction, or supersedes it when the question changed |
+| `agent`, `agent_instance`, `project` | Who is asking, same meaning as notifications |
+| `session_id`, `turn_id`, `native_request_id` | Opaque host correlation; `native_request_id` is what the harness needs to answer the live call |
+| `kind` | `permission`, `single_choice`, or `text` |
+| `prompt` | Exact human-readable question (1–2000 chars) |
+| `choices` | 2–12 stable `{id, label, detail?}` entries for choice kinds; the host must only offer what it can return |
+| `text_max_length` | Answer bound for `text` (default 500, max 2000) |
+| `status` | `pending`, `answered`, `expired`, `cancelled`, `superseded` (terminal states never change) |
+| `request_digest` | SHA-256 hex over the canonical request; every answer must echo it |
+| `nonce` | Single-use secret echoed by relay/mobile answers; bearer-protected on loopback |
+| `expires_at` | Absolute deadline (TTL 30–3600 s, default 600 s) |
+
+A response carries a client-generated `response_id` (idempotency key), the
+digest, one `choice_id` **or** `text` (never both, never neither), a `source`
+(`desktop`, `cli`, `relay`, or host id), and an optional `device_id`.
+
+Answer rules, in order:
+
+1. Unknown id → `404`. Answered already → `409` (unless the `response_id`
+   matches the accepted one, which replays the original `200`).
+2. Not pending (`expired`, `cancelled`, `superseded`) → `400`.
+3. Digest mismatch → `400`: the question changed since it was asked, so the
+   answer cannot apply.
+4. Nonce mismatch (when both sides present one) → `400`.
+5. Wrong shape for the kind (unknown `choice_id`, over-long `text`) → `400`.
+
+Expiry is swept on every read/write; a `wait` that outlives the deadline
+returns the `expired` state.
+
+## Loopback API
+
+All routes live under `/v1` and require the local bearer token, like the
+rest of the API. `POST` routes share the create rate limit.
+
+```http
+POST /v1/interactions/request
+GET  /v1/interactions?pending=true&status=&agent=&project=&session=&limit=
+GET  /v1/interactions/{id}
+GET  /v1/interactions/{id}/wait?timeout=60
+POST /v1/interactions/{id}/respond
+POST /v1/interactions/{id}/cancel
+```
+
+`request` returns `201` on creation and `200` when a repeated key reuses the
+pending interaction. `wait` blocks up to `timeout` seconds (1–300, default
+60) and always returns the current state as JSON — `pending` on timeout, so
+callers poll again. Field names are `snake_case` throughout.
+
+## CLI
+
+```bash
+agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
+  --choice allow-once:"Allow once" --choice deny:"Deny" \
+  --agent codex --project shop --session sess-1
+
+agentnotify interactions list --pending
+agentnotify interactions get <id>
+agentnotify interactions wait <id> --timeout 120
+agentnotify interactions respond <id> --response-id r1 --digest <digest> --choice deny
+agentnotify interactions cancel <id>
+```
+
+`--choice` is repeatable as `ID:LABEL`; add `--choice-detail ID:DETAIL` for
+scope/command previews. `respond` needs the digest from `get` and exactly one
+of `--choice` / `--text`. See `agentnotify help interactions`.
+
+## Storage and lifecycle
+
+Interactions persist in the broker SQLite database (`interactions` table,
+same file as notifications and delivery state). Terminal interactions older
+than the history retention window are pruned with the same job. In-process
+waiters complete the instant an answer, cancellation, or expiry lands — the
+harness never polls in a loop.
+
+## Security notes
+
+- The loopback bearer token is the authorization boundary for local calls.
+- The digest binds an answer to the exact displayed request; a changed
+  prompt (key reuse with new text) supersedes the old interaction instead of
+  inheriting its answer.
+- The nonce binds relay/mobile answers to a request they actually received;
+  never log or forward it beyond the sealed request envelope.
+- Logs record interaction ids, kinds, and outcomes — never prompts, choices,
+  answers, digests, or nonces.
