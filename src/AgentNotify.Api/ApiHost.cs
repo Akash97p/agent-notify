@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using AgentNotify.Api.Auth;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
@@ -25,6 +26,12 @@ public sealed class ApiCallbacks
     public Func<Notification, CancellationToken, Task>? PersistOutbound { get; set; }
     public Action<Notification>? Created { get; set; }
     public Action<Notification>? Updated { get; set; }
+    /// <summary>
+    /// Optional hook invoked after an interaction is durably opened. Used to publish
+    /// the question to Relay-enabled routes. Failures are isolated like
+    /// <see cref="PersistOutbound"/>.
+    /// </summary>
+    public Func<Interaction, CancellationToken, Task>? InteractionCreated { get; set; }
 }
 
 /// <summary>
@@ -42,7 +49,8 @@ public static class ApiHost
         IAppLogger? logger = null,
         string? url = null,
         ApiCallbacks? callbacks = null,
-        InteractionService? interactions = null)
+        InteractionService? interactions = null,
+        InteractionRelayPublisher? relayPublisher = null)
     {
         // Do not inherit the caller's command line or content root. In WSL-driven
         // Windows test/build processes the working directory is a UNC path, and
@@ -278,7 +286,7 @@ public static class ApiHost
         });
 
         if (interactions is not null)
-            MapInteractions(app, interactions);
+            MapInteractions(app, interactions, callbacks, relayPublisher, logger);
 
         return app;
     }
@@ -287,7 +295,12 @@ public static class ApiHost
     /// Waiting questions/permissions. Every route needs the loopback bearer token
     /// like the rest of <c>/v1</c>; responses additionally bind to the request digest.
     /// </summary>
-    private static void MapInteractions(WebApplication app, InteractionService interactions)
+    private static void MapInteractions(
+        WebApplication app,
+        InteractionService interactions,
+        ApiCallbacks? callbacks,
+        InteractionRelayPublisher? relayPublisher,
+        IAppLogger? logger)
     {
         app.MapPost($"{RootPath}/interactions/request", async (HttpContext http) =>
         {
@@ -304,6 +317,9 @@ public static class ApiHost
             var result = await interactions.RequestAsync(request, http.RequestAborted);
             if (result.Error is not null)
                 return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
+
+            if (result.WasCreated)
+                await InvokeCallbackAsync(callbacks?.InteractionCreated, result.Value!, logger);
 
             return Results.Json(
                 DtoMapper.ToDto(result.Value!),
@@ -383,6 +399,18 @@ public static class ApiHost
                 ? Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound)
                 : Results.Json(DtoMapper.ToDto(result.Value!));
         });
+
+        app.MapPost($"{RootPath}/interactions/{{id}}/publish", async (string id, CancellationToken ct) =>
+        {
+            if (relayPublisher is null)
+                return Results.Json(new { error = "interaction relay publishing is not enabled on this broker" },
+                    statusCode: StatusCodes.Status400BadRequest);
+            var result = await interactions.GetAsync(id, ct);
+            if (result.NotFound)
+                return Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound);
+            var published = await relayPublisher.PublishAsync(DtoMapper.ToDto(result.Value!), ct);
+            return Results.Json(new { id, published });
+        });
     }
 
     private static string? NullIfBlank(string value) =>
@@ -421,6 +449,26 @@ public static class ApiHost
         catch (Exception)
         {
             logger?.Warn("Could not persist outbound delivery work; local notification remains available.");
+        }
+    }
+
+    private static async Task InvokeCallbackAsync(
+        Func<Interaction, CancellationToken, Task>? callback,
+        Interaction value,
+        IAppLogger? logger)
+    {
+        if (callback is null)
+            return;
+        try
+        {
+            // The interaction is already committed. Do not let client disconnect
+            // cancellation skip Relay publication, and never let publish failure
+            // roll back the open interaction.
+            await callback(value, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            logger?.Warn("Could not publish the interaction to Relay; the local interaction remains available.");
         }
     }
 

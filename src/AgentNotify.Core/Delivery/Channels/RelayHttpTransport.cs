@@ -4,17 +4,18 @@ using System.Net.Sockets;
 namespace AgentNotify.Core.Delivery.Channels;
 
 /// <summary>
-/// Shared hardened HTTP transport for Relay delivery and pairing requests.
+/// Shared hardened HTTP transport for Relay delivery, pairing, and response polling.
 /// Every request must opt in through <see cref="MarkValidated"/> after URL validation.
+/// Public so the CLI response poller carries the same DNS-pinning policy as delivery.
 /// </summary>
-internal static class RelayHttpTransport
+public static class RelayHttpTransport
 {
     private static readonly HttpRequestOptionsKey<bool> ValidatedRequest =
         new("AgentNotify.Relay.ValidatedEndpoint");
     private static readonly HttpRequestOptionsKey<bool> AllowPrivateNetwork =
         new("AgentNotify.Relay.AllowPrivateNetwork");
 
-    internal static HttpClient CreateClient()
+    public static HttpClient CreateClient()
     {
         var handler = new SocketsHttpHandler
         {
@@ -30,7 +31,7 @@ internal static class RelayHttpTransport
         return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
-    internal static void MarkValidated(HttpRequestMessage request, bool allowPrivate)
+    public static void MarkValidated(HttpRequestMessage request, bool allowPrivate)
     {
         request.Options.Set(ValidatedRequest, true);
         request.Options.Set(AllowPrivateNetwork, allowPrivate);

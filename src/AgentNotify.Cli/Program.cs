@@ -959,7 +959,9 @@ internal static class Program
             "wait" => await RunInteractionsWait(args[1..]),
             "respond" => await RunInteractionsRespond(args[1..]),
             "cancel" => await RunInteractionsCancel(args[1..]),
-            _ => Fail("Usage: agentnotify interactions <request|list|get|wait|respond|cancel> [options]")
+            "publish" => await RunInteractionsPublish(args[1..]),
+            "poll-responses" => await RunInteractionsPollResponses(args[1..]),
+            _ => Fail("Usage: agentnotify interactions <request|list|get|wait|respond|cancel|publish|poll-responses> [options]")
         };
     }
 
@@ -1251,8 +1253,164 @@ internal static class Program
         }
     }
 
-    private static async Task<int> HandleJsonResponse(HttpResponseMessage resp)
+    private static async Task<int> RunInteractionsPublish(string[] args)
     {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions publish requires an <id>. Usage: agentnotify interactions publish <id>");
+        var id = args[0];
+        string? portOverride = null, tokenOverride = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--port" && i + 1 < args.Length) portOverride = args[++i];
+            else if (args[i] == "--token" && i + 1 < args.Length) tokenOverride = args[++i];
+        }
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var resp = await client.PostAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}/publish",
+                new StringContent("{}", Encoding.UTF8, "application/json"));
+            return await HandleJsonResponse(resp);
+        }
+    }
+
+    private static async Task<int> RunInteractionsPollResponses(string[] args)
+    {
+        string? providerFilter = null, portOverride = null, tokenOverride = null;
+        var jsonOut = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--provider":
+                    if (i + 1 >= args.Length) return Fail("--provider requires a provider id.");
+                    providerFilter = args[++i];
+                    break;
+                case "--json": jsonOut = true; break;
+                case "--port": if (i + 1 >= args.Length) return Fail("--port requires a number."); portOverride = args[++i]; break;
+                case "--token": if (i + 1 >= args.Length) return Fail("--token requires a token."); tokenOverride = args[++i]; break;
+                case "--help": case "-h": PrintInteractionsHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for interactions poll-responses.");
+            }
+        }
+
+        var configStore = new ConfigStore(applyEnvOverrides: true);
+        var brokerConfig = configStore.Load();
+        if (!string.IsNullOrWhiteSpace(portOverride) && int.TryParse(portOverride, out var p)) brokerConfig.Port = p;
+        if (!string.IsNullOrWhiteSpace(tokenOverride)) brokerConfig.AuthToken = tokenOverride.Trim();
+        if (string.IsNullOrWhiteSpace(brokerConfig.AuthToken))
+            return Fail("No broker auth token found. Has AgentNotify run at least once?");
+        var brokerBaseUrl = $"http://127.0.0.1:{brokerConfig.Port}";
+
+        try
+        {
+            var profiles = await OpenProviderProfilesAsync(default);
+            var relayProfiles = (await profiles.ListAsync())
+                .Where(profile => profile.Kind == "relay" && profile.Enabled)
+                .Where(profile => providerFilter is null || string.Equals(profile.Id, providerFilter, StringComparison.Ordinal))
+                .ToArray();
+            if (providerFilter is not null && relayProfiles.Length == 0)
+                return Fail($"No enabled Relay provider with id '{providerFilter}'.");
+            if (relayProfiles.Length == 0)
+            {
+                Console.Error.WriteLine("No enabled Relay provider is configured; nothing to poll.");
+                return 1;
+            }
+
+            using var relayClient = RelayHttpTransport.CreateClient();
+            using var brokerClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            brokerClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", brokerConfig.AuthToken);
+            var sync = new InteractionResponseSync(relayClient, brokerClient, brokerBaseUrl);
+            var cursors = new RelayCursorStore(configStore.ConfigDir);
+
+            var exit = 0;
+            foreach (var profile in relayProfiles)
+            {
+                RelayPollTarget target;
+                try
+                {
+                    target = await BuildPollTargetAsync(profiles, profile);
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or
+                                           JsonException or CryptographicException or IOException or
+                                           UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: {ex.Message}");
+                    exit = 1;
+                    continue;
+                }
+
+                var since = await cursors.GetAsync(profile.Id);
+                ProviderPollOutcome outcome;
+                try
+                {
+                    outcome = await sync.PollOnceAsync(target, since);
+                }
+                catch (Exception ex) when (ex is OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: poll timed out.");
+                    exit = 1;
+                    continue;
+                }
+
+                if (!outcome.Succeeded)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: {outcome.Error}");
+                    exit = 1;
+                    continue;
+                }
+
+                await cursors.SetAsync(profile.Id, outcome.NextCursor);
+                if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        provider_id = profile.Id,
+                        provider_name = profile.Name,
+                        applied = outcome.Answers.Count(a => a.Applied),
+                        answers = outcome.Answers.Select(a => new
+                        {
+                            response_id = a.ResponseId,
+                            interaction_id = a.InteractionId,
+                            applied = a.Applied,
+                            note = a.Note
+                        })
+                    }, Json.Options));
+                }
+                else
+                {
+                    var applied = outcome.Answers.Count(a => a.Applied);
+                    Console.WriteLine($"{profile.Name}: {applied} answer(s) applied out of {outcome.Answers.Count} fetched.");
+                    foreach (var answer in outcome.Answers.Where(a => !a.Applied))
+                        Console.WriteLine($"  {answer.ResponseId} -> {answer.InteractionId}: {answer.Note}");
+                }
+            }
+            return exit;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or JsonException or
+                                          CryptographicException or UnauthorizedAccessException)
+        {
+            return Fail(exception.Message);
+        }
+    }
+
+    private static async Task<RelayPollTarget> BuildPollTargetAsync(
+        ProviderProfileService profiles,
+        ProviderProfile profile)
+    {
+        using var document = JsonDocument.Parse(profile.ConfigJson);
+        var root = document.RootElement;
+        var url = GetJsonString(root, "relay_url") ?? GetJsonString(root, "relayUrl");
+        var allowPrivate = GetJsonBoolean(root, "allowPrivateNetwork") ||
+                           GetJsonBoolean(root, "allow_private_network");
+        var installationId = GetJsonString(root, "installation_id") ?? GetJsonString(root, "installationId");
+        var secrets = await profiles.GetSecretsForDeliveryAsync(profile.Id);
+        if (url is null || !secrets.TryGetValue("installation_token", out var credential))
+            throw new InvalidOperationException("No saved Relay URL or credential.");
+        RelayChannelAdapter.ValidateRelayUrl(url, allowPrivate);
+        return new RelayPollTarget(profile.Id, profile.Name, url, allowPrivate, credential, installationId);
+    }
+
+    private static async Task<int> HandleJsonResponse(HttpResponseMessage resp)    {
         var body = await resp.Content.ReadAsStringAsync();
         if (!resp.IsSuccessStatusCode)
         {
@@ -1471,6 +1629,8 @@ internal static class Program
               agentnotify interactions wait <id> [--timeout SECONDS]
               agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
               agentnotify interactions cancel <id>
+              agentnotify interactions publish <id>
+              agentnotify interactions poll-responses [--provider ID] [--json]
 
             request options:
               --kind permission|single_choice|text   What is being asked (default permission)
@@ -1485,6 +1645,9 @@ internal static class Program
             The first valid response wins. A repeated --response-id replays the original
             outcome. Answers must echo the request digest from 'interactions get'.
             'wait' blocks until the interaction settles or --timeout (1-300s, default 60).
+            'publish' re-sends the question to Relay-enabled routes (requests auto-publish).
+            'poll-responses' fetches mobile answers from Relay into the broker; run it on
+            a schedule until the dispatcher absorbs it (see RELAY_INTERACTIONS.md).
             """);
     }
 

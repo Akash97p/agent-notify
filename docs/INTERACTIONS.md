@@ -11,6 +11,29 @@ harness capture (hooks that open interactions and return the answer) is in
 [HARNESS.md](HARNESS.md); the Relay/mobile wire contract is in
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
+## Relay sync
+
+Phone-bound questions ride the existing Relay envelope flow: on every new
+interaction the broker enqueues one sealed `interaction-request` payload per
+matching **enabled Relay route with `IncludeMessage`** (same consent as
+notification bodies; bodyless routes never carry questions). Outbox ids are
+deterministic per interaction+provider, so republishing is idempotent.
+`POST /v1/interactions/{id}/publish` re-sends manually (handy for testing
+the phone card without a live host).
+
+Answers come back the other way: mobile POSTs to the Relay server, and the
+desktop pulls them with
+
+```bash
+agentnotify interactions poll-responses [--provider ID] [--json]
+```
+
+Run it on a schedule (cron/systemd/launchd) until dispatcher-integrated
+polling lands. Every fetched answer is revalidated by the broker (digest,
+nonce, kind, expiry, first-wins); Relay is an untrusted store that can delay
+answers but never forge them. Poll cursors persist per provider in
+`relay_response_cursors.json` next to the broker config.
+
 ## Host capture
 
 A host adapter turns a live permission/question into an interaction and the

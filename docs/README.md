@@ -31,6 +31,7 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | [AGENT_SKILLS.md](AGENT_SKILLS.md) | Installing the distributable `SKILL.md` into agents that support skills |
 | [HARNESS.md](HARNESS.md) | Auto-notify harnesses for OpenCode, Codex, and Claude Code (hooks/plugin) |
 | [INTERACTIONS.md](INTERACTIONS.md) | Waiting questions/permissions: broker model, loopback API, CLI |
+| [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md) | Relay/mobile wire contract for answering from the phone |
 | [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md) | Research, architecture, security, and per-agent feasibility for returning human decisions |
 
 ## Design and internals
