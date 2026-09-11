@@ -130,6 +130,9 @@ public partial class App : System.Windows.Application
         _deliveryDispatcher.Start();
 
         _service = new NotificationService(_repository, _config);
+        var interactionRepository = new SqliteInteractionRepository(_configStore.DbPath);
+        await interactionRepository.InitializeAsync();
+        var interactionService = new InteractionService(interactionRepository);
 
         var url = $"http://127.0.0.1:{_config.Port}";
         _apiCallbacks = new ApiCallbacks
@@ -150,7 +153,7 @@ public partial class App : System.Windows.Application
                 _ = Dispatcher.InvokeAsync(() => _center?.RefreshAsync());
             }
         };
-        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks);
+        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks, interactionService);
         _api.Start();
         _logger.Info($"API listening on {url}");
 

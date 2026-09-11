@@ -97,6 +97,10 @@ public sealed class BrokerRuntime : IAsyncDisposable
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
+        var interactionRepository = new SqliteInteractionRepository(_configStore.DbPath);
+        await interactionRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var interactionService = new InteractionService(interactionRepository);
+
         var protector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var protection);
         Protection = protection;
 
@@ -117,7 +121,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
             Updated = _ => { }
         };
 
-        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks);
+        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService);
         await _api.StartAsync(cancellationToken).ConfigureAwait(false);
         _logger.Info($"API listening on {Url}");
 

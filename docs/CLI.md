@@ -375,16 +375,47 @@ agentnotify install-harness codex --scope project
 agentnotify install-harness claude --dry-run
 ```
 
+### `interactions` — ask a waiting question and collect the answer
+
+```text
+agentnotify interactions request --prompt TEXT [options]
+agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
+agentnotify interactions get <id>
+agentnotify interactions wait <id> [--timeout SECONDS]
+agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
+agentnotify interactions cancel <id>
+```
+
+Opens a durable interaction (permission, single choice, or bounded text) and
+collects the first valid answer. Repeated `--key` reuses the pending
+interaction; a changed question supersedes it. `request` prints the full
+interaction JSON including `request_digest` and `nonce`. `wait` blocks until
+the interaction settles or `--timeout` (1–300 s, default 60) and always prints
+the current state. `respond` needs the digest from `get` and exactly one of
+`--choice` / `--text`; a repeated `--response-id` replays the original
+outcome, a new one after an answer is a `409`. See
+[INTERACTIONS.md](INTERACTIONS.md).
+
+Examples:
+
+```bash
+agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
+  --choice allow-once:"Allow once" --choice deny:"Deny" --agent codex --project shop
+agentnotify interactions list --pending
+agentnotify interactions wait abc123 --timeout 120
+agentnotify interactions respond abc123 --response-id r1 --digest <digest> --choice deny
+```
+
 ### `help` and `--version`
 
 ```text
-agentnotify help [send|list|get|resolve|dismiss|relay|install-skill|install-harness]
+agentnotify help [send|list|get|resolve|dismiss|relay|install-skill|install-harness|interactions]
 agentnotify --help
 agentnotify -h
 agentnotify --version
 ```
 
-- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`, `install-harness`). Unknown topic prints the general usage.
+- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`, `install-harness`, `interactions`). Unknown topic prints the general usage.
 - `help` with no topic prints general usage (`PrintUsage`).
 - `--version` (`RunVersion`) prints `agentnotify {InformationalVersion}` derived from the CLI assembly.
 

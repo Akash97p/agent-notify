@@ -32,6 +32,7 @@ export const docs: DocDefinition[] = [
   { source: "docs/AGENT_INTEGRATION.md", slug: "agent-integration", title: "Agent integration", section: "Agents", description: "When and how an agent should request attention." },
   { source: "docs/AGENT_SKILLS.md", slug: "agent-skills", title: "Agent skills", section: "Agents", description: "Install the bundled skill into Codex or Claude Code." },
   { source: "docs/HARNESS.md", slug: "harness", title: "Agent harnesses", section: "Agents", description: "Auto-notify harnesses for OpenCode, Codex, and Claude Code." },
+  { source: "docs/INTERACTIONS.md", slug: "interactions", title: "Interactions", section: "Agents", description: "Waiting questions and permissions: model, API, and CLI." },
   { source: "docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md", slug: "bidirectional-agent-communication", title: "Bidirectional agent communication", section: "Agents", description: "Interaction architecture, standards research, security, and host feasibility." },
   { source: "docs/ARCHITECTURE.md", slug: "architecture", title: "Architecture", section: "Project", description: "Process model, components, persistence, and failure behavior." },
   { source: "docs/CROSS_PLATFORM.md", slug: "cross-platform", title: "Cross-platform plan", section: "Project", description: "Portable boundaries and native-client roadmap." },
