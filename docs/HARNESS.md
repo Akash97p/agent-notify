@@ -11,16 +11,26 @@ model forgetting.
 
 ## Notify-only guarantee
 
-Every harness in this directory is **notify-only**:
+The hook/plugin notifiers (OpenCode, Codex, Claude, Gemini, Copilot, Cursor,
+Muse, Kilo, Pi) are **notify-only**:
 
-- It sends `agentnotify send` as a side effect and returns no decision.
-- Hook scripts always exit `0`. The OpenCode plugin never throws.
+- They send `agentnotify send` as a side effect and return no decision.
+- Hook scripts always exit `0`. The OpenCode/Kilo plugins never throw.
 - A missing CLI, stopped broker, or failed send is silent. The session
   continues exactly as if the harness were absent.
-- Nothing the harness does can approve, deny, allow, or block a tool call.
-  Returning a human answer into the waiting call (bidirectional response) is
-  future work tracked as A02; see
-  [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
+
+Two bridges go further and **wait for and return the human answer** through
+the interaction broker ([INTERACTIONS.md](INTERACTIONS.md)):
+
+- **Hermes** approval transport: an explicit decision surface you opt into
+  via `config.yaml`. Transport errors raise and Hermes denies by default —
+  a failure can never silently allow a command.
+- **OpenClaw** watch daemon: resolves gateway approvals with your answer;
+  unsettled approvals stay pending, exactly as without the bridge.
+
+Nothing else approves, denies, allows, or blocks a tool call. The full
+relay→phone→host loop (answering from mobile) is specified in
+[RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
 ## Install
 
@@ -34,6 +44,10 @@ agentnotify install-harness gemini
 agentnotify install-harness copilot
 agentnotify install-harness cursor
 agentnotify install-harness muse
+agentnotify install-harness kilo
+agentnotify install-harness openclaw
+agentnotify install-harness hermes
+agentnotify install-harness pi
 ```
 
 `agentnotify install harness <agent>` is accepted as a readable alias.
@@ -57,6 +71,10 @@ Gemini CLI   ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
 Copilot CLI  ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
 Cursor       ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
 Muse Code    ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
+Kilo Code    ~/.config/kilo/plugin/agentnotify.js
+OpenClaw     ~/.openclaw/agentnotify/agentnotify_openclaw.py (watch daemon, no config merge)
+Hermes Agent ~/.hermes/plugins/agentnotify/ (plus config.yaml edits, see below)
+Pi           ~/.pi/agent/extensions/agentnotify.ts
 ```
 
 Project scope (`--scope project`) writes under the repository instead:
@@ -69,6 +87,10 @@ Gemini CLI   <repo>/.gemini/agentnotify/agentnotify_hook.py + <repo>/.gemini/set
 Copilot CLI  <repo>/.github/hooks/agentnotify.json + <repo>/.github/agentnotify/agentnotify_hook.py
 Cursor       <repo>/.cursor/agentnotify/agentnotify_hook.py + <repo>/.cursor/hooks.json
 Muse Code    <repo>/.muse/agentnotify/agentnotify_hook.py + <repo>/.muse/hooks.json
+Kilo Code    <repo>/.kilo/plugin/agentnotify.js
+OpenClaw     <repo>/.openclaw/agentnotify/agentnotify_openclaw.py
+Hermes Agent <repo>/.hermes/plugins/agentnotify/ (needs HERMES_ENABLE_PROJECT_PLUGINS=true)
+Pi           <repo>/.pi/extensions/agentnotify.ts (trusted projects only)
 ```
 
 ## What each harness watches
@@ -82,6 +104,10 @@ Muse Code    <repo>/.muse/agentnotify/agentnotify_hook.py + <repo>/.muse/hooks.j
 | Copilot CLI | `notification` → `permission_required` | `agentStop`, `sessionEnd` → `completed` | `errorOccurred` → `error` |
 | Cursor | — (per-tool hooks are too noisy; `ask` mode is planned) | `stop`, `sessionEnd` → `completed` | — |
 | Muse Code | `PermissionRequest` → `permission_required` | `Stop` → `completed` | — |
+| Kilo Code | `permission.asked` → `permission_required` (same V1 surface as OpenCode) | session idle → `completed` | session error → `error` |
+| OpenClaw | gateway approvals → `permission_required` (watch daemon) | — | — |
+| Hermes | `pre_approval_request` → `permission_required` (+ transport waits, see below) | `on_session_end` → `completed` | — |
+| Pi | `ui_prompt_start` (any blocking dialog) → `permission_required` + capture | `agent_settled` → `completed` | — |
 
 Permission notifications reuse one `--key` per project/session
 (`<project>-<session>-permission`) so repeat prompts update rather than
@@ -122,6 +148,33 @@ Subagent child sessions are skipped for OpenCode idle/error noise unless
   Project-scope `.muse/hooks.json` follows the Claude Code schema per
   third-party verification but is unconfirmed — start one session and check
   for a hooks warning.
+- **Kilo Code**: speaks the OpenCode V1 plugin/event surface, so the harness
+  is the same file retargeted (`kilo` agent id, Kilo titles) at install time.
+  Legacy plugin dirs (`.kilocode/plugin`, `.opencode/plugin`) also load it —
+  pass `--path` if you use one.
+- **OpenClaw**: no hooks to merge — run the watch daemon next to the gateway:
+  `python3 ~/.openclaw/agentnotify/agentnotify_openclaw.py watch` (systemd,
+  launchd, or tmux). It polls `openclaw approvals pending --json`, opens one
+  broker interaction per approval, notifies, waits for the human answer, and
+  resolves via `openclaw approvals resolve`. Unsettled approvals stay pending.
+  Needs the operator-authenticated `openclaw` CLI. A native gateway operator
+  client (`operator.approvals` scope) is the planned upgrade; the CLI bridge
+  is the portable v1.
+- **Hermes**: install, then two explicit consent steps in
+  `~/.hermes/config.yaml` (printed by the installer): `plugins.enabled:
+  [agentnotify]` plus `security.approval.transport: agentnotify`. The
+  transport **waits for and returns your answer** (this is a decision
+  surface, not notify-only): transport errors raise and Hermes denies by
+  default — a failure can never silently allow a command. Set
+  `transport_fallback: builtin` to fall back to the ordinary prompt instead.
+- **Pi**: copy to `~/.pi/agent/extensions/agentnotify.ts` (or
+  `.pi/extensions/` in a trusted project), then `/reload`. Uses only
+  confirmed APIs (`agent_settled`, `ui_prompt_start/end`, `ctx.ui.notify`,
+  `tool_call` shapes from the official examples). Blocking dialogs open a
+  broker interaction (phone-visible) that auto-cancels when the local dialog
+  closes; the local dialog still collects the answer. Full remote answering
+  runs Pi in RPC mode, where these dialogs become `extension_ui_request`
+  messages — see [INTERACTIONS.md](INTERACTIONS.md) and the relay contract.
 
 ## Verify tomorrow (manual checklist)
 
@@ -137,6 +190,10 @@ Subagent child sessions are skipped for OpenCode idle/error noise unless
 5. Same for `gemini` (`Notification`/`AfterAgent`), `copilot`
    (`notification`/`agentStop`), `cursor` (`stop`), and `muse`
    (`PermissionRequest`/`Stop`, watching for a hooks warning on first run).
+6. Same for `kilo` (permission prompt → Kilo-titled notification), `pi`
+   (`/reload`, then a blocking dialog → notification + auto-cancel on close),
+   `hermes` (transport prompt after the two `config.yaml` steps), and
+   `openclaw` (raise a test approval, answer from the CLI, watch it resolve).
 6. `agentnotify list --unresolved` shows the harness-sent rows; `resolve`
    clears them.
 7. Temporarily stop the broker and confirm the session still works (the
@@ -178,6 +235,17 @@ hand:
   `~/.config/muse/agentnotify/agentnotify_hook.py`, then merge
   `distribution/harness/muse/settings.example.json` into
   `~/.config/muse/settings.json` (keep `schema_version: 1`).
+- Kilo Code: copy `distribution/harness/opencode/agentnotify.js` to
+  `~/.config/kilo/plugin/agentnotify.js`, replacing the `opencode` agent id
+  and OpenCode titles with `kilo`/Kilo (the CLI does this for you).
+- OpenClaw: copy `distribution/harness/openclaw/agentnotify_openclaw.py` to
+  `~/.openclaw/agentnotify/` and run `python3 ... watch` under your process
+  supervisor.
+- Hermes: copy `distribution/harness/hermes/agentnotify/` to
+  `~/.hermes/plugins/agentnotify/`, then apply the two `config.yaml` consent
+  steps above.
+- Pi: copy `distribution/harness/pi/agentnotify.ts` to
+  `~/.pi/agent/extensions/agentnotify.ts`, then `/reload` in Pi.
 
 ## Uninstall
 
@@ -194,6 +262,11 @@ hand:
   `~/.cursor/agentnotify/`.
 - Muse Code: delete the two AgentNotify blocks from `settings.json` and
   remove `~/.config/muse/agentnotify/`.
+- Kilo Code: delete `agentnotify.js` from the plugin directory.
+- OpenClaw: stop the watch daemon and remove `~/.openclaw/agentnotify/`.
+- Hermes: remove `~/.hermes/plugins/agentnotify/` and the two `config.yaml`
+  entries.
+- Pi: delete `agentnotify.ts` from the extensions directory and `/reload`.
 
 ## Compatibility contract
 
