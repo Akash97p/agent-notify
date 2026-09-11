@@ -63,4 +63,34 @@ public sealed class InteractionsCliTests
         Assert.Equal(1, await AgentNotify.Cli.Program.Main(["interactions", "bogus"]));
         Assert.Equal(1, await AgentNotify.Cli.Program.Main(["interactions"]));
     }
+
+    [Fact]
+    public async Task Interactions_PublishRoundTripsWithoutRoutes()
+    {
+        await using var fx = await ApiFixture.StartAsync();
+        var port = fx.Port.ToString();
+
+        Assert.Equal(0, await AgentNotify.Cli.Program.Main([
+            "interactions", "request",
+            "--kind", "text", "--prompt", "Name it?",
+            "--port", port, "--token", fx.Token]));
+
+        var pending = await fx.InteractionService.ListAsync(
+            new AgentNotify.Core.Persistence.InteractionQuery { PendingOnly = true });
+        var item = Assert.Single(pending);
+
+        // No Relay routes in the fixture: publish succeeds and reports zero rows.
+        Assert.Equal(0, await AgentNotify.Cli.Program.Main([
+            "interactions", "publish", item.Id, "--port", port, "--token", fx.Token]));
+        Assert.Equal(3, await AgentNotify.Cli.Program.Main([
+            "interactions", "publish", "does-not-exist", "--port", port, "--token", fx.Token]));
+    }
+
+    [Fact]
+    public async Task Interactions_PollResponsesRejectsUnknownProvider()
+    {
+        // Filtered before any network: safe on machines with real providers.
+        Assert.Equal(1, await AgentNotify.Cli.Program.Main(
+            ["interactions", "poll-responses", "--provider", "does-not-exist"]));
+    }
 }

@@ -1030,3 +1030,18 @@ Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=tr
 Not verified: no real OpenCode, Codex, or Claude Code session has loaded these harnesses,
 and no harness-sent desktop notification has been observed. The owner manual checklist in
 `docs/HARNESS.md` is the acceptance test. Record the outcome here when run.
+
+## Relay interaction sync (`feature/relay-interaction-sync`, 2026-09-12)
+
+Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=true`):
+
+- Full-solution Release build: 0 warnings, 0 errors.
+- Full suite: 835 tests passed (821 + 14 new publisher/sync/cursor/API/CLI tests), 0 failed.
+- `git diff --check` clean. Site typecheck + static export passed with the new
+  `interactions` and `relay-interactions` pages.
+- No WPF surface changed or rendered. Packaging was not rerun (Windows-only
+  script); the next hosted Windows run must confirm installer/resource packaging.
+
+Not verified: no Relay server implements `POST/GET /v1/interaction-responses`
+yet, so no live phone-to-host answer has flowed; the mobile UI does not exist.
+The contract they will be built against is `docs/RELAY_INTERACTIONS.md`.

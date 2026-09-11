@@ -474,6 +474,33 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: build 0/0; 821 tests passed (4 new installer/CLI tests); `git diff --check`
       clean. Live host round trip still pending (owner checklist).
 
+55. Completed on `feature/relay-interaction-sync` (relay reverse path, broker side):
+    - New `InteractionRelayPublisher`: every new interaction is enqueued per matching
+      enabled Relay route with `IncludeMessage` (same body consent as notifications;
+      bodyless routes never carry questions). Type/project/agent/priority gates mirror
+      route matching with kind→type mapping (permission→permission_required). Outbox ids
+      are deterministic per interaction+provider, so republish is idempotent. Payload is
+      the sealed `interaction-request` JSON (`contract_version: "1"`, id, kind, prompt,
+      choices, digest, nonce, expiry) riding the unchanged envelope flow.
+    - Auto-publish via new `ApiCallbacks.InteractionCreated` (failure-isolated like
+      `PersistOutbound`), wired in both the Windows tray broker and `agentnotifyd`;
+      manual `POST /v1/interactions/{id}/publish` for testing the phone card.
+    - New `InteractionResponseSync` + `RelayCursorStore`: `interactions poll-responses`
+      pulls stored mobile answers per Relay provider (hardened transport reused for the
+      poller), revalidates at the broker (digest, nonce, kind, expiry, first-wins), and
+      advances durable per-provider cursors only on fully processed polls. Wrong-
+      installation answers are dropped before touching the broker.
+    - New `docs/RELAY_INTERACTIONS.md`: the relay/mobile build spec — request payload
+      table, the two Relay endpoints to implement (submit/poll with exact JSON + status
+      codes), mobile UI minimums, worked example, trust assumptions (TLS+bearer v1, Relay
+      sees nonces/answers, E2E answer sealing tracked as follow-up), and explicit v1
+      non-goals. This is what the owner's future relay/mobile work builds against.
+    - RelayHttpTransport.CreateClient/MarkValidated made public so the CLI poller carries
+      the same DNS-pinning policy as delivery.
+    - Gates: build 0/0; 835 tests passed (14 new publisher/sync/cursor/API/CLI tests);
+      site typecheck + static build with both new pages; `git diff --check` clean.
+      Unverified: live Relay round trip (no relay implements the endpoints yet), mobile UI.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).

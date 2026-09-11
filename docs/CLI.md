@@ -394,8 +394,10 @@ agentnotify interactions request --prompt TEXT [options]
 agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
 agentnotify interactions get <id>
 agentnotify interactions wait <id> [--timeout SECONDS]
-agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
-agentnotify interactions cancel <id>
+              agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
+              agentnotify interactions cancel <id>
+              agentnotify interactions publish <id>
+              agentnotify interactions poll-responses [--provider ID] [--json]
 ```
 
 Opens a durable interaction (permission, single choice, or bounded text) and
@@ -416,7 +418,14 @@ agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
 agentnotify interactions list --pending
 agentnotify interactions wait abc123 --timeout 120
 agentnotify interactions respond abc123 --response-id r1 --digest <digest> --choice deny
+agentnotify interactions publish abc123
+agentnotify interactions poll-responses
 ```
+
+`publish` re-sends one question to Relay-enabled routes (requests
+auto-publish on creation). `poll-responses` pulls mobile answers from every
+enabled Relay provider into the broker; run it on a schedule. See
+[RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
 ### `help` and `--version`
 

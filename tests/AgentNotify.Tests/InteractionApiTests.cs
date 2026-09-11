@@ -119,6 +119,48 @@ public sealed class InteractionApiTests
     }
 
     [Fact]
+    public async Task Publish_AutoPublishesOnRequest_AndEndpointIsIdempotent()
+    {
+        await using var fx = await ApiFixture.StartAsync();
+        using var client = fx.AuthedClient();
+
+        var profiles = new AgentNotify.Core.Delivery.ProviderProfileService(
+            fx.DeliveryRepository,
+            new AgentNotify.Core.Delivery.AesGcmSecretProtector(
+                System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+        var profile = await profiles.SaveAsync(null, "Relay", "relay", true,
+            "{\"relay_url\":\"https://relay.example.com\"}",
+            new Dictionary<string, string> { { "installation_token", "inst_testtoken1234567890" } });
+        await fx.DeliveryRepository.UpsertRouteAsync(new AgentNotify.Core.Delivery.DeliveryRoute
+        {
+            Name = "Phone",
+            ProviderId = profile.Id,
+            Enabled = true,
+            IncludeMessage = true
+        });
+
+        var created = await (await client.PostAsync($"{fx.BaseUrl}/v1/interactions/request", JsonBody(PermissionRequest())))
+            .Content.ReadFromJsonAsync<InteractionDto>(AgentNotify.Protocol.Json.Options);
+
+        // Auto-publish ran inside the request: one sealed interaction payload is queued.
+        var outbox = await fx.DeliveryRepository.ListOutboxAsync();
+        var item = Assert.Single(outbox);
+        Assert.Equal(profile.Id, item.ProviderId);
+        using var envelope = JsonDocument.Parse(item.PayloadJson);
+        Assert.Equal("interaction-request", envelope.RootElement.GetProperty("payload_kind").GetString());
+
+        // Manual republish is idempotent: the deterministic outbox id already exists.
+        var republish = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created!.Id}/publish",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.OK, republish.StatusCode);
+        Assert.Single(await fx.DeliveryRepository.ListOutboxAsync());
+
+        var missing = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/does-not-exist/publish",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
     public async Task List_FiltersPending_AndCancelSettles()
     {
         await using var fx = await ApiFixture.StartAsync();
