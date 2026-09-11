@@ -505,7 +505,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 763 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 835 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
@@ -519,12 +519,10 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 ## Next resume action
 
-Owner verification of the three harnesses per `docs/HARNESS.md` (OpenCode first,
-then Codex, then Claude Code), with results recorded in `docs/VERIFICATION.md`.
-Then resume A02 Phase 1 on a new feature branch: finalize the versioned interaction/response model,
-SQLite migration, idempotency, expiry/cancellation, first-valid-response-wins rule, loopback API,
-and host-acceptance state before building a vendor adapter. Keep the detailed sequence and security
-tests in `docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md` as the design baseline.
+Owner verification of the harnesses per `docs/HARNESS.md` (ask mode for Codex
+first), then Relay server + mobile implementation against
+`docs/RELAY_INTERACTIONS.md`. Remaining broker work: local desktop response UI,
+dispatcher-integrated response polling, generic ACP bridge, MCP elicitation.
 
 Two items are waiting on the repository owner rather than on code:
 
