@@ -8,13 +8,23 @@ failure can never block the coding session.
 Usage:
     agentnotify_hook.py <codex|claude|gemini|copilot|cursor|muse> <event> [--project NAME]
 
-<event> depends on the host (each host only wires its own names):
+Notify events (each host only wires its own names; always exit 0, never decide):
   codex:   permission, stop, session-end
   claude:  notification, stop
   gemini:  notification, after-agent, session-end
   copilot: notification, agent-stop, session-end, error-occurred
   cursor:  stop, session-end
   muse:    permission-request, stop
+
+Ask mode (opt-in via `install-harness <codex|claude> --ask`):
+    agentnotify_hook.py <codex|claude> ask-permission [--timeout SEC] [--project NAME]
+
+  Registers one broker interaction, notifies, then blocks waiting for the
+  authenticated human answer and prints the host-native decision JSON:
+  Codex and Claude Code `PermissionRequest` shapes (both verified against the
+  official hook references). Any failure — no broker, no answer in time,
+  expired, cancelled — prints nothing and exits 0, so the host falls back to
+  its ordinary local prompt. Ask mode never auto-allows and never auto-denies.
 Stdin is the host's hook JSON payload (up to 64 KiB); unreadable or
 unexpected shapes fall back to generic text rather than failing.
 
@@ -30,6 +40,8 @@ import sys
 
 SEND_TIMEOUT_S = 8
 MAX_TEXT = 1000
+ASK_DEFAULT_TIMEOUT_S = 300
+ASK_WAIT_SLICE_S = 120
 AGENTS = {
     "codex": "Codex",
     "claude": "Claude Code",
@@ -38,6 +50,9 @@ AGENTS = {
     "cursor": "Cursor",
     "muse": "Muse Code",
 }
+# Hosts whose synchronous permission event + decision JSON are verified
+# against official references (see HARNESS.md). Only these get ask mode.
+ASK_AGENTS = ("codex", "claude")
 
 
 def read_payload():
@@ -141,6 +156,132 @@ def send(agent_id, project, ntype, priority, title, message, key=None):
         pass
 
 
+def run_cli_json(args, timeout):
+    """Run the agentnotify CLI and parse its stdout JSON. None on any failure."""
+    binary = find_binary()
+    if not binary:
+        return None
+    try:
+        completed = subprocess.run(
+            [binary] + args,
+            timeout=timeout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:
+        return None
+    if completed.returncode != 0:
+        return None
+    try:
+        data = json.loads((completed.stdout or b"").decode("utf-8", "replace"))
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def print_host_decision(agent_id, answer):
+    """Print the verified PermissionRequest decision JSON for codex/claude."""
+    behavior = "allow" if answer == "allow" else "deny"
+    decision = {"behavior": behavior}
+    if behavior == "deny":
+        decision["message"] = "Denied via AgentNotify."
+    out = {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": decision}}
+    try:
+        sys.stdout.write(json.dumps(out) + "\n")
+        sys.stdout.flush()
+    except Exception:
+        pass
+
+
+def cmd_ask_permission(agent_id, label, payload, rest):
+    timeout = ASK_DEFAULT_TIMEOUT_S
+    project_override = None
+    key_override = None
+    i = 0
+    while i < len(rest):
+        arg = rest[i]
+        if arg == "--timeout" and i + 1 < len(rest):
+            try:
+                timeout = max(10, min(900, int(rest[i + 1])))
+            except ValueError:
+                pass
+            i += 2
+        elif arg == "--project" and i + 1 < len(rest):
+            project_override = rest[i + 1].strip() or None
+            i += 2
+        elif arg == "--key" and i + 1 < len(rest):
+            key_override = rest[i + 1].strip() or None
+            i += 2
+        else:
+            i += 1
+
+    tool = (
+        first_str(payload, "tool_name", "toolName", "tool")
+        or nested_str(payload, ("tool_input", "tool"), ("tool", "name"))
+    )
+    message_text = (
+        first_str(payload, "message", "text", "notification", "prompt")
+        or nested_str(payload, ("tool_input", "command"), ("tool_input", "cmd"))
+        or nested_str(payload, ("tool_input", "description"))
+    )
+    detail = " ".join(part for part in (tool, message_text) if part).strip()
+    session = (
+        first_str(payload, "session_id", "sessionId", "sessionID")
+        or nested_str(payload, ("session", "id"), ("context", "session_id"))
+        or "session"
+    )
+    sid = session[:8] if session != "session" else "session"
+    cwd = first_str(payload, "cwd", "working_directory", "workingDirectory")
+    if not cwd:
+        try:
+            cwd = os.getcwd()
+        except Exception:
+            cwd = ""
+    project = project_override or project_from_cwd(cwd, agent_id)
+    prompt = f"{label} approval: {detail}" if detail else f"{label} approval requested."
+    prompt = prompt[:1500]
+    key = key_override or f"{project}-{sid}-ask"
+
+    created = run_cli_json([
+        "interactions", "request", "--kind", "permission",
+        "--prompt", prompt,
+        "--choice", "allow:Allow once",
+        "--choice", "deny:Deny",
+        "--agent", agent_id, "--project", project,
+        "--session", session,
+        "--key", key,
+        "--ttl", str(max(60, min(3600, timeout + 60))),
+    ], SEND_TIMEOUT_S + 5)
+    if (not isinstance(created, dict) or created.get("status") != "pending"
+            or not created.get("id") or not created.get("request_digest")):
+        return 0  # Broker unreachable: fall back to the ordinary local prompt.
+    iid = created["id"]
+
+    send(agent_id, project, "permission_required", "high",
+         f"{label} waiting for approval", f"{project}: {prompt[:500]}", key=key + "-notify")
+
+    # The CLI caps one wait at 300 s; slice the budget so long hook timeouts work.
+    remaining = timeout
+    settled = None
+    while remaining > 0:
+        sl = min(ASK_WAIT_SLICE_S, remaining)
+        settled = run_cli_json(["interactions", "wait", iid, "--timeout", str(sl)], sl + 30)
+        if not isinstance(settled, dict):
+            return 0
+        if settled.get("status") != "pending":
+            break
+        remaining -= sl
+        settled = None if remaining <= 0 else settled
+    if not isinstance(settled, dict) or settled.get("status") != "answered":
+        return 0  # Expired, cancelled, or timed out: local prompt takes over.
+    answer = str(((settled.get("response") or {}).get("choice_id") or ""))
+    if answer not in ("allow", "deny"):
+        return 0
+    print_host_decision(agent_id, answer)
+    return 0
+
+
 def main(argv):
     if len(argv) < 3 or argv[1] in ("-h", "--help", "help"):
         sys.stdout.write(__doc__ + "\n")
@@ -156,6 +297,11 @@ def main(argv):
         return 0
     label = AGENTS[agent_id]
     payload = read_payload()
+
+    if event in ("ask-permission", "askpermission", "ask"):
+        if agent_id not in ASK_AGENTS:
+            return 0
+        return cmd_ask_permission(agent_id, label, payload, argv[3:])
 
     session = (
         first_str(payload, "session_id", "sessionId", "sessionID")

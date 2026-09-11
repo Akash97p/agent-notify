@@ -358,6 +358,7 @@ block. See [HARNESS.md](HARNESS.md).
 | `--path` | directory | host-specific harness dir | Overrides `--scope`; OpenCode takes the plugin directory itself, Codex/Claude take the `.codex`/`.claude` directory |
 | `--force` | — | false | Replaces changed harness files; rewrites invalid hook JSON |
 | `--dry-run` | — | false | Reports the destination without writing |
+| `--ask` | — | false | Codex/Claude only: permission prompts wait for a broker answer and return it (verified schemas); without `--ask` they only notify |
 
 Default personal destinations:
 

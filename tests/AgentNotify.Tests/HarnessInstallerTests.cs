@@ -379,6 +379,101 @@ public sealed class HarnessInstallerTests : IDisposable
         Assert.Equal("x", doc.RootElement.GetProperty("model").GetString());
     }
 
+    // ---- Ask mode (Codex + Claude) ----
+
+    [Fact]
+    public void CodexAskMode_WritesBlockingHookAndRemovesNotifyHook()
+    {
+        var codexDir = Path.Combine(_root, ".codex");
+        HarnessInstaller.InstallCodexHarness(codexDir, ScriptContent, force: false, dryRun: false);
+
+        var ask = HarnessInstaller.InstallCodexHarness(codexDir, ScriptContent, force: false, dryRun: false, askMode: true);
+        Assert.True(ask.Success);
+        Assert.True(ask.Changed);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(codexDir, "hooks.json")));
+        var permission = doc.RootElement.GetProperty("PermissionRequest");
+        Assert.DoesNotContain(permission.EnumerateArray(), group =>
+            group.ToString().Contains("codex permission", StringComparison.Ordinal));
+        var askGroup = Assert.Single(permission.EnumerateArray(), group =>
+            group.ToString().Contains("codex ask-permission", StringComparison.Ordinal));
+        Assert.Contains("--timeout 590", askGroup.ToString(), StringComparison.Ordinal);
+        Assert.Contains("\"timeout\": 600", askGroup.ToString(), StringComparison.Ordinal);
+
+        var again = HarnessInstaller.InstallCodexHarness(codexDir, ScriptContent, force: false, dryRun: false, askMode: true);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+
+        // Downgrading restores the notify hook and drops the ask hook.
+        var notify = HarnessInstaller.InstallCodexHarness(codexDir, ScriptContent, force: false, dryRun: false);
+        Assert.True(notify.Success);
+        using var back = JsonDocument.Parse(File.ReadAllText(Path.Combine(codexDir, "hooks.json")));
+        var restored = back.RootElement.GetProperty("PermissionRequest");
+        Assert.Contains(restored.EnumerateArray(), group =>
+            group.ToString().Contains("codex permission", StringComparison.Ordinal));
+        Assert.DoesNotContain(restored.EnumerateArray(), group =>
+            group.ToString().Contains("ask-permission", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ClaudeAskMode_WritesPermissionRequestAndRemovesNotification()
+    {
+        var claudeDir = Path.Combine(_root, ".claude");
+        HarnessInstaller.InstallClaudeHarness(claudeDir, ScriptContent, force: false, dryRun: false);
+
+        var ask = HarnessInstaller.InstallClaudeHarness(claudeDir, ScriptContent, force: false, dryRun: false, askMode: true);
+        Assert.True(ask.Success);
+        Assert.True(ask.Changed);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(claudeDir, "settings.json")));
+        var hooks = doc.RootElement.GetProperty("hooks");
+        Assert.True(hooks.TryGetProperty("PermissionRequest", out var permission));
+        var askGroup = Assert.Single(permission.EnumerateArray(), group =>
+            group.ToString().Contains("claude ask-permission", StringComparison.Ordinal));
+        Assert.Contains("--timeout 290", askGroup.ToString(), StringComparison.Ordinal);
+        // The notify-only Notification hook is gone; Stop survives the migration.
+        Assert.True(hooks.TryGetProperty("Notification", out var notification)
+            && !notification.EnumerateArray().Any(group =>
+                group.ToString().Contains("agentnotify_hook.py", StringComparison.Ordinal)));
+        Assert.True(hooks.TryGetProperty("Stop", out _));
+
+        var again = HarnessInstaller.InstallClaudeHarness(claudeDir, ScriptContent, force: false, dryRun: false, askMode: true);
+        Assert.True(again.Success);
+        Assert.False(again.Changed);
+    }
+
+    [Fact]
+    public async Task InstallHarness_AskRejectedForUnsupportedHosts()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentnotify-harness-{Guid.NewGuid():N}");
+        try
+        {
+            Assert.Equal(1, await AgentNotify.Cli.Program.Main(["install-harness", "gemini", "--path", root, "--ask"]));
+            Assert.False(Directory.Exists(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallHarness_AskInstallsForCodex()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"agentnotify-harness-{Guid.NewGuid():N}");
+        try
+        {
+            Assert.Equal(0, await AgentNotify.Cli.Program.Main(["install-harness", "codex", "--path", root, "--ask"]));
+            using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "hooks.json")));
+            Assert.Contains(doc.RootElement.GetProperty("PermissionRequest").EnumerateArray(), group =>
+                group.ToString().Contains("ask-permission", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     // ---- Kilo harness ----
 
     [Fact]

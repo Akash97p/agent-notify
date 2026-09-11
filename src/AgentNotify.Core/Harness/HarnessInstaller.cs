@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace AgentNotify.Core.Harness;
 
@@ -58,7 +59,8 @@ public static class HarnessInstaller
         string codexDir,
         string scriptContent,
         bool force,
-        bool dryRun)
+        bool dryRun,
+        bool askMode = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(codexDir);
         ArgumentNullException.ThrowIfNull(scriptContent);
@@ -71,13 +73,23 @@ public static class HarnessInstaller
         if (!script.Success)
             return Fail(baseDir, script.Message);
 
+        // Ask mode replaces the notify-only PermissionRequest hook with a blocking
+        // ask hook (verified Codex decision schema); anything else keeps notifying.
+        // Each direction also removes the other mode's entries so switching modes
+        // never leaves duplicate hooks on the same event.
+        var permission = askMode
+            ? HookCommand(scriptPath, "codex", "ask-permission") + " --timeout 590"
+            : HookCommand(scriptPath, "codex", "permission");
         var wanted = new[]
         {
-            ("PermissionRequest", HookCommand(scriptPath, "codex", "permission"), WithMatcher: true),
-            ("Stop", HookCommand(scriptPath, "codex", "stop"), WithMatcher: false),
-            ("SessionEnd", HookCommand(scriptPath, "codex", "session-end"), WithMatcher: false),
+            ("PermissionRequest", permission, true, askMode ? 600 : 10),
+            ("Stop", HookCommand(scriptPath, "codex", "stop"), false, 10),
+            ("SessionEnd", HookCommand(scriptPath, "codex", "session-end"), false, 10),
         };
-        var hooks = MergeHookGroups(hooksPath, wanted, force, dryRun: true);
+        var remove = askMode
+            ? new[] { ("codex", "permission") }
+            : new[] { ("codex", "ask-permission") };
+        var hooks = MergeHookGroups(hooksPath, wanted, force, dryRun: true, remove);
         if (!hooks.Success)
             return Fail(baseDir, hooks.Message);
 
@@ -91,9 +103,12 @@ public static class HarnessInstaller
         if (hooks.Changed)
             WriteJsonFile(hooksPath, hooks.Payload!);
 
+        var mode = askMode
+            ? " Ask mode is on: approval prompts wait up to ~10 minutes for a broker answer, then fall back to the local prompt."
+            : "";
         return new HarnessInstallResult(true, changed, baseDir,
             changed
-                ? $"Installed the AgentNotify harness for Codex at '{baseDir}'. Trust the project layer if Codex asks, then restart the session."
+                ? $"Installed the AgentNotify harness for Codex at '{baseDir}'. Trust the project layer if Codex asks, then restart the session.{mode}"
                 : $"AgentNotify harness for Codex is already up to date at '{baseDir}'.");
     }
 
@@ -103,7 +118,8 @@ public static class HarnessInstaller
         string claudeDir,
         string scriptContent,
         bool force,
-        bool dryRun)
+        bool dryRun,
+        bool askMode = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(claudeDir);
         ArgumentNullException.ThrowIfNull(scriptContent);
@@ -116,12 +132,21 @@ public static class HarnessInstaller
         if (!script.Success)
             return Fail(baseDir, script.Message);
 
-        var wanted = new[]
-        {
-            ("Notification", HookCommand(scriptPath, "claude", "notification")),
-            ("Stop", HookCommand(scriptPath, "claude", "stop")),
-        };
-        var hooks = MergeSettingsHooks(settingsPath, wanted, force, dryRun: true);
+        var wanted = askMode
+            ? new[]
+            {
+                ("PermissionRequest", HookCommand(scriptPath, "claude", "ask-permission") + " --timeout 290", (int?)300),
+                ("Stop", HookCommand(scriptPath, "claude", "stop"), (int?)null),
+            }
+            : new[]
+            {
+                ("Notification", HookCommand(scriptPath, "claude", "notification"), (int?)null),
+                ("Stop", HookCommand(scriptPath, "claude", "stop"), (int?)null),
+            };
+        var remove = askMode
+            ? new[] { ("claude", "notification") }
+            : new[] { ("claude", "ask-permission") };
+        var hooks = MergeSettingsHooks(settingsPath, wanted, force, dryRun: true, remove);
         if (!hooks.Success)
             return Fail(baseDir, hooks.Message);
 
@@ -135,9 +160,12 @@ public static class HarnessInstaller
         if (hooks.Changed)
             WriteJsonFile(settingsPath, hooks.Payload!);
 
+        var mode = askMode
+            ? " Ask mode is on: permission prompts wait up to ~5 minutes for a broker answer, then fall back to the local prompt."
+            : "";
         return new HarnessInstallResult(true, changed, baseDir,
             changed
-                ? $"Installed the AgentNotify harness for Claude Code at '{baseDir}'. Restart the session to load it."
+                ? $"Installed the AgentNotify harness for Claude Code at '{baseDir}'. Restart the session to load it.{mode}"
                 : $"AgentNotify harness for Claude Code is already up to date at '{baseDir}'.");
     }
 
@@ -171,9 +199,9 @@ public static class HarnessInstaller
         // without deciding them; AfterAgent/SessionEnd observe completion.
         var wanted = new[]
         {
-            ("Notification", HookCommand(scriptPath, "gemini", "notification")),
-            ("AfterAgent", HookCommand(scriptPath, "gemini", "after-agent")),
-            ("SessionEnd", HookCommand(scriptPath, "gemini", "session-end")),
+            ("Notification", HookCommand(scriptPath, "gemini", "notification"), (int?)null),
+            ("AfterAgent", HookCommand(scriptPath, "gemini", "after-agent"), (int?)null),
+            ("SessionEnd", HookCommand(scriptPath, "gemini", "session-end"), (int?)null),
         };
         var hooks = MergeSettingsHooks(settingsPath, wanted, force, dryRun: true);
         if (!hooks.Success)
@@ -425,8 +453,8 @@ public static class HarnessInstaller
             hooksPath = Path.Combine(baseDir, "hooks.json");
             var wanted = new[]
             {
-                ("PermissionRequest", HookCommand(scriptPath, "muse", "permission-request"), true),
-                ("Stop", HookCommand(scriptPath, "muse", "stop"), false),
+                ("PermissionRequest", HookCommand(scriptPath, "muse", "permission-request"), true, 10),
+                ("Stop", HookCommand(scriptPath, "muse", "stop"), false, 10),
             };
             hooks = MergeHookGroups(hooksPath, wanted, force, dryRun: true);
         }
@@ -435,8 +463,8 @@ public static class HarnessInstaller
             hooksPath = Path.Combine(baseDir, "settings.json");
             var wanted = new[]
             {
-                ("PermissionRequest", HookCommand(scriptPath, "muse", "permission-request")),
-                ("Stop", HookCommand(scriptPath, "muse", "stop")),
+                ("PermissionRequest", HookCommand(scriptPath, "muse", "permission-request"), (int?)null),
+                ("Stop", HookCommand(scriptPath, "muse", "stop"), (int?)null),
             };
             hooks = MergeMuseSettingsHooks(hooksPath, wanted, force);
         }
@@ -576,7 +604,7 @@ public static class HarnessInstaller
 
     private static JsonPlan MergeMuseSettingsHooks(
         string settingsPath,
-        (string Event, string Command)[] wanted,
+        (string Event, string Command, int? TimeoutSec)[] wanted,
         bool force)
     {
         // Muse requires schema_version: 1 — a settings file without it fails every
@@ -621,7 +649,7 @@ public static class HarnessInstaller
         return new JsonPlan(true, true, "merge", merged.ToJsonString(JsonWriteOptions) + Environment.NewLine);
     }
 
-    private static JsonObject MergeSettingsHooksInto(JsonObject root, (string Event, string Command)[] wanted)
+    private static JsonObject MergeSettingsHooksInto(JsonObject root, (string Event, string Command, int? TimeoutSec)[] wanted)
     {
         var hooks = root["hooks"] as JsonObject;
         if (hooks is null)
@@ -629,7 +657,7 @@ public static class HarnessInstaller
             hooks = new JsonObject();
             root["hooks"] = hooks;
         }
-        foreach (var (eventName, command) in wanted)
+        foreach (var (eventName, command, timeoutSec) in wanted)
         {
             var array = hooks[eventName] as JsonArray;
             if (array is null)
@@ -638,20 +666,7 @@ public static class HarnessInstaller
                 hooks[eventName] = array;
             }
             if (!GroupContainsCommand(array, command))
-            {
-                array.Add(new JsonObject
-                {
-                    ["matcher"] = "",
-                    ["hooks"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["type"] = "command",
-                            ["command"] = command,
-                        },
-                    },
-                });
-            }
+                array.Add(BuildSettingsGroup(command, timeoutSec));
         }
         return root;
     }
@@ -707,9 +722,10 @@ public static class HarnessInstaller
 
     private static JsonPlan MergeHookGroups(
         string hooksPath,
-        (string Event, string Command, bool WithMatcher)[] wanted,
+        (string Event, string Command, bool WithMatcher, int TimeoutSec)[] wanted,
         bool force,
-        bool dryRun)
+        bool dryRun,
+        (string Agent, string Event)[]? remove = null)
     {
         JsonObject root;
         if (!File.Exists(hooksPath))
@@ -745,7 +761,21 @@ public static class HarnessInstaller
 
     Build:
         var changed = !File.Exists(hooksPath);
-        foreach (var (eventName, command, withMatcher) in wanted)
+        if (remove is not null)
+        {
+            foreach (var (eventName, array) in root
+                         .Where(kvp => kvp.Value is JsonArray)
+                         .Select(kvp => (kvp.Key, (JsonArray)kvp.Value!))
+                         .ToArray())
+            {
+                var before = array.Count;
+                foreach (var signature in remove)
+                    RemoveSignatureMatches(array, signature.Agent, signature.Event);
+                if (array.Count != before)
+                    changed = true;
+            }
+        }
+        foreach (var (eventName, command, withMatcher, timeoutSec) in wanted)
         {
             var array = root[eventName] as JsonArray;
             if (array is null)
@@ -756,7 +786,7 @@ public static class HarnessInstaller
             }
             if (!GroupContainsCommand(array, command))
             {
-                array.Add(BuildGroup(command, withMatcher));
+                array.Add(BuildGroup(command, withMatcher, timeoutSec));
                 changed = true;
             }
         }
@@ -768,9 +798,10 @@ public static class HarnessInstaller
 
     private static JsonPlan MergeSettingsHooks(
         string settingsPath,
-        (string Event, string Command)[] wanted,
+        (string Event, string Command, int? TimeoutSec)[] wanted,
         bool force,
-        bool dryRun)
+        bool dryRun,
+        (string Agent, string Event)[]? remove = null)
     {
         JsonObject root;
         if (!File.Exists(settingsPath))
@@ -812,7 +843,21 @@ public static class HarnessInstaller
             root["hooks"] = hooks;
             changed = true;
         }
-        foreach (var (eventName, command) in wanted)
+        if (remove is not null)
+        {
+            foreach (var array in hooks
+                         .Where(kvp => kvp.Value is JsonArray)
+                         .Select(kvp => (JsonArray)kvp.Value!)
+                         .ToArray())
+            {
+                var before = array.Count;
+                foreach (var signature in remove)
+                    RemoveSignatureMatches(array, signature.Agent, signature.Event);
+                if (array.Count != before)
+                    changed = true;
+            }
+        }
+        foreach (var (eventName, command, timeoutSec) in wanted)
         {
             var array = hooks[eventName] as JsonArray;
             if (array is null)
@@ -823,19 +868,7 @@ public static class HarnessInstaller
             }
             if (!GroupContainsCommand(array, command))
             {
-                var group = new JsonObject
-                {
-                    ["matcher"] = "",
-                    ["hooks"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["type"] = "command",
-                            ["command"] = command,
-                        },
-                    },
-                };
-                array.Add(group);
+                array.Add(BuildSettingsGroup(command, timeoutSec));
                 changed = true;
             }
         }
@@ -845,13 +878,29 @@ public static class HarnessInstaller
         return new JsonPlan(true, true, "merge", root.ToJsonString(JsonWriteOptions) + Environment.NewLine);
     }
 
-    private static JsonObject BuildGroup(string command, bool withMatcher)
+    private static JsonObject BuildSettingsGroup(string command, int? timeoutSec)
     {
         var hook = new JsonObject
         {
             ["type"] = "command",
             ["command"] = command,
-            ["timeout"] = 10,
+        };
+        if (timeoutSec is { } seconds)
+            hook["timeout"] = seconds;
+        return new JsonObject
+        {
+            ["matcher"] = "",
+            ["hooks"] = new JsonArray { hook },
+        };
+    }
+
+    private static JsonObject BuildGroup(string command, bool withMatcher, int timeoutSec = 10)
+    {
+        var hook = new JsonObject
+        {
+            ["type"] = "command",
+            ["command"] = command,
+            ["timeout"] = timeoutSec,
         };
         var group = new JsonObject();
         if (withMatcher)
@@ -880,13 +929,34 @@ public static class HarnessInstaller
         return false;
     }
 
+    private static readonly Regex HookSignaturePattern =
+        new(@"agentnotify_hook\.py""?\s+(?<agent>\S+)\s+(?<evt>\S+)", RegexOptions.Compiled);
+
     private static (string Agent, string Event) Signature(string command)
     {
-        // Commands look like: python3 "<script>" <agent> <event>
-        var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-            return (parts[^2], parts[^1].Trim('"'));
-        return (string.Empty, command);
+        // Commands look like: python3 "<script>" <agent> <event> [--flags ...].
+        // Anchor on the script name so trailing flags and quoted paths cannot
+        // shift the match; unknown shapes yield an empty signature that matches nothing.
+        var match = HookSignaturePattern.Match(command);
+        if (!match.Success)
+            return (string.Empty, command);
+        return (match.Groups["agent"].Value, match.Groups["evt"].Value.Trim('"'));
+    }
+
+    private static void RemoveSignatureMatches(JsonArray groups, string agent, string evt)
+    {
+        for (var i = groups.Count - 1; i >= 0; i--)
+        {
+            if (groups[i] is not JsonObject obj) continue;
+            if (obj["hooks"] is not JsonArray hooks) continue;
+            var owned = hooks.OfType<JsonObject>()
+                .Select(hook => hook["command"]?.GetValue<string>())
+                .Any(existing => !string.IsNullOrWhiteSpace(existing) &&
+                    existing.Contains("agentnotify_hook.py", StringComparison.Ordinal) &&
+                    Signature(existing) == (agent, evt));
+            if (owned)
+                groups.RemoveAt(i);
+        }
     }
 
     private static bool SameContent(string path, string content)
