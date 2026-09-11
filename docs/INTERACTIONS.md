@@ -11,6 +11,27 @@ harness capture (hooks that open interactions and return the answer) is in
 [HARNESS.md](HARNESS.md); the Relay/mobile wire contract is in
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
+## Host capture
+
+A host adapter turns a live permission/question into an interaction and the
+accepted answer back into the host's native decision:
+
+1. The synchronous hook fires (Codex/Claude `PermissionRequest`) and blocks.
+2. The bundled hook bridge (`agentnotify_hook.py <agent> ask-permission`)
+   opens one interaction (keyed per project/session), sends the visible
+   notification, and waits on the broker.
+3. The human answers from anywhere: `interactions respond`, a future desktop
+   button, or the phone via Relay.
+4. The bridge prints the verified host decision JSON (`decision.behavior:
+   allow/deny`) and exits `0`. The host applies it like its own prompt answer.
+5. On any failure the bridge prints nothing and exits `0`: the host shows its
+   ordinary local prompt. Ask mode fails open to the human in front of the
+   machine — it never auto-allows, never auto-denies.
+
+Enable per host with `install-harness <codex|claude> --ask`. Hermes
+(approval transport), OpenClaw (watch daemon), and Pi (RPC mode) have their
+own equivalent surfaces; see [HARNESS.md](HARNESS.md).
+
 ## Model
 
 | Field | Purpose |

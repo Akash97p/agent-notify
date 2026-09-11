@@ -28,6 +28,35 @@ the interaction broker ([INTERACTIONS.md](INTERACTIONS.md)):
 - **OpenClaw** watch daemon: resolves gateway approvals with your answer;
   unsettled approvals stay pending, exactly as without the bridge.
 
+## Ask mode (Codex + Claude Code)
+
+```bash
+agentnotify install-harness codex --ask
+agentnotify install-harness claude --ask
+```
+
+Ask mode replaces the notify-only permission hook with a blocking hook that
+registers one broker interaction, notifies, waits for your answer (Broker,
+CLI, or phone via Relay), and prints the host-native decision back into the
+waiting call. The decision schemas are verified against the official hook
+references: Codex `PermissionRequest` (`decision.behavior: allow/deny`) and
+Claude Code `PermissionRequest` (same shape). Anything unsettled — no broker,
+no answer in time, expired, cancelled — prints nothing and exits `0`, so the
+host falls back to its ordinary local prompt. Ask mode never auto-allows and
+never auto-denies.
+
+Tradeoff: while the hook waits (Codex ~10 min, Claude ~5 min), the host's own
+prompt is suppressed. Use ask mode when you answer from the phone or another
+machine; keep the default notify-only hooks when you sit at the terminal.
+Reinstall without `--ask` to switch back; the migration removes the other
+mode's entries so they never double-fire.
+
+Other hosts stay notify-only for now: their synchronous decision schemas are
+not verified (Gemini `BeforeTool` fires per tool, Copilot/Cursor/Muse ask
+shapes are unconfirmed), and a wrong guess would look exactly like success.
+Muse follows automatically once its `PermissionRequest` round trip is
+confirmed live.
+
 Nothing else approves, denies, allows, or blocks a tool call. The full
 relay→phone→host loop (answering from mobile) is specified in
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).

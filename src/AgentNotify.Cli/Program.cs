@@ -855,6 +855,7 @@ internal static class Program
         var projectScope = false;
         var force = false;
         var dryRun = false;
+        var askMode = false;
         string? path = null;
         for (var i = 1; i < args.Length; i++)
         {
@@ -872,10 +873,14 @@ internal static class Program
                     break;
                 case "--force": force = true; break;
                 case "--dry-run": dryRun = true; break;
+                case "--ask": askMode = true; break;
                 case "--help": case "-h": PrintInstallHarnessHelp(); return 0;
                 default: return Fail($"unknown option '{args[i]}' for install-harness.");
             }
         }
+
+        if (askMode && target.Id != HarnessCatalog.Codex.Id && target.Id != HarnessCatalog.ClaudeCode.Id)
+            return Fail("--ask is only supported for codex and claude: only their permission-request decision schemas are verified.");
 
         try
         {
@@ -889,10 +894,10 @@ internal static class Program
                         harnessDir, HarnessPayload.OpenCodePlugin(), force, dryRun),
                 var id when id == HarnessCatalog.Codex.Id =>
                     HarnessInstaller.InstallCodexHarness(
-                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, askMode),
                 var id when id == HarnessCatalog.ClaudeCode.Id =>
                     HarnessInstaller.InstallClaudeHarness(
-                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, askMode),
                 var id when id == HarnessCatalog.Gemini.Id =>
                     HarnessInstaller.InstallGeminiHarness(
                         harnessDir, HarnessPayload.HookScript(), force, dryRun),
@@ -1430,6 +1435,9 @@ internal static class Program
                                       Pi:       the extensions directory itself
               --force               Replace changed harness files / rewrite invalid hook JSON
               --dry-run             Print the destination without writing files
+              --ask                 Codex/Claude only: permission prompts wait for a broker
+                                    answer and return it (verified decision schemas).
+                                    Without --ask, permission hooks only notify.
 
             Default user locations:
               OpenCode     ~/.config/opencode/plugins/agentnotify.js

@@ -455,6 +455,25 @@ This is the durable handoff record for long-running AgentNotify development. Upd
     - Gates: build 0/0; 817 tests passed; `py_compile` on both Python bridges; `git diff
       --check` clean. Real-host smoke still pending across the board.
 
+54. Completed on `feature/harness-ask-mode` (host decision return for Codex + Claude):
+    - `agentnotify_hook.py ask-permission`: registers one keyed permission interaction,
+      notifies, waits in slices (CLI caps one wait at 300 s), and prints the verified
+      `PermissionRequest` decision JSON (`decision.behavior: allow/deny`) for Codex and
+      Claude Code. Schemas verified against the official hook references fetched this
+      session (Codex `developers.openai.com/codex/hooks`, Claude `code.claude.com/docs/en/hooks`).
+    - E2E-verified against a fake CLI (request → notify → wait → deny JSON) and the
+      fail-open path (no broker → silent exit 0, host shows its local prompt).
+    - `install-harness <codex|claude> --ask` swaps the notify hook for the blocking ask
+      hook (600 s Codex / 300 s Claude timeouts, `--timeout` passed through); reinstalling
+      without `--ask` restores notify-only. Mode migrations drop the other mode's entries
+      so hooks never double-fire; signature matching is now anchored on the script name so
+      trailing flags cannot shift it. Other hosts reject `--ask` with a clear error.
+    - Documented the tradeoff honestly: while the hook waits, the host's own prompt is
+      suppressed — ask mode is for answering from the phone/another machine, notify-only
+      stays the default for terminal work.
+    - Gates: build 0/0; 821 tests passed (4 new installer/CLI tests); `git diff --check`
+      clean. Live host round trip still pending (owner checklist).
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
