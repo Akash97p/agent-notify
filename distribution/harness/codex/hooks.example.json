@@ -1,0 +1,38 @@
+{
+  "$schema": "https://github.com/openai/codex/hooks-schema",
+  "description": "AgentNotify harness example for Codex. Copy the three event blocks into your real hooks file (~/.codex/hooks.json for you, or <repo>/.codex/hooks.json for a project) and replace HOOK_DIR with the folder holding agentnotify_hook.py. Prefer `agentnotify install-harness codex` so the merge, absolute paths, and idempotency are handled for you. The hook only notifies; it never approves or denies — exit 0 always, 10 s timeout.",
+  "PermissionRequest": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 HOOK_DIR/agentnotify_hook.py codex permission",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 HOOK_DIR/agentnotify_hook.py codex stop",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "SessionEnd": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 HOOK_DIR/agentnotify_hook.py codex session-end",
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}

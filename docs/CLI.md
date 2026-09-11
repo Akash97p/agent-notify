@@ -20,7 +20,7 @@ agentnotify --help | -h | help [<command>]
 agentnotify --version
 ```
 
-When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
+When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install-harness`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
 
 All commands that contact the broker use a 10-second HTTP timeout. Connection failure prints to stderr and exits non-zero (see Exit codes).
 
@@ -299,8 +299,8 @@ agentnotify relay status
 ### `install-skill` — install the bundled agent skill
 
 ```text
-agentnotify install-skill <codex|claude> [options]
-agentnotify install skill <codex|claude> [options]
+agentnotify install-skill <codex|claude|opencode> [options]
+agentnotify install skill <codex|claude|opencode> [options]
 ```
 
 The skill payload is embedded in the CLI, so installation is offline and needs no npm, Python, or
@@ -335,16 +335,56 @@ agentnotify install-skill codex --dry-run
 agentnotify install-skill codex --path /custom/skills/root
 ```
 
+### `install-harness` — install the auto-notify harness
+
+```text
+agentnotify install-harness <opencode|codex|claude> [options]
+agentnotify install harness <opencode|codex|claude> [options]
+```
+
+The harness payload is embedded in the CLI, so installation is offline.
+Unlike the skill, which relies on the model remembering to call
+AgentNotify, the harness hooks the host itself: permission prompts,
+questions, session completion, and session errors send automatically.
+Hooks are notify-only — they always exit `0` and never approve, deny, or
+block. See [HARNESS.md](HARNESS.md).
+
+| Flag | Value | Default | Notes |
+| --- | --- | --- | --- |
+| `--scope` | `user` or `project` | `user` | Select personal or current-repository hooks |
+| `--path` | directory | host-specific harness dir | Overrides `--scope`; OpenCode takes the plugin directory itself, Codex/Claude take the `.codex`/`.claude` directory |
+| `--force` | — | false | Replaces changed harness files; rewrites invalid hook JSON |
+| `--dry-run` | — | false | Reports the destination without writing |
+
+Default personal destinations:
+
+```text
+OpenCode:    ~/.config/opencode/plugins/agentnotify.js
+Codex:       ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
+Claude Code: ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+```
+
+Existing hook entries are preserved and reinstalling never duplicates the
+AgentNotify entries. Restart the host session after installing.
+
+Examples:
+
+```bash
+agentnotify install-harness opencode
+agentnotify install-harness codex --scope project
+agentnotify install-harness claude --dry-run
+```
+
 ### `help` and `--version`
 
 ```text
-agentnotify help [send|list|get|resolve|dismiss|relay|install-skill]
+agentnotify help [send|list|get|resolve|dismiss|relay|install-skill|install-harness]
 agentnotify --help
 agentnotify -h
 agentnotify --version
 ```
 
-- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`). Unknown topic prints the general usage.
+- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`, `install-harness`). Unknown topic prints the general usage.
 - `help` with no topic prints general usage (`PrintUsage`).
 - `--version` (`RunVersion`) prints `agentnotify {InformationalVersion}` derived from the CLI assembly.
 

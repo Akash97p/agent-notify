@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.0.4--alpha.2-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-738%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-763%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -179,6 +179,19 @@ agentnotify install-skill codex
 agentnotify install-skill claude
 agentnotify install-skill opencode
 ```
+
+A skill relies on the model remembering to notify. For automatic
+notification at permission prompts, questions, and session completion,
+install the notify-only host harness as well — it never approves or blocks,
+it just sends:
+
+```bash
+agentnotify install-harness opencode
+agentnotify install-harness codex
+agentnotify install-harness claude
+```
+
+See [Agent harnesses](docs/HARNESS.md).
 
 The default personal locations are:
 

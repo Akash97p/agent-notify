@@ -11,6 +11,7 @@ using AgentNotify.Core.Config;
 using AgentNotify.Core.Skills;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Delivery.Channels;
+using AgentNotify.Core.Harness;
 
 namespace AgentNotify.Cli;
 
@@ -18,7 +19,7 @@ namespace AgentNotify.Cli;
 /// Every command talks to the local broker via HTTP; the broker is source of truth.</summary>
 internal static class Program
 {
-    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install", "help", "--help", "-h", "--version"];
+    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "help", "--help", "-h", "--version"];
 
     internal static async Task<int> Main(string[] args)
     {
@@ -50,8 +51,10 @@ internal static class Program
                 "relay" => await RunRelay(args[1..]),
                 "token" => RunToken(args[1..]),
                 "install-skill" => RunInstallSkill(args[1..]),
+                "install-harness" => RunInstallHarness(args[1..]),
                 "install" when args.Length > 1 && args[1].Equals("skill", StringComparison.OrdinalIgnoreCase) => RunInstallSkill(args[2..]),
-                "install" => Fail("Usage: agentnotify install skill <codex|claude> [options]"),
+                "install" when args.Length > 1 && args[1].Equals("harness", StringComparison.OrdinalIgnoreCase) => RunInstallHarness(args[2..]),
+                "install" => Fail("Usage: agentnotify install <skill|harness> <agent> [options]"),
                 "help" or "--help" or "h" => RunHelp(args.Length > 1 ? args[1] : null),
                 "version" => RunVersion(),
                 _ => Fail($"unknown command '{args[0]}'. Run 'agentnotify help' for usage.")
@@ -822,6 +825,88 @@ internal static class Program
         }
     }
 
+    private static int RunInstallHarness(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-'))
+        {
+            PrintInstallHarnessHelp();
+            return args.Any(a => a is "--help" or "-h") ? 0 : 1;
+        }
+
+        // "claude-code" is accepted because that is what the product is called;
+        // the id stays "claude" so existing scripts keep working.
+        var requested = args[0].ToLowerInvariant() == "claude-code" ? "claude" : args[0];
+        var target = HarnessCatalog.Find(requested);
+        if (target is null)
+            return Fail(
+                "install-harness target must be one of: "
+                + string.Join(", ", HarnessCatalog.All.Select(t => t.Id))
+                + ".");
+
+        var projectScope = false;
+        var force = false;
+        var dryRun = false;
+        string? path = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--scope":
+                    if (i + 1 >= args.Length) return Fail("--scope requires user or project.");
+                    var scope = args[++i].ToLowerInvariant();
+                    if (scope is not ("user" or "project")) return Fail("--scope must be user or project.");
+                    projectScope = scope == "project";
+                    break;
+                case "--path":
+                    if (i + 1 >= args.Length) return Fail("--path requires a directory.");
+                    path = args[++i];
+                    break;
+                case "--force": force = true; break;
+                case "--dry-run": dryRun = true; break;
+                case "--help": case "-h": PrintInstallHarnessHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for install-harness.");
+            }
+        }
+
+        try
+        {
+            HarnessInstallResult result;
+            if (target.Id == HarnessCatalog.OpenCode.Id)
+            {
+                var pluginDir = path ?? HarnessCatalog.DefaultHarnessDir(
+                    target,
+                    projectScope ? Directory.GetCurrentDirectory() : null);
+                result = HarnessInstaller.InstallOpenCodePlugin(
+                    pluginDir, HarnessPayload.OpenCodePlugin(), force, dryRun);
+            }
+            else if (target.Id == HarnessCatalog.Codex.Id)
+            {
+                var codexDir = path ?? HarnessCatalog.DefaultHarnessDir(
+                    target,
+                    projectScope ? Directory.GetCurrentDirectory() : null);
+                result = HarnessInstaller.InstallCodexHarness(
+                    codexDir, HarnessPayload.HookScript(), force, dryRun);
+            }
+            else
+            {
+                var claudeDir = path ?? HarnessCatalog.DefaultHarnessDir(
+                    target,
+                    projectScope ? Directory.GetCurrentDirectory() : null);
+                result = HarnessInstaller.InstallClaudeHarness(
+                    claudeDir, HarnessPayload.HookScript(), force, dryRun);
+            }
+            if (result.Success)
+                Console.WriteLine(result.Message);
+            else
+                Console.Error.WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            return Fail($"Could not install the AgentNotify harness: {ex.Message}");
+        }
+    }
+
     private static int RunHelp(string? topic)
     {
         if (topic is not null)
@@ -835,6 +920,7 @@ internal static class Program
                 case "dismiss": Console.WriteLine("Usage: agentnotify dismiss <id> [--port N] [--token T]"); return 0;
                 case "relay": PrintRelayHelp(); return 0;
                 case "install-skill": case "install": PrintInstallSkillHelp(); return 0;
+                case "install-harness": case "harness": PrintInstallHarnessHelp(); return 0;
             }
         }
         PrintUsage();
@@ -923,7 +1009,8 @@ internal static class Program
               health     Check broker health
               relay      Pair with a Relay or verify configured Relay providers
               token      Print the local bearer token
-              install-skill  Install the bundled skill for Codex or Claude Code
+              install-skill  Install the bundled skill for Codex, Claude Code, or OpenCode
+              install-harness  Install the auto-notify harness for OpenCode, Codex, or Claude Code
               help       Show help (help <command> for details)
 
             Global options (for send/list/get/...):
@@ -938,6 +1025,39 @@ internal static class Program
               agentnotify health
               agentnotify relay pair --url https://relay.example.com
               agentnotify install-skill codex
+              agentnotify install-harness opencode
+            """);
+    }
+
+    private static void PrintInstallHarnessHelp()
+    {
+        Console.WriteLine("""
+            agentnotify install-harness — install the auto-notify harness
+
+            Usage:
+              agentnotify install-harness <opencode|codex|claude> [options]
+              agentnotify install harness <opencode|codex|claude> [options]
+
+            The harness notifies automatically at attention boundaries, without
+            relying on the model to remember the skill: permission prompts,
+            questions, session completion, and session errors.
+
+            Options:
+              --scope user|project   Install for the current user (default) or current project
+              --path DIRECTORY      Override the host's harness directory:
+                                      OpenCode: the plugin directory itself
+                                      Codex:    the .codex directory
+                                      Claude:   the .claude directory
+              --force               Replace changed harness files / rewrite invalid hook JSON
+              --dry-run             Print the destination without writing files
+
+            Default user locations:
+              OpenCode     ~/.config/opencode/plugins/agentnotify.js
+              Codex        ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
+              Claude Code  ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+
+            Hooks only notify; they never approve, deny, or block. Existing hook
+            entries are preserved. Restart the host session after installing.
             """);
     }
 

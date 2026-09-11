@@ -44,10 +44,12 @@
 - [x] Validated `agentnotify` skill and OpenAI UI metadata
 - [x] Offline browser guide with Copy/Download skill actions
 - [x] Offline Codex and Claude Code skill installation from the CLI
+- [x] Notify-only auto-notify harnesses for OpenCode (event plugin), Codex (hooks), and Claude Code (hooks) with `install-harness` (real-host display smoke pending)
 - [ ] Durable interaction/response model with expiry, cancellation, idempotency, and host acceptance
+- [ ] Returning the human answer into the waiting host call (bidirectional response)
 - [ ] Local permission and single-choice response UI with first-valid-response-wins
 - [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
-- [ ] Native adapters for synchronous host hooks/plugins/SDKs/gateways
+- [ ] Further native adapters (Hermes, Copilot CLI, Kilo Code) beyond the shipped OpenCode/Codex/Claude harnesses
 - [ ] Relay reverse response envelopes with reconnect/backfill and replay defense
 - [ ] Mobile allow/deny and single-choice UI with desktop/host outcome feedback
 
@@ -73,7 +75,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 720 passed, 0 failed, 0 skipped
+- [x] Automated tests: 763 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
