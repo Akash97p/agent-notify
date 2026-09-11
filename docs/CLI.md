@@ -338,8 +338,8 @@ agentnotify install-skill codex --path /custom/skills/root
 ### `install-harness` — install the auto-notify harness
 
 ```text
-agentnotify install-harness <opencode|codex|claude> [options]
-agentnotify install harness <opencode|codex|claude> [options]
+agentnotify install-harness <opencode|codex|claude|gemini|copilot|cursor|muse> [options]
+agentnotify install harness <opencode|codex|claude|gemini|copilot|cursor|muse> [options]
 ```
 
 The harness payload is embedded in the CLI, so installation is offline.
@@ -362,6 +362,10 @@ Default personal destinations:
 OpenCode:    ~/.config/opencode/plugins/agentnotify.js
 Codex:       ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
 Claude Code: ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+Gemini CLI:  ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
+Copilot CLI: ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
+Cursor:      ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
+Muse Code:   ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
 ```
 
 Existing hook entries are preserved and reinstalling never duplicates the

@@ -47,8 +47,36 @@ public static class HarnessCatalog
         ProjectSegments: [".claude"],
         Note: "Hook script plus settings.json entries for notification and stop events.");
 
+    public static readonly HarnessTarget Gemini = new(
+        Id: "gemini",
+        DisplayName: "Gemini CLI",
+        PersonalSegments: [".gemini"],
+        ProjectSegments: [".gemini"],
+        Note: "Hook script plus settings.json entries for notification, agent-end, and session-end events.");
+
+    public static readonly HarnessTarget Copilot = new(
+        Id: "copilot",
+        DisplayName: "Copilot CLI",
+        PersonalSegments: [".copilot"],
+        ProjectSegments: [".github"],
+        Note: "Hook script plus a hooks-directory JSON file for notification, stop, end, and error events.");
+
+    public static readonly HarnessTarget Cursor = new(
+        Id: "cursor",
+        DisplayName: "Cursor",
+        PersonalSegments: [".cursor"],
+        ProjectSegments: [".cursor"],
+        Note: "Hook script plus hooks.json entries for agent stop and session end.");
+
+    public static readonly HarnessTarget Muse = new(
+        Id: "muse",
+        DisplayName: "Muse Code",
+        PersonalSegments: [".config", "muse"],
+        ProjectSegments: [".muse"],
+        Note: "Hook script plus settings.json entries (beta host; verify the hook fires).");
+
     public static readonly IReadOnlyList<HarnessTarget> All =
-        [OpenCode, Codex, ClaudeCode];
+        [OpenCode, Codex, ClaudeCode, Gemini, Copilot, Cursor, Muse];
 
     public static HarnessTarget? Find(string id) =>
         All.FirstOrDefault(target => string.Equals(target.Id, id, StringComparison.OrdinalIgnoreCase));

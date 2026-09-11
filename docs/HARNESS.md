@@ -30,6 +30,10 @@ Offline, no downloads. One command per host:
 agentnotify install-harness opencode
 agentnotify install-harness codex
 agentnotify install-harness claude
+agentnotify install-harness gemini
+agentnotify install-harness copilot
+agentnotify install-harness cursor
+agentnotify install-harness muse
 ```
 
 `agentnotify install harness <agent>` is accepted as a readable alias.
@@ -49,6 +53,10 @@ startup.
 OpenCode     ~/.config/opencode/plugins/agentnotify.js
 Codex        ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
 Claude Code  ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+Gemini CLI   ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
+Copilot CLI  ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
+Cursor       ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
+Muse Code    ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
 ```
 
 Project scope (`--scope project`) writes under the repository instead:
@@ -57,6 +65,10 @@ Project scope (`--scope project`) writes under the repository instead:
 OpenCode     <repo>/.opencode/plugins/agentnotify.js
 Codex        <repo>/.codex/agentnotify/agentnotify_hook.py + <repo>/.codex/hooks.json
 Claude Code  <repo>/.claude/agentnotify/agentnotify_hook.py + <repo>/.claude/settings.json
+Gemini CLI   <repo>/.gemini/agentnotify/agentnotify_hook.py + <repo>/.gemini/settings.json
+Copilot CLI  <repo>/.github/hooks/agentnotify.json + <repo>/.github/agentnotify/agentnotify_hook.py
+Cursor       <repo>/.cursor/agentnotify/agentnotify_hook.py + <repo>/.cursor/hooks.json
+Muse Code    <repo>/.muse/agentnotify/agentnotify_hook.py + <repo>/.muse/hooks.json
 ```
 
 ## What each harness watches
@@ -66,6 +78,10 @@ Claude Code  <repo>/.claude/agentnotify/agentnotify_hook.py + <repo>/.claude/set
 | OpenCode | `permission.asked`/`permission.updated` → `permission_required`; `question` tool → `input_required` | `session.idle` (and `session.status` idle) → `completed` | `session.error` → `error` |
 | Codex | `PermissionRequest` → `permission_required` | `Stop`, `SessionEnd` → `completed` | — |
 | Claude Code | `Notification` → `permission_required` | `Stop` → `completed` | — |
+| Gemini CLI | `Notification` → `permission_required` | `AfterAgent`, `SessionEnd` → `completed` | — |
+| Copilot CLI | `notification` → `permission_required` | `agentStop`, `sessionEnd` → `completed` | `errorOccurred` → `error` |
+| Cursor | — (per-tool hooks are too noisy; `ask` mode is planned) | `stop`, `sessionEnd` → `completed` | — |
+| Muse Code | `PermissionRequest` → `permission_required` | `Stop` → `completed` | — |
 
 Permission notifications reuse one `--key` per project/session
 (`<project>-<session>-permission`) so repeat prompts update rather than
@@ -80,11 +96,32 @@ Subagent child sessions are skipped for OpenCode idle/error noise unless
 ## Requirements
 
 - The `agentnotify` CLI on `PATH` (`agentnotify.exe` on Windows/WSL).
-- Codex and Claude Code harnesses need `python3` on `PATH` (the hook
-  scripts use only the standard library). On Windows, if only `python`
+- All hook-script harnesses (Codex, Claude, Gemini, Copilot, Cursor, Muse)
+  need `python3` on `PATH` (the hook scripts use only the standard library).
+  Copilot's PowerShell entries use `python`; on Windows, if only `python`
   exists, edit the recorded command or add a `python3` alias.
 - OpenCode needs no extra runtime: the plugin uses `node:child_process`
   only, which Bun provides.
+
+## Host notes
+
+- **Gemini CLI**: all three events are advisory — the hook observes but never
+  decides, which is exactly the notify-only contract. Google has announced
+  Gemini CLI will be replaced by Antigravity CLI for unpaid tiers; if the
+  binary or `~/.gemini` layout moves, correct `HarnessCatalog` rather than
+  adding a parallel list.
+- **Copilot CLI**: the `notification` event is fire-and-forget by design.
+  The installer writes one owned file (`hooks/agentnotify.json`); keep custom
+  hooks in a separate `*.json` file in the same directory.
+- **Cursor**: user hooks (`~/.cursor/hooks.json`) do not run in cloud
+  agents — only project hooks (`.cursor/hooks.json`) do. Install with
+  `--scope project` for cloud-agent coverage.
+- **Muse Code**: beta host, Developer Preview SDK, no stability promise.
+  User-scope `settings.json` is the documented surface; the installer seeds
+  the required `schema_version: 1` on fresh files and preserves yours.
+  Project-scope `.muse/hooks.json` follows the Claude Code schema per
+  third-party verification but is unconfirmed — start one session and check
+  for a hooks warning.
 
 ## Verify tomorrow (manual checklist)
 
@@ -97,9 +134,12 @@ Subagent child sessions are skipped for OpenCode idle/error noise unless
    notification. `Stop` fires when the agent finishes a response.
 4. Same for `claude`: `/hooks` or settings check shows the entries;
    trigger a permission prompt and a task completion.
-5. `agentnotify list --unresolved` shows the harness-sent rows; `resolve`
+5. Same for `gemini` (`Notification`/`AfterAgent`), `copilot`
+   (`notification`/`agentStop`), `cursor` (`stop`), and `muse`
+   (`PermissionRequest`/`Stop`, watching for a hooks warning on first run).
+6. `agentnotify list --unresolved` shows the harness-sent rows; `resolve`
    clears them.
-6. Temporarily stop the broker and confirm the session still works (the
+7. Temporarily stop the broker and confirm the session still works (the
    harness must fail silently).
 
 Real-host display checks have **not** been performed in this branch —
@@ -122,6 +162,22 @@ hand:
   `~/.claude/agentnotify/agentnotify_hook.py`, then merge
   `distribution/harness/claude/settings.example.json` into
   `~/.claude/settings.json`, replacing `HOOK_DIR` the same way.
+- Gemini CLI: copy the same script to
+  `~/.gemini/agentnotify/agentnotify_hook.py`, then merge
+  `distribution/harness/gemini/settings.example.json` into
+  `~/.gemini/settings.json`.
+- Copilot CLI: copy the same script to
+  `~/.copilot/agentnotify/agentnotify_hook.py`, then copy
+  `distribution/harness/copilot/agentnotify.example.json` to
+  `~/.copilot/hooks/agentnotify.json`, replacing `HOOK_DIR`.
+- Cursor: copy the same script to
+  `~/.cursor/agentnotify/agentnotify_hook.py`, then merge
+  `distribution/harness/cursor/hooks.example.json` into
+  `~/.cursor/hooks.json`.
+- Muse Code: copy the same script to
+  `~/.config/muse/agentnotify/agentnotify_hook.py`, then merge
+  `distribution/harness/muse/settings.example.json` into
+  `~/.config/muse/settings.json` (keep `schema_version: 1`).
 
 ## Uninstall
 
@@ -130,6 +186,14 @@ hand:
   `~/.codex/agentnotify/`.
 - Claude Code: delete the two AgentNotify blocks from `settings.json` and
   remove `~/.claude/agentnotify/`.
+- Gemini CLI: delete the three AgentNotify blocks from `settings.json` and
+  remove `~/.gemini/agentnotify/`.
+- Copilot CLI: delete `hooks/agentnotify.json` and remove
+  `~/.copilot/agentnotify/`.
+- Cursor: delete the two AgentNotify blocks from `hooks.json` and remove
+  `~/.cursor/agentnotify/`.
+- Muse Code: delete the two AgentNotify blocks from `settings.json` and
+  remove `~/.config/muse/agentnotify/`.
 
 ## Compatibility contract
 

@@ -410,6 +410,28 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       service/API/CLI tests, full suite run twice); `git diff --check` clean. No WPF visual
       behavior changed or checked; packaging deferred to the hosted Windows run.
 
+52. Completed on `feature/harness-gemini-copilot-cursor-muse` (four more notify-only harnesses):
+    - Shared `agentnotify_hook.py` now bridges six hosts (added `gemini`, `copilot`, `cursor`,
+      `muse` labels and `permission-request`, `after-agent`, `agent-stop`, `error-occurred`
+      events). Sources: official Gemini hooks reference, Copilot hooks reference, Cursor hooks
+      docs, Muse beta reports (Claude-compatible wire schema).
+    - Gemini: `Notification`/`AfterAgent`/`SessionEnd` merged into `~/.gemini` or
+      `.gemini/settings.json` (all advisory — a perfect notify-only fit). Documented the
+      announced Antigravity CLI succession as a catalog-correction trigger.
+    - Copilot: owned `hooks/agentnotify.json` (`notification` fire-and-forget, `agentStop`,
+      `sessionEnd`, `errorOccurred`) under `~/.copilot` or `.github`, with bash+powershell
+      commands; custom hooks live in sibling files by design.
+    - Cursor: `stop`/`sessionEnd` merged into versioned `hooks.json` (`~/.cursor` or `.cursor`);
+      documented that user hooks skip cloud agents (use `--scope project` there).
+    - Muse: `PermissionRequest`/`Stop` merged into `~/.config/muse/settings.json` with the
+      mandatory `schema_version: 1` seeded on fresh files and preserved otherwise; project
+      scope writes `.muse/hooks.json` as explicitly unconfirmed (installer + docs say how to
+      verify via startup warnings).
+    - `install-harness` accepts all seven ids plus `claude-code`/`muse-code`/`gemini-cli`/
+      `copilot-cli`/`github-copilot` aliases; 17 new installer/catalog/CLI tests.
+    - Gates: build 0/0; 804 tests passed; `py_compile` + example-JSON parses; `git diff --check`
+      clean. Real-host display smoke still pending for all harnesses.
+
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).

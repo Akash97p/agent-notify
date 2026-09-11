@@ -836,7 +836,12 @@ internal static class Program
 
         // "claude-code" is accepted because that is what the product is called;
         // the id stays "claude" so existing scripts keep working.
-        var requested = args[0].ToLowerInvariant() == "claude-code" ? "claude" : args[0];
+        var lowered = args[0].ToLowerInvariant();
+        var requested = lowered == "claude-code" ? "claude"
+            : lowered is "github-copilot" or "copilot-cli" ? "copilot"
+            : lowered is "muse-code" ? "muse"
+            : lowered is "gemini-cli" ? "gemini"
+            : args[0];
         var target = HarnessCatalog.Find(requested);
         if (target is null)
             return Fail(
@@ -871,31 +876,39 @@ internal static class Program
 
         try
         {
-            HarnessInstallResult result;
-            if (target.Id == HarnessCatalog.OpenCode.Id)
+            var harnessDir = path ?? HarnessCatalog.DefaultHarnessDir(
+                target,
+                projectScope ? Directory.GetCurrentDirectory() : null);
+            HarnessInstallResult result = target.Id switch
             {
-                var pluginDir = path ?? HarnessCatalog.DefaultHarnessDir(
-                    target,
-                    projectScope ? Directory.GetCurrentDirectory() : null);
-                result = HarnessInstaller.InstallOpenCodePlugin(
-                    pluginDir, HarnessPayload.OpenCodePlugin(), force, dryRun);
-            }
-            else if (target.Id == HarnessCatalog.Codex.Id)
-            {
-                var codexDir = path ?? HarnessCatalog.DefaultHarnessDir(
-                    target,
-                    projectScope ? Directory.GetCurrentDirectory() : null);
-                result = HarnessInstaller.InstallCodexHarness(
-                    codexDir, HarnessPayload.HookScript(), force, dryRun);
-            }
-            else
-            {
-                var claudeDir = path ?? HarnessCatalog.DefaultHarnessDir(
-                    target,
-                    projectScope ? Directory.GetCurrentDirectory() : null);
-                result = HarnessInstaller.InstallClaudeHarness(
-                    claudeDir, HarnessPayload.HookScript(), force, dryRun);
-            }
+                var id when id == HarnessCatalog.OpenCode.Id =>
+                    HarnessInstaller.InstallOpenCodePlugin(
+                        harnessDir, HarnessPayload.OpenCodePlugin(), force, dryRun),
+                var id when id == HarnessCatalog.Codex.Id =>
+                    HarnessInstaller.InstallCodexHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.ClaudeCode.Id =>
+                    HarnessInstaller.InstallClaudeHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Gemini.Id =>
+                    HarnessInstaller.InstallGeminiHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Copilot.Id =>
+                    HarnessInstaller.InstallCopilotHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Cursor.Id =>
+                    HarnessInstaller.InstallCursorHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Muse.Id =>
+                    HarnessInstaller.InstallMuseHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, projectScope),
+                _ => null!,
+            };
+            if (result is null)
+                return Fail(
+                    "install-harness target must be one of: "
+                    + string.Join(", ", HarnessCatalog.All.Select(t => t.Id))
+                    + ".");
             if (result.Success)
                 Console.WriteLine(result.Message);
             else
@@ -1377,8 +1390,10 @@ internal static class Program
             agentnotify install-harness — install the auto-notify harness
 
             Usage:
-              agentnotify install-harness <opencode|codex|claude> [options]
-              agentnotify install harness <opencode|codex|claude> [options]
+              agentnotify install-harness <agent> [options]
+              agentnotify install harness <agent> [options]
+
+            Agents: opencode, codex, claude, gemini, copilot, cursor, muse.
 
             The harness notifies automatically at attention boundaries, without
             relying on the model to remember the skill: permission prompts,
@@ -1390,6 +1405,10 @@ internal static class Program
                                       OpenCode: the plugin directory itself
                                       Codex:    the .codex directory
                                       Claude:   the .claude directory
+                                      Gemini:   the .gemini directory
+                                      Copilot:  the .copilot directory (.github for projects)
+                                      Cursor:   the .cursor directory
+                                      Muse:     the .config/muse directory (.muse for projects)
               --force               Replace changed harness files / rewrite invalid hook JSON
               --dry-run             Print the destination without writing files
 
@@ -1397,9 +1416,15 @@ internal static class Program
               OpenCode     ~/.config/opencode/plugins/agentnotify.js
               Codex        ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
               Claude Code  ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+              Gemini CLI   ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
+              Copilot CLI  ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
+              Cursor       ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
+              Muse Code    ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
 
             Hooks only notify; they never approve, deny, or block. Existing hook
             entries are preserved. Restart the host session after installing.
+            Muse Code is beta: after installing, start one session and confirm
+            no hooks warning appears.
             """);
     }
 
