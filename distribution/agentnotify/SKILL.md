@@ -1,6 +1,6 @@
 ---
 name: agentnotify
-description: Send local desktop notifications through AgentNotify when a coding agent needs human input, permission, a decision, or attention, or when it completes, fails, or becomes blocked. Use during autonomous coding work to surface actionable state changes from Windows, PowerShell, Command Prompt, WSL, macOS, or Linux without interrupting routine progress.
+description: Notify the user through AgentNotify when a coding agent completes, fails, becomes blocked, or needs attention - and ask the user a question and wait for their answer when work cannot continue without one, such as what to name something, which of several approaches to take, or which value is correct. The user answers from the desktop or a paired phone. Use during autonomous coding work on Windows, PowerShell, Command Prompt, WSL, macOS, or Linux to surface actionable state changes without interrupting routine progress.
 ---
 
 # AgentNotify
@@ -43,6 +43,10 @@ Send one **without being asked** whenever:
 Any request to be told when something happens — "ping me when it's done", "let me know if you get
 stuck", "notify me" — is a request for an `agentnotify send`, for the rest of that session. Do not
 ask the user which notification mechanism to use.
+
+When you need an **answer** rather than an acknowledgement — you cannot continue until the user
+decides something — raise an interaction and wait for it instead; see *Ask a question and wait for
+the answer* below.
 
 Do **not** send for:
 
@@ -91,6 +95,69 @@ AgentNotify. Otherwise prefer the portable built-in types above.
 
 Keep the title short and put the concrete question, result, or blocker in the message. "Task
 finished" tells the user nothing; "Migration applied, 3 tests still failing in checkout" does.
+
+## Ask a question and wait for the answer
+
+A notification is one-way: it tells the user something. When you genuinely cannot
+continue without their answer — what to name something, which of two approaches to take,
+which value is correct — raise an **interaction** instead and wait for it. The user can
+answer from the desktop or from a paired phone, and the answer comes back to you.
+
+This is what to use instead of guessing and instead of stopping to ask in the terminal
+the user is not watching.
+
+### A free-text answer
+
+```bash
+id=$(agentnotify.exe interactions request \
+  --kind text \
+  --prompt "What should I name the new service?" \
+  --text-max 80 \
+  --agent "codex" --project "shop" --ttl 900 \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+agentnotify.exe interactions wait "$id" --timeout 300
+```
+
+`wait` blocks until it is answered, cancelled, or expires, then prints the interaction as
+JSON. The answer is `.response.text`.
+
+### A choice between options
+
+```bash
+agentnotify.exe interactions request \
+  --kind single_choice \
+  --prompt "Which database should the new service use?" \
+  --choice "pg:PostgreSQL"   --choice-detail "pg:Handles real concurrency" \
+  --choice "sqlite:SQLite"   --choice-detail "sqlite:One file, no server" \
+  --choice "later:Decide later" \
+  --agent "codex" --project "shop" --ttl 900
+```
+
+Two to twelve choices. `--choice ID:LABEL` and `--choice-detail ID:DETAIL` are separate
+flags — putting the detail after a second colon in `--choice` makes it part of the label.
+The answer is `.response.choice_id`, which is always one of the ids you offered.
+
+### Rules that matter
+
+- **Offer only choices you will honour.** The user can only pick what you listed, so a
+  missing option means a wrong answer or none at all. Add an escape route — "Decide
+  later", "Something else" — whenever the list might not be exhaustive.
+- **Ask the question in full.** The prompt is the entire context the user gets on a lock
+  screen. "Which one?" is useless; "shop: migrate to Postgres now, or ship on SQLite and
+  migrate after the release?" is answerable without opening anything.
+- **Set a TTL you can actually wait out** (30–3600s, default 600). When it expires the
+  interaction is over; decide for yourself and say plainly what you assumed and why.
+- **`wait` caps at 300s per call.** For a longer window, call it again while the status
+  is still `pending`.
+- **One answer, first valid wins.** Do not raise the same question twice; reuse `--key`
+  so a repeat returns the existing pending interaction instead of a second card.
+- **Do not raise `--kind permission` yourself.** Host approval prompts are handled
+  automatically by the harness (`agentnotify install-harness <agent> --ask`), which hooks
+  the host directly. Raising your own would ask the user to approve something twice.
+
+Ask sparingly. An interaction interrupts a person and holds your own work still; a
+question you could have answered by reading the repository is worse than no question.
 
 ## Write for someone who is not at the keyboard
 

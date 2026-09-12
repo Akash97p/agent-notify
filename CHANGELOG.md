@@ -11,6 +11,18 @@ build.
 
 ## [Unreleased]
 
+### Added
+
+- **The skill can now ask.** The distributable `SKILL.md` documented `send`, `resolve`
+  and `list` only, so an agent had no way to know it could raise a bounded question — and
+  the harness covers `permission` alone, which left `single_choice` and `text` with no
+  path at all. It now covers both, with `interactions wait` to block for the answer, and
+  the rules that make an asked question answerable: offer only choices you will honour,
+  include an escape option, put the whole question in the prompt because a lock screen is
+  all the context the user gets, and never raise a `permission` yourself because the
+  harness already owns those. Mirrored into the portable snippet in `docs/AGENT_SKILLS.md`
+  for agents without skill discovery.
+
 ### Fixed
 
 - The `0.1.0-alpha.1` notes named `agentnotify ask …` and `agentnotify answer` as the
