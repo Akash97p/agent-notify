@@ -38,6 +38,7 @@ public sealed class InteractionsCliTests
             "interactions", "respond", item.Id,
             "--response-id", "cli-r1",
             "--digest", item.RequestDigest,
+            "--nonce", item.Nonce!,
             "--choice", "deny",
             "--port", port, "--token", fx.Token]);
         Assert.Equal(0, respond);

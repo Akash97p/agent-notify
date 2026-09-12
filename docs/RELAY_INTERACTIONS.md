@@ -6,9 +6,12 @@ waiting broker interaction into a tap on the phone and back into the
 coding host. Everything here is versioned by `contract_version: "1"`.
 Bump it — on both sides together — before changing any field.
 
-Status: **broker side shipped** (publish, poll, ingest, CLI). Relay
-endpoints and mobile UI are **not implemented yet**; this file is their
-specification.
+Status: **implemented end to end**. The broker publishes questions, polls
+answers, and ingests them; Relay implements both response endpoints; the
+mobile app renders question cards and submits answers; the desktop polls
+Relay continuously while it runs (a CLI command remains for diagnostics).
+The one deliberate gap: a mobile-originated, unsolicited message to an agent
+is not this contract — see *Sending a message to an agent* below.
 
 ## The loop in one picture
 
@@ -100,11 +103,12 @@ Relay route with `IncludeMessage`** (same consent as notification bodies),
 filtered by the route's type/project/agent/priority gates. A bodyless route
 never carries questions — choices, digests, and nonces are message content.
 
-## Response endpoints (Relay server to implement)
+## Response endpoints (Relay server)
 
 Base path and auth follow the existing Relay conventions: bearer tokens in
 `Authorization: Bearer`, JSON bodies capped at 64 KiB, `Idempotency-Key`
-honored where noted.
+honored where noted. The Relay also enforces the request media type and the
+wire-byte cap before parsing JSON, and returns `Retry-After` on `429`.
 
 ### Submit an answer (mobile -> Relay)
 
@@ -129,26 +133,42 @@ Content-Type: application/json
 
 For `text` interactions send `"text"` instead of `"choice_id"` (never both).
 
-Relay validation (shape + auth only; semantics belong to the desktop):
+`installation_id` is the containing envelope's outer `sender_id` — the desktop
+installation that asked is the installation the answer must reach. It is not
+in the sealed interaction object, and it is not `GET /v1/device` (which
+returns `installation_id: null` for every normally paired phone). A question
+whose envelope carries no `sender_id` has no destination and the card
+disables.
 
-- bearer device token valid → else `401`;
+Relay validation (shape + auth; digest/nonce/first-wins semantics belong to
+the desktop):
+
+- bearer device token valid and not revoked → else `401`;
 - `contract_version == "1"` → else `400`;
 - `response_id`, `interaction_id`, `request_digest`, `nonce` present → else `400`;
 - exactly one of `choice_id` / `text` present → else `400`;
-- store keyed by `response_id` (unique per installation).
+- `device_id` equals the authenticated device → else `403`;
+- the device shares the installation's owner, or holds the legacy direct
+  link → else `403`;
+- media type is `application/json` → else `415`; wire bytes ≤ 64 KiB → else `413`;
+- store keyed by `(installation_id, response_id)`, unique.
 
 Responses:
 
 | Status | Body | Meaning |
 | --- | --- | --- |
 | `201` | `{"status":"accepted","response_id":"…"}` | Stored. |
-| `409` | `{"status":"duplicate","response_id":"…"}` | Same `response_id` seen before. Return the original outcome; mobile treats it as success. |
-| `400` | `{"error":"…"}` | Shape/contract failure. |
-| `401`/`403` | `{"error":"…"}` | Bad device token. |
+| `409` | `{"status":"duplicate","response_id":"…"}` | Same `response_id` and byte-identical answer fields seen before. Mobile treats it as success. |
+| `409` | `{"error":{"code":"conflict",…}}` | Same `response_id` with a *different* body. Never reported as a duplicate. |
+| `400` | `{"error":{…}}` | Shape/contract failure. |
+| `401` | `{"error":{…}}` | Device revoked: the phone wipes and returns to pairing. |
+| `403` | `{"error":{…}}` | Valid pairing, not authorized for this answer. Never wipes the pairing. |
+| `415`/`413` | `{"error":{…}}` | Wrong media type / body over 64 KiB. |
 
-Retention: keep a response until every subscribed installation's cursor has
-passed it plus 24 h grace, or 7 days, whichever comes first. An answer to an
-already-settled interaction is still stored (the desktop decides, idempotently).
+Retention: a response is kept until 7 days pass, or the owning installation's
+acknowledged cursor has been at rest past it for 24 h — whichever comes
+first. An answer to an already-settled interaction is still stored (the
+desktop decides, idempotently).
 
 ### Poll answers (desktop -> Relay)
 
@@ -164,14 +184,18 @@ Accept: application/json
 | `401`/`403` | `{"error":"…"}` | Bad installation token. Desktop aborts the run and keeps its cursor. |
 | `5xx` | — | Desktop retries later; cursor unchanged. |
 
-`next_cursor` is opaque to the desktop (pass it back verbatim). Advancing it
-acknowledges receipt. At-least-once delivery is expected and safe: the broker
-replays a repeated `response_id` to the original outcome and rejects a second,
+`next_cursor` is opaque to the desktop (pass it back verbatim). Sending a
+previously returned `next_cursor` back as `since` acknowledges that page; the
+cursor returned by a response is **not** acknowledged until the caller sends
+it back. At-least-once delivery is expected and safe: the broker replays a
+repeated `response_id` to the original outcome and rejects a second,
 different answer with `409` (first valid response wins).
 
-Desktop poll cadence is a local decision (`interactions poll-responses` on a
-schedule today; dispatcher-integrated polling later). No webhook/push from
-Relay to desktop exists in v1 — the desktop always pulls.
+The desktop polls on a low-frequency continuous loop while the broker runs,
+with bounded backoff on failure, and keeps its cursor in durable local state
+so a restart resumes rather than re-reading. `agentnotify interactions
+poll-responses` remains for diagnostics. No webhook/push from Relay to
+desktop exists in v1 — the desktop always pulls.
 
 ## Mobile UI spec (minimum viable)
 
@@ -181,17 +205,25 @@ Relay to desktop exists in v1 — the desktop always pulls.
    bounded text, never a command, URL, or callback.
 2. **Expiry**: countdown from `expires_at`; disable the card at zero with
    "Expired — answer in the session instead". Never send after expiry (the
-   broker would reject it).
-3. **Submit**: generate `response_id` as a random UUID once per tap;
-   **retry the same `response_id`** on transport failure (this is what makes
-   retries idempotent). Echo `interaction_id`, `request_digest`, `nonce`,
-   and `installation_id` verbatim from the request.
-4. **Outcome**: `201`/`409-duplicate` → "Answer recorded". Any other `409`
-   shape or a later state → "Already answered elsewhere". Show which choice
-   won only if a subsequent poll says so (v1 has no phone-side result push).
+   broker would reject it), and never sound a system notification for a
+   question that is already expired.
+3. **Submit**: generate `response_id` as a random UUID once per tap; persist
+   the complete answer body locally **before** the first POST, and on any
+   ambiguous failure retry that exact stored body with the same
+   `response_id` — never mint a new id and never change the answer. The
+   containing envelope's `sender_id` is the `installation_id`.
+4. **Outcome**: `201`/`409-duplicate` → "Relay recorded your answer", which
+   is not the same as the desktop or host accepting it; any other `409` →
+   "Already answered elsewhere". Only `401` wipes the pairing; `403` is a
+   permanent authorization error that leaves it intact. Show which choice won
+   only if a later result path says so (v1 has no phone-side result push).
 5. **Unknown `contract_version`** → render nothing, log locally. Old phones
    keep showing the companion notification text, which is the whole point of
    sending both.
+6. **Project conversations**: group the inbox by the stable local key
+   `(envelope.sender_id, normalized decrypted project)`, with an explicit
+   "No project" group. The project name and sender id come from decrypted
+   payloads; Relay never sees them.
 
 ## Trust assumptions (read before implementing)
 
@@ -199,11 +231,16 @@ Relay to desktop exists in v1 — the desktop always pulls.
   and answer contents (it terminates TLS). This matches the notification
   path's posture: Relay is your own server and is trusted for liveness and
   ordering, **not** for authorization semantics.
-- Authorization rests on three broker-checked bindings, none of which Relay
-  can mint: the **digest** (request content), the **nonce** (request
-  receipt), and **first-wins + idempotent `response_id`** (replay defense).
-  A forged or replayed answer fails at the broker and is logged with a
-  stable error code, never applied.
+- Authorization rests on three broker-checked bindings: the **digest**
+  (request content), the **nonce** (request receipt), and **first-wins +
+  idempotent `response_id`** (replay defense). A forged or replayed answer
+  fails at the broker and is logged with a stable error code, never applied.
+- Those bindings stop replay and stale answers; they do not make a malicious
+  Relay harmless. Relay sees the nonce, digest, choice and text in plaintext
+  and could alter the choice while preserving the digest and nonce, so v1
+  trusts the self-hosted Relay for **answer integrity** as well as liveness
+  and ordering. Do not claim otherwise; a sealed response v2 (installation
+  key pair) is the fix.
 - Not sealed end-to-end (yet): sealing answers to the installation key
   would require an installation keypair the broker does not have today.
   Tracked as follow-up work; the nonce/digest design already carries the
@@ -231,16 +268,51 @@ User taps Deny; phone POSTs:
 }
 ```
 
-Relay stores, returns `201`. Desktop `poll-responses` fetches it, POSTs to
-`…/interactions/a3f19c…/respond` with `source: relay`, broker answers `200`,
-the waiting Codex hook prints `decision.behavior: deny`, and Codex shows the
-denial reason to the model. A retried submit with the same `response_id`
-returns `409 duplicate` and changes nothing.
+Relay stores, returns `201`. The desktop's continuous poll fetches it, POSTs
+to `…/interactions/a3f19c…/respond` with `source: relay`, the broker answers
+`200`, and the waiting Codex hook prints `decision.behavior: deny`. A retried
+submit with the same `response_id` returns `409 duplicate` and changes
+nothing.
+
+## Sending a message to an agent (not this contract)
+
+The user's other request — write a free-form message from the phone to an
+agent working on a project — cannot ride this contract. An answer is
+authorized by a pending request's digest, nonce, and first-wins state; a
+message has none of those, and pretending otherwise would let a phone message
+masquerade as a permission decision.
+
+The transport decision is made and does not need WebSockets or MQTT:
+
+- **Relay -> phone** stays contentless FCM (`{envelope_id, version}`); the
+  phone fetches and decrypts.
+- **Phone -> Relay** is an authenticated HTTPS `POST` with the device bearer.
+- **Relay -> desktop** is the desktop's own authenticated HTTPS `GET` poll.
+  The desktop is behind NAT and holds an installation credential; it never
+  accepts an inbound connection, so no websocket or broker is required at
+  this volume.
+
+A message therefore needs a separate, versioned installation inbox (for
+example `POST /v1/inbound-events` device-authenticated, and
+`GET /v1/inbound-events?installation_id=…&since=…` installation-authenticated)
+with a database-ordered sequence, explicit acknowledgement, idempotent
+`message_id`, project/thread metadata inside the sealed payload, and a
+`can_message` grant distinct from notification receipt. On the desktop, an
+accepted message must be persisted before acknowledgement and then routed to
+a host adapter — and no adapter exists that can inject text into an arbitrary
+running TUI session today, so "delivered to the agent" may legitimately mean
+"queued for the agent" until ACP-managed sessions or a native adapter can
+accept it. Claiming agent delivery because transport succeeded would be
+false. This is follow-up work, tracked in the desktop repository's TODO.
 
 ## What is deliberately out of v1
 
 - Phone-side result push (phone learns the outcome only by polling; not specified yet).
-- Sealed (E2E) answers; per-device request encryption already exists, answer sealing is next.
-- Dispatcher-integrated polling (CLI schedule today).
+- Sealed (E2E) answers. Relay terminates TLS and sees the answer fields in
+  plaintext, so v1 trusts the self-hosted Relay for answer integrity; the
+  digest and nonce bind an answer to a request but do not stop a malicious
+  Relay from altering the choice after it receives it. A future sealed
+  response v2 needs an installation key pair.
 - Multi-device conflict UI beyond "already answered elsewhere".
 - Persistent/session grant scopes: only the exact choices the host offered.
+- Unsolicited phone-to-agent messages (see the section above).

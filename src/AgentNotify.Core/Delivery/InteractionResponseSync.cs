@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +13,51 @@ public sealed record RelayPollTarget(
     string RelayBaseUrl,
     bool AllowPrivateNetwork,
     string InstallationToken,
-    string? InstallationId);
+    string InstallationId)
+{
+    /// <summary>Builds a target from the same encrypted Relay profile used for delivery.</summary>
+    public static async Task<RelayPollTarget?> FromProfileAsync(
+        ProviderProfileService profiles,
+        ProviderProfile profile,
+        CancellationToken ct = default)
+    {
+        // Older manually-created profiles can predate installation identity. They
+        // cannot safely consume installation-bound answers and are intentionally skipped.
+        using (var document = JsonDocument.Parse(profile.ConfigJson))
+        {
+            var root = document.RootElement;
+            var installationId = GetString(root, "installation_id") ?? GetString(root, "installationId");
+            if (string.IsNullOrWhiteSpace(installationId))
+                return null;
+        }
+
+        var provider = await profiles.GetForDeliveryAsync(profile.Id, ct);
+        if (provider is null || !provider.Profile.Enabled || provider.Profile.Kind != "relay")
+            return null;
+
+        var config = RelayChannelAdapter.ParseAndValidateConfiguration(
+            provider.Profile.ConfigJson,
+            provider.Secrets);
+        if (string.IsNullOrWhiteSpace(config.InstallationId))
+            return null;
+        if (!provider.Secrets.TryGetValue(config.InstallationTokenSecretName, out var token) ||
+            !RelayChannelAdapter.IsInstallationToken(token))
+            throw new InvalidOperationException("Relay profile has no valid installation credential.");
+
+        return new RelayPollTarget(
+            profile.Id,
+            profile.Name,
+            config.RelayUrl!,
+            config.AllowPrivateNetwork,
+            token,
+            config.InstallationId);
+    }
+
+    private static string? GetString(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+}
 
 /// <summary>Outcome of ingesting one stored mobile answer.</summary>
 public sealed record IngestedAnswer(
@@ -35,14 +78,18 @@ public sealed record ProviderPollOutcome(
 /// Fetches stored mobile answers from Relay and posts them to the broker.
 /// </summary>
 /// <remarks>
-/// Relay is an untrusted store: every answer is revalidated by the broker
-/// (digest, nonce, kind, expiry, first-wins), so a malicious or buggy Relay
-/// can at worst delay answers, never forge them. Transport errors never move
-/// the cursor; only a fully processed poll advances it.
+/// The broker revalidates every answer (digest, nonce, kind, expiry,
+/// first-wins), so a merged Relay cannot replay or stale-serve an answer into
+/// a host. It can, however, alter the choice or text of an answer it receives,
+/// because v1 answers are plaintext to the trusted self-hosted Relay; sealing
+/// answers to an installation key is future work. Transport errors and any
+/// local broker rejection that may be temporary never move the cursor; only a
+/// fully processed poll advances it.
 /// </remarks>
 public sealed class InteractionResponseSync
 {
-    private const int MaxBytes = 256 * 1024;
+    private const int MaxBytes = 64 * 1024;
+    private const int MaxCursorLength = 2048;
 
     private readonly HttpClient _relayClient;
     private readonly HttpClient _brokerClient;
@@ -69,6 +116,9 @@ public sealed class InteractionResponseSync
         string sinceCursor,
         CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(target.InstallationId))
+            return new ProviderPollOutcome(target.ProviderId, false, "relay installation identity is missing", sinceCursor, []);
+
         Uri relayBase;
         try
         {
@@ -80,7 +130,7 @@ public sealed class InteractionResponseSync
         }
 
         var endpoint = new Uri(relayBase,
-            $"v1/interaction-responses?installation_id={Uri.EscapeDataString(target.InstallationId ?? "")}&since={Uri.EscapeDataString(sinceCursor)}");
+            $"v1/interaction-responses?installation_id={Uri.EscapeDataString(target.InstallationId)}&since={Uri.EscapeDataString(sinceCursor)}");
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
         RelayHttpTransport.MarkValidated(request, target.AllowPrivateNetwork);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", target.InstallationToken);
@@ -91,6 +141,10 @@ public sealed class InteractionResponseSync
         try
         {
             response = await _relayClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
         {
@@ -122,36 +176,47 @@ public sealed class InteractionResponseSync
                 ms.Position = 0;
                 poll = await JsonSerializer.DeserializeAsync<RelayResponsePollResult>(ms, Protocol.Json.Options, ct);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex) when (ex is JsonException or IOException or OperationCanceledException)
             {
                 return new ProviderPollOutcome(target.ProviderId, false, "relay returned invalid JSON", sinceCursor, []);
             }
 
-            if (poll is null)
+            if (poll?.Responses is null || poll.NextCursor is null || poll.NextCursor.Length > MaxCursorLength)
                 return new ProviderPollOutcome(target.ProviderId, false, "relay returned invalid JSON", sinceCursor, []);
 
             var answers = new List<IngestedAnswer>();
             foreach (var item in poll.Responses)
-                answers.Add(await IngestAsync(target, item, ct));
-            return new ProviderPollOutcome(target.ProviderId, true, null, poll.NextCursor ?? sinceCursor, answers);
+            {
+                var ingested = await IngestAsync(target, item, ct);
+                answers.Add(ingested.Answer);
+                if (ingested.Retry)
+                    return new ProviderPollOutcome(
+                        target.ProviderId,
+                        false,
+                        "local broker did not accept the response batch",
+                        sinceCursor,
+                        answers);
+            }
+            return new ProviderPollOutcome(target.ProviderId, true, null, poll.NextCursor, answers);
         }
     }
 
-    private async Task<IngestedAnswer> IngestAsync(
+    private async Task<IngestResult> IngestAsync(
         RelayPollTarget target,
         RelayInteractionResponse item,
         CancellationToken ct)
     {
         var responseId = (item.ResponseId ?? "").Trim();
         var interactionId = (item.InteractionId ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(responseId) || string.IsNullOrWhiteSpace(interactionId))
-            return new IngestedAnswer(responseId, interactionId, false, "missing response or interaction id");
-
-        // Wrong-installation answers are dropped before touching the broker.
-        if (!string.IsNullOrWhiteSpace(target.InstallationId) &&
-            !string.IsNullOrWhiteSpace(item.InstallationId) &&
-            !string.Equals(item.InstallationId!.Trim(), target.InstallationId, StringComparison.Ordinal))
-            return new IngestedAnswer(responseId, interactionId, false, "wrong installation");
+        var malformed = Validate(item, responseId, interactionId, target.InstallationId);
+        if (malformed is not null)
+            return new IngestResult(
+                new IngestedAnswer(responseId, interactionId, false, malformed),
+                Retry: false);
 
         var body = new RespondInteractionRequest
         {
@@ -172,41 +237,69 @@ public sealed class InteractionResponseSync
                 $"{_brokerBaseUrl}/v1/interactions/{Uri.EscapeDataString(interactionId)}/respond",
                 new StringContent(json, Encoding.UTF8, "application/json"), ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
         {
-            return new IngestedAnswer(responseId, interactionId, false, "broker unreachable");
+            return Retry("broker unreachable");
         }
 
         using (resp)
         {
             var code = (int)resp.StatusCode;
             if (resp.IsSuccessStatusCode)
-                return new IngestedAnswer(responseId, interactionId, true, null);
+                return Terminal(applied: true, note: null);
+            if (code == 400)
+                return Terminal(applied: false, note: "broker rejected stale or malformed answer");
+            if (code == 404)
+                return Terminal(applied: false, note: "interaction is no longer available");
             if (code == 409)
-                return new IngestedAnswer(responseId, interactionId, false, "already answered by another response");
-            var detail = await SafeErrorAsync(resp, ct);
-            return new IngestedAnswer(responseId, interactionId, false, $"broker rejected ({code}): {detail}");
+                return Terminal(applied: false, note: "already answered by another response");
+            return Retry($"broker temporarily rejected response ({code})");
         }
+
+        IngestResult Terminal(bool applied, string? note) =>
+            new(new IngestedAnswer(responseId, interactionId, applied, note), Retry: false);
+        IngestResult Retry(string note) =>
+            new(new IngestedAnswer(responseId, interactionId, false, note), Retry: true);
     }
 
-    private static async Task<string> SafeErrorAsync(HttpResponseMessage resp, CancellationToken ct)
+    private static string? Validate(
+        RelayInteractionResponse item,
+        string responseId,
+        string interactionId,
+        string targetInstallationId)
     {
-        try
-        {
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("error", out var error))
-            {
-                var message = (error.GetString() ?? "").Trim();
-                if (message.Length == 0)
-                    return "unknown";
-                return message.Length > 120 ? message[..120] : message;
-            }
-            return "unknown";
-        }
-        catch
-        {
-            return "unknown";
-        }
+        if (!string.Equals(item.ContractVersion, InteractionRelayContract.Version, StringComparison.Ordinal))
+            return "unsupported or missing contract version";
+        if (!IsRequiredId(responseId, 128) || !IsRequiredId(interactionId, 128))
+            return "missing or invalid response or interaction id";
+
+        var digest = (item.RequestDigest ?? "").Trim();
+        if (digest.Length != 64 || !digest.All(char.IsAsciiHexDigit))
+            return "request digest must be 64 hexadecimal characters";
+
+        var nonce = (item.Nonce ?? "").Trim();
+        if (nonce.Length is < 1 or > 128 || nonce.Any(char.IsControl))
+            return "nonce is missing or invalid";
+
+        var installationId = (item.InstallationId ?? "").Trim();
+        if (!string.Equals(installationId, targetInstallationId, StringComparison.Ordinal))
+            return "wrong or missing installation";
+
+        var hasChoice = !string.IsNullOrWhiteSpace(item.ChoiceId);
+        var hasText = !string.IsNullOrWhiteSpace(item.Text);
+        if (hasChoice == hasText || item.ChoiceId?.Trim().Length > 64 || item.Text?.Trim().Length > 2000)
+            return "answer must contain exactly one bounded choice or text value";
+        if (item.DeviceId?.Length > 128)
+            return "device id is invalid";
+        return null;
     }
+
+    private static bool IsRequiredId(string value, int maximumLength) =>
+        value.Length is > 0 && value.Length <= maximumLength && !value.Any(char.IsControl);
+
+    private sealed record IngestResult(IngestedAnswer Answer, bool Retry);
 }
