@@ -185,8 +185,7 @@ public sealed class InteractionService
             return current.Value;
 
         var waiter = new TaskCompletionSource<Interaction>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var list = _waiters.GetOrAdd(id, _ => []);
-        lock (list) { list.Add(waiter); }
+        var list = RentWaiterList(id, waiter);
         try
         {
             using var timeoutCts = new CancellationTokenSource(timeout);
@@ -198,15 +197,78 @@ public sealed class InteractionService
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
             {
-                var latest = await _repository.GetByIdAsync(id, ct);
-                return latest;
+                // Nothing signals a waiter when the deadline merely passes, so the
+                // stored row can still read pending here. Settle it before answering,
+                // or the caller is told to keep waiting on a dead question — and the
+                // ask hook spends another whole slice on it.
+                return await SettleIfDueAsync(id, ct);
             }
         }
         finally
         {
-            lock (list) { list.Remove(waiter); }
+            ReturnWaiterList(id, list, waiter);
         }
     }
+
+    /// <summary>Expires an overdue interaction under the gate, then returns it.</summary>
+    /// <remarks>
+    /// The gate matters: an unguarded read-modify-write here could overwrite an
+    /// answer that <see cref="RespondAsync"/> committed in the same instant.
+    /// </remarks>
+    private async Task<Interaction?> SettleIfDueAsync(string id, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var latest = await _repository.GetByIdAsync(id, ct);
+            return latest is null ? null : await ExpireIfDueAsync(latest, ct);
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Joins the waiter bucket for one interaction, creating it if needed.</summary>
+    /// <remarks>
+    /// The bucket is dropped once its last waiter leaves, so a broker running for
+    /// weeks does not retain one empty list per question it was ever asked. The
+    /// retry closes the race that removal opens: a bucket can be removed between
+    /// <c>GetOrAdd</c> and acquiring its lock, and joining that orphan would mean
+    /// never being signalled.
+    /// </remarks>
+    private List<TaskCompletionSource<Interaction>> RentWaiterList(
+        string id,
+        TaskCompletionSource<Interaction> waiter)
+    {
+        while (true)
+        {
+            var list = _waiters.GetOrAdd(id, _ => []);
+            lock (list)
+            {
+                if (_waiters.TryGetValue(id, out var current) && ReferenceEquals(current, list))
+                {
+                    list.Add(waiter);
+                    return list;
+                }
+            }
+        }
+    }
+
+    /// <summary>Leaves the bucket, removing it when this was the last waiter.</summary>
+    private void ReturnWaiterList(
+        string id,
+        List<TaskCompletionSource<Interaction>> list,
+        TaskCompletionSource<Interaction> waiter)
+    {
+        lock (list)
+        {
+            list.Remove(waiter);
+            if (list.Count == 0)
+                _waiters.TryRemove(
+                    new KeyValuePair<string, List<TaskCompletionSource<Interaction>>>(id, list));
+        }
+    }
+
+    /// <summary>Live waiter buckets. Test seam for the removal invariant.</summary>
+    internal int WaiterBucketCount => _waiters.Count;
 
     private void SignalWaiters(Interaction item)
     {

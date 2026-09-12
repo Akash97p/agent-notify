@@ -266,6 +266,74 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         Assert.Equal(InteractionStatus.Pending, settled!.Status);
     }
 
+    /// <summary>
+    /// Nothing signals a waiter when the deadline merely passes, so the timeout
+    /// path has to settle the row itself. Reporting "pending" for a question that
+    /// is already dead sends the ask hook back for another whole wait slice.
+    /// </summary>
+    [Fact]
+    public async Task Wait_TimingOutPastTheDeadlineReportsExpired()
+    {
+        var created = await _service.RequestAsync(Permission());
+        var item = await _repo.GetByIdAsync(created.Value!.Id);
+        // Straight to the repository: the service clamps a TTL to 30 s minimum,
+        // and the point here is a deadline that lapses mid-wait.
+        item!.ExpiresAt = DateTimeOffset.UtcNow.AddMilliseconds(250);
+        await _repo.UpdateAsync(item);
+
+        var settled = await _service.WaitAsync(item.Id, TimeSpan.FromSeconds(2));
+
+        Assert.NotNull(settled);
+        Assert.Equal(InteractionStatus.Expired, settled!.Status);
+        var stored = await _repo.GetByIdAsync(item.Id);
+        Assert.Equal(InteractionStatus.Expired, stored!.Status);
+    }
+
+    /// <summary>
+    /// A broker runs for weeks. One retained empty waiter list per question it was
+    /// ever asked is a leak, so the bucket goes when its last waiter does.
+    /// </summary>
+    [Fact]
+    public async Task Wait_ReleasesItsWaiterBucket()
+    {
+        var timedOut = await _service.RequestAsync(Permission("one?", "wb1"));
+        await _service.WaitAsync(timedOut.Value!.Id, TimeSpan.FromMilliseconds(100));
+
+        var answered = await _service.RequestAsync(Permission("two?", "wb2"));
+        var item = answered.Value!;
+        var waiter = _service.WaitAsync(item.Id, TimeSpan.FromSeconds(10));
+        await _service.RespondAsync(item.Id, new RespondInteractionRequest
+        {
+            ResponseId = "wb-r1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "allow-once", Source = "desktop"
+        });
+        await waiter.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(0, _service.WaiterBucketCount);
+    }
+
+    /// <summary>Concurrent waiters share one bucket and all of them are signalled.</summary>
+    [Fact]
+    public async Task Wait_SignalsEveryConcurrentWaiterThenReleasesTheBucket()
+    {
+        var created = await _service.RequestAsync(Permission());
+        var item = created.Value!;
+        var waiters = Enumerable.Range(0, 8)
+            .Select(_ => _service.WaitAsync(item.Id, TimeSpan.FromSeconds(10)))
+            .ToArray();
+        await Task.Delay(100);
+
+        await _service.RespondAsync(item.Id, new RespondInteractionRequest
+        {
+            ResponseId = "wb-r2", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "deny", Source = "relay"
+        });
+
+        var settled = await Task.WhenAll(waiters).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.All(settled, i => Assert.Equal(InteractionStatus.Answered, i!.Status));
+        Assert.Equal(0, _service.WaiterBucketCount);
+    }
+
     [Fact]
     public async Task List_FiltersPending()
     {

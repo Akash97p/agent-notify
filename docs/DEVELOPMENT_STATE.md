@@ -584,3 +584,38 @@ unaddressable envelope. The adapter now fails preparation permanently with
 `relay_installation_identity_missing`, the Channels panel explains that the profile
 must be reconnected, and the RelayChannelTests fixtures carry an installation id.
 Gates: Release cross-build 0 warnings / 0 errors, 839 tests passed.
+
+## Interaction wait lifecycle and ask fallback (2026-09-12)
+
+`fix/interaction-wait-lifecycle` closed three defects found while reviewing the
+bidirectional loop end to end. The Relay/mobile contract and the cursor, envelope and
+`sender_id` -> `installation_id` chain were re-read against the implementations and are
+sound; these were the gaps.
+
+- `InteractionService.WaitAsync` reported `pending` for a question whose `expires_at`
+  had already passed. Nothing signals a waiter when a deadline merely lapses, and the
+  timeout path read the row straight from the repository without sweeping, unlike every
+  other read path. It now settles the row through the gate (`SettleIfDueAsync`) before
+  answering — gated, because an unguarded read-modify-write there could overwrite an
+  answer `RespondAsync` committed in the same instant. The ask hook was spending a whole
+  extra 120 s wait slice on questions that were already dead.
+- `_waiters` retained one empty `List<TaskCompletionSource>` per interaction ever waited
+  on. Buckets are now rented and returned (`RentWaiterList`/`ReturnWaiterList`): the
+  bucket is dropped when its last waiter leaves, and the rent loop re-checks identity
+  under the bucket lock so a waiter can never join an orphan that was removed between
+  `GetOrAdd` and the lock. `WaiterBucketCount` is the internal test seam.
+- The `ask-permission` hook left the interaction pending on every fallback path
+  (broker timeout, malformed wait result, unexpected choice). The host then prompted
+  locally and decided, while the phone kept a live card whose tap applied to nothing —
+  and the phone would still be told "Relay recorded your answer". The hook now cancels
+  the interaction in a `finally` on any path it does not use the answer from, and
+  resolves the companion `permission_required` notification either way (it was created
+  fire-and-forget and never resolved, so every ask left a stale "waiting for approval"
+  entry). `run_cli_quiet` is the new best-effort CLI helper for both.
+
+Verification on macOS with `$HOME/.dotnet/dotnet` 10.0.401 and
+`-p:EnableWindowsTargeting=true`: full solution Release build 0 warnings / 0 errors;
+842 tests passed (839 prior plus 3 new). Each new test was confirmed to fail against the
+pre-fix code before being kept. `python3 -m py_compile` passes on the hook. No WPF
+surface was launched and no live Relay round trip was run on this machine; the hook's
+cancel/resolve path was not executed against a running broker.
