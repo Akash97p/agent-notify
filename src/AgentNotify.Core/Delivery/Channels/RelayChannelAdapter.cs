@@ -297,12 +297,13 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
         // One value for both the AAD and the wire. The recipient rebuilds the AAD
         // from the sender_id the relay hands it, so these two must never diverge —
-        // if they do, every envelope fails authentication on the device. Pairing
-        // always supplies an installation id; the fallback only covers a provider
-        // configured by hand before pairing existed.
-        var senderId = string.IsNullOrWhiteSpace(config.InstallationId)
-            ? "local-installation"
-            : config.InstallationId!;
+        // if they do, every envelope fails authentication on the device. The relay
+        // also requires sender_id to equal the authenticated installation, so a
+        // profile with no installation identity cannot deliver at all; it is a
+        // configuration error, not a transient failure.
+        if (string.IsNullOrWhiteSpace(config.InstallationId))
+            throw new RelayPreparationException("relay_installation_identity_missing", retryable: false);
+        var senderId = config.InstallationId!;
 
         // Discover the active devices before building the envelope. A sender pairing creates an
         // installation, not a recipient, so an empty list is an actionable configuration state.
