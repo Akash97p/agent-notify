@@ -49,7 +49,6 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | Direction and explicitly non-committed items |
 | [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md) | The ordered backlog with per-item status |
-| [DEVELOPMENT_STATE.md](DEVELOPMENT_STATE.md) | Durable handoff record: decisions, merged milestones, and next actions |
 | [VERIFICATION.md](VERIFICATION.md) | What has actually been verified, and what remains unverified |
 | [BUG.md](BUG.md) | Defects found after a capability was called complete, and what caused them |
 | [RELEASING.md](RELEASING.md) | Version scheme, tagging, and the release/Pages workflows |
@@ -60,4 +59,4 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 [`archive/`](archive/) holds the original planning documents (`PROJECT.md`, `REQUIREMENTS.md`,
 `STACK.md`, `PLAN.md`). They are kept for provenance and are **not current** — they describe an
 earlier scope and use pre-implementation terminology, including "V1" wording that no longer matches
-the shipped prerelease. Read `DEVELOPMENT_STATE.md` for the real state.
+the shipped prerelease. Read `ARCHITECTURE.md` and `VERIFICATION.md` for the real state.
