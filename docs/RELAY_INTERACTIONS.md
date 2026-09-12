@@ -147,6 +147,12 @@ the desktop):
 - `contract_version == "1"` → else `400`;
 - `response_id`, `interaction_id`, `request_digest`, `nonce` present → else `400`;
 - exactly one of `choice_id` / `text` present → else `400`;
+- `nonce` 1–128 chars, `choice_id` ≤ 64, `text` ≤ 2000 → else `400`. These are
+  the broker's own hard caps, deliberately not looser: Relay is a dumb store,
+  but one that accepts what the broker provably discards tells the phone
+  "Relay recorded your answer" for an answer nothing can ever apply, and burns
+  retention holding it. The per-interaction `text_max_length` is tighter still
+  and stays the broker's to enforce — Relay never sees the request;
 - `device_id` equals the authenticated device → else `403`;
 - the device shares the installation's owner, or holds the legacy direct
   link → else `403`;

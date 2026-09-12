@@ -156,6 +156,23 @@ def send(agent_id, project, ntype, priority, title, message, key=None):
         pass
 
 
+def run_cli_quiet(args, timeout):
+    """Best-effort CLI call whose outcome cannot change the hook's decision."""
+    binary = find_binary()
+    if not binary:
+        return
+    try:
+        subprocess.run(
+            [binary] + args,
+            timeout=timeout,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:
+        pass
+
+
 def run_cli_json(args, timeout):
     """Run the agentnotify CLI and parse its stdout JSON. None on any failure."""
     binary = find_binary()
@@ -258,28 +275,49 @@ def cmd_ask_permission(agent_id, label, payload, rest):
         return 0  # Broker unreachable: fall back to the ordinary local prompt.
     iid = created["id"]
 
-    send(agent_id, project, "permission_required", "high",
-         f"{label} waiting for approval", f"{project}: {prompt[:500]}", key=key + "-notify")
+    # Captured rather than fire-and-forget: the companion notice is an
+    # unresolved condition, and the ask is what learns it has ended.
+    notice = run_cli_json([
+        "send", "--agent", agent_id, "--project", project,
+        "--type", "permission_required", "--priority", "high",
+        "--title", f"{label} waiting for approval",
+        "--message", truncate(f"{project}: {prompt[:500]}"),
+        "--key", key + "-notify",
+    ], SEND_TIMEOUT_S + 5)
+    notice_id = notice.get("id") if isinstance(notice, dict) else None
 
-    # The CLI caps one wait at 300 s; slice the budget so long hook timeouts work.
-    remaining = timeout
-    settled = None
-    while remaining > 0:
-        sl = min(ASK_WAIT_SLICE_S, remaining)
-        settled = run_cli_json(["interactions", "wait", iid, "--timeout", str(sl)], sl + 30)
-        if not isinstance(settled, dict):
+    answered = False
+    try:
+        # The CLI caps one wait at 300 s; slice the budget so long hook timeouts work.
+        remaining = timeout
+        settled = None
+        while remaining > 0:
+            sl = min(ASK_WAIT_SLICE_S, remaining)
+            settled = run_cli_json(["interactions", "wait", iid, "--timeout", str(sl)], sl + 30)
+            if not isinstance(settled, dict):
+                return 0
+            if settled.get("status") != "pending":
+                break
+            remaining -= sl
+            settled = None if remaining <= 0 else settled
+        if not isinstance(settled, dict) or settled.get("status") != "answered":
+            return 0  # Expired, cancelled, or timed out: local prompt takes over.
+        answer = str(((settled.get("response") or {}).get("choice_id") or ""))
+        if answer not in ("allow", "deny"):
             return 0
-        if settled.get("status") != "pending":
-            break
-        remaining -= sl
-        settled = None if remaining <= 0 else settled
-    if not isinstance(settled, dict) or settled.get("status") != "answered":
-        return 0  # Expired, cancelled, or timed out: local prompt takes over.
-    answer = str(((settled.get("response") or {}).get("choice_id") or ""))
-    if answer not in ("allow", "deny"):
+        answered = True
+        print_host_decision(agent_id, answer)
         return 0
-    print_host_decision(agent_id, answer)
-    return 0
+    finally:
+        # Falling back means the host is about to prompt locally and decide
+        # without this answer. Leaving the question pending would keep a live
+        # card on the phone whose tap now applies to nothing, while still
+        # telling the phone the relay recorded it. Cancelling closes that
+        # window and is a no-op once the interaction has settled.
+        if not answered:
+            run_cli_quiet(["interactions", "cancel", iid], SEND_TIMEOUT_S)
+        if notice_id:
+            run_cli_quiet(["resolve", notice_id], SEND_TIMEOUT_S)
 
 
 def main(argv):

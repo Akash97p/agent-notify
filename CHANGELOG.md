@@ -11,6 +11,33 @@ build.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-09-12
+
+A fix release for the bidirectional loop shipped in `0.1.0-alpha.1`. Nothing here changes
+how you use it; all four items are cases where a question, or an answer to one, could be
+left in a state that told you something untrue.
+
+### Fixed
+
+- **A wait no longer reports a dead question as still pending.** Nothing woke a waiting
+  caller when a question simply ran out of time, and the timeout path returned the stored
+  row without settling it first. `agentnotify interactions wait` could answer `pending`
+  for a question whose deadline had already passed, and supervised ask mode spent another
+  two-minute slice on it before falling back to the local prompt.
+- **Supervised ask mode cancels the question when it gives up.** On any fallback to the
+  local prompt — the broker timing out, an unreadable result, an unexpected choice — the
+  question was left open. Your phone kept showing a live card, counting down, for a
+  decision the session had already made on its own; tapping it was accepted and applied to
+  nothing, and the phone still said the answer had been recorded. The hook now cancels the
+  question on its way out, and clears its own "waiting for approval" notification, which
+  previously stayed in the notification centre after the decision was made.
+- **Answers that could never be applied are refused at the Relay instead of stored.** The
+  Relay accepted a longer answer than the broker will take, replied that it had recorded
+  it, and the desktop then discarded it as malformed on the next poll — with nothing
+  telling you. Requires the matching Relay release.
+- **A long-running broker no longer leaks a small amount of memory per question asked.**
+  One empty waiter list was retained for every question ever waited on.
+
 ## [0.1.0-alpha.1] - 2026-09-12
 
 AgentNotify is now bidirectional. Until now your coding agents could only get your
