@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using AgentNotify.Api.Auth;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
+using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
@@ -25,6 +26,12 @@ public sealed class ApiCallbacks
     public Func<Notification, CancellationToken, Task>? PersistOutbound { get; set; }
     public Action<Notification>? Created { get; set; }
     public Action<Notification>? Updated { get; set; }
+    /// <summary>
+    /// Optional hook invoked after an interaction is durably opened. Used to publish
+    /// the question to Relay-enabled routes. Failures are isolated like
+    /// <see cref="PersistOutbound"/>.
+    /// </summary>
+    public Func<Interaction, CancellationToken, Task>? InteractionCreated { get; set; }
 }
 
 /// <summary>
@@ -41,7 +48,9 @@ public static class ApiHost
         NotificationService service,
         IAppLogger? logger = null,
         string? url = null,
-        ApiCallbacks? callbacks = null)
+        ApiCallbacks? callbacks = null,
+        InteractionService? interactions = null,
+        InteractionRelayPublisher? relayPublisher = null)
     {
         // Do not inherit the caller's command line or content root. In WSL-driven
         // Windows test/build processes the working directory is a UNC path, and
@@ -97,7 +106,8 @@ public static class ApiHost
 
             if (HttpMethods.IsPost(context.Request.Method) &&
                 (context.Request.Path.StartsWithSegments($"{RootPath}/notifications") ||
-                 context.Request.Path.Equals($"{RootPath}/events")))
+                  context.Request.Path.StartsWithSegments($"{RootPath}/interactions") ||
+                  context.Request.Path.Equals($"{RootPath}/events")))
             {
                 var key = token;
                 if (!limiter.TryAcquire(key))
@@ -275,8 +285,136 @@ public static class ApiHost
             return Results.Json(DtoMapper.ToDto(result.Value!));
         });
 
+        if (interactions is not null)
+            MapInteractions(app, interactions, callbacks, relayPublisher, logger);
+
         return app;
     }
+
+    /// <summary>
+    /// Waiting questions/permissions. Every route needs the loopback bearer token
+    /// like the rest of <c>/v1</c>; responses additionally bind to the request digest.
+    /// </summary>
+    private static void MapInteractions(
+        WebApplication app,
+        InteractionService interactions,
+        ApiCallbacks? callbacks,
+        InteractionRelayPublisher? relayPublisher,
+        IAppLogger? logger)
+    {
+        app.MapPost($"{RootPath}/interactions/request", async (HttpContext http) =>
+        {
+            CreateInteractionRequest request;
+            try
+            {
+                request = (await http.Request.ReadFromJsonAsync<CreateInteractionRequest>(Json.Options, http.RequestAborted))!;
+            }
+            catch (JsonException)
+            {
+                return Results.Json(new { error = "invalid JSON body" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var result = await interactions.RequestAsync(request, http.RequestAborted);
+            if (result.Error is not null)
+                return Results.Json(new { error = result.Error }, statusCode: StatusCodes.Status400BadRequest);
+
+            if (result.WasCreated)
+                await InvokeCallbackAsync(callbacks?.InteractionCreated, result.Value!, logger);
+
+            return Results.Json(
+                DtoMapper.ToDto(result.Value!),
+                statusCode: result.WasCreated ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+        });
+
+        app.MapGet($"{RootPath}/interactions", async (HttpContext http, CancellationToken ct) =>
+        {
+            var query = new InteractionQuery
+            {
+                Status = TryParseEnum<InteractionStatus>(http.Request.Query["status"].ToString()),
+                PendingOnly = ParseBool(http.Request.Query["pending"]),
+                Agent = NullIfBlank(http.Request.Query["agent"].ToString()),
+                Project = NullIfBlank(http.Request.Query["project"].ToString()),
+                SessionId = NullIfBlank(http.Request.Query["session"].ToString()),
+                Limit = int.TryParse(http.Request.Query["limit"], out var limit) ? Math.Clamp(limit, 1, 500) : 100
+            };
+
+            var items = await interactions.ListAsync(query, ct);
+            return Results.Json(items.Select(DtoMapper.ToDto));
+        });
+
+        app.MapGet($"{RootPath}/interactions/{{id}}", async (string id, CancellationToken ct) =>
+        {
+            var result = await interactions.GetAsync(id, ct);
+            return result.NotFound
+                ? Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound)
+                : Results.Json(DtoMapper.ToDto(result.Value!));
+        });
+
+        app.MapGet($"{RootPath}/interactions/{{id}}/wait", async (string id, HttpContext http, CancellationToken ct) =>
+        {
+            var timeoutSeconds = int.TryParse(http.Request.Query["timeout"], out var seconds)
+                ? Math.Clamp(seconds, 1, 300)
+                : 60;
+            var result = await interactions.GetAsync(id, http.RequestAborted);
+            if (result.NotFound)
+                return Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound);
+
+            var settled = result.Value!.Status != InteractionStatus.Pending
+                ? result.Value
+                : await interactions.WaitAsync(id, TimeSpan.FromSeconds(timeoutSeconds), http.RequestAborted);
+            return settled is null
+                ? Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound)
+                : Results.Json(DtoMapper.ToDto(settled));
+        });
+
+        app.MapPost($"{RootPath}/interactions/{{id}}/respond", async (string id, HttpContext http) =>
+        {
+            RespondInteractionRequest request;
+            try
+            {
+                request = (await http.Request.ReadFromJsonAsync<RespondInteractionRequest>(Json.Options, http.RequestAborted))!;
+            }
+            catch (JsonException)
+            {
+                return Results.Json(new { error = "invalid JSON body" }, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var result = await interactions.RespondAsync(id, request, http.RequestAborted);
+            if (result.NotFound)
+                return Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound);
+            if (result.Error is not null)
+            {
+                var conflict = result.Error is "interaction already answered";
+                return Results.Json(new { error = result.Error },
+                    statusCode: conflict ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest);
+            }
+
+            return Results.Json(DtoMapper.ToDto(result.Value!));
+        });
+
+        app.MapPost($"{RootPath}/interactions/{{id}}/cancel", async (string id, CancellationToken ct) =>
+        {
+            var result = await interactions.CancelAsync(id, ct);
+            return result.NotFound
+                ? Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound)
+                : Results.Json(DtoMapper.ToDto(result.Value!));
+        });
+
+        app.MapPost($"{RootPath}/interactions/{{id}}/publish", async (string id, CancellationToken ct) =>
+        {
+            if (relayPublisher is null)
+                return Results.Json(new { error = "interaction relay publishing is not enabled on this broker" },
+                    statusCode: StatusCodes.Status400BadRequest);
+            var result = await interactions.GetAsync(id, ct);
+            if (result.NotFound)
+                return Results.Json(new { error = "interaction not found" }, statusCode: StatusCodes.Status404NotFound);
+            var published = await relayPublisher.PublishAsync(DtoMapper.ToDto(result.Value!), ct);
+            return Results.Json(new { id, published });
+        });
+    }
+
+    private static string? NullIfBlank(string value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     private static bool? ParseBool(string? value) =>
         bool.TryParse(value, out var parsed) ? parsed : null;
@@ -311,6 +449,26 @@ public static class ApiHost
         catch (Exception)
         {
             logger?.Warn("Could not persist outbound delivery work; local notification remains available.");
+        }
+    }
+
+    private static async Task InvokeCallbackAsync(
+        Func<Interaction, CancellationToken, Task>? callback,
+        Interaction value,
+        IAppLogger? logger)
+    {
+        if (callback is null)
+            return;
+        try
+        {
+            // The interaction is already committed. Do not let client disconnect
+            // cancellation skip Relay publication, and never let publish failure
+            // roll back the open interaction.
+            await callback(value, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            logger?.Warn("Could not publish the interaction to Relay; the local interaction remains available.");
         }
     }
 

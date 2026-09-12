@@ -26,6 +26,18 @@
                       LogicalName="AgentNotify.Cli.Resources.agentnotify.SKILL.md" />
     <EmbeddedResource Include="..\..\distribution\agentnotify\agents\openai.yaml"
                       LogicalName="AgentNotify.Cli.Resources.agentnotify.agents.openai.yaml" />
+    <EmbeddedResource Include="..\..\distribution\harness\opencode\agentnotify.js"
+                      LogicalName="AgentNotify.Cli.Resources.harness.opencode.agentnotify.js" />
+    <EmbeddedResource Include="..\..\distribution\harness\shared\agentnotify_hook.py"
+                      LogicalName="AgentNotify.Cli.Resources.harness.shared.agentnotify_hook.py" />
+    <EmbeddedResource Include="..\..\distribution\harness\openclaw\agentnotify_openclaw.py"
+                      LogicalName="AgentNotify.Cli.Resources.harness.openclaw.agentnotify_openclaw.py" />
+    <EmbeddedResource Include="..\..\distribution\harness\hermes\agentnotify\plugin.yaml"
+                      LogicalName="AgentNotify.Cli.Resources.harness.hermes.agentnotify.plugin.yaml" />
+    <EmbeddedResource Include="..\..\distribution\harness\hermes\agentnotify\__init__.py"
+                      LogicalName="AgentNotify.Cli.Resources.harness.hermes.agentnotify.__init__.py" />
+    <EmbeddedResource Include="..\..\distribution\harness\pi\agentnotify.ts"
+                      LogicalName="AgentNotify.Cli.Resources.harness.pi.agentnotify.ts" />
   </ItemGroup>
 
 </Project>

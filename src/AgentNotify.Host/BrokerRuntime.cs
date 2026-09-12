@@ -97,6 +97,10 @@ public sealed class BrokerRuntime : IAsyncDisposable
         _deliveryRepository = new SqliteDeliveryRepository(_configStore.DbPath);
         await _deliveryRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
+        var interactionRepository = new SqliteInteractionRepository(_configStore.DbPath);
+        await interactionRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var interactionService = new InteractionService(interactionRepository);
+
         var protector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var protection);
         Protection = protection;
 
@@ -106,6 +110,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
         var coordinator = new NotificationDeliveryCoordinator(_deliveryRepository, _dispatcher.Signal);
         _dispatcher.Start();
 
+        var interactionPublisher = new InteractionRelayPublisher(_deliveryRepository, _dispatcher.Signal);
+
         var service = new NotificationService(_repository, _config);
 
         var callbacks = new ApiCallbacks
@@ -114,10 +120,14 @@ public sealed class BrokerRuntime : IAsyncDisposable
             Created = ShowOnDesktop,
             // There is no persistent surface to update without a UI; the notification center in a
             // future native client will subscribe here.
-            Updated = _ => { }
+            Updated = _ => { },
+            InteractionCreated = async (interaction, ct) =>
+            {
+                await interactionPublisher.PublishAsync(DtoMapper.ToDto(interaction), ct);
+            }
         };
 
-        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks);
+        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService, interactionPublisher);
         await _api.StartAsync(cancellationToken).ConfigureAwait(false);
         _logger.Info($"API listening on {Url}");
 

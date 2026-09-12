@@ -6,6 +6,7 @@ using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
+using AgentNotify.Core.Delivery;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -16,6 +17,9 @@ internal sealed class ApiFixture : IAsyncDisposable
     public int Port { get; private set; }
     public string BaseUrl => $"http://127.0.0.1:{Port}";
     public SqliteNotificationRepository Repository { get; private set; } = null!;
+    public SqliteInteractionRepository InteractionRepository { get; private set; } = null!;
+    public InteractionService InteractionService { get; private set; } = null!;
+    public SqliteDeliveryRepository DeliveryRepository { get; private set; } = null!;
     public WebApplication App { get; private set; } = null!;
     public ApiCallbacks Callbacks { get; private set; } = null!;
     private string _dbPath = "";
@@ -51,12 +55,24 @@ internal sealed class ApiFixture : IAsyncDisposable
         var config = new AgentNotifyConfig { Port = port, AuthToken = token };
         var repo = new SqliteNotificationRepository(dbPath);
         await repo.InitializeAsync();
+        var interactionRepo = new SqliteInteractionRepository(dbPath);
+        await interactionRepo.InitializeAsync();
+        var interactionService = new InteractionService(interactionRepo);
+        var deliveryRepo = new SqliteDeliveryRepository(dbPath);
+        await deliveryRepo.InitializeAsync();
+        var relayPublisher = new AgentNotify.Core.Delivery.InteractionRelayPublisher(deliveryRepo);
         var service = new NotificationService(repo, config);
-        var callbacks = new ApiCallbacks();
-        var app = ApiHost.Build(config, repo, service, logger: null, url: $"http://127.0.0.1:{port}", callbacks: callbacks);
+        var callbacks = new ApiCallbacks
+        {
+            InteractionCreated = async (interaction, ct) =>
+            {
+                await relayPublisher.PublishAsync(AgentNotify.Api.DtoMapper.ToDto(interaction), ct);
+            }
+        };
+        var app = ApiHost.Build(config, repo, service, logger: null, url: $"http://127.0.0.1:{port}", callbacks: callbacks, interactions: interactionService, relayPublisher: relayPublisher);
         await app.StartAsync().WaitAsync(TimeSpan.FromSeconds(10));
         await WaitUntilReady(port);
-        return new ApiFixture { Port = port, _dbPath = dbPath, Repository = repo, App = app, Token = token, Callbacks = callbacks };
+        return new ApiFixture { Port = port, _dbPath = dbPath, Repository = repo, InteractionRepository = interactionRepo, InteractionService = interactionService, DeliveryRepository = deliveryRepo, App = app, Token = token, Callbacks = callbacks };
     }
 
     private static int GetFreePort()

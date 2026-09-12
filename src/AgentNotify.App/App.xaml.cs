@@ -130,12 +130,15 @@ public partial class App : System.Windows.Application
         _deliveryDispatcher.Start();
 
         _service = new NotificationService(_repository, _config);
+        var interactionRepository = new SqliteInteractionRepository(_configStore.DbPath);
+        await interactionRepository.InitializeAsync();
+        var interactionService = new InteractionService(interactionRepository);
+        var interactionPublisher = new InteractionRelayPublisher(_deliveryRepository, _deliveryDispatcher.Signal);
 
         var url = $"http://127.0.0.1:{_config.Port}";
         _apiCallbacks = new ApiCallbacks
         {
-            PersistOutbound = _deliveryCoordinator.EnqueueAsync,
-            Created = n =>
+            PersistOutbound = _deliveryCoordinator.EnqueueAsync,            Created = n =>
             {
                 _toasts?.Show(n);
                 _ = Dispatcher.InvokeAsync(() =>
@@ -148,9 +151,13 @@ public partial class App : System.Windows.Application
             {
                 _toasts?.Update(n);
                 _ = Dispatcher.InvokeAsync(() => _center?.RefreshAsync());
+            },
+            InteractionCreated = async (interaction, ct) =>
+            {
+                await interactionPublisher.PublishAsync(DtoMapper.ToDto(interaction), ct);
             }
         };
-        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks);
+        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks, interactionService, interactionPublisher);
         _api.Start();
         _logger.Info($"API listening on {url}");
 

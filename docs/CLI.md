@@ -20,7 +20,7 @@ agentnotify --help | -h | help [<command>]
 agentnotify --version
 ```
 
-When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
+When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install-harness`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
 
 All commands that contact the broker use a 10-second HTTP timeout. Connection failure prints to stderr and exits non-zero (see Exit codes).
 
@@ -299,8 +299,8 @@ agentnotify relay status
 ### `install-skill` — install the bundled agent skill
 
 ```text
-agentnotify install-skill <codex|claude> [options]
-agentnotify install skill <codex|claude> [options]
+agentnotify install-skill <codex|claude|opencode> [options]
+agentnotify install skill <codex|claude|opencode> [options]
 ```
 
 The skill payload is embedded in the CLI, so installation is offline and needs no npm, Python, or
@@ -335,16 +335,108 @@ agentnotify install-skill codex --dry-run
 agentnotify install-skill codex --path /custom/skills/root
 ```
 
+### `install-harness` — install the auto-notify harness
+
+```text
+agentnotify install-harness <agent> [options]
+agentnotify install harness <agent> [options]
+```
+
+Agents: opencode, codex, claude, gemini, copilot, cursor, muse, kilo,
+openclaw, hermes, pi.
+
+The harness payload is embedded in the CLI, so installation is offline.
+Unlike the skill, which relies on the model remembering to call
+AgentNotify, the harness hooks the host itself: permission prompts,
+questions, session completion, and session errors send automatically.
+Hooks are notify-only — they always exit `0` and never approve, deny, or
+block. See [HARNESS.md](HARNESS.md).
+
+| Flag | Value | Default | Notes |
+| --- | --- | --- | --- |
+| `--scope` | `user` or `project` | `user` | Select personal or current-repository hooks |
+| `--path` | directory | host-specific harness dir | Overrides `--scope`; OpenCode takes the plugin directory itself, Codex/Claude take the `.codex`/`.claude` directory |
+| `--force` | — | false | Replaces changed harness files; rewrites invalid hook JSON |
+| `--dry-run` | — | false | Reports the destination without writing |
+| `--ask` | — | false | Codex/Claude only: permission prompts wait for a broker answer and return it (verified schemas); without `--ask` they only notify |
+
+Default personal destinations:
+
+```text
+OpenCode:    ~/.config/opencode/plugins/agentnotify.js
+Codex:       ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
+Claude Code: ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+Gemini CLI:  ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
+Copilot CLI: ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
+Cursor:      ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
+Muse Code:   ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
+Kilo Code:   ~/.config/kilo/plugin/agentnotify.js
+OpenClaw:    ~/.openclaw/agentnotify/agentnotify_openclaw.py (watch daemon)
+Hermes:      ~/.hermes/plugins/agentnotify/ + config.yaml consent steps
+Pi:          ~/.pi/agent/extensions/agentnotify.ts
+```
+
+Existing hook entries are preserved and reinstalling never duplicates the
+AgentNotify entries. Restart the host session after installing.
+
+Examples:
+
+```bash
+agentnotify install-harness opencode
+agentnotify install-harness codex --scope project
+agentnotify install-harness claude --dry-run
+```
+
+### `interactions` — ask a waiting question and collect the answer
+
+```text
+agentnotify interactions request --prompt TEXT [options]
+agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
+agentnotify interactions get <id>
+agentnotify interactions wait <id> [--timeout SECONDS]
+              agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
+              agentnotify interactions cancel <id>
+              agentnotify interactions publish <id>
+              agentnotify interactions poll-responses [--provider ID] [--json]
+```
+
+Opens a durable interaction (permission, single choice, or bounded text) and
+collects the first valid answer. Repeated `--key` reuses the pending
+interaction; a changed question supersedes it. `request` prints the full
+interaction JSON including `request_digest` and `nonce`. `wait` blocks until
+the interaction settles or `--timeout` (1–300 s, default 60) and always prints
+the current state. `respond` needs the digest from `get` and exactly one of
+`--choice` / `--text`; a repeated `--response-id` replays the original
+outcome, a new one after an answer is a `409`. See
+[INTERACTIONS.md](INTERACTIONS.md).
+
+Examples:
+
+```bash
+agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
+  --choice allow-once:"Allow once" --choice deny:"Deny" --agent codex --project shop
+agentnotify interactions list --pending
+agentnotify interactions wait abc123 --timeout 120
+agentnotify interactions respond abc123 --response-id r1 --digest <digest> --choice deny
+agentnotify interactions publish abc123
+agentnotify interactions poll-responses
+```
+
+`publish` re-sends one question to Relay-enabled routes (requests
+auto-publish on creation). `poll-responses` pulls mobile answers from every
+enabled Relay provider into the broker; run it on a schedule. See
+[RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
+
 ### `help` and `--version`
 
 ```text
-agentnotify help [send|list|get|resolve|dismiss|relay|install-skill]
+agentnotify help [send|list|get|resolve|dismiss|relay|install-skill|install-harness|interactions]
 agentnotify --help
 agentnotify -h
 agentnotify --version
 ```
 
-- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`). Unknown topic prints the general usage.
+- `help <topic>` prints the topic help (`send`, `list`, `get`, `resolve`, `dismiss`, `relay`, `install-skill`, `install-harness`, `interactions`). Unknown topic prints the general usage.
 - `help` with no topic prints general usage (`PrintUsage`).
 - `--version` (`RunVersion`) prints `agentnotify {InformationalVersion}` derived from the CLI assembly.
 

@@ -37,18 +37,20 @@
 
 ## CLI and agent integration
 
-- [x] `send`, shorthand, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `install-skill`, and version commands
+- [x] `send`, shorthand, `list`, `get`, `resolve`, `dismiss`, `health`, `token`, `install-skill`, `install-harness`, `interactions`, and version commands
 - [x] Snake-case and kebab-case CLI type parsing
 - [x] Friendly nonzero exits for invalid arguments, broker connection failures, and timeouts
 - [x] WSL wrapper and Windows user PATH installation
 - [x] Validated `agentnotify` skill and OpenAI UI metadata
 - [x] Offline browser guide with Copy/Download skill actions
 - [x] Offline Codex and Claude Code skill installation from the CLI
-- [ ] Durable interaction/response model with expiry, cancellation, idempotency, and host acceptance
+- [x] Notify-only auto-notify harnesses for OpenCode (event plugin), Codex (hooks), and Claude Code (hooks) with `install-harness` (real-host display smoke pending)
+- [x] Durable interaction/response model with expiry, cancellation, idempotency, and host acceptance
+- [x] Returning the human answer into the waiting host call (Codex/Claude ask mode, Hermes transport, OpenClaw watcher)
 - [ ] Local permission and single-choice response UI with first-valid-response-wins
 - [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
-- [ ] Native adapters for synchronous host hooks/plugins/SDKs/gateways
-- [ ] Relay reverse response envelopes with reconnect/backfill and replay defense
+- [x] Native adapters for all eleven hosts (OpenCode, Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi)
+- [x] Relay reverse response envelopes with reconnect/backfill and replay defense (broker side; Relay endpoints + mobile UI pending)
 - [ ] Mobile allow/deny and single-choice UI with desktop/host outcome feedback
 
 ## Distribution and open source
@@ -73,7 +75,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 720 passed, 0 failed, 0 skipped
+- [x] Automated tests: 835 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

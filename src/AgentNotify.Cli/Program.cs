@@ -11,6 +11,7 @@ using AgentNotify.Core.Config;
 using AgentNotify.Core.Skills;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Delivery.Channels;
+using AgentNotify.Core.Harness;
 
 namespace AgentNotify.Cli;
 
@@ -18,7 +19,7 @@ namespace AgentNotify.Cli;
 /// Every command talks to the local broker via HTTP; the broker is source of truth.</summary>
 internal static class Program
 {
-    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install", "help", "--help", "-h", "--version"];
+    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "interactions", "help", "--help", "-h", "--version"];
 
     internal static async Task<int> Main(string[] args)
     {
@@ -50,8 +51,11 @@ internal static class Program
                 "relay" => await RunRelay(args[1..]),
                 "token" => RunToken(args[1..]),
                 "install-skill" => RunInstallSkill(args[1..]),
+                "install-harness" => RunInstallHarness(args[1..]),
                 "install" when args.Length > 1 && args[1].Equals("skill", StringComparison.OrdinalIgnoreCase) => RunInstallSkill(args[2..]),
-                "install" => Fail("Usage: agentnotify install skill <codex|claude> [options]"),
+                "install" when args.Length > 1 && args[1].Equals("harness", StringComparison.OrdinalIgnoreCase) => RunInstallHarness(args[2..]),
+                "install" => Fail("Usage: agentnotify install <skill|harness> <agent> [options]"),
+                "interactions" => await RunInteractions(args[1..]),
                 "help" or "--help" or "h" => RunHelp(args.Length > 1 ? args[1] : null),
                 "version" => RunVersion(),
                 _ => Fail($"unknown command '{args[0]}'. Run 'agentnotify help' for usage.")
@@ -822,6 +826,617 @@ internal static class Program
         }
     }
 
+    private static int RunInstallHarness(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-'))
+        {
+            PrintInstallHarnessHelp();
+            return args.Any(a => a is "--help" or "-h") ? 0 : 1;
+        }
+
+        // "claude-code" is accepted because that is what the product is called;
+        // the id stays "claude" so existing scripts keep working.
+        var lowered = args[0].ToLowerInvariant();
+        var requested = lowered == "claude-code" ? "claude"
+            : lowered is "github-copilot" or "copilot-cli" ? "copilot"
+            : lowered is "muse-code" ? "muse"
+            : lowered is "gemini-cli" ? "gemini"
+            : lowered is "kilo-code" or "kilocode" ? "kilo"
+            : lowered is "hermes-agent" ? "hermes"
+            : lowered is "pi-agent" ? "pi"
+            : args[0];
+        var target = HarnessCatalog.Find(requested);
+        if (target is null)
+            return Fail(
+                "install-harness target must be one of: "
+                + string.Join(", ", HarnessCatalog.All.Select(t => t.Id))
+                + ".");
+
+        var projectScope = false;
+        var force = false;
+        var dryRun = false;
+        var askMode = false;
+        string? path = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--scope":
+                    if (i + 1 >= args.Length) return Fail("--scope requires user or project.");
+                    var scope = args[++i].ToLowerInvariant();
+                    if (scope is not ("user" or "project")) return Fail("--scope must be user or project.");
+                    projectScope = scope == "project";
+                    break;
+                case "--path":
+                    if (i + 1 >= args.Length) return Fail("--path requires a directory.");
+                    path = args[++i];
+                    break;
+                case "--force": force = true; break;
+                case "--dry-run": dryRun = true; break;
+                case "--ask": askMode = true; break;
+                case "--help": case "-h": PrintInstallHarnessHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for install-harness.");
+            }
+        }
+
+        if (askMode && target.Id != HarnessCatalog.Codex.Id && target.Id != HarnessCatalog.ClaudeCode.Id)
+            return Fail("--ask is only supported for codex and claude: only their permission-request decision schemas are verified.");
+
+        try
+        {
+            var harnessDir = path ?? HarnessCatalog.DefaultHarnessDir(
+                target,
+                projectScope ? Directory.GetCurrentDirectory() : null);
+            HarnessInstallResult result = target.Id switch
+            {
+                var id when id == HarnessCatalog.OpenCode.Id =>
+                    HarnessInstaller.InstallOpenCodePlugin(
+                        harnessDir, HarnessPayload.OpenCodePlugin(), force, dryRun),
+                var id when id == HarnessCatalog.Codex.Id =>
+                    HarnessInstaller.InstallCodexHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, askMode),
+                var id when id == HarnessCatalog.ClaudeCode.Id =>
+                    HarnessInstaller.InstallClaudeHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, askMode),
+                var id when id == HarnessCatalog.Gemini.Id =>
+                    HarnessInstaller.InstallGeminiHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Copilot.Id =>
+                    HarnessInstaller.InstallCopilotHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Cursor.Id =>
+                    HarnessInstaller.InstallCursorHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun),
+                var id when id == HarnessCatalog.Muse.Id =>
+                    HarnessInstaller.InstallMuseHarness(
+                        harnessDir, HarnessPayload.HookScript(), force, dryRun, projectScope),
+                var id when id == HarnessCatalog.Kilo.Id =>
+                    HarnessInstaller.InstallKiloPlugin(
+                        harnessDir, HarnessPayload.KiloPlugin(), force, dryRun),
+                var id when id == HarnessCatalog.OpenClaw.Id =>
+                    HarnessInstaller.InstallOpenClawBridge(
+                        harnessDir, HarnessPayload.OpenClawWatcher(), force, dryRun),
+                var id when id == HarnessCatalog.Hermes.Id =>
+                    HarnessInstaller.InstallHermesPlugin(
+                        harnessDir, HarnessPayload.HermesPluginYaml(), HarnessPayload.HermesPluginInit(), force, dryRun),
+                var id when id == HarnessCatalog.Pi.Id =>
+                    HarnessInstaller.InstallPiExtension(
+                        harnessDir, HarnessPayload.PiExtension(), force, dryRun),
+                _ => null!,
+            };
+            if (result is null)
+                return Fail(
+                    "install-harness target must be one of: "
+                    + string.Join(", ", HarnessCatalog.All.Select(t => t.Id))
+                    + ".");
+            if (result.Success)
+                Console.WriteLine(result.Message);
+            else
+                Console.Error.WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            return Fail($"Could not install the AgentNotify harness: {ex.Message}");
+        }
+    }
+
+    // ---- interactions ----
+
+    private static async Task<int> RunInteractions(string[] args)
+    {
+        if (args.Length == 0 || args[0] is "--help" or "-h")
+        {
+            PrintInteractionsHelp();
+            return args.Length == 0 ? 1 : 0;
+        }
+
+        return args[0].ToLowerInvariant() switch
+        {
+            "request" => await RunInteractionsRequest(args[1..]),
+            "list" => await RunInteractionsList(args[1..]),
+            "get" => await RunInteractionsGet(args[1..]),
+            "wait" => await RunInteractionsWait(args[1..]),
+            "respond" => await RunInteractionsRespond(args[1..]),
+            "cancel" => await RunInteractionsCancel(args[1..]),
+            "publish" => await RunInteractionsPublish(args[1..]),
+            "poll-responses" => await RunInteractionsPollResponses(args[1..]),
+            _ => Fail("Usage: agentnotify interactions <request|list|get|wait|respond|cancel|publish|poll-responses> [options]")
+        };
+    }
+
+    private static async Task<int> RunInteractionsRequest(string[] args)
+    {
+        string? kind = null, prompt = null, agent = null, agentInstance = null, project = null;
+        string? session = null, turn = null, nativeRequest = null, key = null;
+        string? portOverride = null, tokenOverride = null;
+        int? textMax = null, ttl = null;
+        var choices = new List<InteractionChoice>();
+        var details = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            string? Next() => i + 1 < args.Length ? args[++i] : null;
+            switch (a.ToLowerInvariant())
+            {
+                case "--kind": kind = Next(); break;
+                case "--prompt": prompt = Next(); break;
+                case "--choice":
+                    var spec = Next();
+                    if (spec is null) return Fail("--choice requires ID:LABEL.");
+                    var colon = spec.IndexOf(':');
+                    if (colon <= 0) return Fail("--choice requires ID:LABEL.");
+                    choices.Add(new InteractionChoice { Id = spec[..colon], Label = spec[(colon + 1)..] });
+                    break;
+                case "--choice-detail":
+                    var detail = Next();
+                    if (detail is null) return Fail("--choice-detail requires ID:DETAIL.");
+                    var dcolon = detail.IndexOf(':');
+                    if (dcolon <= 0) return Fail("--choice-detail requires ID:DETAIL.");
+                    details[detail[..dcolon]] = detail[(dcolon + 1)..];
+                    break;
+                case "--text-max": textMax = int.TryParse(Next(), out var tm) ? tm : null; break;
+                case "--ttl": ttl = int.TryParse(Next(), out var tt) ? tt : null; break;
+                case "--key": key = Next(); break;
+                case "--agent": agent = Next(); break;
+                case "--agent-instance": agentInstance = Next(); break;
+                case "--project": project = Next(); break;
+                case "--session": session = Next(); break;
+                case "--turn": turn = Next(); break;
+                case "--native-request": nativeRequest = Next(); break;
+                case "--port": portOverride = Next(); break;
+                case "--token": tokenOverride = Next(); break;
+                case "--help": case "-h": PrintInteractionsHelp(); return 0;
+                default:
+                    if (a.StartsWith('-')) return Fail($"unknown option '{a}' for interactions request. Run 'agentnotify help interactions'.");
+                    if (prompt is null) prompt = a;
+                    else return Fail($"unexpected argument '{a}' for interactions request.");
+                    break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(prompt)) return Fail("interactions request requires --prompt (or a positional prompt).");
+        if (!TryParseEnum<InteractionKind>(kind ?? "permission", out var parsedKind))
+            return Fail("--kind must be permission, single_choice, or text.");
+        foreach (var (id, text) in details)
+        {
+            var match = choices.FirstOrDefault(c => c.Id == id);
+            if (match is null) return Fail($"--choice-detail id '{id}' matches no --choice.");
+            match.Detail = text;
+        }
+
+        agent ??= Environment.GetEnvironmentVariable("AGENTNOTIFY_AGENT") ?? "cli";
+        var req = new CreateInteractionRequest
+        {
+            Key = key, Agent = agent, AgentInstance = agentInstance, Project = project,
+            SessionId = session, TurnId = turn, NativeRequestId = nativeRequest,
+            Kind = parsedKind, Prompt = prompt.Trim(), Choices = choices,
+            TextMaxLength = textMax, TtlSeconds = ttl
+        };
+
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var json = JsonSerializer.Serialize(req, Json.Options);
+            var resp = await client.PostAsync($"{baseUrl}/v1/interactions/request",
+                new StringContent(json, Encoding.UTF8, "application/json"));
+            return await HandleJsonResponse(resp);
+        }
+    }
+
+    private static async Task<int> RunInteractionsList(string[] args)
+    {
+        string? status = null, agent = null, project = null, session = null;
+        string? portOverride = null, tokenOverride = null;
+        string? pending = null;
+        int limit = 20;
+        bool jsonOut = false;
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            string? Next() => i + 1 < args.Length ? args[++i] : null;
+            switch (a.ToLowerInvariant())
+            {
+                case "--status": status = Next(); break;
+                case "--pending":
+                    if (i + 1 < args.Length && bool.TryParse(args[i + 1], out var pendingValue))
+                    {
+                        i++;
+                        pending = pendingValue ? "true" : "false";
+                    }
+                    else pending = "true";
+                    break;
+                case "--agent": agent = Next(); break;
+                case "--project": project = Next(); break;
+                case "--session": session = Next(); break;
+                case "--limit": int.TryParse(Next(), out limit); break;
+                case "--json": jsonOut = true; break;
+                case "--port": portOverride = Next(); break;
+                case "--token": tokenOverride = Next(); break;
+                case "--help": case "-h": PrintInteractionsHelp(); return 0;
+                default:
+                    if (a.StartsWith('-')) return Fail($"unknown option '{a}' for interactions list.");
+                    break;
+            }
+        }
+
+        var qs = new List<string>();
+        if (pending is not null) qs.Add($"pending={Uri.EscapeDataString(pending)}");
+        if (status is not null) qs.Add($"status={Uri.EscapeDataString(status)}");
+        if (agent is not null) qs.Add($"agent={Uri.EscapeDataString(agent)}");
+        if (project is not null) qs.Add($"project={Uri.EscapeDataString(project)}");
+        if (session is not null) qs.Add($"session={Uri.EscapeDataString(session)}");
+        qs.Add($"limit={limit}");
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var resp = await client.GetAsync($"{baseUrl}/v1/interactions{query}");
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"Error {((int)resp.StatusCode)} {resp.StatusCode}: {PrettyError(body)}");
+                return 1;
+            }
+            if (jsonOut)
+            {
+                PrintPrettyJson(body);
+                return 0;
+            }
+            try
+            {
+                var items = JsonSerializer.Deserialize<List<InteractionDto>>(body, Json.Options) ?? [];
+                if (items.Count == 0)
+                    Console.WriteLine("(no interactions)");
+                else
+                    foreach (var n in items)
+                        Console.WriteLine($"{n.Id}  [{n.Kind}/{n.Status}] {TruncateOneLine(n.Prompt, 80)}  ({n.Agent})");
+            }
+            catch { Console.WriteLine(body); }
+            return 0;
+        }
+    }
+
+    private static async Task<int> RunInteractionsGet(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions get requires an <id>. Usage: agentnotify interactions get <id>");
+        var id = args[0];
+        string? portOverride = null, tokenOverride = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--port" && i + 1 < args.Length) portOverride = args[++i];
+            else if (args[i] == "--token" && i + 1 < args.Length) tokenOverride = args[++i];
+        }
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var resp = await client.GetAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}");
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"Error {((int)resp.StatusCode)} {resp.StatusCode}: {PrettyError(body)}");
+                return resp.StatusCode == HttpStatusCode.NotFound ? 3 : 1;
+            }
+            PrintPrettyJson(body);
+            return 0;
+        }
+    }
+
+    private static async Task<int> RunInteractionsWait(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions wait requires an <id>. Usage: agentnotify interactions wait <id> [--timeout N]");
+        var id = args[0];
+        var timeoutSeconds = 60;
+        string? portOverride = null, tokenOverride = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if ((args[i] == "--timeout" || args[i] == "--ttl") && i + 1 < args.Length && int.TryParse(args[++i], out var t))
+                timeoutSeconds = Math.Clamp(t, 1, 300);
+            else if (args[i] == "--port" && i + 1 < args.Length) portOverride = args[++i];
+            else if (args[i] == "--token" && i + 1 < args.Length) tokenOverride = args[++i];
+        }
+
+        // Waiting is the point: allow the full broker wait plus margin.
+        var store = new ConfigStore(applyEnvOverrides: true);
+        var config = store.Load();
+        if (!string.IsNullOrWhiteSpace(portOverride) && int.TryParse(portOverride, out var p)) config.Port = p;
+        if (!string.IsNullOrWhiteSpace(tokenOverride)) config.AuthToken = tokenOverride.Trim();
+        var baseUrl = $"http://127.0.0.1:{config.Port}";
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(timeoutSeconds + 30) };
+        if (!string.IsNullOrWhiteSpace(config.AuthToken))
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.AuthToken);
+
+        try
+        {
+            var resp = await client.GetAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}/wait?timeout={timeoutSeconds}");
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"Error {((int)resp.StatusCode)} {resp.StatusCode}: {PrettyError(body)}");
+                return resp.StatusCode == HttpStatusCode.NotFound ? 3 : 1;
+            }
+            PrintPrettyJson(body);
+            return 0;
+        }
+        catch (TaskCanceledException)
+        {
+            return Fail("Timed out waiting for the broker. The interaction may still be pending; check with 'interactions get'.");
+        }
+    }
+
+    private static async Task<int> RunInteractionsRespond(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions respond requires an <id>. Usage: agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T]");
+        var id = args[0];
+        string? responseId = null, digest = null, choice = null, text = null;
+        string? nonce = null, source = null, device = null;
+        string? portOverride = null, tokenOverride = null;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            var a = args[i];
+            string? Next() => i + 1 < args.Length ? args[++i] : null;
+            switch (a.ToLowerInvariant())
+            {
+                case "--response-id": responseId = Next(); break;
+                case "--digest": digest = Next(); break;
+                case "--choice": choice = Next(); break;
+                case "--text": text = Next(); break;
+                case "--nonce": nonce = Next(); break;
+                case "--source": source = Next(); break;
+                case "--device": device = Next(); break;
+                case "--port": portOverride = Next(); break;
+                case "--token": tokenOverride = Next(); break;
+                case "--help": case "-h": PrintInteractionsHelp(); return 0;
+                default: return Fail($"unknown option '{a}' for interactions respond.");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(responseId)) return Fail("interactions respond requires --response-id.");
+        if (string.IsNullOrWhiteSpace(digest)) return Fail("interactions respond requires --digest (from 'interactions get').");
+        source ??= "cli";
+
+        var req = new RespondInteractionRequest
+        {
+            ResponseId = responseId.Trim(), RequestDigest = digest.Trim(),
+            ChoiceId = choice, Text = text, Nonce = nonce, Source = source, DeviceId = device
+        };
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var json = JsonSerializer.Serialize(req, Json.Options);
+            var resp = await client.PostAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}/respond",
+                new StringContent(json, Encoding.UTF8, "application/json"));
+            return await HandleJsonResponse(resp);
+        }
+    }
+
+    private static async Task<int> RunInteractionsCancel(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions cancel requires an <id>. Usage: agentnotify interactions cancel <id>");
+        var id = args[0];
+        string? portOverride = null, tokenOverride = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--port" && i + 1 < args.Length) portOverride = args[++i];
+            else if (args[i] == "--token" && i + 1 < args.Length) tokenOverride = args[++i];
+        }
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var resp = await client.PostAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}/cancel",
+                new StringContent("{}", Encoding.UTF8, "application/json"));
+            return await HandleJsonResponse(resp);
+        }
+    }
+
+    private static async Task<int> RunInteractionsPublish(string[] args)
+    {
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions publish requires an <id>. Usage: agentnotify interactions publish <id>");
+        var id = args[0];
+        string? portOverride = null, tokenOverride = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] == "--port" && i + 1 < args.Length) portOverride = args[++i];
+            else if (args[i] == "--token" && i + 1 < args.Length) tokenOverride = args[++i];
+        }
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            var resp = await client.PostAsync($"{baseUrl}/v1/interactions/{Uri.EscapeDataString(id)}/publish",
+                new StringContent("{}", Encoding.UTF8, "application/json"));
+            return await HandleJsonResponse(resp);
+        }
+    }
+
+    private static async Task<int> RunInteractionsPollResponses(string[] args)
+    {
+        string? providerFilter = null, portOverride = null, tokenOverride = null;
+        var jsonOut = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i].ToLowerInvariant())
+            {
+                case "--provider":
+                    if (i + 1 >= args.Length) return Fail("--provider requires a provider id.");
+                    providerFilter = args[++i];
+                    break;
+                case "--json": jsonOut = true; break;
+                case "--port": if (i + 1 >= args.Length) return Fail("--port requires a number."); portOverride = args[++i]; break;
+                case "--token": if (i + 1 >= args.Length) return Fail("--token requires a token."); tokenOverride = args[++i]; break;
+                case "--help": case "-h": PrintInteractionsHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for interactions poll-responses.");
+            }
+        }
+
+        var configStore = new ConfigStore(applyEnvOverrides: true);
+        var brokerConfig = configStore.Load();
+        if (!string.IsNullOrWhiteSpace(portOverride) && int.TryParse(portOverride, out var p)) brokerConfig.Port = p;
+        if (!string.IsNullOrWhiteSpace(tokenOverride)) brokerConfig.AuthToken = tokenOverride.Trim();
+        if (string.IsNullOrWhiteSpace(brokerConfig.AuthToken))
+            return Fail("No broker auth token found. Has AgentNotify run at least once?");
+        var brokerBaseUrl = $"http://127.0.0.1:{brokerConfig.Port}";
+
+        try
+        {
+            var profiles = await OpenProviderProfilesAsync(default);
+            var relayProfiles = (await profiles.ListAsync())
+                .Where(profile => profile.Kind == "relay" && profile.Enabled)
+                .Where(profile => providerFilter is null || string.Equals(profile.Id, providerFilter, StringComparison.Ordinal))
+                .ToArray();
+            if (providerFilter is not null && relayProfiles.Length == 0)
+                return Fail($"No enabled Relay provider with id '{providerFilter}'.");
+            if (relayProfiles.Length == 0)
+            {
+                Console.Error.WriteLine("No enabled Relay provider is configured; nothing to poll.");
+                return 1;
+            }
+
+            using var relayClient = RelayHttpTransport.CreateClient();
+            using var brokerClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            brokerClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", brokerConfig.AuthToken);
+            var sync = new InteractionResponseSync(relayClient, brokerClient, brokerBaseUrl);
+            var cursors = new RelayCursorStore(configStore.ConfigDir);
+
+            var exit = 0;
+            foreach (var profile in relayProfiles)
+            {
+                RelayPollTarget target;
+                try
+                {
+                    target = await BuildPollTargetAsync(profiles, profile);
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or
+                                           JsonException or CryptographicException or IOException or
+                                           UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: {ex.Message}");
+                    exit = 1;
+                    continue;
+                }
+
+                var since = await cursors.GetAsync(profile.Id);
+                ProviderPollOutcome outcome;
+                try
+                {
+                    outcome = await sync.PollOnceAsync(target, since);
+                }
+                catch (Exception ex) when (ex is OperationCanceledException)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: poll timed out.");
+                    exit = 1;
+                    continue;
+                }
+
+                if (!outcome.Succeeded)
+                {
+                    Console.Error.WriteLine($"{profile.Name}: {outcome.Error}");
+                    exit = 1;
+                    continue;
+                }
+
+                await cursors.SetAsync(profile.Id, outcome.NextCursor);
+                if (jsonOut)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        provider_id = profile.Id,
+                        provider_name = profile.Name,
+                        applied = outcome.Answers.Count(a => a.Applied),
+                        answers = outcome.Answers.Select(a => new
+                        {
+                            response_id = a.ResponseId,
+                            interaction_id = a.InteractionId,
+                            applied = a.Applied,
+                            note = a.Note
+                        })
+                    }, Json.Options));
+                }
+                else
+                {
+                    var applied = outcome.Answers.Count(a => a.Applied);
+                    Console.WriteLine($"{profile.Name}: {applied} answer(s) applied out of {outcome.Answers.Count} fetched.");
+                    foreach (var answer in outcome.Answers.Where(a => !a.Applied))
+                        Console.WriteLine($"  {answer.ResponseId} -> {answer.InteractionId}: {answer.Note}");
+                }
+            }
+            return exit;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or JsonException or
+                                          CryptographicException or UnauthorizedAccessException)
+        {
+            return Fail(exception.Message);
+        }
+    }
+
+    private static async Task<RelayPollTarget> BuildPollTargetAsync(
+        ProviderProfileService profiles,
+        ProviderProfile profile)
+    {
+        using var document = JsonDocument.Parse(profile.ConfigJson);
+        var root = document.RootElement;
+        var url = GetJsonString(root, "relay_url") ?? GetJsonString(root, "relayUrl");
+        var allowPrivate = GetJsonBoolean(root, "allowPrivateNetwork") ||
+                           GetJsonBoolean(root, "allow_private_network");
+        var installationId = GetJsonString(root, "installation_id") ?? GetJsonString(root, "installationId");
+        var secrets = await profiles.GetSecretsForDeliveryAsync(profile.Id);
+        if (url is null || !secrets.TryGetValue("installation_token", out var credential))
+            throw new InvalidOperationException("No saved Relay URL or credential.");
+        RelayChannelAdapter.ValidateRelayUrl(url, allowPrivate);
+        return new RelayPollTarget(profile.Id, profile.Name, url, allowPrivate, credential, installationId);
+    }
+
+    private static async Task<int> HandleJsonResponse(HttpResponseMessage resp)    {
+        var body = await resp.Content.ReadAsStringAsync();
+        if (!resp.IsSuccessStatusCode)
+        {
+            Console.Error.WriteLine($"Error {((int)resp.StatusCode)} {resp.StatusCode}: {PrettyError(body)}");
+            return resp.StatusCode == HttpStatusCode.NotFound ? 3 : 1;
+        }
+        PrintPrettyJson(body);
+        return 0;
+    }
+
+    private static void PrintPrettyJson(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            Console.WriteLine(JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { Console.WriteLine(body); }
+    }
+
+    private static string TruncateOneLine(string value, int max)
+    {
+        var oneLine = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return oneLine.Length <= max ? oneLine : oneLine[..(max - 1)] + "…";
+    }
+
     private static int RunHelp(string? topic)
     {
         if (topic is not null)
@@ -835,6 +1450,8 @@ internal static class Program
                 case "dismiss": Console.WriteLine("Usage: agentnotify dismiss <id> [--port N] [--token T]"); return 0;
                 case "relay": PrintRelayHelp(); return 0;
                 case "install-skill": case "install": PrintInstallSkillHelp(); return 0;
+                case "install-harness": case "harness": PrintInstallHarnessHelp(); return 0;
+                case "interactions": PrintInteractionsHelp(); return 0;
             }
         }
         PrintUsage();
@@ -923,7 +1540,9 @@ internal static class Program
               health     Check broker health
               relay      Pair with a Relay or verify configured Relay providers
               token      Print the local bearer token
-              install-skill  Install the bundled skill for Codex or Claude Code
+              install-skill  Install the bundled skill for Codex, Claude Code, or OpenCode
+              install-harness  Install the auto-notify harness for OpenCode, Codex, or Claude Code
+              interactions  Ask a waiting question/permission and collect the answer
               help       Show help (help <command> for details)
 
             Global options (for send/list/get/...):
@@ -938,6 +1557,97 @@ internal static class Program
               agentnotify health
               agentnotify relay pair --url https://relay.example.com
               agentnotify install-skill codex
+              agentnotify install-harness opencode
+              agentnotify interactions request --kind permission --prompt "Deploy to prod?" --choice allow-once:"Allow once" --choice deny:"Deny"
+            """);
+    }
+
+    private static void PrintInstallHarnessHelp()
+    {
+        Console.WriteLine("""
+            agentnotify install-harness — install the auto-notify harness
+
+            Usage:
+              agentnotify install-harness <agent> [options]
+              agentnotify install harness <agent> [options]
+
+            Agents: opencode, codex, claude, gemini, copilot, cursor, muse, kilo, openclaw, hermes, pi.
+
+            The harness notifies automatically at attention boundaries, without
+            relying on the model to remember the skill: permission prompts,
+            questions, session completion, and session errors.
+
+            Options:
+              --scope user|project   Install for the current user (default) or current project
+              --path DIRECTORY      Override the host's harness directory:
+                                      OpenCode: the plugin directory itself
+                                      Codex:    the .codex directory
+                                      Claude:   the .claude directory
+                                      Gemini:   the .gemini directory
+                                      Copilot:  the .copilot directory (.github for projects)
+                                      Cursor:   the .cursor directory
+                                      Muse:     the .config/muse directory (.muse for projects)
+                                      Kilo:     the plugin directory itself
+                                      OpenClaw: the .openclaw directory
+                                      Hermes:  the .hermes/plugins directory
+                                      Pi:       the extensions directory itself
+              --force               Replace changed harness files / rewrite invalid hook JSON
+              --dry-run             Print the destination without writing files
+              --ask                 Codex/Claude only: permission prompts wait for a broker
+                                    answer and return it (verified decision schemas).
+                                    Without --ask, permission hooks only notify.
+
+            Default user locations:
+              OpenCode     ~/.config/opencode/plugins/agentnotify.js
+              Codex        ~/.codex/agentnotify/agentnotify_hook.py + ~/.codex/hooks.json
+              Claude Code  ~/.claude/agentnotify/agentnotify_hook.py + ~/.claude/settings.json
+              Gemini CLI   ~/.gemini/agentnotify/agentnotify_hook.py + ~/.gemini/settings.json
+              Copilot CLI  ~/.copilot/agentnotify/agentnotify_hook.py + ~/.copilot/hooks/agentnotify.json
+              Cursor       ~/.cursor/agentnotify/agentnotify_hook.py + ~/.cursor/hooks.json
+              Muse Code    ~/.config/muse/agentnotify/agentnotify_hook.py + ~/.config/muse/settings.json
+              Kilo Code    ~/.config/kilo/plugin/agentnotify.js
+              OpenClaw     ~/.openclaw/agentnotify/agentnotify_openclaw.py (run: python3 ... watch)
+              Hermes Agent ~/.hermes/plugins/agentnotify/ (plus config.yaml edits)
+              Pi           ~/.pi/agent/extensions/agentnotify.ts
+
+            Hooks only notify; they never approve, deny, or block. Existing hook
+            entries are preserved. Restart the host session after installing.
+            Muse Code is beta: after installing, start one session and confirm
+            no hooks warning appears.
+            """);
+    }
+
+    private static void PrintInteractionsHelp()
+    {
+        Console.WriteLine("""
+            agentnotify interactions — ask a waiting question and collect the answer
+
+            Usage:
+              agentnotify interactions request --prompt TEXT [options]
+              agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
+              agentnotify interactions get <id>
+              agentnotify interactions wait <id> [--timeout SECONDS]
+              agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
+              agentnotify interactions cancel <id>
+              agentnotify interactions publish <id>
+              agentnotify interactions poll-responses [--provider ID] [--json]
+
+            request options:
+              --kind permission|single_choice|text   What is being asked (default permission)
+              --prompt TEXT            Required. The exact question shown to the human.
+              --choice ID:LABEL        Repeatable. 2-12 required unless --kind text.
+              --choice-detail ID:DETAIL  Repeatable. Extra detail for one choice.
+              --text-max N             Max answer chars for --kind text (default 500)
+              --ttl SECONDS            Expiry in 30-3600s (default 600)
+              --key KEY                Reuse the pending interaction for a repeated key
+              --agent NAME --agent-instance ID --project NAME --session ID --turn ID --native-request ID
+
+            The first valid response wins. A repeated --response-id replays the original
+            outcome. Answers must echo the request digest from 'interactions get'.
+            'wait' blocks until the interaction settles or --timeout (1-300s, default 60).
+            'publish' re-sends the question to Relay-enabled routes (requests auto-publish).
+            'poll-responses' fetches mobile answers from Relay into the broker; run it on
+            a schedule until the dispatcher absorbs it (see RELAY_INTERACTIONS.md).
             """);
     }
 

@@ -364,17 +364,148 @@ This is the durable handoff record for long-running AgentNotify development. Upd
       Low-priority test was delivered on its first attempt, the Relay returned `201`, and the owner
       confirmed that **Mac Relay test** appeared on the connected mobile app. Broker logs contained
       no `inst_` or `pol_` credential prefixes.
-    - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
-      scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
-      path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
-      and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
-      including the new installer regression check and native CLI/broker smoke test on both hosts.
+  - Local `/bin/sh` syntax and mocked-release regression checks passed. The repository's full
+    scripts could not start on macOS because they intentionally require the Windows .NET 10 SDK
+    path used from WSL. Hosted Windows run `34482095178` passed restore, full Release build, tests,
+    and installer/resource packaging. Portable run `34482095194` passed on Ubuntu and macOS,
+    including the new installer regression check and native CLI/broker smoke test on both hosts.
+
+50. Completed on `feature/harness-opencode-codex-claude` (notify-only auto-notify harnesses):
+    - OpenCode: dependency-free `distribution/harness/opencode/agentnotify.js` V1 event plugin
+      (`session.idle`/`session.status` → completed, `session.error` → error,
+      `permission.asked`/`permission.updated` → permission_required,
+      `question` tool → input_required). No imports, named + default export, child-session
+      suppression unless `AGENTNOTIFY_INCLUDE_SUBAGENTS=1`, 8 s bounded best-effort sends.
+    - Codex/Claude Code: stdlib-only `distribution/harness/shared/agentnotify_hook.py` bridge
+      (stdin JSON, argv agent/event, always exits 0, never returns a host decision) plus
+      `hooks.example.json` / `settings.example.json` templates.
+    - `agentnotify install-harness <opencode|codex|claude>` (alias `install harness`) with
+      `--scope user|project`, `--path`, `--force`, `--dry-run`; `HarnessCatalog` owns all three
+      layouts; `HarnessInstaller` copies the plugin/script with edit protection and merges
+      `hooks.json`/`settings.json` preserving unrelated entries without duplicating on reinstall.
+    - Payloads embedded in the CLI (`HarnessPayload`); 25 new tests (installer, catalog, CLI);
+      gates on macOS with user-local .NET 10.0.401: full-solution Release build 0 warnings/
+      0 errors (`-p:EnableWindowsTargeting=true`), 763 tests passed, `node --check` on the
+      plugin, `py_compile` on the hook script, JSON parse on both examples.
+    - Explicitly unverified: no real OpenCode/Codex/Claude Code session has loaded these
+      harnesses; no desktop notification from a harness has been seen. Owner manual checklist
+      is in `docs/HARNESS.md`; results belong in `docs/VERIFICATION.md`. Packaging was not
+      rerun locally (Windows-only script); the next hosted Windows run must confirm
+      installer/resource packaging with the two new embedded CLI files.
+
+51. Completed on `feature/interaction-broker` (A02 Phase 1: durable interaction model):
+    - New `AgentNotify.Protocol` contracts (`InteractionKind/Status/Choice`, create/respond
+      requests, DTOs) with explicit `snake_case` wire names, matching the ARC convention.
+    - New portable core: `Domain/Interaction`, `SqliteInteractionRepository` (`interactions`
+      table in the shared broker database), and `InteractionService` implementing keyed
+      idempotency, prompt-change supersede, first-valid-response-wins, response-id replay,
+      digest/nonce binding, TTL expiry sweep, cancellation, retention pruning, and in-process
+      long-poll waiters.
+    - New loopback API (`request`, list, get, `wait`, `respond`, `cancel`) behind the existing
+      bearer boundary and create rate limit; 404/400/409 semantics documented in
+      `docs/INTERACTIONS.md`. Wired into both the Windows tray broker and `agentnotifyd`.
+    - New CLI group `agentnotify interactions` (request/list/get/wait/respond/cancel) with
+      `help` text and `docs/CLI.md` reference.
+    - Gates: full-solution Release build 0 warnings/0 errors; 787 tests passed (763 + 24 new
+      service/API/CLI tests, full suite run twice); `git diff --check` clean. No WPF visual
+      behavior changed or checked; packaging deferred to the hosted Windows run.
+
+52. Completed on `feature/harness-gemini-copilot-cursor-muse` (four more notify-only harnesses):
+    - Shared `agentnotify_hook.py` now bridges six hosts (added `gemini`, `copilot`, `cursor`,
+      `muse` labels and `permission-request`, `after-agent`, `agent-stop`, `error-occurred`
+      events). Sources: official Gemini hooks reference, Copilot hooks reference, Cursor hooks
+      docs, Muse beta reports (Claude-compatible wire schema).
+    - Gemini: `Notification`/`AfterAgent`/`SessionEnd` merged into `~/.gemini` or
+      `.gemini/settings.json` (all advisory — a perfect notify-only fit). Documented the
+      announced Antigravity CLI succession as a catalog-correction trigger.
+    - Copilot: owned `hooks/agentnotify.json` (`notification` fire-and-forget, `agentStop`,
+      `sessionEnd`, `errorOccurred`) under `~/.copilot` or `.github`, with bash+powershell
+      commands; custom hooks live in sibling files by design.
+    - Cursor: `stop`/`sessionEnd` merged into versioned `hooks.json` (`~/.cursor` or `.cursor`);
+      documented that user hooks skip cloud agents (use `--scope project` there).
+    - Muse: `PermissionRequest`/`Stop` merged into `~/.config/muse/settings.json` with the
+      mandatory `schema_version: 1` seeded on fresh files and preserved otherwise; project
+      scope writes `.muse/hooks.json` as explicitly unconfirmed (installer + docs say how to
+      verify via startup warnings).
+    - `install-harness` accepts all seven ids plus `claude-code`/`muse-code`/`gemini-cli`/
+      `copilot-cli`/`github-copilot` aliases; 17 new installer/catalog/CLI tests.
+    - Gates: build 0/0; 804 tests passed; `py_compile` + example-JSON parses; `git diff --check`
+      clean. Real-host display smoke still pending for all harnesses.
+
+53. Completed on `feature/harness-kilo-openclaw-hermes-pi` (last four harnesses):
+    - Kilo Code: the OpenCode V1 plugin retargeted at install time (`kilo` agent id, Kilo
+      titles, kilo project fallback) with drift assertions — a changed source file fails the
+      build of the payload instead of shipping a half-renamed plugin. Verified no leftover
+      identity and `node --check` clean.
+    - OpenClaw: stdlib-only `agentnotify_openclaw.py watch` daemon polling
+      `openclaw approvals pending --json`, opening one broker interaction per approval,
+      notifying, waiting, and resolving via `openclaw approvals resolve`. E2E-verified
+      against fake binaries (request → notify → wait → resolve). Unsettled approvals stay
+      pending; the gateway-operator client (`operator.approvals`) remains the planned upgrade.
+    - Hermes: `agentnotify` approval-transport plugin (`plugin.yaml` + `__init__.py`) using
+      only confirmed APIs (`register_approval_transport`, `register_hook`, `request.respond`,
+      `plugins.enabled`, `security.approval.transport`). Transport waits for the broker answer
+      and returns it; errors raise so Hermes denies closed. Installer prints the two
+      `config.yaml` consent steps (YAML is never machine-edited).
+    - Pi: dependency-free `agentnotify.ts` using only confirmed APIs (`agent_settled`,
+      `ui_prompt_start/end`, `ctx.ui.notify`, `ctx.cwd`): settled → completed, blocking
+      dialogs → permission notice + broker capture auto-cancelled on close. Typechecked with
+      the repo's TypeScript against a stubbed `ExtensionAPI`.
+    - `install-harness` covers all eleven hosts; 13 new installer/catalog/CLI tests.
+    - Gates: build 0/0; 817 tests passed; `py_compile` on both Python bridges; `git diff
+      --check` clean. Real-host smoke still pending across the board.
+
+54. Completed on `feature/harness-ask-mode` (host decision return for Codex + Claude):
+    - `agentnotify_hook.py ask-permission`: registers one keyed permission interaction,
+      notifies, waits in slices (CLI caps one wait at 300 s), and prints the verified
+      `PermissionRequest` decision JSON (`decision.behavior: allow/deny`) for Codex and
+      Claude Code. Schemas verified against the official hook references fetched this
+      session (Codex `developers.openai.com/codex/hooks`, Claude `code.claude.com/docs/en/hooks`).
+    - E2E-verified against a fake CLI (request → notify → wait → deny JSON) and the
+      fail-open path (no broker → silent exit 0, host shows its local prompt).
+    - `install-harness <codex|claude> --ask` swaps the notify hook for the blocking ask
+      hook (600 s Codex / 300 s Claude timeouts, `--timeout` passed through); reinstalling
+      without `--ask` restores notify-only. Mode migrations drop the other mode's entries
+      so hooks never double-fire; signature matching is now anchored on the script name so
+      trailing flags cannot shift it. Other hosts reject `--ask` with a clear error.
+    - Documented the tradeoff honestly: while the hook waits, the host's own prompt is
+      suppressed — ask mode is for answering from the phone/another machine, notify-only
+      stays the default for terminal work.
+    - Gates: build 0/0; 821 tests passed (4 new installer/CLI tests); `git diff --check`
+      clean. Live host round trip still pending (owner checklist).
+
+55. Completed on `feature/relay-interaction-sync` (relay reverse path, broker side):
+    - New `InteractionRelayPublisher`: every new interaction is enqueued per matching
+      enabled Relay route with `IncludeMessage` (same body consent as notifications;
+      bodyless routes never carry questions). Type/project/agent/priority gates mirror
+      route matching with kind→type mapping (permission→permission_required). Outbox ids
+      are deterministic per interaction+provider, so republish is idempotent. Payload is
+      the sealed `interaction-request` JSON (`contract_version: "1"`, id, kind, prompt,
+      choices, digest, nonce, expiry) riding the unchanged envelope flow.
+    - Auto-publish via new `ApiCallbacks.InteractionCreated` (failure-isolated like
+      `PersistOutbound`), wired in both the Windows tray broker and `agentnotifyd`;
+      manual `POST /v1/interactions/{id}/publish` for testing the phone card.
+    - New `InteractionResponseSync` + `RelayCursorStore`: `interactions poll-responses`
+      pulls stored mobile answers per Relay provider (hardened transport reused for the
+      poller), revalidates at the broker (digest, nonce, kind, expiry, first-wins), and
+      advances durable per-provider cursors only on fully processed polls. Wrong-
+      installation answers are dropped before touching the broker.
+    - New `docs/RELAY_INTERACTIONS.md`: the relay/mobile build spec — request payload
+      table, the two Relay endpoints to implement (submit/poll with exact JSON + status
+      codes), mobile UI minimums, worked example, trust assumptions (TLS+bearer v1, Relay
+      sees nonces/answers, E2E answer sealing tracked as follow-up), and explicit v1
+      non-goals. This is what the owner's future relay/mobile work builds against.
+    - RelayHttpTransport.CreateClient/MarkValidated made public so the CLI poller carries
+      the same DNS-pinning policy as delivery.
+    - Gates: build 0/0; 835 tests passed (14 new publisher/sync/cursor/API/CLI tests);
+      site typecheck + static build with both new pages; `git diff --check` clean.
+      Unverified: live Relay round trip (no relay implements the endpoints yet), mobile UI.
 
 ## Current documentation/status snapshot
 
 - Implemented outbound adapters: 19 — generic HTTPS webhook, SMTP, Telegram, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, Twilio SMS, Meta WhatsApp Cloud, Twilio WhatsApp, MQTT 5, and AgentNotify Relay (self-hosted/Relay Go, experimental opaque transport).
 - All outbound adapters are opt-in, disabled until a provider and matching route are enabled, and covered by encrypted secret storage, bounded payloads, provider-specific status policy, and durable outbox dispatch.
-- Automated coverage is 738 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
+- Automated coverage is 835 passing tests. No provider credentials, real paid account, real broker, or external destination is included in the repository or verification run.
 - Remaining product work is intentionally concentrated on rules/quiet hours/escalation, agent responses and heartbeat, delivery-status/spend controls, accessibility and multi-DPI human checks, signed releases, ARM64, and future macOS/Linux clients.
 - The Android Relay mobile receiver now exists and the owner reports a successful live flow; native
   desktop clients for macOS/Linux remain planned.
@@ -388,12 +519,21 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 
 ## Next resume action
 
-Begin A02 Phase 1 on a new feature branch: finalize the versioned interaction/response model,
-SQLite migration, idempotency, expiry/cancellation, first-valid-response-wins rule, loopback API,
-and host-acceptance state before building a vendor adapter. Keep the detailed sequence and security
-tests in `docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md` as the design baseline.
+Owner verification of the harnesses per `docs/HARNESS.md` (ask mode for Codex
+first), then Relay server + mobile implementation against
+`docs/RELAY_INTERACTIONS.md`. Remaining broker work: local desktop response UI,
+dispatcher-integrated response polling, generic ACP bridge, MCP elicitation.
 
 Two items are waiting on the repository owner rather than on code:
 
 - Perform the human WPF checks listed at the end of `docs/VERIFICATION.md` for the settings theme and the built-in tones. Nothing visual has been confirmed.
 - Decide the redistribution rights for the four personal MP3s in the ignored `notification-tone/` folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`, and record their provenance in `THIRD_PARTY_NOTICES.md`.
+
+## Release v0.1.0-alpha.1 (2026-09-12)
+
+Bidirectional interactions (broker + CLI/API/tray answers, ask mode for Codex and Claude
+Code, 13 harnesses, Relay answer sync on the desktop side) released as `v0.1.0-alpha.1`,
+tagged on `main` after promoting `dev`. No .NET toolchain on this machine, so no local
+build/test/package run was possible here; the hosted release workflow builds, tests, and
+packages independently and fails rather than publishing. Windows installer verification
+of the hosted assets is with the owner.

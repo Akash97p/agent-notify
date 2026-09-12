@@ -1,0 +1,28 @@
+{
+  "$comment": "AgentNotify harness example for Muse Code (beta). Merge the schema_version and hooks into ~/.config/muse/settings.json and replace HOOK_DIR with the folder holding agentnotify_hook.py. Prefer `agentnotify install-harness muse`. schema_version 1 is required: a settings file without it fails every Muse command at startup. The hook only notifies and never blocks. After installing, start one session and confirm Muse reports no hooks warning.",
+  "schema_version": 1,
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py muse permission-request"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 HOOK_DIR/agentnotify_hook.py muse stop"
+          }
+        ]
+      }
+    ]
+  }
+}

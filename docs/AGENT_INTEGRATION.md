@@ -2,6 +2,22 @@
 
 Prefer the installed `agentnotify.exe` CLI. It discovers the local port/token, produces correct JSON, handles errors, and keeps the broker as the lifecycle source of truth.
 
+## Automatic harnesses (preferred)
+
+The skill below relies on the model remembering to call AgentNotify. The
+harness removes the remembering: OpenCode, Codex, and Claude Code can notify
+automatically at permission prompts, questions, session completion, and
+session errors through their own hooks/plugin system:
+
+```bash
+agentnotify install-harness opencode
+agentnotify install-harness codex
+agentnotify install-harness claude
+```
+
+Harnesses are notify-only — they never approve, deny, or block. Install both
+the harness and the skill. See [HARNESS.md](HARNESS.md).
+
 ## Install the agent skill
 
 Install the skill embedded in the CLI:
