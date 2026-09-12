@@ -50,7 +50,7 @@
 - [ ] Local permission and single-choice response UI with first-valid-response-wins
 - [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
 - [x] Native adapters for all eleven hosts (OpenCode, Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi)
-- [x] Relay reverse response envelopes with reconnect/backfill and replay defense (broker side; Relay endpoints + mobile UI pending)
+- [x] Relay reverse response envelopes with reconnect/backfill and replay defense (broker, Relay, and mobile all implemented; continuous desktop polling runs with the broker)
 - [ ] Mobile allow/deny and single-choice UI with desktop/host outcome feedback
 
 ## Distribution and open source

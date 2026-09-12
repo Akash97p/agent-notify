@@ -548,3 +548,30 @@ starting Node, preventing case-variant paths on macOS from loading duplicate fra
 The replacement `dev` workflow had already built and deployed the same Git tree successfully.
 Next 16.3.x still has an upstream cold-prerender AsyncLocalStorage race locally; no framework patch,
 downgrade, or unbounded retry was retained.
+
+## Continuous answer polling and response hardening (2026-09-12)
+
+`fix/interaction-answer-delivery` completed the desktop half of the phone-answer loop:
+
+- A new `InteractionResponsePoller` runs on a worker task in both the Windows tray
+  (`App.xaml.cs`) and headless `agentnotifyd` (`BrokerRuntime`). It polls every enabled
+  Relay profile every 5 s with bounded jittered backoff (cap 2 min), 15 s per request,
+  and a cursor that only advances after the whole fetched batch was processed. Profiles
+  without a saved `installation_id` are skipped rather than polled with an empty target.
+  Shutdown is bounded and cancels in-flight work.
+- `InteractionResponseSync` now validates each stored answer (contract version, ids,
+  64-hex digest, nonce, exact target installation, exactly one bounded choice/text)
+  before the local broker sees it; local broker 400/404/409 are terminal, transport
+  errors and 5xx/429/401 are retryable and block cursor advancement. Relay response
+  bodies are capped at 64 KiB and cursors at 2048 chars.
+- `InteractionService.RespondAsync` requires a matching nonce whenever the stored
+  interaction has one, and checks digest/nonce before replaying a settled outcome, so a
+  response id can no longer be replayed without proving it belongs to the request.
+- The `RelayPollTarget.FromProfileAsync` factory reads the same encrypted relay profile
+  used for delivery; the CLI `interactions poll-responses` skips profiles without an
+  installation id with a clear message instead of silently polling.
+- Verification on macOS with `$HOME/.dotnet/dotnet` 10.0.401 and
+  `-p:EnableWindowsTargeting=true`: full solution Release build 0 warnings / 0 errors;
+  838 tests passed (835 prior plus 3 new). No WPF surface was launched; no live Relay
+  round trip was run on this machine. Windows installer and real-device checks remain
+  with the owner/hosted CI.

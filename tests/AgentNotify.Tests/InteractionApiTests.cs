@@ -69,18 +69,18 @@ public sealed class InteractionApiTests
             .Content.ReadFromJsonAsync<InteractionDto>(AgentNotify.Protocol.Json.Options);
 
         var answer = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created!.Id}/respond",
-            JsonBody(new { response_id = "r1", request_digest = created.RequestDigest, choice_id = "deny", source = "desktop" }));
+            JsonBody(new { response_id = "r1", request_digest = created.RequestDigest, nonce = created.Nonce, choice_id = "deny", source = "desktop" }));
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
         var answered = await answer.Content.ReadFromJsonAsync<InteractionDto>(AgentNotify.Protocol.Json.Options);
         Assert.Equal(InteractionStatus.Answered, answered!.Status);
         Assert.Equal("deny", answered.Response!.ChoiceId);
 
         var replay = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created.Id}/respond",
-            JsonBody(new { response_id = "r1", request_digest = created.RequestDigest, choice_id = "deny", source = "desktop" }));
+            JsonBody(new { response_id = "r1", request_digest = created.RequestDigest, nonce = created.Nonce, choice_id = "deny", source = "desktop" }));
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
 
         var conflict = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created.Id}/respond",
-            JsonBody(new { response_id = "r2", request_digest = created.RequestDigest, choice_id = "allow-once", source = "relay" }));
+            JsonBody(new { response_id = "r2", request_digest = created.RequestDigest, nonce = created.Nonce, choice_id = "allow-once", source = "relay" }));
         Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
     }
 
@@ -93,7 +93,7 @@ public sealed class InteractionApiTests
             .Content.ReadFromJsonAsync<InteractionDto>(AgentNotify.Protocol.Json.Options);
 
         var resp = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created!.Id}/respond",
-            JsonBody(new { response_id = "r1", request_digest = new string('0', 64), choice_id = "deny", source = "cli" }));
+            JsonBody(new { response_id = "r1", request_digest = new string('0', 64), nonce = created.Nonce, choice_id = "deny", source = "cli" }));
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
@@ -109,7 +109,7 @@ public sealed class InteractionApiTests
         var waitTask = waiter.GetAsync($"{fx.BaseUrl}/v1/interactions/{created!.Id}/wait?timeout=20");
         await Task.Delay(300);
         var answer = await client.PostAsync($"{fx.BaseUrl}/v1/interactions/{created.Id}/respond",
-            JsonBody(new { response_id = "w1", request_digest = created.RequestDigest, choice_id = "allow-once", source = "cli" }));
+            JsonBody(new { response_id = "w1", request_digest = created.RequestDigest, nonce = created.Nonce, choice_id = "allow-once", source = "cli" }));
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
 
         var waited = await waitTask.WaitAsync(TimeSpan.FromSeconds(30));

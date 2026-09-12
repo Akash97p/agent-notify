@@ -102,7 +102,18 @@ public sealed class InteractionService
                 return ServiceResult<Interaction>.NotExist();
             item = await ExpireIfDueAsync(item, ct);
 
-            // Idempotent retry: the same response id always yields the same outcome.
+            if (!string.Equals(item.RequestDigest, request.RequestDigest.Trim(), StringComparison.Ordinal))
+                return ServiceResult<Interaction>.Fail("request digest mismatch: the question changed since it was asked");
+
+            if (!string.IsNullOrWhiteSpace(item.Nonce) &&
+                (string.IsNullOrWhiteSpace(request.Nonce) ||
+                 !CryptographicOperations.FixedTimeEquals(
+                     Encoding.UTF8.GetBytes(item.Nonce),
+                     Encoding.UTF8.GetBytes(request.Nonce.Trim()))))
+                return ServiceResult<Interaction>.Fail("nonce mismatch");
+
+            // Idempotent retries still prove that they belong to this request before
+            // the original outcome is returned.
             if (item.Response is not null &&
                 string.Equals(item.Response.ResponseId, request.ResponseId.Trim(), StringComparison.Ordinal))
                 return ServiceResult<Interaction>.Ok(item);
@@ -112,16 +123,6 @@ public sealed class InteractionService
                     item.Status == InteractionStatus.Answered
                         ? "interaction already answered"
                         : $"interaction is no longer pending ({item.Status.ToString().ToLowerInvariant()})");
-
-            if (!string.Equals(item.RequestDigest, request.RequestDigest.Trim(), StringComparison.Ordinal))
-                return ServiceResult<Interaction>.Fail("request digest mismatch: the question changed since it was asked");
-
-            if (!string.IsNullOrWhiteSpace(item.Nonce) &&
-                !string.IsNullOrWhiteSpace(request.Nonce) &&
-                !CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(item.Nonce),
-                    Encoding.UTF8.GetBytes(request.Nonce!.Trim())))
-                return ServiceResult<Interaction>.Fail("nonce mismatch");
 
             var answerError = ValidateAnswer(item, request);
             if (answerError is not null)

@@ -1328,7 +1328,13 @@ internal static class Program
                 RelayPollTarget target;
                 try
                 {
-                    target = await BuildPollTargetAsync(profiles, profile);
+                    var configured = await RelayPollTarget.FromProfileAsync(profiles, profile);
+                    if (configured is null)
+                    {
+                        Console.Error.WriteLine($"{profile.Name}: no installation_id; skipped.");
+                        continue;
+                    }
+                    target = configured;
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or
                                            JsonException or CryptographicException or IOException or
@@ -1391,23 +1397,6 @@ internal static class Program
         {
             return Fail(exception.Message);
         }
-    }
-
-    private static async Task<RelayPollTarget> BuildPollTargetAsync(
-        ProviderProfileService profiles,
-        ProviderProfile profile)
-    {
-        using var document = JsonDocument.Parse(profile.ConfigJson);
-        var root = document.RootElement;
-        var url = GetJsonString(root, "relay_url") ?? GetJsonString(root, "relayUrl");
-        var allowPrivate = GetJsonBoolean(root, "allowPrivateNetwork") ||
-                           GetJsonBoolean(root, "allow_private_network");
-        var installationId = GetJsonString(root, "installation_id") ?? GetJsonString(root, "installationId");
-        var secrets = await profiles.GetSecretsForDeliveryAsync(profile.Id);
-        if (url is null || !secrets.TryGetValue("installation_token", out var credential))
-            throw new InvalidOperationException("No saved Relay URL or credential.");
-        RelayChannelAdapter.ValidateRelayUrl(url, allowPrivate);
-        return new RelayPollTarget(profile.Id, profile.Name, url, allowPrivate, credential, installationId);
     }
 
     private static async Task<int> HandleJsonResponse(HttpResponseMessage resp)    {
