@@ -13,7 +13,7 @@ This is the durable handoff record for long-running AgentNotify development. Upd
 - Baseline verification on 2026-08-12: Release build succeeded with 0 warnings and 0 errors; 597 tests passed.
 - Latest local package verification: `AgentNotifySetup.exe` SHA-256 is `a4c5c68138a11113469b97c74b292d768020d74f10aaa8b84fe1ad93dc522ac4` (`v0.0.4-alpha.2`).
 - Manual user verification: tray menu actions work; notification center receives events; custom Windows toasts were seen; skill copy/download works.
-- Current product version: `0.0.4-alpha.2`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
+- Current product version: `0.1.0-alpha.2`, unsigned prerelease. Windows x64 installer plus portable macOS/Linux archives. The first mature release is reserved for `1.0.0`.
 
 ## Decisions that must survive context compaction
 
