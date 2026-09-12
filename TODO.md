@@ -51,7 +51,19 @@
 - [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
 - [x] Native adapters for all eleven hosts (OpenCode, Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi)
 - [x] Relay reverse response envelopes with reconnect/backfill and replay defense (broker, Relay, and mobile all implemented; continuous desktop polling runs with the broker)
-- [ ] Mobile allow/deny and single-choice UI with desktop/host outcome feedback
+- [x] Mobile allow/deny, single-choice and free-text answer UI (desktop/host outcome feedback back to the phone is still absent — the phone learns only that the Relay recorded the answer)
+- [ ] **Teach the skill that questions exist.** The distributable `SKILL.md` covers
+      `send`, `resolve` and `list` only; it never mentions `interactions`, so an agent
+      has no way to know it can ask the user a bounded question on its own initiative.
+      Every layer beneath it is implemented and verified end to end. This is the gap
+      between "the machinery works" and "an agent uses it".
+- [ ] Multi-select answers. `single_choice` means exactly one and the broker rejects an
+      answer carrying more; there is no kind for "pick several".
+- [ ] Free-form phone-to-agent messaging. Deliberately outside the interaction contract
+      (an answer is authorized by a request's digest, nonce and first-wins state; a
+      message has none of those). Needs its own installation inbox, a `can_message`
+      grant, and a host adapter that can actually accept text — see
+      `docs/RELAY_INTERACTIONS.md`.
 
 ## Distribution and open source
 
