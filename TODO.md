@@ -111,4 +111,4 @@
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
 
-The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. Durable branch and decision state lives in `docs/DEVELOPMENT_STATE.md`.
+The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. The constraints the implementation is held to live in `docs/ARCHITECTURE.md`, and what has actually been verified lives in `docs/VERIFICATION.md`.

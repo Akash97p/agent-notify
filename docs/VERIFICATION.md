@@ -1061,3 +1061,43 @@ Not verified here: no WPF surface was rendered, no hosted Windows packaging ran,
 live Relay was available on this machine for a phone-answer round trip. The end-to-end
 proof remains: answer from a real phone against a real self-hosted Relay with the
 desktop broker running, and observe the waiting host receive the decision.
+
+## Interaction wait lifecycle and ask fallback (`fix/interaction-wait-lifecycle`, 2026-09-12)
+
+Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=true`):
+
+- Full-solution Release build: 0 warnings, 0 errors.
+- Full suite: 842 tests passed (839 + 3 new), 0 failed.
+- Each new test was run against the pre-fix code first and confirmed to fail, so the
+  three defects are pinned by tests that can actually detect them.
+- `python3 -m py_compile` passes on the edited harness hook.
+
+Not verified here: no WPF surface was rendered, no hosted Windows packaging ran, and the
+hook's new cancel/resolve path was not executed against a running broker — it is a
+subprocess call made only on a fallback that needs a live ask session to reach.
+
+## Release `v0.1.0-alpha.2` (2026-09-12)
+
+Hosted Windows release workflow succeeded on tag `v0.1.0-alpha.2`: build, full suite,
+packaging, and publication. Published assets: `AgentNotifySetup.exe` (191.77 MB),
+`agentnotify-win-x64.zip`, the four `linux`/`osx` × `x64`/`arm64` portable archives,
+`SHA256SUMS.txt`, `SHA256SUMS-portable.txt`, and `SKILL.md`. The desktop repository's
+CI, Linux/macOS CI, and documentation-site workflows all passed on `main` for the same
+commit.
+
+Not verified: the installer has not been run on Windows from this release, and the
+binaries remain unsigned.
+
+## Owner verification still outstanding
+
+These need the repository owner and a real machine; nothing in CI can close them.
+
+- The human WPF checks listed earlier in this file, for the settings theme and the
+  built-in tones. No visual surface has been confirmed by a person.
+- A full phone-to-host answer against a real self-hosted Relay: answer from the phone,
+  and observe the waiting host receive the decision. Every half of this now exists and
+  is released, but the round trip has not been watched end to end.
+- Apple Silicon and `terminal-notifier` on macOS remain unobserved.
+- Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
+  folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,
+  and record their provenance in `THIRD_PARTY_NOTICES.md`.

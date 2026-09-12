@@ -8,5 +8,5 @@ implementation pass. They are kept for provenance and are **not current**.
 - `STACK.md` — the original technology selection and rationale.
 - `PLAN.md` — the original phased execution plan.
 
-For the current state of the project, read `docs/DEVELOPMENT_STATE.md`,
+For the current state of the project, read `docs/ARCHITECTURE.md`,
 `docs/ROADMAP.md`, and `TODO.md` instead.
