@@ -30,7 +30,7 @@ export default function Home() {
           <div>
             <Badge variant="outline" className="mb-6 border-border bg-background/70 px-3 py-1 text-muted-foreground">Open source · Local first · No telemetry</Badge>
             <h1 className="max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-7xl">Know exactly when your agents need you.</h1>
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">AgentNotify turns permissions, questions, blockers, failures, and completions into durable human-attention requests—then routes them to the surfaces you already use.</p>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">AgentNotify turns permissions, questions, blockers, failures, and completions into durable human-attention requests—then routes them to the surfaces you already use, and carries your answer back to the agent that is waiting.</p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
               <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
@@ -81,6 +81,33 @@ export default function Home() {
           <Feature icon={Route} title="Route after persistence">Desktop delivery is authoritative. Optional remote channels run later through a durable outbox.</Feature>
           <Feature icon={LockKeyhole} title="Explicit trust boundary">The API stays on loopback behind a random bearer token. External channels are disabled until configured.</Feature>
         </div>
+      </section>
+
+      <Separator />
+
+      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
+        <div>
+          <Badge variant="secondary">Two-way</Badge>
+          <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Answer it, don&apos;t just read it.</h2>
+          <p className="mt-5 text-lg leading-8 text-muted-foreground">An agent can ask you something and carry on with other work while you decide. Your answer is waiting when it checks back, and it reaches the session that asked.</p>
+          <p className="mt-5 leading-7 text-muted-foreground">For Codex and Claude Code, the host&apos;s own approval prompt can wait for you: every shell command and file write pauses with the exact command shown. If nothing answers in time it falls back to the ordinary local prompt, so it can never lock you out.</p>
+          <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/docs/interactions/">How interactions work <ArrowRight /></Link></Button><Button asChild variant="outline"><Link href="/docs/harness/">Agent harnesses</Link></Button></div>
+        </div>
+        <Card className="bg-black">
+          <CardContent className="p-5 font-mono text-[13px] leading-6 text-zinc-300">
+            <pre className="overflow-x-auto"><code>{`$ agentnotify install-harness claude --ask
+
+# Claude Code now pauses for your decision:
+#   "Claude Code approval: Bash rm -rf /tmp/build"
+#     [ Allow once ]  [ Deny ]
+
+# and the session receives exactly what you chose
+{"hookSpecificOutput": {
+  "hookEventName": "PermissionRequest",
+  "decision": { "behavior": "deny" }
+}}`}</code></pre>
+          </CardContent>
+        </Card>
       </section>
 
       <Separator />

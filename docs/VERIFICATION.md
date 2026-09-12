@@ -1088,15 +1088,42 @@ commit.
 Not verified: the installer has not been run on Windows from this release, and the
 binaries remain unsigned.
 
+## Bidirectional loop, end to end on real hardware (2026-09-13)
+
+The round trip this project exists for was observed for the first time, on the owner's
+Intel Mac against the owner's self-hosted Relay and a real Android handset.
+
+Performed: the installed `ask-permission` hook was invoked with a Claude Code
+`PermissionRequest` payload. It opened a broker interaction, published it through the
+Relay, and blocked. The phone rendered the question, the owner tapped a choice, and the
+desktop poller ingested the answer and settled the interaction. The hook printed the
+host-native decision JSON and exited 0.
+
+Observed on the settled interaction: `status: answered`, `source: relay`,
+`device_id: 29f6bad9…`, and a client-generated UUID `response_id` — so the answer came
+off the Relay from the phone, not from the CLI or the local API. Both `allow` and `deny`
+were exercised; `deny` produced
+`{"decision":{"behavior":"deny","message":"Denied via AgentNotify."}}` and `allow`
+produced `{"decision":{"behavior":"allow"}}`.
+
+The fallback path was verified in the same session and is the half that had never been
+executed: a question nobody answered left the hook printing nothing — so the host falls
+through to its own prompt — and left the interaction `cancelled` rather than pending.
+That is the `fix/interaction-wait-lifecycle` change, confirmed against a live broker
+rather than only by unit test.
+
+Environment: broker `0.1.0-alpha.2` on macOS x86_64 under the per-user launchd agent.
+The published `osx-x64` binaries are SIGKILLed by macOS as shipped — they are
+cross-published from a Linux runner and their adhoc signature is not accepted here.
+`codesign --force --sign -` on both binaries fixes it. Worth treating as a packaging
+defect rather than a local quirk.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
 
 - The human WPF checks listed earlier in this file, for the settings theme and the
   built-in tones. No visual surface has been confirmed by a person.
-- A full phone-to-host answer against a real self-hosted Relay: answer from the phone,
-  and observe the waiting host receive the decision. Every half of this now exists and
-  is released, but the round trip has not been watched end to end.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,
