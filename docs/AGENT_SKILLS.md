@@ -69,8 +69,20 @@ Use the installed AgentNotify CLI at meaningful attention boundaries. Run
 `agentnotify.exe health` once near task start. Send `input_required`,
 `permission_required`, or `blocked` with a stable --key before waiting; send
 `completed` after long work; avoid routine progress spam. Capture the returned
-notification ID and resolve it when the condition is no longer active. Never
-print or transmit the local bearer token.
+notification ID and resolve it when the condition is no longer active.
+
+When you need an answer rather than an acknowledgement — you cannot continue
+until the user decides something — raise a question instead and wait for it:
+`agentnotify.exe interactions request --kind text --prompt "..."` for free text,
+or `--kind single_choice --choice ID:LABEL` (2-12 options, `--choice-detail
+ID:DETAIL` for the explanatory line) for a choice. Then
+`agentnotify.exe interactions wait <id> --timeout 300`, which blocks and prints
+the settled interaction; the answer is `.response.text` or `.response.choice_id`.
+Offer only choices you will honour, include an escape option when the list may
+not be exhaustive, and set a --ttl you can actually wait out. Do not raise
+`--kind permission` yourself: host approval prompts are handled by the harness.
+
+Never print or transmit the local bearer token.
 ```
 
 Then provide the CLI examples from `docs/AGENT_INTEGRATION.md`.
