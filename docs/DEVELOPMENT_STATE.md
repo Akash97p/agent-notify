@@ -537,3 +537,14 @@ tagged on `main` after promoting `dev`. No .NET toolchain on this machine, so no
 build/test/package run was possible here; the hosted release workflow builds, tests, and
 packages independently and fails rather than publishing. Windows installer verification
 of the hosted assets is with the owner.
+
+## Pages promotion fix (2026-09-12)
+
+The `main` Pages run for `v0.1.0-alpha.1` was cancelled, not build-failed: pushing `dev`
+seconds later replaced it because both branches shared `concurrency.group: pages` with
+`cancel-in-progress: true`. Pages now queues same-site branch deployments rather than cancelling
+the release-line run. The build script also resolves and enters the physical repository path before
+starting Node, preventing case-variant paths on macOS from loading duplicate framework modules.
+The replacement `dev` workflow had already built and deployed the same Git tree successfully.
+Next 16.3.x still has an upstream cold-prerender AsyncLocalStorage race locally; no framework patch,
+downgrade, or unbounded retry was retained.
