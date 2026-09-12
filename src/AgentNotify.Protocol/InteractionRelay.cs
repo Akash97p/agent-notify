@@ -23,7 +23,7 @@ public static class InteractionRelayContract
 public sealed class RelayInteractionResponse
 {
     [JsonPropertyName("contract_version")]
-    public string ContractVersion { get; set; } = InteractionRelayContract.Version;
+    public string ContractVersion { get; set; } = "";
 
     /// <summary>Client-generated idempotency id. Retries reuse it.</summary>
     [JsonPropertyName("response_id")]
@@ -58,9 +58,9 @@ public sealed class RelayInteractionResponse
 public sealed class RelayResponsePollResult
 {
     [JsonPropertyName("responses")]
-    public List<RelayInteractionResponse> Responses { get; set; } = [];
+    public List<RelayInteractionResponse>? Responses { get; set; }
 
     /// <summary>Opaque cursor; echo back as <c>since</c> on the next poll.</summary>
     [JsonPropertyName("next_cursor")]
-    public string NextCursor { get; set; } = "";
+    public string? NextCursor { get; set; }
 }

@@ -118,12 +118,14 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         var item = created.Value!;
         var first = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "r1", RequestDigest = item.RequestDigest, ChoiceId = "deny", Source = "desktop"
+            ResponseId = "r1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "deny", Source = "desktop"
         });
         Assert.Null(first.Error);
         var second = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "r2", RequestDigest = item.RequestDigest, ChoiceId = "allow-once", Source = "relay"
+            ResponseId = "r2", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "allow-once", Source = "relay"
         });
         Assert.NotNull(second.Error);
         Assert.Contains("already answered", second.Error);
@@ -136,7 +138,8 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         var item = created.Value!;
         var req = new RespondInteractionRequest
         {
-            ResponseId = "r1", RequestDigest = item.RequestDigest, ChoiceId = "deny", Source = "relay"
+            ResponseId = "r1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "deny", Source = "relay"
         };
         var first = await _service.RespondAsync(item.Id, req);
         var replay = await _service.RespondAsync(item.Id, req);
@@ -151,14 +154,16 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         var item = created.Value!;
         var stale = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "r9", RequestDigest = new string('0', 64), ChoiceId = "deny", Source = "cli"
+            ResponseId = "r9", RequestDigest = new string('0', 64), Nonce = item.Nonce,
+            ChoiceId = "deny", Source = "cli"
         });
         Assert.NotNull(stale.Error);
         Assert.Contains("digest", stale.Error);
 
         var unknown = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "r10", RequestDigest = item.RequestDigest, ChoiceId = "allow-always", Source = "cli"
+            ResponseId = "r10", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "allow-always", Source = "cli"
         });
         Assert.NotNull(unknown.Error);
         Assert.Contains("offered", unknown.Error);
@@ -169,6 +174,13 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         });
         Assert.NotNull(wrongNonce.Error);
         Assert.Contains("nonce", wrongNonce.Error);
+
+        var missingNonce = await _service.RespondAsync(item.Id, new RespondInteractionRequest
+        {
+            ResponseId = "r12", RequestDigest = item.RequestDigest, ChoiceId = "deny", Source = "cli"
+        });
+        Assert.NotNull(missingNonce.Error);
+        Assert.Contains("nonce", missingNonce.Error);
     }
 
     [Fact]
@@ -181,12 +193,14 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         var item = created.Value!;
         var tooLong = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "t1", RequestDigest = item.RequestDigest, Text = "way too long an answer", Source = "cli"
+            ResponseId = "t1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            Text = "way too long an answer", Source = "cli"
         });
         Assert.NotNull(tooLong.Error);
         var ok = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "t2", RequestDigest = item.RequestDigest, Text = "short", Source = "cli"
+            ResponseId = "t2", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            Text = "short", Source = "cli"
         });
         Assert.Null(ok.Error);
         Assert.Equal("short", ok.Value!.Response!.Text);
@@ -202,7 +216,8 @@ public sealed class InteractionServiceTests : IAsyncLifetime
 
         var result = await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "e1", RequestDigest = item.RequestDigest, ChoiceId = "deny", Source = "cli"
+            ResponseId = "e1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "deny", Source = "cli"
         });
         Assert.NotNull(result.Error);
         Assert.Contains("expired", result.Error);
@@ -219,7 +234,8 @@ public sealed class InteractionServiceTests : IAsyncLifetime
 
         var answer = await _service.RespondAsync(created.Value.Id, new RespondInteractionRequest
         {
-            ResponseId = "c1", RequestDigest = created.Value.RequestDigest, ChoiceId = "deny", Source = "cli"
+            ResponseId = "c1", RequestDigest = created.Value.RequestDigest, Nonce = created.Value.Nonce,
+            ChoiceId = "deny", Source = "cli"
         });
         Assert.NotNull(answer.Error);
     }
@@ -233,7 +249,8 @@ public sealed class InteractionServiceTests : IAsyncLifetime
         await Task.Delay(100);
         await _service.RespondAsync(item.Id, new RespondInteractionRequest
         {
-            ResponseId = "w1", RequestDigest = item.RequestDigest, ChoiceId = "allow-once", Source = "desktop"
+            ResponseId = "w1", RequestDigest = item.RequestDigest, Nonce = item.Nonce,
+            ChoiceId = "allow-once", Source = "desktop"
         });
         var settled = await waiter.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.NotNull(settled);

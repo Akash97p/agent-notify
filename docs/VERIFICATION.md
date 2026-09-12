@@ -1045,3 +1045,19 @@ Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=tr
 Not verified: no Relay server implements `POST/GET /v1/interaction-responses`
 yet, so no live phone-to-host answer has flowed; the mobile UI does not exist.
 The contract they will be built against is `docs/RELAY_INTERACTIONS.md`.
+
+## Continuous answer polling (`fix/interaction-answer-delivery`, 2026-09-12)
+
+Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=true`):
+
+- Full-solution Release build: 0 warnings, 0 errors.
+- Full suite: 838 tests passed (835 + 3 new sync-validation/transient-failure tests),
+  0 failed.
+- `git diff --check` clean. Three stale sync fixtures with short digests and missing
+  nonces were corrected to the strict wire shape the Relay now enforces; two other
+  suites already covered the nonce requirement.
+
+Not verified here: no WPF surface was rendered, no hosted Windows packaging ran, and no
+live Relay was available on this machine for a phone-answer round trip. The end-to-end
+proof remains: answer from a real phone against a real self-hosted Relay with the
+desktop broker running, and observe the waiting host receive the decision.

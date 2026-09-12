@@ -30,6 +30,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private SqliteNotificationRepository? _repository;
     private SqliteDeliveryRepository? _deliveryRepository;
     private DeliveryDispatcher? _dispatcher;
+    private InteractionResponsePoller? _interactionResponsePoller;
     private IReadOnlyList<IOutboundChannelAdapter>? _adapters;
     private WebApplication? _api;
 
@@ -111,6 +112,12 @@ public sealed class BrokerRuntime : IAsyncDisposable
         _dispatcher.Start();
 
         var interactionPublisher = new InteractionRelayPublisher(_deliveryRepository, _dispatcher.Signal);
+        _interactionResponsePoller = new InteractionResponsePoller(
+            profiles,
+            new RelayCursorStore(_configStore.ConfigDir),
+            Url,
+            _config.AuthToken,
+            _logger);
 
         var service = new NotificationService(_repository, _config);
 
@@ -129,6 +136,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
 
         _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService, interactionPublisher);
         await _api.StartAsync(cancellationToken).ConfigureAwait(false);
+        _interactionResponsePoller.Start();
         _logger.Info($"API listening on {Url}");
 
         await PruneHistoryAsync(cancellationToken).ConfigureAwait(false);
@@ -184,6 +192,21 @@ public sealed class BrokerRuntime : IAsyncDisposable
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
+        if (_interactionResponsePoller is not null)
+        {
+            try
+            {
+                await _interactionResponsePoller.DisposeAsync().AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(5))
+                    .ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                _logger.Warn("Relay interaction response poller did not stop within 5 seconds; exiting anyway.");
+            }
+            catch { }
+        }
+
         if (_api is not null)
         {
             using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));

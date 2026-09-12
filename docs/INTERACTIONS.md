@@ -22,17 +22,20 @@ deterministic per interaction+provider, so republishing is idempotent.
 the phone card without a live host).
 
 Answers come back the other way: mobile POSTs to the Relay server, and the
-desktop pulls them with
+desktop pulls them. While the broker runs, a background poller checks every
+enabled Relay profile every few seconds with bounded backoff (Windows tray and
+headless `agentnotifyd` both host it); answers normally reach a waiting host
+without anyone running anything. `agentnotify interactions poll-responses
+[--provider ID] [--json]` remains for diagnostics and one-off polls.
 
-```bash
-agentnotify interactions poll-responses [--provider ID] [--json]
-```
-
-Run it on a schedule (cron/systemd/launchd) until dispatcher-integrated
-polling lands. Every fetched answer is revalidated by the broker (digest,
-nonce, kind, expiry, first-wins); Relay is an untrusted store that can delay
-answers but never forge them. Poll cursors persist per provider in
-`relay_response_cursors.json` next to the broker config.
+Every fetched answer is revalidated by the broker (digest, nonce, kind,
+expiry, first-wins), so a replay, a stale answer, or an answer to a changed
+question is refused. Relay sees v1 answers in plaintext — it is trusted for
+integrity but not for authorization — so sealing answers to an installation
+key remains tracked follow-up. Poll cursors persist per provider in
+`relay_response_cursors.json` next to the broker config, and a cursor only
+advances after the whole fetched batch was processed: a transient broker or
+Relay failure retries the same answers rather than dropping them.
 
 ## Host capture
 

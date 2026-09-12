@@ -424,7 +424,8 @@ agentnotify interactions poll-responses
 
 `publish` re-sends one question to Relay-enabled routes (requests
 auto-publish on creation). `poll-responses` pulls mobile answers from every
-enabled Relay provider into the broker; run it on a schedule. See
+enabled Relay provider into the broker; the running broker already polls
+continuously, so this command is for diagnostics or a manual catch-up. See
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
 ### `help` and `--version`

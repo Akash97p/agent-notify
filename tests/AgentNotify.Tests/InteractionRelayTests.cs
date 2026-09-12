@@ -180,6 +180,7 @@ public sealed class RelayCursorStoreTests : IDisposable
 public sealed class InteractionResponseSyncTests
 {
     private const string BrokerBase = "http://127.0.0.1:9";
+    private const string Digest = "9f2c4b1d8e6a4f0c2b5d7e9a1c3f40618293a4b5c6d7e8f90a1b2c3d4e5f6078";
 
     private static RelayPollTarget Target() => new(
         "provider-1", "Relay", "https://relay.example.com", false,
@@ -221,7 +222,7 @@ public sealed class InteractionResponseSyncTests
     [Fact]
     public async Task Poll_AppliesValidAnswer()
     {
-        var relay = RelayClient("""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"d","nonce":"n","choice_id":"allow","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c2"}""");
+        var relay = RelayClient($$"""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"{{Digest}}","nonce":"n","choice_id":"allow","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c2"}""");
         var broker = new BrokerStub();
         var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
 
@@ -238,14 +239,16 @@ public sealed class InteractionResponseSyncTests
     [Fact]
     public async Task Poll_DropsWrongInstallationBeforeBroker()
     {
-        var relay = RelayClient("""{"responses":[{"response_id":"r1","interaction_id":"ix","request_digest":"d","installation_id":"other-install"}],"next_cursor":"c2"}""");
+        var relay = RelayClient($$"""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"{{Digest}}","nonce":"n","choice_id":"allow","installation_id":"other-install","device_id":"phone"}],"next_cursor":"c2"}""");
         var broker = new BrokerStub();
         var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
 
         var outcome = await sync.PollOnceAsync(Target(), "");
 
         Assert.True(outcome.Succeeded);
-        Assert.False(Assert.Single(outcome.Answers).Applied);
+        var answer = Assert.Single(outcome.Answers);
+        Assert.False(answer.Applied);
+        Assert.Contains("installation", answer.Note);
         Assert.Empty(broker.Bodies);
     }
 
@@ -291,7 +294,7 @@ public sealed class InteractionResponseSyncTests
     [Fact]
     public async Task Poll_BrokerConflict_IsNotApplied_ButPollSucceeds()
     {
-        var relay = RelayClient("""{"responses":[{"response_id":"r2","interaction_id":"ix","request_digest":"d"}],"next_cursor":"c3"}""");
+        var relay = RelayClient($$"""{"responses":[{"contract_version":"1","response_id":"r2","interaction_id":"ix","request_digest":"{{Digest}}","nonce":"n","choice_id":"deny","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c3"}""");
         var broker = new BrokerStub(HttpStatusCode.Conflict);
         var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
 
@@ -302,5 +305,54 @@ public sealed class InteractionResponseSyncTests
         var answer = Assert.Single(outcome.Answers);
         Assert.False(answer.Applied);
         Assert.Contains("already answered", answer.Note);
+    }
+
+    [Fact]
+    public async Task Poll_TransientBrokerFailure_KeepsCursorAndFailsPoll()
+    {
+        var relay = RelayClient($$"""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"{{Digest}}","nonce":"n","choice_id":"allow","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c2"}""");
+        var broker = new BrokerStub(HttpStatusCode.ServiceUnavailable);
+        var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
+
+        var outcome = await sync.PollOnceAsync(Target(), "c1");
+
+        // The cursor must not advance: the next poll has to fetch this answer again.
+        Assert.False(outcome.Succeeded);
+        Assert.Equal("c1", outcome.NextCursor);
+        var answer = Assert.Single(outcome.Answers);
+        Assert.False(answer.Applied);
+        Assert.Single(broker.Bodies);
+    }
+
+    [Fact]
+    public async Task Poll_InvalidDigestOrNonce_DoesNotReachBroker()
+    {
+        var relay = RelayClient("""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"d","nonce":"n","choice_id":"allow","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c2"}""");
+        var broker = new BrokerStub();
+        var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
+
+        var outcome = await sync.PollOnceAsync(Target(), "c1");
+
+        Assert.True(outcome.Succeeded);
+        var answer = Assert.Single(outcome.Answers);
+        Assert.False(answer.Applied);
+        Assert.Contains("digest", answer.Note);
+        Assert.Empty(broker.Bodies);
+    }
+
+    [Fact]
+    public async Task Poll_MissingNonce_DoesNotReachBroker()
+    {
+        var relay = RelayClient($$"""{"responses":[{"contract_version":"1","response_id":"r1","interaction_id":"ix","request_digest":"{{Digest}}","choice_id":"allow","installation_id":"install-1","device_id":"phone"}],"next_cursor":"c2"}""");
+        var broker = new BrokerStub();
+        var sync = new InteractionResponseSync(relay, new HttpClient(broker), BrokerBase);
+
+        var outcome = await sync.PollOnceAsync(Target(), "c1");
+
+        Assert.True(outcome.Succeeded);
+        var answer = Assert.Single(outcome.Answers);
+        Assert.False(answer.Applied);
+        Assert.Contains("nonce", answer.Note);
+        Assert.Empty(broker.Bodies);
     }
 }

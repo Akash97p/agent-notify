@@ -31,6 +31,7 @@ public partial class App : System.Windows.Application
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
     private DeliveryDispatcher? _deliveryDispatcher;
+    private InteractionResponsePoller? _interactionResponsePoller;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private IReadOnlyList<IOutboundChannelAdapter>? _channelAdapters;
     private DeliveryRouteService _deliveryRoutes = null!;
@@ -136,6 +137,12 @@ public partial class App : System.Windows.Application
         var interactionPublisher = new InteractionRelayPublisher(_deliveryRepository, _deliveryDispatcher.Signal);
 
         var url = $"http://127.0.0.1:{_config.Port}";
+        _interactionResponsePoller = new InteractionResponsePoller(
+            _providerProfiles,
+            new RelayCursorStore(_configStore.ConfigDir),
+            url,
+            _config.AuthToken,
+            _logger);
         _apiCallbacks = new ApiCallbacks
         {
             PersistOutbound = _deliveryCoordinator.EnqueueAsync,            Created = n =>
@@ -159,6 +166,7 @@ public partial class App : System.Windows.Application
         };
         _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks, interactionService, interactionPublisher);
         _api.Start();
+        _interactionResponsePoller.Start();
         _logger.Info($"API listening on {url}");
 
         // Honor persisted startup preference (registry is source of truth; reconcile config).
@@ -325,6 +333,7 @@ public partial class App : System.Windows.Application
         _sounds?.Dispose();
         _settings?.Close();
         _tray?.Dispose();
+        try { _interactionResponsePoller?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { _api?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
         try { (_api as IDisposable)?.Dispose(); } catch { }
         try { _deliveryDispatcher?.StopAsync().Wait(TimeSpan.FromSeconds(2)); } catch { }
