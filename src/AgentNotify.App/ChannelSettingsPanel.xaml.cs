@@ -2181,6 +2181,7 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                     {
                         "no_devices_paired" => "Connected to the relay, but no phone is paired yet. Pair a phone from the relay console, then send a test.",
                         "relay_device_not_found" => "The selected Relay phone is no longer paired. Pair it again or remove the pinned device setting, then send a test.",
+                        "relay_installation_identity_missing" => "This Relay profile predates installation identity. Reconnect it with Connect so the relay accepts its envelopes.",
                         _ => $"Test failed: {result.ErrorCode ?? "unspecified"}."
                     },
                 result.Succeeded);

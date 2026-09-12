@@ -575,3 +575,12 @@ downgrade, or unbounded retry was retained.
   838 tests passed (835 prior plus 3 new). No WPF surface was launched; no live Relay
   round trip was run on this machine. Windows installer and real-device checks remain
   with the owner/hosted CI.
+
+### Follow-up: Relay installation identity is now required (`fix/relay-installation-identity`)
+
+The Relay hardening rejects any envelope whose `sender_id` is not the authenticated
+installation, so the desktop adapter's old `"local-installation"` fallback became an
+unaddressable envelope. The adapter now fails preparation permanently with
+`relay_installation_identity_missing`, the Channels panel explains that the profile
+must be reconnected, and the RelayChannelTests fixtures carry an installation id.
+Gates: Release cross-build 0 warnings / 0 errors, 839 tests passed.

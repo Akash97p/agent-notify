@@ -120,6 +120,30 @@ public sealed class RelayChannelTests
     }
 
     [Fact]
+    public async Task MissingInstallationIdentityFailsPermanentlyWithoutPosting()
+    {
+        var handler = new RelayHandler(HttpStatusCode.Created, "{\"envelope_id\":\"id1\",\"status\":\"accepted\"}");
+        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
+        var config = JsonSerializer.Serialize(new
+        {
+            deployment = "custom",
+            relay_url = "https://relay.example.com",
+            allowPrivateNetwork = false
+        });
+
+        var result = await adapter.DeliverAsync(MakeDelivery(config: config), CancellationToken.None);
+
+        // The relay rejects any sender_id other than the authenticated
+        // installation, so a profile without one cannot deliver; retrying an
+        // unaddressable envelope would only burn the outbox.
+        Assert.False(result.Succeeded);
+        Assert.False(result.Retryable);
+        Assert.Equal("relay_installation_identity_missing", result.ErrorCode);
+        Assert.Null(handler.PostUri);
+        Assert.Null(handler.PostBody);
+    }
+
+    [Fact]
     public async Task UnknownPinnedDeviceFailsWithoutPosting()
     {
         var handler = new RelayHandler(HttpStatusCode.Created, "{}", devicesJson: DefaultDevicesJson);
@@ -128,7 +152,8 @@ public sealed class RelayChannelTests
         {
             deployment = "custom",
             relay_url = "https://relay.example.com",
-            device_id = "missing-device"
+            device_id = "missing-device",
+            installation_id = "install-test"
         });
 
         var result = await adapter.DeliverAsync(MakeDelivery(config: config), CancellationToken.None);
@@ -259,7 +284,10 @@ public sealed class RelayChannelTests
             deployment,
             relay_url = relayUrl,
             sender_name = senderName,
-            allowPrivateNetwork = allowPrivate
+            allowPrivateNetwork = allowPrivate,
+            // The relay requires sender_id to equal the authenticated installation,
+            // so a deliverable profile always carries one. Pairing writes this.
+            installation_id = "install-test"
         });
 
     private static OutboundDelivery MakeDelivery(
