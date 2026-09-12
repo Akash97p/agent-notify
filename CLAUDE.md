@@ -64,6 +64,17 @@ python3 "$SKILL_CREATOR/scripts/quick_validate.py" distribution/agentnotify
 
 Record manual WPF checks honestly in `docs/VERIFICATION.md`. Never claim a visual or integration test that was not performed.
 
+## Compatibility
+
+This is pre-release software with one user on one phone. Do not add backward- or
+forward-compatibility machinery — version negotiation, dual code paths, "older clients
+keep working" fallbacks, deprecation windows — unless explicitly asked. Prefer a clean
+break and update both ends in the same change, saying plainly what has to be updated
+together.
+
+Still bump `contract_version` when a wire shape changes. That is there so a mismatch
+fails loudly instead of being misread, which is diagnostics rather than compatibility.
+
 ## Architecture and security guardrails
 
 - Keep the local API loopback-only and bearer-authenticated.

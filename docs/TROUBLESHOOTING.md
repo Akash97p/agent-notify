@@ -37,6 +37,32 @@ The WPF tray process `AgentNotify.Tray.exe` owns the Kestrel host. It is not run
 
 ---
 
+## macOS: the broker exits immediately with no output
+
+Symptom: `agentnotifyd` returns instantly, prints nothing, and `echo $?` shows `137`.
+Under launchd, `launchctl list | grep agentnotify` shows a `-9` status and the log has
+no new lines at all. `agentnotify health` then reports connection refused.
+
+Cause: the macOS archives are cross-built on a Linux runner, so the adhoc code
+signature they carry is not one the macOS kernel accepts. It sends `SIGKILL` before any
+of the program runs, which is why nothing is logged anywhere — 137 is 128 + 9.
+
+Fix, for both binaries:
+
+```sh
+codesign --force --sign - ~/.local/bin/agentnotify
+codesign --force --sign - ~/.local/bin/agentnotifyd
+```
+
+`scripts/install.sh` does this automatically; you only need it after a manual install or
+after copying the binaries yourself. Re-signing adhoc grants no trust the binary did not
+already have — it makes an unsigned local binary runnable, nothing more. Verify with
+`codesign -v ~/.local/bin/agentnotifyd`, which should print nothing and exit 0.
+
+`spctl -a` will still say `rejected` afterwards. That is expected and unrelated: it
+reports Gatekeeper's opinion of an unsigned binary, and it says the same of a build that
+runs perfectly.
+
 ## 401 Unauthorized
 
 **Symptom**

@@ -57,9 +57,17 @@ Everywhere:
 - A loopback-only, bearer-authenticated REST API at `127.0.0.1:47821`.
 - A self-contained `agentnotify` CLI, including an `agentnotify.exe` for Windows and WSL agents.
 - SQLite history, deduplication keys, configurable retention, and local logs.
+- **Questions, not just notices.** An agent can ask you something — pick one of these
+  options, or type an answer — and get on with something else while you decide. Answer
+  from a toast, the CLI, or the API. Questions expire, only the first answer counts, and
+  a replayed or stale one is rejected rather than applied twice.
+- **Supervised approval for Codex and Claude Code.** Opt in per host and every shell
+  command and file write pauses for your decision, with the exact command shown, and the
+  answer is returned to the session that asked. If nothing answers in time it falls back
+  to the ordinary local prompt, so it can never lock you out.
 - Nineteen opt-in outbound channel adapters with encrypted credentials, including
   [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
-  transport from your computers to your phone.
+  transport that can carry a question to a paired device and the answer back.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:
@@ -182,8 +190,8 @@ agentnotify install-skill opencode
 
 A skill relies on the model remembering to notify. For automatic
 notification at permission prompts, questions, and session completion,
-install the notify-only host harness as well — it never approves or blocks,
-it just sends:
+install the host harness as well — it hooks the host itself, so it does not
+depend on the model remembering anything:
 
 ```bash
 agentnotify install-harness opencode
@@ -191,7 +199,24 @@ agentnotify install-harness codex
 agentnotify install-harness claude
 ```
 
-See [Agent harnesses](docs/HARNESS.md).
+That much only notifies; it never approves or blocks. To have approval prompts
+*wait for your answer* and return it to the session, add `--ask`:
+
+```bash
+agentnotify install-harness codex --ask
+agentnotify install-harness claude --ask
+```
+
+`--ask` is deliberately limited to Codex and Claude Code: their permission-request
+decision schemas are the two that have been verified, and returning a wrongly shaped
+decision to a host could read as approval. The other harnesses still notify.
+
+A skill cannot do this. When a host decides to ask "may I run this?", that decision
+happens in the host, not in the model's tool loop, so nothing the model chooses to call
+can answer it — the harness owns the host's own synchronous hook and returns the answer
+through it. Restart the session afterwards; hooks load at startup.
+
+See [Agent harnesses](docs/HARNESS.md) and [Interactions](docs/INTERACTIONS.md).
 
 The default personal locations are:
 
@@ -445,7 +470,14 @@ Content-Type: application/json
 
 - The Windows tray application, notification center, Settings UI, and installer are x64 Windows only.
 - macOS and Linux run the broker headlessly through `agentnotifyd`; there is no tray or Settings UI there yet.
-- The macOS Intel build and its `osascript` notification backend have now run on real hardware; Apple Silicon, `terminal-notifier`, the launchd unit and the Relay channel on macOS have not. Linux's `notify-send` backend has never been seen displaying anything. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
+- The macOS Intel build, its `osascript` backend, the launchd unit and the Relay channel have all
+  now run on real hardware, including a full question-and-answer round trip from a paired
+  device back into a waiting agent. Apple Silicon and `terminal-notifier` have not.
+- The published macOS archives are cross-built on Linux, so macOS `SIGKILL`s them until they are
+  re-signed locally. `scripts/install.sh` does this for you; a manual install needs
+  `codesign --force --sign -` on both binaries. See [Troubleshooting](docs/TROUBLESHOOTING.md).
+- Linux's `notify-send` backend has never been seen displaying anything. See
+  [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
 - Nineteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, MQTT 5 over TLS/mTLS, and the experimental self-hosted AgentNotify Relay transport.
@@ -460,7 +492,6 @@ The transport design keeps the local broker as the source of truth. Completed de
 - Delivery-status webhooks and durable spend budgets for paid SMS/WhatsApp transports.
 - Additional SMS and mobile push through explicitly configured providers.
 - Quiet hours, schedules, snooze, escalation, grouping, and per-project rules.
-- Response buttons and acknowledgements back to the waiting agent.
 - Agent heartbeat/status, richer SDKs, and an optional MCP server.
 - Safer terminal/tab activation and virtual-desktop awareness.
 - ARM64 packages, signed releases, automatic updates, and migration tooling.

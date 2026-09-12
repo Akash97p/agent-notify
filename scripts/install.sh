@@ -99,6 +99,18 @@ for binary in agentnotify agentnotifyd; do
         || { cp "$tmp/agentnotify-$rid/$binary" "$PREFIX/$binary" && chmod 0755 "$PREFIX/$binary"; }
 done
 
+# macOS refuses to run these as published. The release is cross-built on a Linux
+# runner, so the adhoc signature baked in there is not one this kernel accepts,
+# and the process is SIGKILLed the instant it starts — exit 137, no output, no
+# log line, nothing to search for. Re-signing adhoc locally is what makes it
+# runnable; it grants no trust the binary did not already have.
+if [ "$os" = "osx" ] && command -v codesign >/dev/null 2>&1; then
+    for binary in agentnotify agentnotifyd; do
+        codesign --force --sign - "$PREFIX/$binary" >/dev/null 2>&1 \
+            || echo "Warning: could not re-sign $binary; if it exits immediately, run: codesign --force --sign - $PREFIX/$binary" >&2
+    done
+fi
+
 echo
 echo "Installed:"
 echo "  $PREFIX/agentnotify   command-line client"
