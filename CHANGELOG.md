@@ -11,6 +11,23 @@ build.
 
 ## [Unreleased]
 
+### Fixed
+
+- The `0.1.0-alpha.1` notes named `agentnotify ask …` and `agentnotify answer` as the
+  CLI surface for interactions. Neither command has ever existed — both fall through to
+  the `send` shorthand and quietly create a notification titled "ask" or "answer". The
+  real commands are `agentnotify interactions request` and `agentnotify interactions
+  respond`; the entry below has been corrected. The published release notes for that tag
+  still carry the wrong names.
+
+### Verified
+
+- All three interaction kinds were answered from a paired device and delivered to the
+  broker on 2026-09-13: `permission` (allow/deny), `single_choice` (a four-option list
+  with per-choice detail lines), and `text` (free text, round-tripped intact). Each
+  arrived with `source: relay` and the answering device's id. See
+  [docs/VERIFICATION.md](docs/VERIFICATION.md).
+
 ## [0.1.0-alpha.2] - 2026-09-12
 
 A fix release for the bidirectional loop shipped in `0.1.0-alpha.1`. Nothing here changes
@@ -54,10 +71,10 @@ or never is remembered per session.
 
 ### Added
 
-- **Two-way interactions.** Choice prompts (with optional free text) and plain text
-  questions, raised from the tray, the CLI (`agentnotify ask choice …` /
-  `agentnotify ask text …`), or the loopback `/v1/interactions` API. Answers come back
-  through toast buttons, `agentnotify answer`, or the API. Deduplication, expiry, and
+- **Two-way interactions.** Permission prompts, bounded choice lists, and plain text
+  questions, raised from the tray, the CLI (`agentnotify interactions request`), or the
+  loopback `/v1/interactions` API. Answers come back through toast buttons,
+  `agentnotify interactions respond`, or the API. Deduplication, expiry, and
   first-answer-wins are enforced by a durable broker, so a retried or replayed answer can
   never be applied twice.
 - **Supervised ask mode for Codex and Claude Code.** Opt-in per session: shell commands

@@ -1118,6 +1118,34 @@ cross-published from a Linux runner and their adhoc signature is not accepted he
 `codesign --force --sign -` on both binaries fixes it. Worth treating as a packaging
 defect rather than a local quirk.
 
+## All three interaction kinds, answered from the phone (2026-09-13)
+
+Following the permission round trip above, one of each kind the broker supports was
+raised and answered from the paired handset. Every answer arrived with `source: relay`
+and `device_id: 29f6bad9…`, so all three came off the Relay rather than the CLI or the
+local API.
+
+| Kind | Prompt | Answer received |
+| --- | --- | --- |
+| `permission` | delete the build cache at `/tmp/build` | `allow` — "Allow once" |
+| `single_choice` | which database for the new service (four options, three with detail lines) | `pg` — "PostgreSQL" |
+| `text` | name the next release | `"Next release name should be bla bli blu"` |
+
+The text answer is the one worth noting: it round-tripped free-form content with spaces
+and punctuation intact through the sealed envelope and the broker's bounds check, so the
+return path carries typed content and not only a choice id. The three were answered out
+of order — text first, permission last — and each settled independently, which is what
+the per-interaction expiry and first-answer-wins are meant to allow.
+
+What this does **not** cover: multi-select (no such kind exists — `single_choice` means
+exactly one, and the broker rejects an answer carrying more) and free-form messaging to
+an agent, which is deliberately outside this contract.
+
+One gap this exercise exposed, not a defect in the loop itself: the distributable
+`SKILL.md` teaches `send`, `resolve` and `list` only. It never mentions `interactions`,
+so no agent currently knows it can ask a question on its own initiative, even though
+every layer beneath it works. Tracked in `TODO.md`.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
