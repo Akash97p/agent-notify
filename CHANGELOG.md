@@ -11,6 +11,54 @@ build.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-09-12
+
+AgentNotify is now bidirectional. Until now your coding agents could only get your
+attention; now they can ask you things. An agent raises a question — pick one of these
+options, or type an answer — and carries on with something else while you decide. Your
+answer is waiting when it checks back: in a toast action, on the command line, or through
+the local API. Questions expire, only the first answer counts, and anything late or
+replayed is rejected rather than delivered twice.
+
+Two agents already use it end to end. Codex and Claude Code run in a supervised mode
+where every shell command and every file write comes to you for approval first, with the
+exact command or diff shown before you allow it, and the choice of allowing once, always,
+or never is remembered per session.
+
+### Added
+
+- **Two-way interactions.** Choice prompts (with optional free text) and plain text
+  questions, raised from the tray, the CLI (`agentnotify ask choice …` /
+  `agentnotify ask text …`), or the loopback `/v1/interactions` API. Answers come back
+  through toast buttons, `agentnotify answer`, or the API. Deduplication, expiry, and
+  first-answer-wins are enforced by a durable broker, so a retried or replayed answer can
+  never be applied twice.
+- **Supervised ask mode for Codex and Claude Code.** Opt-in per session: shell commands
+  and file writes pause for your approval, with full details shown before you decide.
+  Allow-once, allow-always, and deny are remembered for the session, and the session ends
+  cleanly — no stranded prompts — when you quit or it times out.
+- **Thirteen agent harnesses.** OpenCode, Codex, Claude Code, Gemini CLI, Copilot CLI,
+  Cursor, Muse, Kilo Code, OpenClaw, Hermes, and Pi all report completions,
+  failures, and blockers in their own words, and every one of them can raise a question
+  back through the same harness.
+- **Phone answers in transit.** The desktop publishes sealed question payloads through
+  the existing Relay envelopes and polls for answers, so once the Relay and the mobile
+  app implement their halves of the published contract either side can answer from the
+  phone. The contract ships in the repository as `docs/RELAY_INTERACTIONS.md`; the Relay
+  endpoints and the mobile answer cards are not in this build.
+
+### Known limitations
+
+- Answering from the phone is not wired up yet — the Relay endpoints and the mobile UI
+  are specified but unimplemented, so questions can only be answered on the computer
+  itself in this build.
+- Binaries are adhoc-signed, not notarized or Authenticode-signed. macOS quarantines a
+  fresh download until you run `xattr -dr com.apple.quarantine <dir>`; Windows
+  SmartScreen will warn.
+- There is still no graphical application on macOS or Linux — the broker runs headless
+  and every setting is edited in `config.json` by hand.
+- Relay is self-hosted only. There is no hosted service.
+
 ## [0.0.4-alpha.2] - 2026-09-04
 
 The previous release shipped Relay but said plainly that it did not yet deliver
@@ -248,6 +296,7 @@ First published prerelease.
 - A single self-contained `AgentNotifySetup.exe` per-user installer with an offline getting-started
   page.
 
+[0.1.0-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.1
 [0.0.3-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1
 [0.0.2-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.2-alpha.1
 [0.0.1-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.1-alpha.1
