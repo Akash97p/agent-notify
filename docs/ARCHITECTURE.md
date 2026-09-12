@@ -109,6 +109,41 @@ After a notification is committed locally, matching enabled routes are idempoten
 - The CLI catches connection failures and timeouts and exits nonzero with a useful message.
 - Initialization failures are recorded in the local log and terminate the incomplete broker rather than leaving a partial tray process.
 
+## Standing decisions
+
+These are the constraints the implementation is held to. They are recorded because
+each one is a choice that looks arbitrary from the code alone, and reversing any of
+them changes the product rather than the implementation.
+
+1. The native WPF Settings window opened from the tray is the primary configuration
+   UI. A browser dashboard may be added later, but must never expose secrets.
+2. SQLite is the source of truth for notification history. Provider profiles, routing
+   rules, outbox entries, and delivery attempts are added through explicit migrations
+   that preserve existing history.
+3. Provider credentials are encrypted with Windows DPAPI at current-user scope before
+   persistence. Only sealed envelopes reach SQLite, and secret fields are redacted from
+   every API and log.
+4. Local desktop delivery is authoritative. Outbound channels are opt-in secondary
+   deliveries and can never make notification creation fail.
+5. Prefer official provider APIs. An unofficial bridge — Signal through `signal-cli`,
+   for instance — must be labelled experimental and stay user-managed.
+6. macOS and Linux clients are first-class roadmap goals, so portable routing and
+   domain logic must not live in WPF classes.
+7. ARC plus the local SQLite record is the canonical human-attention and interaction
+   history. External agent protocols are adapters or projections over it, never
+   replacements for the local lifecycle.
+8. Bidirectional agent communication has two modes: direct native adapters for existing
+   terminal and editor sessions, and an Agent Client Protocol client for sessions
+   AgentNotify manages as subprocesses.
+9. A skill or ordinary MCP tool cannot intercept a host-native approval. An adapter has
+   to own a synchronous host hook, plugin/SDK/gateway/RPC request, or ACP
+   server-initiated request, and return the human answer through that same control
+   surface.
+10. A remote answer is an authorization message. It is bound to the exact installation,
+    session/turn, native request, and request digest; it expires; replayed or stale
+    responses are rejected; and Relay acceptance, human response, and native-host
+    acceptance stay three distinct facts.
+
 ## Adding a new outbound adapter
 
 The rules below apply to every adapter, including the nineteen already implemented. External delivery subscribes to lifecycle events after local persistence. Each adapter is isolated behind a delivery interface and the durable outbox, and must never block API persistence or the desktop UI thread. Provider credentials must not be stored in notification metadata or the config token field. See [CHANNELS.md](CHANNELS.md) for the per-provider security policies that a new adapter is expected to match.

@@ -1,6 +1,6 @@
 # Feature backlog
 
-This backlog turns the long-term product direction into independently testable branches. Ordering may change when a prerequisite or security concern is discovered, but each completed task must update this file and `docs/DEVELOPMENT_STATE.md`.
+This backlog turns the long-term product direction into independently testable branches. Ordering may change when a prerequisite or security concern is discovered, but each completed task must update this file.
 
 ## Foundation tasks
 

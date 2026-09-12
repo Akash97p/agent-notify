@@ -4,10 +4,14 @@ These instructions apply to every coding agent working in this repository.
 
 ## Start or resume work
 
-1. Read `docs/DEVELOPMENT_STATE.md`, `docs/FEATURE_BACKLOG.md`, `TODO.md`, and the relevant architecture/security documentation.
+1. Read `docs/ARCHITECTURE.md`, `docs/FEATURE_BACKLOG.md`, `TODO.md`, and the relevant security documentation.
 2. Inspect `git status`, the current branch, and recent commits before editing.
 3. Preserve user changes and runtime secrets. Never read or print the bearer token unless direct API debugging was explicitly requested.
-4. Update `docs/DEVELOPMENT_STATE.md` whenever a decision, verification result, migration, or next step would otherwise be lost after context compaction.
+4. Record durable outcomes in the document that owns them, not in a running log: a constraint
+   the implementation is held to belongs in `docs/ARCHITECTURE.md`, what was actually run and
+   what remains unproven in `docs/VERIFICATION.md`, and remaining work in `TODO.md` or
+   `docs/FEATURE_BACKLOG.md`. Do not reintroduce a session/handoff state file; git history is
+   the record of what happened, and a second copy of it goes stale.
 
 ## Local Git workflow
 
