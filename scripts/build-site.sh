@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SITE="$ROOT/site"
 PUBLIC="$SITE/public"
 OUT="$ROOT/_site"
@@ -12,6 +12,10 @@ if [[ "$(basename "$ROOT")" != "agent-notify" ]]; then
   echo "Refusing to build from unexpected repository root: $ROOT" >&2
   exit 1
 fi
+
+# A case-mismatched logical PWD on macOS can make Next load React and its
+# AsyncLocalStorage modules twice. Build only from the physical canonical path.
+cd -P "$ROOT"
 
 rm -rf "$PUBLIC/favicon" "$PUBLIC/schemas"
 mkdir -p "$PUBLIC/favicon" "$PUBLIC/schemas"

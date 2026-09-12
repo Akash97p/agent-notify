@@ -21,7 +21,9 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # main and dev publish the same site. Queue promotions instead of cancelling the
+  # release-line build when both branches are pushed together.
+  cancel-in-progress: false
 
 jobs:
   build:
