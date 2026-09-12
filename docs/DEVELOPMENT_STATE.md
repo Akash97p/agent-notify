@@ -528,3 +528,12 @@ Two items are waiting on the repository owner rather than on code:
 
 - Perform the human WPF checks listed at the end of `docs/VERIFICATION.md` for the settings theme and the built-in tones. Nothing visual has been confirmed.
 - Decide the redistribution rights for the four personal MP3s in the ignored `notification-tone/` folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`, and record their provenance in `THIRD_PARTY_NOTICES.md`.
+
+## Release v0.1.0-alpha.1 (2026-09-12)
+
+Bidirectional interactions (broker + CLI/API/tray answers, ask mode for Codex and Claude
+Code, 13 harnesses, Relay answer sync on the desktop side) released as `v0.1.0-alpha.1`,
+tagged on `main` after promoting `dev`. No .NET toolchain on this machine, so no local
+build/test/package run was possible here; the hosted release workflow builds, tests, and
+packages independently and fails rather than publishing. Windows installer verification
+of the hosted assets is with the owner.
