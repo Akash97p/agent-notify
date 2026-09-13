@@ -1185,6 +1185,18 @@ Not verified: the web interface served by the Windows tray app, **Open in browse
 menu, sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
 started from the page against a live Relay. No person has looked at the page yet.
 
+## Web interface without sign-in (`fix/web-ui-no-sign-in`, 2026-09-13)
+
+The first cut required a one-time launch link or the pasted token before the page would load. The
+owner rejected that: the Windows app has no password, and a sign-in step on a loopback-only page is
+friction without a matching threat. Removed the launch codes, sessions, cookie, sign-in page, and
+`POST /v1/ui/launch`; `agentnotify ui` now opens the address directly. The host-name allowlist,
+the required header and same-origin `Origin` on changes, the CSP, and write-only secrets remain.
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true`: succeeded, 0 warnings.
+- Full suite: 884 passed (887 − 4 sign-in tests + 1 test that the page needs no token while `/v1`
+  still does), 0 failed.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

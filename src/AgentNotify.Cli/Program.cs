@@ -1429,50 +1429,33 @@ internal static class Program
 
     // ---- web interface ----
 
-    /// <summary>
-    /// Opens the broker's web interface with a one-time sign-in link, so the browser gets its own
-    /// session and never sees the bearer token.
-    /// </summary>
+    /// <summary>Opens the broker's web interface in the default browser.</summary>
     private static async Task<int> RunUi(string[] args)
     {
-        string? portOverride = null, tokenOverride = null;
+        string? portOverride = null;
         var printOnly = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--port" when i + 1 < args.Length: portOverride = args[++i]; break;
-                case "--token" when i + 1 < args.Length: tokenOverride = args[++i]; break;
                 case "--print" or "--no-open": printOnly = true; break;
                 case "--help" or "-h": PrintUiHelp(); return 0;
                 default: return Fail($"unknown option '{args[i]}' for ui.");
             }
         }
 
-        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride: null, required: false);
         using (client)
         {
+            var url = $"{baseUrl}/ui/";
             try
             {
-                var response = await client.PostAsync($"{baseUrl}/v1/ui/launch", new StringContent("{}", Encoding.UTF8, "application/json"));
-                var body = await response.Content.ReadAsStringAsync();
+                var response = await client.GetAsync(url);
                 if (response.StatusCode == HttpStatusCode.NotFound)
                     return Fail("This broker has no web interface. Update AgentNotify and restart it.");
                 if (!response.IsSuccessStatusCode)
-                    return Fail($"Error {(int)response.StatusCode} {response.StatusCode}: {PrettyError(body)}");
-
-                using var document = JsonDocument.Parse(body);
-                var url = document.RootElement.GetProperty("url").GetString()!;
-                if (printOnly || !TryOpenBrowser(url))
-                {
-                    Console.WriteLine(url);
-                    Console.Error.WriteLine("Open that link within two minutes. It signs one browser in and then stops working.");
-                }
-                else
-                {
-                    Console.WriteLine($"Opened the AgentNotify web interface at {baseUrl}/ui/");
-                }
-                return 0;
+                    return Fail($"Error {(int)response.StatusCode} {response.StatusCode} from {url}");
             }
             catch (HttpRequestException ex)
             {
@@ -1480,6 +1463,12 @@ internal static class Program
                 Console.Error.WriteLine("Is the broker running?");
                 return 1;
             }
+
+            if (printOnly || !TryOpenBrowser(url))
+                Console.WriteLine(url);
+            else
+                Console.WriteLine($"Opened the AgentNotify web interface at {url}");
+            return 0;
         }
     }
 
@@ -1515,13 +1504,12 @@ internal static class Program
             agentnotify ui — open the web interface
 
             Usage:
-              agentnotify ui [--print] [--port N] [--token T]
+              agentnotify ui [--print] [--port N]
 
-            Opens the broker's local web interface in your browser with a one-time sign-in link.
-            The link works once, for two minutes, and never contains the bearer token.
+            Opens the broker's local web interface in your browser. No sign-in is needed.
 
             Options:
-              --print      Print the link instead of opening a browser (for SSH sessions)
+              --print      Print the address instead of opening a browser
             """);
     }
 

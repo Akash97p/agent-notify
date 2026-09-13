@@ -1,5 +1,5 @@
-// The web UI's only channel to the broker. Requests ride the HttpOnly session cookie; every
-// state-changing call also carries the header the broker requires to refuse cross-site requests.
+// The web UI's only channel to the broker. Every state-changing call carries the header the broker
+// requires, which a page on another site cannot send.
 
 const BASE = "api";
 
@@ -8,11 +8,6 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
-}
-
-let onUnauthorized = () => {};
-export function setUnauthorizedHandler(handler) {
-  onUnauthorized = handler;
 }
 
 export async function request(method, path, body, { raw = false } = {}) {
@@ -38,9 +33,6 @@ export async function request(method, path, body, { raw = false } = {}) {
   let data = null;
   if (text) {
     try { data = JSON.parse(text); } catch { data = null; }
-  }
-  if (response.status === 401 && !path.startsWith("session")) {
-    onUnauthorized();
   }
   if (!response.ok) {
     throw new ApiError((data && data.error) || `Request failed (${response.status}).`, response.status);

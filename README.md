@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha.2-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-887%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-884%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -70,8 +70,8 @@ Everywhere:
   [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
   transport that can carry a question to a paired device and the answer back.
 - **A web interface on every platform.** `agentnotify ui` opens the broker's own settings,
-  channels, routes, questions, and history in your browser — signed in with a one-time link,
-  served only to this machine, and never handed a stored credential.
+  channels, routes, questions, and history in your browser — no sign-in, served only to this
+  machine, and never handed a stored credential.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:

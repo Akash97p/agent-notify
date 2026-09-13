@@ -32,14 +32,13 @@ The token prevents accidental or unsophisticated calls from unrelated local soft
 
 ### Web interface
 
-The web interface at `/ui/` shares the loopback listener but not the bearer token. A browser
-session starts from a single-use, two-minute launch code minted with the token, or from the token
-pasted once into a throttled form, and lives only in broker memory behind an `HttpOnly`,
-`SameSite=Strict` cookie. Requests naming any host other than the loopback listener are refused,
-state changes need a custom header and a same-origin `Origin`, and a strict content security policy
-applies. Stored channel secrets and question nonces are never sent to the page. Like the token, a
-session protects against other software and other sites, not against malware running as the same
-user. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
+The web interface at `/ui/` shares the loopback listener and, deliberately, asks for no sign-in: like
+the Windows tray app, it trusts the person using the computer. Anyone who can reach the loopback
+port can use it, which includes other local accounts on a shared machine. It defends against other
+web sites instead: requests naming any host other than the loopback listener are refused (DNS
+rebinding), state changes need a custom header and a same-origin `Origin`, and a strict content
+security policy applies. Stored channel secrets and question nonces are never sent to the page. The
+`/v1` agent API still requires the bearer token. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
 
 ## External-channel requirements
 

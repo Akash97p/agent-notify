@@ -157,8 +157,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
         await PruneHistoryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>The web UI address. Signing in needs a launch link from <c>agentnotify ui</c> or the token.</summary>
-    public string WebUiUrl => $"{Url}{WebUiEndpoints.BasePath}/";
+    /// <summary>The web interface address.</summary>
+    public string WebUiUrl => WebUiEndpoints.Url(_config.Port);
 
     private static string DesktopSurfaceName(string notifier) => notifier switch
     {

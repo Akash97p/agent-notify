@@ -62,11 +62,10 @@ protocol split, security boundary, and agent-by-agent feasibility.
 embedded as resources, with no build step, so the .NET build and the Windows CI need no Node
 toolchain. It talks only to `/ui/api`, which calls the same Core services the Settings window uses.
 
-A browser session is created from a single-use launch code minted through the bearer-authenticated
-`POST /v1/ui/launch`, or from the token pasted once into a throttled sign-in form. Sessions are
-in-memory and carried in an `HttpOnly`, `SameSite=Strict` cookie. A middleware guard runs before
-routing: it refuses foreign `Host` headers (DNS rebinding), requires a session for `/ui/api`, and
-requires `X-AgentNotify-UI: 1` plus a same-origin `Origin` on every state change.
+There is no sign-in, matching the tray app. A middleware guard runs before routing: it refuses
+foreign `Host` headers (DNS rebinding) and requires `X-AgentNotify-UI: 1` plus a same-origin
+`Origin` on every state change, so a page on another site can neither read the interface nor change
+anything through it.
 
 Provider editors are driven by `ProviderFormCatalog` (field descriptors), `ProviderFormBuilder`
 (validation and the stored configuration document), and `ProviderFormReader` (non-secret values
@@ -135,7 +134,8 @@ them changes the product rather than the implementation.
 
 1. Configuration has two surfaces over one broker: the native WPF Settings window on
    Windows, and the web interface the broker serves at `/ui/` on every platform. Neither
-   ever returns a stored secret, and the browser never holds the bearer token. Provider
+   ever returns a stored secret. Neither asks for a password: both trust the person at the
+   computer, and the web interface defends only against other web sites. Provider
    validation lives in Core (`ProviderFormCatalog`) so the surfaces cannot disagree about
    what a valid channel is; the WPF panel still carries its own copy until it is moved
    onto the catalog.
