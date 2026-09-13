@@ -128,17 +128,9 @@ Custom type definitions are local presentation policy stored in `config.json`; n
 
 ## Web interface
 
-`POST /v1/ui/launch` (bearer) returns a one-time sign-in link for the web interface:
-
-```json
-{ "url": "http://127.0.0.1:47821/ui/launch?code=…", "expires_in": 120 }
-```
-
-The code works once. Opening it sets a session cookie and redirects to `/ui/`.
-
-Everything else under `/ui` belongs to the web interface and is **not** part of the stable API:
-`/ui/api/*` is authenticated by that browser session rather than the bearer token, requires
-`X-AgentNotify-UI: 1` on every state change, and may change between releases without notice.
+Everything under `/ui` belongs to the web interface and is **not** part of the stable API.
+`/ui/api/*` takes no bearer token, requires `X-AgentNotify-UI: 1` and a loopback `Host` on every
+state change, and may change between releases without notice.
 Automate against `/v1`. The trust model is in [WEB_UI.md](WEB_UI.md).
 
 ---

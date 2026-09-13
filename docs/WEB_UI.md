@@ -8,11 +8,14 @@ surface as Windows, and nothing extra is installed.
 agentnotify ui
 ```
 
-That opens `http://127.0.0.1:47821/ui/` (your configured port) in the default browser, already
-signed in. Over SSH, print the link instead and open it on the machine running the broker:
+That opens `http://127.0.0.1:47821/ui/` (your configured port) in the default browser. You can also
+just open that address yourself. There is no sign-in: like the Windows tray app, the interface
+trusts whoever is using this computer.
+
+From another machine, forward the port with the same number on both ends and open the address there:
 
 ```bash
-agentnotify ui --print
+ssh -L 47821:127.0.0.1:47821 you@the-machine
 ```
 
 On Windows the tray menu has **Open in browser…**, which does the same thing.
@@ -29,7 +32,7 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
-| About | Version, data folder, and sign out |
+| About | Version, data folder, and links |
 
 Toast placement and sounds belong to the Windows app. On macOS and Linux those settings are still
 stored, and the page says so, but the platform decides how a notification looks.
@@ -39,15 +42,11 @@ valid answer wins and later ones are refused.
 
 ## How it stays local
 
-The interface is served on the same loopback listener as the API, and is built so that a web page
-from anywhere else cannot drive it.
+The interface is served on the same loopback listener as the API. It asks for no password, so the
+protections are aimed at the one realistic threat: some other web site, open in your browser, trying
+to reach it. None of them is visible when you use the page.
 
-- **The browser never holds the bearer token.** `agentnotify ui` asks the broker for a launch code
-  using the token it already has. The code works once, for two minutes, and becomes a random session
-  kept only in the broker's memory. The browser holds that session in an `HttpOnly`,
-  `SameSite=Strict` cookie, which page script cannot read.
-- **Signing in by hand** is possible too: paste the output of `agentnotify token` into the sign-in
-  page once. Wrong tokens are throttled to ten a minute.
+- **Only this machine.** The listener binds to `127.0.0.1`, so nothing on the network can connect.
 - **Other host names are refused.** Every `/ui` request must name `127.0.0.1`, `localhost`, or
   `[::1]` on the broker's port. A DNS-rebinding page reaches the port under its own host name and
   gets `421 Misdirected Request` before any handler runs.
@@ -66,13 +65,11 @@ from anywhere else cannot drive it.
   answer carries the request digest of the question as displayed, so an answer cannot land on a
   question that changed after you read it.
 
-Restarting the broker signs every browser out. Sessions otherwise last seven days from last use.
-
 ## Configuration it does not cover
 
 Some settings have no control, on purpose or for now:
 
-- `authToken` is shown only by `agentnotify token`.
+- `authToken` is shown only by `agentnotify token`. It guards the `/v1` API agents use, not this page.
 - `maxRequestBodyBytes`, `rateLimitPerSecond`, and `maxMetadataBytes` are file edits.
 - *Start with Windows* stays in the tray menu, because the registry is its source of truth.
 - Harnesses are installed from a terminal. A harness edits another program's configuration, so the
@@ -81,8 +78,7 @@ Some settings have no control, on purpose or for now:
 ## Troubleshooting
 
 - **`This broker has no web interface`** — the broker predates it. Update and restart.
-- **The link says it expired** — launch codes work once, for two minutes. Run `agentnotify ui`
-  again.
-- **The page opens but every request fails** — you probably opened it as another host name, such as
-  the machine's LAN address. Use the `127.0.0.1` link the command prints.
+- **`421` or every change refused** — the page was opened under another host name or port, such as
+  the machine's LAN address or a tunnel on a different local port. Use `http://127.0.0.1:<port>/ui/`
+  with the broker's own port.
 - **Port change** — saving a new port takes effect after the broker restarts; the page says so.

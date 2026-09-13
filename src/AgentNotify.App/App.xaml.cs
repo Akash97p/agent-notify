@@ -233,8 +233,8 @@ public partial class App : System.Windows.Application
             onOpenSettings: () => ShowSettings(),
             onOpenWebUi: () => RunTrayAction("Web settings", () =>
             {
-                var launch = AgentNotify.Api.WebUi.WebUiEndpoints.CreateLaunchUrl(_webUi!, _config.Port);
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(launch) { UseShellExecute = true });
+                var url = AgentNotify.Api.WebUi.WebUiEndpoints.Url(_config.Port);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
             }),
             onOpenGettingStarted: () => RunTrayAction("Getting started", AgentResources.OpenGettingStarted),
             onInstallSkill: () => ShowSettings(showInstall: true),

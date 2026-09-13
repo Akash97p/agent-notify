@@ -21,12 +21,11 @@ build.
   connecting a Relay), routes and delivery counts, notification and toast settings, custom
   types, sounds with upload and preview, and agent skill installs. On Windows the tray menu
   gains **Open in browser…**.
-  The browser never holds the bearer token: the command mints a single-use, two-minute
-  launch code that becomes an `HttpOnly`, `SameSite=Strict` session. Foreign host names are
-  refused (DNS rebinding), state changes need a custom header and same-origin `Origin`, a
-  strict content security policy applies, and stored credentials and question nonces are never
-  sent to the page. See `docs/WEB_UI.md`.
-- `agentnotify ui [--print]` and `POST /v1/ui/launch`.
+  Like the tray app it asks for no password. It defends against other web sites instead:
+  foreign host names are refused (DNS rebinding), state changes need a custom header and a
+  same-origin `Origin`, a strict content security policy applies, and stored credentials and
+  question nonces are never sent to the page. See `docs/WEB_UI.md`.
+- `agentnotify ui [--print]`.
 - Provider validation for every channel now lives in Core (`ProviderFormCatalog`), so a
   profile saved from the browser is validated exactly as one saved from the Settings window.
 
