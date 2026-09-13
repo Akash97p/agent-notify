@@ -1,6 +1,7 @@
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Usage;
+using AgentNotify.Core.Quota;
 
 namespace AgentNotify.Api.WebUi;
 
@@ -17,6 +18,9 @@ public sealed class WebUiOptions
 
     /// <summary>Optional local usage reader; the default reads the broker user's agent logs.</summary>
     public LocalUsageService? Usage { get; init; }
+
+    /// <summary>Optional live account-quota reader; the default uses local agent credentials/CLI.</summary>
+    public LiveQuotaService? Quota { get; init; }
 
     /// <summary>How provider secrets are protected on this machine, as shown to the user.</summary>
     public string SecretProtection { get; init; } = "";

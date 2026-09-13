@@ -12,11 +12,14 @@ That opens `http://127.0.0.1:47821/ui/` (your configured port) in the default br
 just open that address yourself. There is no sign-in: like the Windows tray app, the interface
 trusts whoever is using this computer.
 
-From another machine, forward the port with the same number on both ends and open the address there:
+From another machine, forward a free local port to the broker's loopback listener and open that
+local address. For example, if the broker uses 47821 and you want port 47822 on your computer:
 
 ```bash
-ssh -L 47821:127.0.0.1:47821 you@the-machine
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:47822:127.0.0.1:47821 you@the-machine
 ```
+
+Open `http://127.0.0.1:47822/ui/` while the SSH command remains running.
 
 On Windows the tray menu has **Open in browser…**, which does the same thing.
 
@@ -30,6 +33,7 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
 | Usage | Read local Claude Code, Codex, and OpenCode tokens and estimated token cost for 7 days, 30 days, or all history, split by source, provider, project, model, and day |
+| Live quota | Check Codex and Claude Code account allowance percentages and reset times; see a clear unavailable state for OpenCode |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -62,6 +66,17 @@ The dated catalog uses published [OpenAI model prices](https://developers.openai
 and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing), plus
 [OpenCode Go token rates](https://opencode.ai/docs/go/); changing rates
 requires a new catalog snapshot.
+
+Live quota is fetched when its page is opened or **Check now** is pressed. Codex uses its own
+documented app-server RPC, so AgentNotify does not read Codex credentials. Claude Code uses its
+current local OAuth access token for a read-only call to Anthropic's first-party account-usage
+endpoint; AgentNotify does not refresh or store that token. This Claude endpoint is not a stable
+public API and can become unavailable. Neither source sends token text, account email, or raw
+provider responses to the browser. Snapshots are cached for five minutes; a manual recheck is
+limited to once every 30 seconds. A failed check keeps the last known result marked *stale* for
+the same credential scope; an account change clears it. Missing windows are never displayed as
+0% used. OpenCode has no single quota because its models can use different provider accounts.
+The local Usage page continues to work without internet or signed-in agent accounts.
 
 ## How it stays local
 

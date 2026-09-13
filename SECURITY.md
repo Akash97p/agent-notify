@@ -47,6 +47,16 @@ with opaque IDs, and a
 published-rate cost estimate. It never returns full project paths, log paths, prompt/response text,
 or provider credentials. It does not contact agent providers or billing APIs.
 
+Live quota is a separate on-demand feature. Codex quota is requested through the locally
+installed Codex app-server RPC, which owns its authentication. Claude Code quota uses a bounded
+read-only request to the fixed `https://api.anthropic.com/api/oauth/usage` endpoint with the
+current local OAuth access token. AgentNotify never stores, refreshes, logs, or returns that
+token, disables redirects and ambient proxies, and gives generic failure messages. The response
+is reduced to percentages, reset times, optional plan/credit data, source, and freshness. The
+Claude endpoint is a first-party implementation dependency without a stable public API contract;
+quota failure never affects notifications or local Usage. Cross-origin pages cannot force manual
+refresh because it is a same-origin-header-protected POST.
+
 ## External-channel requirements
 
 Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the 1.0 baseline. Any implementation must be separately reviewed for:

@@ -477,6 +477,14 @@ details.advanced[open] > summary { margin-bottom: 12px; }
 @media (max-width: 600px) { .usage-stats { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 480px) { .usage-day { grid-template-columns: 76px minmax(0, 1fr) 66px; gap: 6px; font-size: 11px; } }
 
+.quota-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.quota-windows { display: grid; gap: 20px; }
+.quota-window { display: grid; gap: 8px; }
+.quota-window .row-between { font-size: 13px; }
+.quota-window .row-between span { color: var(--muted); }
+.quota-track { height: 10px; background: var(--panel-2); border-radius: 20px; overflow: hidden; }
+.quota-fill { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+
 .kind-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
 .kind { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .kind:hover { border-color: var(--border-strong); background: var(--panel-2); }

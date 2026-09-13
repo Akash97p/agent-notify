@@ -154,6 +154,7 @@ public static class WebUiEndpoints
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
         var usage = options.Usage ?? new LocalUsageService();
+        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
         // ---- overview ----------------------------------------------------------------------
@@ -199,6 +200,13 @@ public static class WebUiEndpoints
             var report = await usage.GetReportAsync(days, ct);
             return Results.Json(report, JsonOptions);
         });
+
+        // Provider/account snapshots are separate from local token history. Manual refresh is
+        // a same-origin POST so unrelated pages cannot trigger credential-backed probes.
+        app.MapGet($"{BasePath}/api/quota", async (CancellationToken ct) =>
+            Results.Json(await quota.GetReportAsync(cancellationToken: ct), JsonOptions));
+        app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
+            Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
 
         // ---- settings ----------------------------------------------------------------------
 
