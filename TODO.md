@@ -78,6 +78,8 @@
 - [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
 - [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center — no sign-in; owner-verified on macOS
+- [x] First local Usage page: read-only Claude Code and Codex token summaries by source, model, and day; live browser check on macOS
+- [ ] Complete local usage indexing: OpenCode adapter, durable cache, project/session attribution, fork replay handling, and versioned pricing estimates
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients
@@ -86,7 +88,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 884 passed, 0 failed, 0 skipped
+- [x] Automated tests: 888 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -122,7 +124,7 @@
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
 
-Longer-range capabilities — local usage indexing, live quota probing, and provider routing — are
-recorded, not scheduled, in [docs/future-scope](docs/future-scope/README.md).
+The first local usage view is implemented; remaining usage work, live quota probing, and provider
+routing are recorded in [docs/future-scope](docs/future-scope/README.md).
 
 The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. The constraints the implementation is held to live in `docs/ARCHITECTURE.md`, and what has actually been verified lives in `docs/VERIFICATION.md`.

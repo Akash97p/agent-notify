@@ -9,6 +9,7 @@ import notifications from "./views/notifications.js";
 import sounds from "./views/sounds.js";
 import agents from "./views/agents.js";
 import about from "./views/about.js";
+import usage from "./views/usage.js";
 
 // Navigation is grouped so new areas slot in as another group or entry without reshaping the shell.
 const NAV = [
@@ -20,6 +21,9 @@ const NAV = [
   { label: "Delivery", items: [
     { path: "channels", title: "Channels", icon: "send", view: channels },
     { path: "routes", title: "Routes", icon: "route", view: routes },
+  ] },
+  { label: "Insights", items: [
+    { path: "usage", title: "Usage", icon: "pulse", view: usage },
   ] },
   { label: "Configuration", items: [
     { path: "notifications", title: "Notifications", icon: "sliders", view: notifications },

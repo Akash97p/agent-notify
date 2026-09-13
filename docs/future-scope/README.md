@@ -1,6 +1,7 @@
 # Future scope: usage, quota, and routing
 
-Nothing in this folder is implemented or scheduled. These notes record how four capabilities
+The first read-only Claude Code and Codex local usage view is implemented. The rest is unscheduled.
+These notes record how four capabilities
 work, so that when AgentNotify grows past human attention into the cost and capacity of the agents
 it watches, the design starts from known mechanisms instead of a blank page.
 
@@ -10,7 +11,7 @@ source before building on it.
 
 | Capability | What it would measure | Notes |
 | --- | --- | --- |
-| Local usage indexing | Tokens that Claude Code and Codex recorded on this machine, grouped by time, model, project, and session, with estimated cost and cache savings. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
+| Local usage indexing | Initial WebUI view: local Claude Code and Codex tokens by source, model, and day. Durable index, project/session grouping, cost, and cache savings remain. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
 | Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode), normalized, deduplicated, and priced. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
 | Live quota probing | Account-reported utilization, reset times, and credits fetched from provider APIs or CLI sources, combined into per-provider snapshots and refreshed safely. | [Fetch sources](live-quota-probing/01-fetch-sources.md), [normalization and refresh](live-quota-probing/02-normalization-and-refresh.md); native Windows engine: [provider sources](live-quota-probing/03-windows-provider-sources.md), [normalization and cache](live-quota-probing/04-windows-normalization-and-cache.md) |
 | Local provider routing | Requests routed across providers and models, with protocol translation, policy- and quota-aware target selection, failover, and a proxy-observed usage and cost ledger. | [Routing and translation](local-provider-routing/01-routing-and-translation.md), [failover and usage ledger](local-provider-routing/02-failover-and-usage-ledger.md) |
@@ -62,9 +63,9 @@ These are directions, not decisions. The standing decisions in
   storage, and no network work on the API request path. Reading another agent's logs is local and
   read-only; live quota probes and a routing proxy are outbound network features, so they stay off
   until the user enables them.
-- **Where it shows.** The [web interface](../WEB_UI.md) groups its navigation so new areas slot in
-  beside Activity, Delivery, and Configuration: Usage and Quota under a new group, Routing alongside
-  Channels. Its API conventions (session-authenticated `/ui/api`, write-only secrets) carry over.
+- **Where it shows.** The [web interface](../WEB_UI.md) now has Usage under Insights. Quota can
+  join it later and Routing can sit alongside Channels. Its local `/ui/api` convention and
+  write-only secrets carry over.
 - **How it meets attention.** Quota and spend thresholds are natural attention requests: "Claude
   weekly limit at 90%, resets Thursday" is an ARC `request.created` with a stable key that updates
   and resolves like any other condition, and routes to the phone through the existing delivery

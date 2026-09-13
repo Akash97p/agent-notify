@@ -72,6 +72,16 @@ Provider editors are driven by `ProviderFormCatalog` (field descriptors), `Provi
 back into a form), all in Core. Relay pairing runs in the broker through `RelayPairingSessions`, so
 the issued installation token never reaches the page. See [WEB_UI.md](WEB_UI.md).
 
+The Usage page is a read-only local-log projection. `LocalUsageService` in Core discovers Claude
+Code and Codex session JSONL under the broker user's profile, retains only usage-bearing rows,
+normalizes non-overlapping token buckets, and caches parsed events by path, size, and mtime for
+the lifetime of the broker. It deduplicates Claude message/request identities and differences
+Codex cumulative counters per rollout. The `/ui/api/usage` route returns aggregated counts only;
+it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
+estimate prices, or assert subscription quota. The source logs remain authoritative; the current
+cache is in memory and is rebuilt after restart. More complete fork/replay attribution, OpenCode,
+durable indexing, and pricing remain separate work.
+
 ### Desktop app
 
 `AgentNotify.App` owns the application lifetime. Startup order is:
