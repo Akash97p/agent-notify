@@ -31,7 +31,4 @@ public sealed class WebUiOptions
     /// anything it caches; values read live from the shared config object need nothing.
     /// </summary>
     public Action<AgentNotifyConfig, bool>? ConfigSaved { get; init; }
-
-    /// <summary>Test seam for session timing.</summary>
-    public WebUiSessions Sessions { get; init; } = new();
 }

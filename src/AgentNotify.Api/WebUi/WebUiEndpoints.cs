@@ -25,13 +25,15 @@ namespace AgentNotify.Api.WebUi;
 /// Notification Center manage, served by the broker itself so it works wherever the broker runs.
 /// </summary>
 /// <remarks>
-/// <para>Trust model, in order of the checks <see cref="Guard"/> applies:</para>
+/// <para>
+/// There is no sign-in, by design: like the Windows tray app, the page trusts whoever is using this
+/// computer. What it does defend against is other web sites reaching it through the browser.
+/// </para>
+/// <para>Checks, in the order <see cref="Guard"/> applies them:</para>
 /// <list type="number">
 /// <item>The listener is loopback-only, like the rest of the API.</item>
 /// <item>The <c>Host</c> header must name this loopback listener. A DNS-rebinding page reaches the
 /// port under its own host name and is refused before any handler runs.</item>
-/// <item><c>/ui/api</c> requires a server-side session (see <see cref="WebUiSessions"/>) carried in
-/// an HttpOnly, SameSite=Strict cookie. The bearer token never reaches page script.</item>
 /// <item>Every state-changing request must carry <c>X-AgentNotify-UI: 1</c> and, when the browser
 /// sends one, a same-origin <c>Origin</c>. A cross-site form cannot set that header, and a
 /// cross-site script cannot send it without a CORS preflight this server never grants.</item>
@@ -59,16 +61,10 @@ public static class WebUiEndpoints
         return options;
     }
 
-    public static string CookieName(int port) => $"agentnotify_ui_{port}";
+    /// <summary>The address of the web interface on a broker listening on <paramref name="port"/>.</summary>
+    public static string Url(int port) => $"http://127.0.0.1:{port}{BasePath}/";
 
-    /// <summary>
-    /// A one-time sign-in link for a caller that already holds broker authority in-process, such as
-    /// the tray app's menu. Remote callers use <c>POST /v1/ui/launch</c> with the bearer token.
-    /// </summary>
-    public static string CreateLaunchUrl(WebUiOptions options, int port) =>
-        $"http://127.0.0.1:{port}{BasePath}/launch?code={Uri.EscapeDataString(options.Sessions.CreateLaunchCode())}";
-
-    /// <summary>Runs the web UI's host, session, and CSRF checks. Returns false when it has already responded.</summary>
+    /// <summary>Runs the web UI's host and cross-site checks. Returns false when it has already responded.</summary>
     internal static async Task<bool> Guard(HttpContext context, WebUiOptions options, int port)
     {
         var request = context.Request;
@@ -109,15 +105,6 @@ public static class WebUiEndpoints
             }
         }
 
-        if (request.Path.StartsWithSegments($"{BasePath}/api/session"))
-            return true;
-
-        if (!options.Sessions.Validate(request.Cookies[CookieName(port)]))
-        {
-            response.StatusCode = StatusCodes.Status401Unauthorized;
-            await response.WriteAsJsonAsync(new { error = "Sign in to continue." }, JsonOptions);
-            return false;
-        }
 
         return true;
     }
@@ -162,61 +149,10 @@ public static class WebUiEndpoints
         string version,
         DateTimeOffset startedAt)
     {
-        var sessions = options.Sessions;
         var pairings = new RelayPairingSessions();
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
-        var cookie = CookieName(port);
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
-
-        // ---- launch and sign-in ------------------------------------------------------------
-
-        // Bearer-protected like the rest of /v1: only a caller that already holds the token can
-        // mint a code, and the code is worth one browser session for two minutes.
-        app.MapPost($"{ApiHost.RootPath}/ui/launch", () =>
-        {
-            return Results.Json(new
-            {
-                url = CreateLaunchUrl(options, port),
-                expires_in = (int)WebUiSessions.LaunchCodeLifetime.TotalSeconds
-            }, JsonOptions);
-        });
-
-        app.MapGet($"{BasePath}/launch", (HttpContext http) =>
-        {
-            var session = sessions.RedeemLaunchCode(http.Request.Query["code"].ToString());
-            if (session is null)
-                return Results.Redirect($"{BasePath}/#/signin?reason=expired");
-            SetSessionCookie(http, cookie, session);
-            return Results.Redirect($"{BasePath}/");
-        });
-
-        app.MapGet($"{BasePath}/api/session", (HttpContext http) =>
-            Results.Json(new { authenticated = sessions.Validate(http.Request.Cookies[cookie]) }, JsonOptions));
-
-        app.MapPost($"{BasePath}/api/session", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<SignInBody>(http);
-            try
-            {
-                var session = sessions.SignInWithToken(body?.Token, config.AuthToken);
-                if (session is null)
-                    return Error("That access token is not valid for this broker.", StatusCodes.Status401Unauthorized);
-                SetSessionCookie(http, cookie, session);
-                return Results.Json(new { authenticated = true }, JsonOptions);
-            }
-            catch (WebUiThrottledException exception)
-            {
-                return Error(exception.Message, StatusCodes.Status429TooManyRequests);
-            }
-        });
-
-        app.MapDelete($"{BasePath}/api/session", (HttpContext http) =>
-        {
-            sessions.End(http.Request.Cookies[cookie]);
-            http.Response.Cookies.Delete(cookie, new CookieOptions { Path = BasePath });
-            return Results.Json(new { authenticated = false }, JsonOptions);
-        });
 
         // ---- overview ----------------------------------------------------------------------
 
@@ -637,18 +573,6 @@ public static class WebUiEndpoints
 
     // ---- helpers ---------------------------------------------------------------------------
 
-    private static void SetSessionCookie(HttpContext http, string name, string session) =>
-        http.Response.Cookies.Append(name, session, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
-            Path = BasePath,
-            // Loopback HTTP: a Secure cookie would never be sent back.
-            Secure = false,
-            IsEssential = true,
-            MaxAge = WebUiSessions.SessionIdleLifetime
-        });
-
     private static IResult Error(string message, int status = StatusCodes.Status400BadRequest) =>
         Results.Json(new { error = message }, JsonOptions, statusCode: status);
 
@@ -714,7 +638,7 @@ public static class WebUiEndpoints
     private static InteractionDto ToPageDto(Interaction interaction)
     {
         var dto = DtoMapper.ToDto(interaction);
-        // The nonce authorizes Relay answers; the page answers through its session instead.
+        // The nonce authorizes Relay answers; the page answers through the broker instead.
         dto.Nonce = "";
         return dto;
     }
@@ -875,8 +799,6 @@ public static class WebUiEndpoints
     }
 
     // ---- request bodies --------------------------------------------------------------------
-
-    private sealed class SignInBody { public string? Token { get; set; } }
 
     private sealed class SettingsBody
     {

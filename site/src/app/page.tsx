@@ -68,7 +68,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid divide-y rounded-xl border bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {[['887', 'automated tests'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
+          {[['884', 'automated tests'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
             <div className="px-6 py-5" key={label}><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div>
           ))}
         </div>

@@ -1,5 +1,5 @@
-import { api, setUnauthorizedHandler } from "./api.js";
-import { h, mount, icon, clear, button, brandMark, busy, codeLine, notice, input, field, toast } from "./dom.js";
+import { api } from "./api.js";
+import { h, mount, icon, clear, button, brandMark, notice, toast } from "./dom.js";
 import overview from "./views/overview.js";
 import attention from "./views/attention.js";
 import questions from "./views/questions.js";
@@ -132,7 +132,7 @@ export async function refreshOverview() {
     }
     return state.overview;
   } catch (error) {
-    if (error.status !== 401) setConnected(false);
+    setConnected(false);
     return state.overview;
   }
 }
@@ -153,7 +153,6 @@ function currentPath() {
 
 async function render() {
   const { path, params } = currentPath();
-  if (path === "signin") return renderSignIn(params);
   if (!state.shell) {
     buildShell();
     refreshOverview();
@@ -183,82 +182,23 @@ async function render() {
     if (token === state.renderToken) state.cleanup = typeof cleanup === "function" ? cleanup : null;
     else if (typeof cleanup === "function") cleanup();
   } catch (error) {
-    if (token !== state.renderToken || error.status === 401) return;
+    if (token !== state.renderToken) return;
     mount(page, notice(error.message || "Something went wrong loading this page.", "danger"));
   }
 }
 
-// ---- sign-in -------------------------------------------------------------------------------
-
-function renderSignIn(params) {
-  if (state.cleanup) { state.cleanup(); state.cleanup = null; }
-  state.shell = null;
-  state.navLinks.clear();
-  state.countBadges.clear();
-  document.title = "Sign in · AgentNotify";
-
-  const token = input({ type: "password", autocomplete: "off", spellcheck: "false", placeholder: "Paste the access token" });
-  const submit = button("Sign in", { variant: "primary", type: "submit" });
-  const error = h("div", { hidden: true });
-  const form = h("form", { class: "stack" }, field("Access token", token, { help: "Printed by agentnotify token. It is exchanged for a browser session and not stored by this page." }), error, submit);
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    busy(submit, async () => {
-      try {
-        await api.post("session", { token: token.value });
-        token.value = "";
-        location.hash = "#/overview";
-      } catch (e) {
-        error.hidden = false;
-        error.replaceChildren(notice(e.message, "danger"));
-      }
-    });
-  });
-
-  clear(state.root);
-  state.root.className = "";
-  state.root.removeAttribute("aria-busy");
-  state.root.append(h("div", { class: "signin" },
-    h("div", { class: "signin-card" },
-      h("div", { class: "signin-brand" }, brandMark(), h("strong", { class: "brand-name", text: "AgentNotify" })),
-      h("section", { class: "card" },
-        h("div", { class: "card-head" }, h("div", null,
-          h("h1", { class: "card-title", text: "Open the local control panel" }),
-          h("p", { class: "card-desc", text: "This page manages the AgentNotify broker running on this computer." }))),
-        h("div", { class: "card-body" },
-          params.get("reason") === "expired" ? notice("That sign-in link was already used or has expired. Run the command again.", "warn") : null,
-          h("p", { class: "small muted", text: "The quickest way in is a one-time link from the command line:" }),
-          codeLine("agentnotify ui"),
-          h("hr", { class: "divider" }),
-          form)))));
-  token.focus();
-}
-
-setUnauthorizedHandler(() => {
-  if (currentPath().path !== "signin") location.hash = "#/signin";
-});
-
 // ---- start ---------------------------------------------------------------------------------
 
 async function start() {
-  try {
-    const session = await api.get("session");
-    if (!session.authenticated) {
-      location.hash = "#/signin";
-      renderSignIn(currentPath().params);
-    } else {
-      await refreshOverview();
-      if (currentPath().path === "signin") location.hash = "#/overview";
-      await render();
-    }
-  } catch (error) {
-    clear(state.root).append(h("div", { class: "signin" }, h("div", { class: "signin-card" }, notice(error.message, "danger"))));
+  await refreshOverview();
+  if (!state.overview) {
+    mount(state.root, h("div", { class: "boot" }, notice("The AgentNotify broker is not responding. Is it still running?", "danger")));
+    state.root.removeAttribute("aria-busy");
+  } else {
+    await render();
   }
 
-  window.addEventListener("hashchange", async () => {
-    if (currentPath().path !== "signin" && !state.overview) await refreshOverview();
-    render();
-  });
+  window.addEventListener("hashchange", render);
 
   // Keeps the navigation counts and the connection indicator honest while the page is open.
   setInterval(() => {
@@ -267,7 +207,6 @@ async function start() {
 }
 
 window.addEventListener("unhandledrejection", (event) => {
-  if (event.reason && event.reason.status === 401) return;
   toast(event.reason?.message || "Unexpected error.", "error");
 });
 

@@ -69,7 +69,7 @@ public static class Program
             Console.WriteLine($"AgentNotify broker listening on {runtime.Url}");
             Console.WriteLine($"  secrets      : {runtime.Protection.Description}");
             Console.WriteLine($"  notifications: {runtime.NotifierName}");
-            Console.WriteLine($"  web interface: {runtime.WebUiUrl}  (open it with: agentnotify ui)");
+            Console.WriteLine($"  web interface: {runtime.WebUiUrl}");
             if (!runtime.Protection.IsUserBound)
             {
                 Console.WriteLine(

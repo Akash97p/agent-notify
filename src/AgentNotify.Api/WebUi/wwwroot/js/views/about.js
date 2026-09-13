@@ -5,16 +5,11 @@ export default {
   async render(page, ctx) {
     const o = await ctx.refreshOverview() || await api.get("overview");
     const prerelease = String(o.version).includes("-");
-    const signOut = button("Sign out", { iconName: "logout" });
-    signOut.addEventListener("click", () => busy(signOut, async () => {
-      await api.del("session").catch(() => {});
-      location.hash = "#/signin";
-    }));
 
     const link = (href, label) => h("a", { href, target: "_blank", rel: "noopener noreferrer", class: "row" }, icon("external"), label);
 
     mount(page, 
-      pageHead("About", "AgentNotify is the local human-attention broker for coding agents.", signOut),
+      pageHead("About", "AgentNotify is the local human-attention broker for coding agents."),
       card({
         body: [
           h("div", { class: "row" }, h("img", { src: "favicon.svg", alt: "", width: 44, height: 44 }),

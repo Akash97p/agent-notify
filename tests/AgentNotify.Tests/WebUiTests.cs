@@ -91,61 +91,29 @@ public sealed class WebUiTests : IAsyncLifetime
         return client;
     }
 
-    private async Task<HttpClient> SignedInBrowser()
+    private HttpClient Page()
     {
         var (browser, _) = Browser();
-        using var bearer = Bearer();
-        var launch = await bearer.PostAsync("/v1/ui/launch", null);
-        var url = new Uri((await launch.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("url").GetString()!);
-        var redeemed = await browser.GetAsync(url.PathAndQuery);
-        Assert.Equal(HttpStatusCode.Redirect, redeemed.StatusCode);
         browser.DefaultRequestHeaders.Add(WebUiEndpoints.CsrfHeader, "1");
         return browser;
     }
 
     [Fact]
-    public async Task LaunchCodesNeedTheBearerTokenAndWorkOnce()
-    {
-        var (anonymous, _) = Browser();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync("/v1/ui/launch", null)).StatusCode);
-
-        using var bearer = Bearer();
-        var body = await (await bearer.PostAsync("/v1/ui/launch", null)).Content.ReadFromJsonAsync<JsonElement>();
-        var url = new Uri(body.GetProperty("url").GetString()!);
-        Assert.Equal("127.0.0.1", url.Host);
-        Assert.DoesNotContain(_config.AuthToken, url.AbsoluteUri);
-
-        var first = await anonymous.GetAsync(url.PathAndQuery);
-        Assert.Equal("/ui/", first.Headers.Location!.OriginalString);
-        var cookie = Assert.Single(first.Headers.GetValues("Set-Cookie"));
-        Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("path=/ui", cookie, StringComparison.OrdinalIgnoreCase);
-
-        var (other, _) = Browser();
-        var replay = await other.GetAsync(url.PathAndQuery);
-        Assert.Contains("signin", replay.Headers.Location!.OriginalString);
-        Assert.False(replay.Headers.Contains("Set-Cookie"));
-    }
-
-    [Fact]
-    public async Task ApiNeedsASession()
+    public async Task NeedsNoSignInOrToken()
     {
         var (browser, _) = Browser();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/ui/api/overview")).StatusCode);
+        var overview = await browser.GetAsync("/ui/api/overview");
+        Assert.Equal(HttpStatusCode.OK, overview.StatusCode);
+        Assert.Equal("test protector", (await overview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("secret_protection").GetString());
 
-        var session = await browser.GetFromJsonAsync<JsonElement>("/ui/api/session");
-        Assert.False(session.GetProperty("authenticated").GetBoolean());
-
-        var signedIn = await SignedInBrowser();
-        var overview = await signedIn.GetFromJsonAsync<JsonElement>("/ui/api/overview");
-        Assert.Equal("test protector", overview.GetProperty("secret_protection").GetString());
+        // The agent API keeps its bearer token; only the page is open to this machine.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/v1/notifications")).StatusCode);
     }
 
     [Fact]
     public async Task ForeignHostNamesAreRefused()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         using var rebinding = new HttpRequestMessage(HttpMethod.Get, "/ui/api/overview");
         rebinding.Headers.Host = $"attacker.example:{_port}";
         Assert.Equal(HttpStatusCode.MisdirectedRequest, (await browser.SendAsync(rebinding)).StatusCode);
@@ -158,7 +126,7 @@ public sealed class WebUiTests : IAsyncLifetime
     [Fact]
     public async Task StateChangesNeedTheUiHeaderAndASameOriginOrigin()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         browser.DefaultRequestHeaders.Remove(WebUiEndpoints.CsrfHeader);
         var body = JsonContent.Create(new { pause_notifications = true });
 
@@ -178,32 +146,9 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TokenSignInIsThrottled()
-    {
-        var (browser, _) = Browser();
-        browser.DefaultRequestHeaders.Add(WebUiEndpoints.CsrfHeader, "1");
-        for (var i = 0; i < 10; i++)
-            Assert.Equal(HttpStatusCode.Unauthorized, (await browser.PostAsJsonAsync("/ui/api/session", new { token = "wrong" })).StatusCode);
-
-        Assert.Equal(HttpStatusCode.TooManyRequests, (await browser.PostAsJsonAsync("/ui/api/session", new { token = _config.AuthToken })).StatusCode);
-    }
-
-    [Fact]
-    public async Task TokenSignInStartsASession()
-    {
-        var (browser, _) = Browser();
-        browser.DefaultRequestHeaders.Add(WebUiEndpoints.CsrfHeader, "1");
-        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync("/ui/api/session", new { token = _config.AuthToken })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync("/ui/api/settings")).StatusCode);
-
-        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/session")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/ui/api/settings")).StatusCode);
-    }
-
-    [Fact]
     public async Task InvalidSettingsChangeNothing()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         var response = await browser.PutAsJsonAsync("/ui/api/settings", new { history_retention_days = 90, port = 70000 });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -221,7 +166,7 @@ public sealed class WebUiTests : IAsyncLifetime
     [Fact]
     public async Task StoredSecretsNeverComeBack()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         var created = await browser.PostAsJsonAsync("/ui/api/providers", new
         {
             name = "Hook",
@@ -250,7 +195,7 @@ public sealed class WebUiTests : IAsyncLifetime
     [Fact]
     public async Task RoutesSaveAndRefuseAnUnknownChannel()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         var provider = await (await browser.PostAsJsonAsync("/ui/api/providers", new
         {
             name = "Hook", kind = "webhook", enabled = true,
@@ -286,7 +231,7 @@ public sealed class WebUiTests : IAsyncLifetime
         });
         Assert.Equal(HttpStatusCode.Created, asked.StatusCode);
 
-        var browser = await SignedInBrowser();
+        var browser = Page();
         var pending = await browser.GetFromJsonAsync<JsonElement>("/ui/api/interactions");
         var question = Assert.Single(pending.EnumerateArray());
         Assert.Equal("", question.GetProperty("nonce").GetString());
@@ -322,7 +267,7 @@ public sealed class WebUiTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NotFound, (await browser.GetAsync("/ui/js/missing.js")).StatusCode);
         Assert.Equal("text/html", (await browser.GetAsync("/ui/channels")).Content.Headers.ContentType!.MediaType);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/ui/api/nothing-here")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.GetAsync("/ui/api/nothing-here")).StatusCode);
     }
 
     [Fact]
@@ -350,7 +295,7 @@ public sealed class WebUiTests : IAsyncLifetime
     [Fact]
     public async Task UploadedSoundsAreImportedAndPlayable()
     {
-        var browser = await SignedInBrowser();
+        var browser = Page();
         using var form = new MultipartFormDataContent();
         var wav = new ByteArrayContent(Encoding.ASCII.GetBytes("RIFF----WAVEfmt fake"));
         wav.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
