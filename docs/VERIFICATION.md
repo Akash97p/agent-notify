@@ -1289,6 +1289,16 @@ an exact published rate, historical prices, a physical-phone viewport, Windows t
 the Windows installer payload. OpenCode Go estimates use published quota-equivalent token rates,
 not additional subscription spend.
 
+## Usage unpriced-banner removal (`fix/usage-unpriced-banner`, 2026-09-13)
+
+The top-of-page unpriced-model warning was removed. Source, project, and model cost labels still
+show `+ unpriced`, and the total cost tile still says it covers priced records only. Native macOS
+.NET 10 Release solution build succeeded with 0 warnings and 0 errors; all 891 tests passed.
+`node --check` and `git diff --check` passed. A self-contained `osx-x64` broker publish with
+embedded native libraries succeeded. The required WSL build/test/package scripts were attempted
+but could not start because `/mnt/d/dev/dotnet/dotnet.exe` is absent on this Mac. Windows installer
+packaging and a human browser visual check for this edit remain unverified.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
