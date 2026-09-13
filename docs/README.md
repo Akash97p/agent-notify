@@ -17,6 +17,7 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | --- | --- |
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
 | [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
+| [WEB_UI.md](WEB_UI.md) | The browser interface for settings, channels, questions, and history, and how it stays local |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
 | [ARC.md](ARC.md) | Attention Request Contract 0.1 lifecycle, schema, and AgentNotify binding |
@@ -51,6 +52,7 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md) | The ordered backlog with per-item status |
 | [VERIFICATION.md](VERIFICATION.md) | What has actually been verified, and what remains unverified |
 | [BUG.md](BUG.md) | Defects found after a capability was called complete, and what caused them |
+| [future-scope/](future-scope/README.md) | Unscheduled: local usage indexing, live quota probing, and provider routing |
 | [RELEASING.md](RELEASING.md) | Version scheme, tagging, and the release/Pages workflows |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching rules, quality gates, and how to propose a change |
 

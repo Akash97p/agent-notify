@@ -47,16 +47,12 @@
 - [x] Notify-only auto-notify harnesses for OpenCode (event plugin), Codex (hooks), and Claude Code (hooks) with `install-harness` (real-host display smoke pending)
 - [x] Durable interaction/response model with expiry, cancellation, idempotency, and host acceptance
 - [x] Returning the human answer into the waiting host call (Codex/Claude ask mode, Hermes transport, OpenClaw watcher)
-- [ ] Local permission and single-choice response UI with first-valid-response-wins
+- [x] Local permission, single-choice, and text response UI with first-valid-response-wins (web interface `Questions` page)
 - [ ] Generic Agent Client Protocol bridge for managed coding-agent sessions
 - [x] Native adapters for all eleven hosts (OpenCode, Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi)
 - [x] Relay reverse response envelopes with reconnect/backfill and replay defense (broker, Relay, and mobile all implemented; continuous desktop polling runs with the broker)
 - [x] Mobile allow/deny, single-choice and free-text answer UI (desktop/host outcome feedback back to the phone is still absent — the phone learns only that the Relay recorded the answer)
-- [ ] **Teach the skill that questions exist.** The distributable `SKILL.md` covers
-      `send`, `resolve` and `list` only; it never mentions `interactions`, so an agent
-      has no way to know it can ask the user a bounded question on its own initiative.
-      Every layer beneath it is implemented and verified end to end. This is the gap
-      between "the machinery works" and "an agent uses it".
+- [x] Teach the skill that questions exist (`interactions request`/`wait` for `single_choice` and `text`)
 - [ ] Multi-select answers. `single_choice` means exactly one and the broker rejects an
       answer carrying more; there is no kind for "pick several".
 - [ ] Free-form phone-to-agent messaging. Deliberately outside the interaction contract
@@ -81,13 +77,16 @@
 - [x] Checksum-verifying POSIX `install.sh`
 - [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
+- [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center
+- [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
+- [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients
 - [ ] Automatic updates and schema/config migration framework
 
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 835 passed, 0 failed, 0 skipped
+- [x] Automated tests: 887 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -122,5 +121,8 @@
 - [ ] Optional MCP elicitation/server and richer language SDKs after the interaction model stabilizes
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
+
+Longer-range capabilities — local usage indexing, live quota probing, and provider routing — are
+recorded, not scheduled, in [docs/future-scope](docs/future-scope/README.md).
 
 The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. The constraints the implementation is held to live in `docs/ARCHITECTURE.md`, and what has actually been verified lives in `docs/VERIFICATION.md`.

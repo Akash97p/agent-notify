@@ -19,7 +19,7 @@ namespace AgentNotify.Cli;
 /// Every command talks to the local broker via HTTP; the broker is source of truth.</summary>
 internal static class Program
 {
-    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "interactions", "help", "--help", "-h", "--version"];
+    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "interactions", "ui", "help", "--help", "-h", "--version"];
 
     internal static async Task<int> Main(string[] args)
     {
@@ -56,6 +56,7 @@ internal static class Program
                 "install" when args.Length > 1 && args[1].Equals("harness", StringComparison.OrdinalIgnoreCase) => RunInstallHarness(args[2..]),
                 "install" => Fail("Usage: agentnotify install <skill|harness> <agent> [options]"),
                 "interactions" => await RunInteractions(args[1..]),
+                "ui" => await RunUi(args[1..]),
                 "help" or "--help" or "h" => RunHelp(args.Length > 1 ? args[1] : null),
                 "version" => RunVersion(),
                 _ => Fail($"unknown command '{args[0]}'. Run 'agentnotify help' for usage.")
@@ -1426,6 +1427,104 @@ internal static class Program
         return oneLine.Length <= max ? oneLine : oneLine[..(max - 1)] + "…";
     }
 
+    // ---- web interface ----
+
+    /// <summary>
+    /// Opens the broker's web interface with a one-time sign-in link, so the browser gets its own
+    /// session and never sees the bearer token.
+    /// </summary>
+    private static async Task<int> RunUi(string[] args)
+    {
+        string? portOverride = null, tokenOverride = null;
+        var printOnly = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--port" when i + 1 < args.Length: portOverride = args[++i]; break;
+                case "--token" when i + 1 < args.Length: tokenOverride = args[++i]; break;
+                case "--print" or "--no-open": printOnly = true; break;
+                case "--help" or "-h": PrintUiHelp(); return 0;
+                default: return Fail($"unknown option '{args[i]}' for ui.");
+            }
+        }
+
+        var (client, baseUrl) = CreateClient(portOverride, tokenOverride);
+        using (client)
+        {
+            try
+            {
+                var response = await client.PostAsync($"{baseUrl}/v1/ui/launch", new StringContent("{}", Encoding.UTF8, "application/json"));
+                var body = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                    return Fail("This broker has no web interface. Update AgentNotify and restart it.");
+                if (!response.IsSuccessStatusCode)
+                    return Fail($"Error {(int)response.StatusCode} {response.StatusCode}: {PrettyError(body)}");
+
+                using var document = JsonDocument.Parse(body);
+                var url = document.RootElement.GetProperty("url").GetString()!;
+                if (printOnly || !TryOpenBrowser(url))
+                {
+                    Console.WriteLine(url);
+                    Console.Error.WriteLine("Open that link within two minutes. It signs one browser in and then stops working.");
+                }
+                else
+                {
+                    Console.WriteLine($"Opened the AgentNotify web interface at {baseUrl}/ui/");
+                }
+                return 0;
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.Error.WriteLine($"Could not reach AgentNotify at {baseUrl}: {ex.Message}");
+                Console.Error.WriteLine("Is the broker running?");
+                return 1;
+            }
+        }
+    }
+
+    private static bool TryOpenBrowser(string url)
+    {
+        try
+        {
+            ProcessStartInfo start;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                start = new ProcessStartInfo(url) { UseShellExecute = true };
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                start = new ProcessStartInfo("open", [url]);
+            else if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")) ||
+                     !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+                start = new ProcessStartInfo("xdg-open", [url]);
+            else
+                return false;
+
+            start.RedirectStandardOutput = !start.UseShellExecute;
+            start.RedirectStandardError = !start.UseShellExecute;
+            using var process = Process.Start(start);
+            return process is not null;
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static void PrintUiHelp()
+    {
+        Console.WriteLine("""
+            agentnotify ui — open the web interface
+
+            Usage:
+              agentnotify ui [--print] [--port N] [--token T]
+
+            Opens the broker's local web interface in your browser with a one-time sign-in link.
+            The link works once, for two minutes, and never contains the bearer token.
+
+            Options:
+              --print      Print the link instead of opening a browser (for SSH sessions)
+            """);
+    }
+
     private static int RunHelp(string? topic)
     {
         if (topic is not null)
@@ -1441,6 +1540,7 @@ internal static class Program
                 case "install-skill": case "install": PrintInstallSkillHelp(); return 0;
                 case "install-harness": case "harness": PrintInstallHarnessHelp(); return 0;
                 case "interactions": PrintInteractionsHelp(); return 0;
+                case "ui": PrintUiHelp(); return 0;
             }
         }
         PrintUsage();
@@ -1532,6 +1632,7 @@ internal static class Program
               install-skill  Install the bundled skill for Codex, Claude Code, or OpenCode
               install-harness  Install the auto-notify harness for OpenCode, Codex, or Claude Code
               interactions  Ask a waiting question/permission and collect the answer
+              ui         Open the web interface in your browser
               help       Show help (help <command> for details)
 
             Global options (for send/list/get/...):
@@ -1544,6 +1645,7 @@ internal static class Program
               agentnotify list --unresolved true --limit 20
               agentnotify resolve abc123
               agentnotify health
+              agentnotify ui
               agentnotify relay pair --url https://relay.example.com
               agentnotify install-skill codex
               agentnotify install-harness opencode

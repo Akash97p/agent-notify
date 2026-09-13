@@ -104,8 +104,19 @@ done
 
 # Only checksum the archives that this run actually produced; an unmatched glob would otherwise
 # abort the script under `set -euo pipefail` after the archives were already built.
-( cd "$OUT" && find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) -printf '%P\n' \
-    | sort | xargs -r sha256sum > SHA256SUMS.txt )
+# GNU find -printf, xargs -r, and sha256sum are all missing on macOS, where developers also run this.
+(
+  cd "$OUT"
+  shopt -s nullglob
+  archives=( *.tar.gz *.zip )
+  if (( ${#archives[@]} )); then
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "${archives[@]}"
+    else
+      shasum -a 256 "${archives[@]}"
+    fi | sort -k 2 > SHA256SUMS.txt
+  fi
+)
 
 echo
 echo "Archives in $OUT:"

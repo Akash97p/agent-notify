@@ -1146,6 +1146,45 @@ One gap this exercise exposed, not a defect in the loop itself: the distributabl
 so no agent currently knows it can ask a question on its own initiative, even though
 every layer beneath it works. Tracked in `TODO.md`.
 
+## Web interface (`feature/web-ui`, 2026-09-13)
+
+Environment: Intel MacBook Pro (x86_64), macOS, .NET SDK 10.0.401, headless Google Chrome.
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true`: succeeded, WPF app
+  and installer included (cross-targeted from macOS; not a Windows run).
+- Full suite: 887 tests passed (842 + 45 new), 0 failed. New: 32 provider-form tests (every
+  registered adapter has an editor; builder and reader agree for all nineteen kinds; secret
+  keep/clear semantics; Twilio and MQTT mode switches drop unused credentials; Relay pairing;
+  a real Telegram adapter delivering from a built configuration) and 13 web interface tests
+  (launch codes need the bearer token and work once; cookie is `HttpOnly`/`SameSite=Strict`;
+  foreign `Host` gets 421; missing header or cross-site `Origin` gets 403 and changes nothing;
+  sign-in throttles after ten failures; invalid settings change nothing; stored secrets never
+  appear in responses; a browser answer binds to the displayed digest; CSP and asset serving;
+  every imported module is served; sound upload sanitizes the name and refuses traversal).
+- Two defects were caught by those tests before anything shipped: `GET /ui/` redirected to itself
+  (routing treats `/ui` and `/ui/` alike), and expression-bodied `(HttpContext) => await …`
+  handlers bound to `RequestDelegate`, silently discarding their result — provider and route
+  saves answered 200 with an empty body, so validation errors never reached the page.
+- Visual check, by driving headless Chrome over the DevTools protocol against a scratch broker
+  with seeded data: every page at 1440 px, light and dark, and 390 px with the navigation drawer.
+  No console errors or exceptions on any page. Found and fixed: a stray `null` rendered by native
+  `append`, step cards underlined, a label misaligned in two-column grids, harness commands
+  truncated, and long working-directory paths widening the layout at phone width.
+- Interaction from the page: a text answer and a single-choice answer were entered and sent in
+  the browser; `GET /v1/interactions?status=answered` showed both with `source: web`.
+- Deployed to this Mac's launchd broker (`osx-x64` publish, ad-hoc re-signed, previous
+  `0.1.0-alpha.2` binaries kept in `~/.local/bin/.agentnotify-backup-0.1.0-alpha.2`). `/ui/`
+  answered 200, `/ui/api/overview` without a session 401, and `agentnotify ui --print` signed a
+  headless browser in; overview, channels (the existing Relay profile, credential shown as
+  stored, not revealed) and agents rendered against real data with no console errors. Nothing
+  was saved from the page on the real broker.
+- `scripts/publish-cross.sh` failed its checksum step on macOS (GNU `find -printf`, `xargs -r`,
+  `sha256sum`); fixed to fall back to `shasum -a 256`.
+
+Not verified: the web interface served by the Windows tray app, **Open in browser…** in the tray
+menu, sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
+started from the page against a live Relay. No person has looked at the page yet.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

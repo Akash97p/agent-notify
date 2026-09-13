@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha.2-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-842%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-887%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -30,10 +30,10 @@ It is designed for people running several agents across terminals, repositories,
 
 ## Platform support
 
-**The graphical application is Windows-only today.** macOS and Linux run the same broker, CLI and
-API, but headlessly — there is no tray icon, no notification center and no Settings window on those
-platforms, so everything configured through the Settings UI on Windows (outbound channels, custom
-types, sounds, toast placement) has to be edited in `config.json` or left at its defaults.
+**The native desktop application is Windows-only today.** macOS and Linux run the same broker, CLI
+and API headlessly, and configure it through the broker's **web interface** — `agentnotify ui` opens
+the same settings, channels, routes, questions and history in a browser. The web interface runs on
+Windows too, beside the tray app.
 
 | | Windows 11 x64 | macOS | Linux |
 |---|---|---|---|
@@ -41,10 +41,11 @@ types, sounds, toast placement) has to be edited in `config.json` or left at its
 | CLI (`agentnotify`) | yes | yes | yes |
 | Loopback REST API | yes | yes | yes |
 | SQLite history, dedup keys, retention | yes | yes | yes |
-| Outbound channels (19 adapters) | yes | yes, config file only | yes, config file only |
+| Outbound channels (19 adapters) | yes | yes | yes |
 | Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
 | Tray icon and notification center | yes | **no** | **no** |
 | Settings window | yes | **no** | **no** |
+| Web interface (`agentnotify ui`) | yes | yes | yes |
 | Verified on real hardware | yes | Intel yes (2026-09-04), Apple Silicon **no** | yes |
 
 Native macOS and Linux clients are a roadmap goal, not a shipped feature; the portable broker exists
@@ -68,6 +69,9 @@ Everywhere:
 - Nineteen opt-in outbound channel adapters with encrypted credentials, including
   [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
   transport that can carry a question to a paired device and the answer back.
+- **A web interface on every platform.** `agentnotify ui` opens the broker's own settings,
+  channels, routes, questions, and history in your browser — signed in with a one-time link,
+  served only to this machine, and never handed a stored credential.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:
@@ -113,9 +117,8 @@ This installs the `agentnotify` CLI and the `agentnotifyd` broker into `~/.local
 the published SHA-256 checksum. Start the broker with `agentnotifyd`, then use the same CLI and the
 same `/v1` API as on Windows.
 
-**There is no graphical application on macOS or Linux.** No tray icon, no notification center and no
-Settings window: `agentnotifyd` is a headless daemon you run under systemd or launchd, and every
-setting is edited in `config.json` by hand. Desktop notifications go to `notify-send` on Linux,
+**There is no native application on macOS or Linux.** `agentnotifyd` is a headless daemon you run
+under systemd or launchd; configure it and answer questions in the browser with `agentnotify ui`. Desktop notifications go to `notify-send` on Linux,
 Notification Center on macOS, or standard output when no desktop session is available.
 
 The macOS build ran on real Intel hardware for the first time on 2026-09-04, and the

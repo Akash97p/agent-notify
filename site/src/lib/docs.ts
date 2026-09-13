@@ -23,6 +23,7 @@ export const docs: DocDefinition[] = [
   { source: "docs/INSTALLATION.md", slug: "installation", title: "Install on Windows", section: "Getting started", description: "Install the Windows desktop application and CLI." },
   { source: "docs/INSTALLATION_UNIX.md", slug: "installation-unix", title: "Install on macOS and Linux", section: "Getting started", description: "Run the portable CLI and headless broker." },
   { source: "docs/TROUBLESHOOTING.md", slug: "troubleshooting", title: "Troubleshooting", section: "Getting started", description: "Diagnose common installation, API, and delivery problems." },
+  { source: "docs/WEB_UI.md", slug: "web-ui", title: "Web interface", section: "Using AgentNotify", description: "Settings, channels, questions, and history in the browser, on every platform." },
   { source: "docs/CLI.md", slug: "cli", title: "Command line", section: "Using AgentNotify", description: "Commands, flags, output shapes, and exit codes." },
   { source: "docs/API.md", slug: "api", title: "Local REST API", section: "Using AgentNotify", description: "Authenticated loopback endpoints and request contracts." },
   { source: "docs/ARC.md", slug: "arc", title: "Attention Request Contract", section: "Using AgentNotify", description: "ARC 0.1 lifecycle, schema, and reference binding." },

@@ -31,6 +31,7 @@ public partial class App : System.Windows.Application
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
     private DeliveryDispatcher? _deliveryDispatcher;
+    private AgentNotify.Api.WebUi.WebUiOptions? _webUi;
     private InteractionResponsePoller? _interactionResponsePoller;
     private NotificationDeliveryCoordinator? _deliveryCoordinator;
     private IReadOnlyList<IOutboundChannelAdapter>? _channelAdapters;
@@ -116,7 +117,7 @@ public partial class App : System.Windows.Application
         await _deliveryRepository.InitializeAsync();
         // On Windows the factory always returns the DPAPI protector; going through it keeps the
         // tray app and the portable host on one code path.
-        var secretProtector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger);
+        var secretProtector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var secretProtection);
         _providerProfiles = new ProviderProfileService(_deliveryRepository, secretProtector);
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _channelAdapters = ChannelAdapterFactory.CreateAll();
@@ -164,7 +165,24 @@ public partial class App : System.Windows.Application
                 await interactionPublisher.PublishAsync(DtoMapper.ToDto(interaction), ct);
             }
         };
-        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks, interactionService, interactionPublisher);
+        _webUi = new AgentNotify.Api.WebUi.WebUiOptions
+        {
+            ConfigStore = _configStore,
+            Providers = _providerProfiles,
+            Routes = _deliveryRoutes,
+            Dispatcher = _deliveryDispatcher,
+            SecretProtection = secretProtection.Description,
+            DesktopSurface = "the AgentNotify tray app",
+            SupportsToastPlacement = true,
+            SupportsSounds = true,
+            ConfigSaved = (savedConfig, restartRequired) =>
+            {
+                _logger.Info("Settings updated from the web interface");
+                if (restartRequired)
+                    _ = Dispatcher.InvokeAsync(() => _tray?.ShowMessage("AgentNotify", "Settings saved. Restart AgentNotify to apply the new API port."));
+            }
+        };
+        _api = ApiHost.Build(_config, _repository, _service, _logger, url, _apiCallbacks, interactionService, interactionPublisher, _webUi);
         _api.Start();
         _interactionResponsePoller.Start();
         _logger.Info($"API listening on {url}");
@@ -213,6 +231,11 @@ public partial class App : System.Windows.Application
             isStartupEnabled: StartupRegistrar.IsEnabled,
             onShowCenter: () => _center.ShowAndActivate(),
             onOpenSettings: () => ShowSettings(),
+            onOpenWebUi: () => RunTrayAction("Web settings", () =>
+            {
+                var launch = AgentNotify.Api.WebUi.WebUiEndpoints.CreateLaunchUrl(_webUi!, _config.Port);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(launch) { UseShellExecute = true });
+            }),
             onOpenGettingStarted: () => RunTrayAction("Getting started", AgentResources.OpenGettingStarted),
             onInstallSkill: () => ShowSettings(showInstall: true),
             onCopySkill: () => RunTrayAction("Agent skill", () =>

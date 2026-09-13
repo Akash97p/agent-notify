@@ -50,7 +50,8 @@ public static class ApiHost
         string? url = null,
         ApiCallbacks? callbacks = null,
         InteractionService? interactions = null,
-        InteractionRelayPublisher? relayPublisher = null)
+        InteractionRelayPublisher? relayPublisher = null,
+        WebUi.WebUiOptions? webUi = null)
     {
         // Do not inherit the caller's command line or content root. In WSL-driven
         // Windows test/build processes the working directory is a UNC path, and
@@ -91,8 +92,17 @@ public static class ApiHost
             ?? assembly.GetName().Version?.ToString(3)
             ?? "0.0.1";
 
+        var listenPort = new Uri(baseUrl).Port;
+
         app.Use(async (context, next) =>
         {
+            if (webUi is not null && context.Request.Path.StartsWithSegments(WebUi.WebUiEndpoints.BasePath))
+            {
+                if (await WebUi.WebUiEndpoints.Guard(context, webUi, listenPort))
+                    await next();
+                return;
+            }
+
             if (context.Request.Path.StartsWithSegments(RootPath))
             {
                 var header = context.Request.Headers.Authorization.ToString();
@@ -287,6 +297,9 @@ public static class ApiHost
 
         if (interactions is not null)
             MapInteractions(app, interactions, callbacks, relayPublisher, logger);
+
+        if (webUi is not null)
+            WebUi.WebUiEndpoints.Map(app, webUi, config, repository, service, interactions, callbacks, logger, listenPort, version, startedAt);
 
         return app;
     }
