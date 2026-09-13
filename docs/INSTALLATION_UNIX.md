@@ -179,10 +179,10 @@ Installing `secret-tool` before configuring providers gets you the stronger opti
 
 ## What is missing compared with Windows
 
-There is no tray icon, no notification center window, and no Settings UI yet. Configure the broker by
-editing `config.json` (see [CONFIGURATION.md](CONFIGURATION.md)) and restarting it, and use the CLI
-to list, resolve, and dismiss notifications. Native macOS and Linux desktop clients are planned;
-see [CROSS_PLATFORM.md](CROSS_PLATFORM.md).
+There is no tray icon and no native window. Instead, the broker serves the same settings and
+notification center in a browser: run `agentnotify ui` (see [WEB_UI.md](WEB_UI.md)). Toast placement
+and sounds are Windows-app settings; here the platform's notification service decides both. Native
+macOS and Linux desktop clients are planned; see [CROSS_PLATFORM.md](CROSS_PLATFORM.md).
 
 ## Troubleshooting
 

@@ -55,6 +55,24 @@ host accepts the mapped decision. See
 [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md) for the researched
 protocol split, security boundary, and agent-by-agent feasibility.
 
+### Web interface
+
+`AgentNotify.Api/WebUi` mounts a browser interface on the API listener when the host supplies
+`WebUiOptions`; both `agentnotifyd` and the tray app do. The front end is plain ES modules and CSS,
+embedded as resources, with no build step, so the .NET build and the Windows CI need no Node
+toolchain. It talks only to `/ui/api`, which calls the same Core services the Settings window uses.
+
+A browser session is created from a single-use launch code minted through the bearer-authenticated
+`POST /v1/ui/launch`, or from the token pasted once into a throttled sign-in form. Sessions are
+in-memory and carried in an `HttpOnly`, `SameSite=Strict` cookie. A middleware guard runs before
+routing: it refuses foreign `Host` headers (DNS rebinding), requires a session for `/ui/api`, and
+requires `X-AgentNotify-UI: 1` plus a same-origin `Origin` on every state change.
+
+Provider editors are driven by `ProviderFormCatalog` (field descriptors), `ProviderFormBuilder`
+(validation and the stored configuration document), and `ProviderFormReader` (non-secret values
+back into a form), all in Core. Relay pairing runs in the broker through `RelayPairingSessions`, so
+the issued installation token never reaches the page. See [WEB_UI.md](WEB_UI.md).
+
 ### Desktop app
 
 `AgentNotify.App` owns the application lifetime. Startup order is:
@@ -115,8 +133,12 @@ These are the constraints the implementation is held to. They are recorded becau
 each one is a choice that looks arbitrary from the code alone, and reversing any of
 them changes the product rather than the implementation.
 
-1. The native WPF Settings window opened from the tray is the primary configuration
-   UI. A browser dashboard may be added later, but must never expose secrets.
+1. Configuration has two surfaces over one broker: the native WPF Settings window on
+   Windows, and the web interface the broker serves at `/ui/` on every platform. Neither
+   ever returns a stored secret, and the browser never holds the bearer token. Provider
+   validation lives in Core (`ProviderFormCatalog`) so the surfaces cannot disagree about
+   what a valid channel is; the WPF panel still carries its own copy until it is moved
+   onto the catalog.
 2. SQLite is the source of truth for notification history. Provider profiles, routing
    rules, outbox entries, and delivery attempts are added through explicit migrations
    that preserve existing history.

@@ -1,0 +1,73 @@
+# Future scope: usage, quota, and routing
+
+Nothing in this folder is implemented or scheduled. These notes record how four capabilities
+work, so that when AgentNotify grows past human attention into the cost and capacity of the agents
+it watches, the design starts from known mechanisms instead of a blank page.
+
+The notes describe mechanisms, not products. Provider endpoints and log formats are other
+programs' implementation details and change without notice; re-verify each one against the real
+source before building on it.
+
+| Capability | What it would measure | Notes |
+| --- | --- | --- |
+| Local usage indexing | Tokens that Claude Code and Codex recorded on this machine, grouped by time, model, project, and session, with estimated cost and cache savings. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
+| Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode), normalized, deduplicated, and priced. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
+| Live quota probing | Account-reported utilization, reset times, and credits fetched from provider APIs or CLI sources, combined into per-provider snapshots and refreshed safely. | [Fetch sources](live-quota-probing/01-fetch-sources.md), [normalization and refresh](live-quota-probing/02-normalization-and-refresh.md); native Windows engine: [provider sources](live-quota-probing/03-windows-provider-sources.md), [normalization and cache](live-quota-probing/04-windows-normalization-and-cache.md) |
+| Local provider routing | Requests routed across providers and models, with protocol translation, policy- and quota-aware target selection, failover, and a proxy-observed usage and cost ledger. | [Routing and translation](local-provider-routing/01-routing-and-translation.md), [failover and usage ledger](local-provider-routing/02-failover-and-usage-ledger.md) |
+
+## Three records that must stay separate
+
+**Historical token usage**, **live account quota**, and **proxy-observed usage** overlap but are
+not interchangeable:
+
+- A five-hour group of log records is a time bucket of observed tokens, not a percentage of a
+  subscription allowance.
+- A proxy ledger sees only the traffic that went through the proxy.
+- A live quota endpoint can include usage from other devices and clients, but generally has no
+  per-request token ledger.
+
+A common envelope for all three: `source`, `provider`, `account_scope`, `model`, `observed_at`,
+`period_start`/`period_end`, `origin` (`local_log | local_db | provider_api | cli_rpc | proxy`),
+`confidence` (`reported | calculated | estimated | unknown`), and `raw_reference` (file and event
+ID, or a redacted endpoint or response ID). Token counters and quota percentages belong in distinct
+payload types. Normalize counters before pricing, especially whether `input_tokens` already
+includes cache reads and whether reasoning is already inside `output_tokens`.
+
+Never add rows from two scanners of the same logs. Either make one parser the authority for a log
+family, or deduplicate on stable provider, session, message, and request identities. Likewise,
+never count a proxied request and the agent-log record of the same physical call twice. Scope
+account identity to the credential that supplied the data, and invalidate any pending refresh when
+the account changes.
+
+## Build order
+
+1. A typed source adapter interface, one normalized token schema, and fixture-based parser tests.
+   Start with Claude Code JSONL, Codex JSONL, and OpenCode SQLite.
+2. Local index invalidation and durable caching. Version each parser, and test cumulative versus
+   delta accounting and replayed or sidechain sessions.
+3. Pricing as a separate, versioned estimate layer. Unknown pricing stays unknown; it is never
+   treated as free.
+4. Live quota fetchers with explicit credential ownership, account-scoped snapshots, stale-response
+   guards, and rate-limit handling.
+5. A local routing proxy only if routing is actually wanted, with its own ledger correlated to
+   log-derived records where possible.
+
+## How it would fit AgentNotify
+
+These are directions, not decisions. The standing decisions in
+[ARCHITECTURE.md](../ARCHITECTURE.md) still apply to all of them.
+
+- **Where it runs.** Each capability would be a broker module in Core behind the same boundaries as
+  delivery: SQLite as the source of truth, versioned migrations, credentials encrypted before
+  storage, and no network work on the API request path. Reading another agent's logs is local and
+  read-only; live quota probes and a routing proxy are outbound network features, so they stay off
+  until the user enables them.
+- **Where it shows.** The [web interface](../WEB_UI.md) groups its navigation so new areas slot in
+  beside Activity, Delivery, and Configuration: Usage and Quota under a new group, Routing alongside
+  Channels. Its API conventions (session-authenticated `/ui/api`, write-only secrets) carry over.
+- **How it meets attention.** Quota and spend thresholds are natural attention requests: "Claude
+  weekly limit at 90%, resets Thursday" is an ARC `request.created` with a stable key that updates
+  and resolves like any other condition, and routes to the phone through the existing delivery
+  pipeline.
+- **What never happens.** AgentNotify does not rotate or write another tool's credentials. A
+  credential file owned by an agent is read-only input; refreshing it is that agent's job.
