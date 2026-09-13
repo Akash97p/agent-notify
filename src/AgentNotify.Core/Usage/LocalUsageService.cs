@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace AgentNotify.Core.Usage;
@@ -69,12 +71,19 @@ public sealed class LocalUsageService
             .Where(row => row.Timestamp >= cutoff)
             .ToArray();
         var sources = rows.GroupBy(row => row.Source).OrderBy(group => group.Key)
-            .Select(group => new UsageGroup(group.Key, Sum(group))).ToArray();
+            .Select(group => new UsageGroup(group.Key, Sum(group), Estimate(group))).ToArray();
         var models = rows.GroupBy(row => (row.Source, row.Model)).OrderByDescending(group => Sum(group).Total)
-            .Take(30).Select(group => new UsageModel(group.Key.Source, group.Key.Model, Sum(group))).ToArray();
+            .Take(30).Select(group => Model(group)).ToArray();
         var daily = rows.GroupBy(row => DateOnly.FromDateTime(row.Timestamp.LocalDateTime))
-            .OrderBy(group => group.Key).Select(group => new UsageDay(group.Key.ToString("yyyy-MM-dd"), Sum(group))).ToArray();
-        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count, skipped, rows.Length, Sum(rows), sources, models, daily);
+            .OrderBy(group => group.Key).Select(group => new UsageDay(group.Key.ToString("yyyy-MM-dd"), Sum(group), Estimate(group))).ToArray();
+        var projects = rows.GroupBy(row => (row.Project.Id, row.Project.Name))
+            .Select(group => new UsageProject(group.Key.Id, group.Key.Name, Sum(group), Estimate(group),
+                group.GroupBy(row => (row.Source, row.Model)).Select(Model)
+                    .OrderByDescending(model => model.Cost.PricedUsd).ToArray()))
+            .OrderByDescending(project => project.Cost.PricedUsd)
+            .ThenByDescending(project => project.Counts.Total).ToArray();
+        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count, skipped, rows.Length,
+            Sum(rows), Estimate(rows), sources, models, projects, daily, ApiPriceCatalog.AsOf);
     }
 
     private void AddFiles(string source, IReadOnlyList<string> roots, Dictionary<string, CachedFile> next, ref int skipped, CancellationToken ct)
@@ -124,6 +133,7 @@ public sealed class LocalUsageService
         var events = new List<UsageEvent>();
         var model = "Unknown model";
         var session = Path.GetFileNameWithoutExtension(path);
+        var project = ProjectInfo.Unknown;
         TokenCounts? previousTotal = null;
         var mirrored = false;
         using var reader = new StreamReader(path);
@@ -148,8 +158,13 @@ public sealed class LocalUsageService
                     var threadSource = String(payload, "thread_source");
                     mirrored = threadSource == "subagent" && !string.IsNullOrEmpty(String(payload, "forked_from_id"));
                     session = String(payload, "id") ?? session;
+                    project = ProjectInfo.FromDirectory(String(payload, "cwd"), project);
                 }
-                else if (type == "turn_context") model = String(payload, "model") ?? model;
+                else if (type == "turn_context")
+                {
+                    model = String(payload, "model") ?? model;
+                    project = ProjectInfo.FromDirectory(String(payload, "cwd"), project);
+                }
                 else if (type == "event_msg" && String(payload, "type") == "token_count" && !mirrored)
                 {
                     var info = Child(payload, "info");
@@ -170,7 +185,7 @@ public sealed class LocalUsageService
                     }
                     if (delta.Total == 0) continue;
                     if (!DateTimeOffset.TryParse(String(row, "timestamp"), out var timestamp)) continue;
-                    events.Add(new UsageEvent("codex", timestamp, model, session, null, delta));
+                    events.Add(new UsageEvent("codex", timestamp, model, session, project, null, delta, 0));
                 }
             }
             catch (JsonException) { /* One malformed line must not discard the rest of a session. */ }
@@ -194,7 +209,9 @@ public sealed class LocalUsageService
         var counts = new TokenCounts(Number(usage, "input_tokens"), Number(usage, "output_tokens"),
             Number(usage, "cache_read_input_tokens"), Number(usage, "cache_creation_input_tokens"), 0);
         if (counts.Total == 0) return null;
-        return new UsageEvent("claude_code", timestamp, model, String(row, "sessionId") ?? "", identity, counts);
+        var oneHour = Number(Child(usage, "cache_creation"), "ephemeral_1h_input_tokens");
+        return new UsageEvent("claude_code", timestamp, model, String(row, "sessionId") ?? "",
+            ProjectInfo.FromDirectory(String(row, "cwd")), identity, counts, Math.Min(counts.CacheWrite, oneHour));
     }
 
     private static TokenCounts CodexCounters(JsonElement value)
@@ -227,8 +244,55 @@ public sealed class LocalUsageService
         return result;
     }
 
+    private static UsageModel Model(IGrouping<(string Source, string Model), UsageEvent> group) =>
+        new(group.Key.Source, group.Key.Model, Sum(group), Estimate(group),
+            ApiPriceCatalog.Find(group.Key.Source, group.Key.Model));
+
+    private static ApiCostEstimate Estimate(IEnumerable<UsageEvent> rows)
+    {
+        decimal priced = 0;
+        var unpricedEvents = 0;
+        long unpricedTokens = 0;
+        foreach (var row in rows)
+        {
+            var rate = ApiPriceCatalog.Find(row.Source, row.Model);
+            if (rate is null)
+            {
+                unpricedEvents++;
+                unpricedTokens += row.Counts.Total;
+            }
+            else priced += rate.EstimateUsd(row.Counts, row.CacheWrite1h);
+        }
+        return new ApiCostEstimate(priced, unpricedEvents, unpricedTokens);
+    }
+
+    private sealed record ProjectInfo(string Id, string Name)
+    {
+        internal static readonly ProjectInfo Unknown = new("unknown", "Unknown project");
+
+        internal static ProjectInfo FromDirectory(string? directory, ProjectInfo? fallback = null)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || directory.Length > 4096 || !Path.IsPathFullyQualified(directory))
+                return fallback ?? Unknown;
+            try
+            {
+                var path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+                var name = Path.GetFileName(path);
+                if (string.IsNullOrWhiteSpace(name)) return fallback ?? Unknown;
+                var identity = OperatingSystem.IsWindows() ? path.ToUpperInvariant() : path;
+                var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+                return new ProjectInfo("p_" + Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant(), name[..Math.Min(name.Length, 120)]);
+            }
+            catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return fallback ?? Unknown;
+            }
+        }
+    }
+
     private sealed record CachedFile(long Length, DateTime Modified, UsageEvent[] Events);
-    private sealed record UsageEvent(string Source, DateTimeOffset Timestamp, string Model, string Session, string? Identity, TokenCounts Counts);
+    private sealed record UsageEvent(string Source, DateTimeOffset Timestamp, string Model, string Session,
+        ProjectInfo Project, string? Identity, TokenCounts Counts, long CacheWrite1h);
 }
 
 public readonly record struct TokenCounts(long Input, long Output, long CacheRead, long CacheWrite, long Reasoning)
@@ -241,9 +305,12 @@ public readonly record struct TokenCounts(long Input, long Output, long CacheRea
         Math.Max(0, CacheWrite - previous.CacheWrite), Math.Max(0, Reasoning - previous.Reasoning));
 }
 
-public sealed record UsageGroup(string Source, TokenCounts Counts);
-public sealed record UsageModel(string Source, string Model, TokenCounts Counts);
-public sealed record UsageDay(string Date, TokenCounts Counts);
+public sealed record UsageGroup(string Source, TokenCounts Counts, ApiCostEstimate Cost);
+public sealed record UsageModel(string Source, string Model, TokenCounts Counts, ApiCostEstimate Cost, ApiTokenRates? Rate);
+public sealed record UsageProject(string Id, string Name, TokenCounts Counts, ApiCostEstimate Cost,
+    IReadOnlyList<UsageModel> Models);
+public sealed record UsageDay(string Date, TokenCounts Counts, ApiCostEstimate Cost);
 public sealed record UsageReport(DateTimeOffset ScannedAt, int Days, int FilesScanned, int FilesSkipped,
-    int Events, TokenCounts Totals, IReadOnlyList<UsageGroup> Sources, IReadOnlyList<UsageModel> Models,
-    IReadOnlyList<UsageDay> Daily);
+    int Events, TokenCounts Totals, ApiCostEstimate Cost, IReadOnlyList<UsageGroup> Sources,
+    IReadOnlyList<UsageModel> Models, IReadOnlyList<UsageProject> Projects, IReadOnlyList<UsageDay> Daily,
+    string PricingAsOf);

@@ -41,8 +41,9 @@ security policy applies. Stored channel secrets and question nonces are never se
 `/v1` agent API still requires the bearer token. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
 
 The Usage page reads Claude Code and Codex session logs as local, read-only input. Its endpoint
-returns aggregate token counts and model identifiers, never log paths, prompt/response text, or
-provider credentials. It does not contact agent providers or billing APIs.
+returns aggregate token counts, model identifiers, project folder names with opaque IDs, and a
+published-rate cost estimate. It never returns full project paths, log paths, prompt/response text,
+or provider credentials. It does not contact agent providers or billing APIs.
 
 ## External-channel requirements
 

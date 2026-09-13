@@ -1236,6 +1236,26 @@ Not verified: a Windows tray-hosted Usage page, Windows installer payload, a hum
 of this new page, or exact agreement with provider invoices. The in-memory file cache is rebuilt
 on broker restart; advanced fork/replay attribution, OpenCode, and pricing remain work.
 
+## API-equivalent cost and project usage (`feature/usage-api-cost-projects`, 2026-09-13)
+
+- The native macOS .NET SDK 10.0.401 full Release build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 889 tests, 0 failed,
+  0 skipped. Fixture checks cover exact-rate arithmetic, separate Claude 1-hour cache writes,
+  unknown-model cost coverage, two same-named but distinct working-directory projects, opaque
+  project IDs, and omission of full paths and prompt text from the WebUI response.
+- `node --check` passed for the edited Usage module. A self-contained `osx-x64` broker publish
+  succeeded. The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh`
+  could not start on this Mac because the Windows SDK path `/mnt/d/dev/dotnet/dotnet.exe` is absent;
+  Windows installer packaging is unverified.
+- A scratch broker on `127.0.0.1:47878` read 16 local Claude Code/Codex logs, returned 30 project
+  groups with no unpriced events in the 30-day view, and did not return working-directory paths.
+  A headless Chrome screenshot at 1440 px showed the new cost tile, source costs, dated pricing
+  basis, and project rows. This was a browser rendering check, not a human visual review.
+
+Not verified: exact agreement with either provider's bill or subscription allowance, historical
+rate changes, long-context/priority/server-tool modifiers, Windows tray hosting, or installer
+payload. The price catalog is an explicitly dated counterfactual standard-API estimate.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

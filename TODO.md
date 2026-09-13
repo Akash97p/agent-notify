@@ -78,8 +78,8 @@
 - [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
 - [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center — no sign-in; owner-verified on macOS
-- [x] First local Usage page: read-only Claude Code and Codex token summaries by source, model, and day; live browser check on macOS
-- [ ] Complete local usage indexing: OpenCode adapter, durable cache, project/session attribution, fork replay handling, and versioned pricing estimates
+- [x] Local Usage page: read-only Claude Code and Codex token summaries by source, project, model, and day, with a dated standard-API cost estimate; live browser check on macOS
+- [ ] Complete local usage indexing: OpenCode adapter, durable cache, session attribution, fork replay handling, and historical/versioned pricing
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients
@@ -88,7 +88,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 888 passed, 0 failed, 0 skipped
+- [x] Automated tests: 889 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

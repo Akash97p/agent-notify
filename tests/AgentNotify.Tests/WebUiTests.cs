@@ -107,7 +107,7 @@ public sealed class WebUiTests : IAsyncLifetime
         Directory.CreateDirectory(dir);
         var marker = "private-prompt-that-must-not-return";
         File.WriteAllText(Path.Combine(dir, "sample.jsonl"),
-            $"{{\"type\":\"assistant\",\"timestamp\":\"{DateTimeOffset.UtcNow:O}\",\"message\":{{\"id\":\"m1\",\"model\":\"claude-test\",\"content\":\"{marker}\",\"usage\":{{\"input_tokens\":12,\"output_tokens\":3}}}}}}\n");
+            $"{{\"type\":\"assistant\",\"timestamp\":\"{DateTimeOffset.UtcNow:O}\",\"cwd\":\"{_dir}\",\"message\":{{\"id\":\"m1\",\"model\":\"claude-opus-5\",\"content\":\"{marker}\",\"usage\":{{\"input_tokens\":12,\"output_tokens\":3}}}}}}\n");
         using var browser = Page();
         var response = await browser.GetAsync("/ui/api/usage?days=7");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -116,6 +116,9 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.DoesNotContain(_dir, text);
         var body = JsonDocument.Parse(text).RootElement;
         Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
+        Assert.Equal(0.000135m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
+        Assert.Equal("2026-09-13", body.GetProperty("pricing_as_of").GetString());
+        Assert.Single(body.GetProperty("projects").EnumerateArray());
         Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
     }
