@@ -86,10 +86,12 @@ to reach it. None of them is visible when you use the page.
 
 - **Only this machine.** The listener binds to `127.0.0.1`, so nothing on the network can connect.
 - **Other host names are refused.** Every `/ui` request must name `127.0.0.1`, `localhost`, or
-  `[::1]` on the broker's port. A DNS-rebinding page reaches the port under its own host name and
-  gets `421 Misdirected Request` before any handler runs.
+  `[::1]`. An SSH forward may use a different port on the browser's computer; its loopback host
+  and port are accepted. A DNS-rebinding page reaches the port under its own host name and gets
+  `421 Misdirected Request` before any handler runs.
 - **Cross-site changes are refused.** Every state-changing request must carry
-  `X-AgentNotify-UI: 1` and, when the browser sends one, a same-origin `Origin`. A form on another
+  `X-AgentNotify-UI: 1` and, when the browser sends one, an `Origin` matching the request's exact
+  loopback host and port. A form on another
   site cannot set that header, and script on another site cannot send it without a CORS preflight
   the broker never grants.
 - **A strict content security policy.** Scripts, styles, and requests come only from the broker
@@ -116,7 +118,9 @@ Some settings have no control, on purpose or for now:
 ## Troubleshooting
 
 - **`This broker has no web interface`** — the broker predates it. Update and restart.
-- **`421` or every change refused** — the page was opened under another host name or port, such as
-  the machine's LAN address or a tunnel on a different local port. Use `http://127.0.0.1:<port>/ui/`
-  with the broker's own port.
+- **`421` or every change refused** — open the page with the browser-side loopback address
+  (`http://127.0.0.1:<forwarded-port>/ui/` for an SSH forward). A LAN host name or IP is refused.
+- **SSH `connect failed: Connection refused`** — the remote end of `-L` must use the broker's
+  listening port, even if the port on your computer differs. For example,
+  `-L 127.0.0.1:47822:127.0.0.1:47821` targets a broker listening on 47821.
 - **Port change** — saving a new port takes effect after the broker restarts; the page says so.

@@ -213,6 +213,36 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SshForwardedLoopbackPortServesPageAndAcceptsOnlyItsOwnOrigin()
+    {
+        using var browser = Page();
+        const int forwardedPort = 47822;
+        var forwardedHost = $"127.0.0.1:{forwardedPort}";
+
+        using var page = new HttpRequestMessage(HttpMethod.Get, "/ui/");
+        page.Headers.Host = forwardedHost;
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(page)).StatusCode);
+
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ui/api/overview");
+        read.Headers.Host = forwardedHost;
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(read)).StatusCode);
+
+        using var wrongOrigin = new HttpRequestMessage(HttpMethod.Put, "/ui/api/settings")
+        { Content = JsonContent.Create(new { pause_notifications = true }) };
+        wrongOrigin.Headers.Host = forwardedHost;
+        wrongOrigin.Headers.Add("Origin", Base);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.SendAsync(wrongOrigin)).StatusCode);
+        Assert.False(_config.PauseNotifications);
+
+        using var sameOrigin = new HttpRequestMessage(HttpMethod.Put, "/ui/api/settings")
+        { Content = JsonContent.Create(new { pause_notifications = true }) };
+        sameOrigin.Headers.Host = forwardedHost;
+        sameOrigin.Headers.Add("Origin", $"http://{forwardedHost}");
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(sameOrigin)).StatusCode);
+        Assert.True(_config.PauseNotifications);
+    }
+
+    [Fact]
     public async Task StateChangesNeedTheUiHeaderAndASameOriginOrigin()
     {
         var browser = Page();
