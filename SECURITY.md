@@ -40,6 +40,10 @@ rebinding), state changes need a custom header and a same-origin `Origin`, and a
 security policy applies. Stored channel secrets and question nonces are never sent to the page. The
 `/v1` agent API still requires the bearer token. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
 
+The Usage page reads Claude Code and Codex session logs as local, read-only input. Its endpoint
+returns aggregate token counts and model identifiers, never log paths, prompt/response text, or
+provider credentials. It does not contact agent providers or billing APIs.
+
 ## External-channel requirements
 
 Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the 1.0 baseline. Any implementation must be separately reviewed for:

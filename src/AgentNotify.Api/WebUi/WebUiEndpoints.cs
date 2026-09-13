@@ -13,6 +13,7 @@ using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
+using AgentNotify.Core.Usage;
 using AgentNotify.Protocol;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -152,6 +153,7 @@ public static class WebUiEndpoints
         var pairings = new RelayPairingSessions();
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
+        var usage = options.Usage ?? new LocalUsageService();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
         // ---- overview ----------------------------------------------------------------------
@@ -186,6 +188,16 @@ public static class WebUiEndpoints
                 },
                 delivery = DeliveryJson(delivery)
             }, JsonOptions);
+        });
+
+        // Local agent logs are read-only inputs. This route never accepts a filesystem path.
+        app.MapGet($"{BasePath}/api/usage", async (HttpContext http, CancellationToken ct) =>
+        {
+            var requested = http.Request.Query["days"].ToString();
+            var days = requested switch { "7" => 7, "30" or "" => 30, "all" => 0, _ => -1 };
+            if (days < 0) return Error("Choose 7 days, 30 days, or all history.");
+            var report = await usage.GetReportAsync(days, ct);
+            return Results.Json(report, JsonOptions);
         });
 
         // ---- settings ----------------------------------------------------------------------

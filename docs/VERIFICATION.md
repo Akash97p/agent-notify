@@ -1203,12 +1203,46 @@ the required header and same-origin `Origin` on changes, the CSP, and write-only
   Mac and confirmed it opens straight to the dashboard and works. This is the first time a person
   has used the web interface; the Windows tray app serving it is still unverified.
 
+## Local Usage WebUI (`feature/local-usage-webui`, 2026-09-13)
+
+Automated checks on the owner's Intel Mac with .NET SDK 10.0.401:
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true --no-restore`
+  succeeded with 0 warnings and 0 errors, including the Windows-targeted projects.
+- The full test suite passed: 888 passed, 0 failed, 0 skipped. The new fixture tests cover
+  malformed Claude lines, duplicate Claude assistant responses, cumulative and unchanged Codex
+  samples, mirrored subagent exclusion, counter normalization, changed-file invalidation, and
+  file deletion. A WebUI integration test confirms the aggregate route omits prompt text and log
+  paths.
+- `node --check` passed for the Usage page and application shell; `git diff --check` passed.
+- The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` were attempted
+  but could not start on macOS because `/mnt/d/dev/dotnet/dotnet.exe` is absent. Native .NET build
+  and tests ran instead. Windows installer packaging remains unverified for this branch.
+
+Live local checks:
+
+- A scratch broker on `127.0.0.1:47877` read 16 Claude Code/Codex log files with no skipped
+  files and returned nonempty 30-day source, model, and daily aggregates. A headless Chrome
+  screenshot at 1440 px showed the Usage page and its tables/charts rendering with real data.
+  This was a browser rendering check, not a human visual review.
+- A self-contained `osx-x64` broker was published and ad-hoc signed; `codesign --verify` and
+  `agentnotifyd --version` passed. The prior installed broker was backed up to
+  `~/.local/bin/.agentnotifyd-backup-local-usage-20260913`, and launchd restarted the updated
+  broker. On the usual `127.0.0.1:47821` listener, `/ui/api/usage?days=30` returned HTTP 200
+  with 16 files and no skips, `/ui/api/overview` returned HTTP 200, and unauthenticated
+  `/v1/notifications` still returned HTTP 401.
+
+Not verified: a Windows tray-hosted Usage page, Windows installer payload, a human visual check
+of this new page, or exact agreement with provider invoices. The in-memory file cache is rebuilt
+on broker restart; advanced fork/replay attribution, OpenCode, and pricing remain work.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
 
 - The human WPF checks listed earlier in this file, for the settings theme and the
   built-in tones. No visual surface has been confirmed by a person.
+- A human visual check of the new Usage page, including a narrow browser window.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,

@@ -29,6 +29,7 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
+| Usage | Read local Claude Code and Codex token totals for 7 days, 30 days, or all history, split by source, model, and day |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -39,6 +40,12 @@ stored, and the page says so, but the platform decides how a notification looks.
 
 An answer given here is the same as one given from a toast, the CLI, or a paired phone: the first
 valid answer wins and later ones are refused.
+
+Usage reads the broker user's local session logs. It needs no account key or network connection,
+and does not return prompt text or log paths to the browser. Counts are historical token records,
+not provider billing or live quota. Cached input is separate from uncached input, and Codex
+reasoning is included within output. It currently reads Claude Code and Codex only; source replay
+and fork cases can still make totals approximate. There are no cost estimates yet.
 
 ## How it stays local
 

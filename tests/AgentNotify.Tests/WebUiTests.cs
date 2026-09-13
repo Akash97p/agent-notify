@@ -11,6 +11,7 @@ using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
+using AgentNotify.Core.Usage;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -49,6 +50,7 @@ public sealed class WebUiTests : IAsyncLifetime
             Providers = profiles,
             Routes = new DeliveryRouteService(delivery),
             Dispatcher = _dispatcher,
+            Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")]),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
@@ -96,6 +98,26 @@ public sealed class WebUiTests : IAsyncLifetime
         var (browser, _) = Browser();
         browser.DefaultRequestHeaders.Add(WebUiEndpoints.CsrfHeader, "1");
         return browser;
+    }
+
+    [Fact]
+    public async Task UsagePageReportsLocalTokensWithoutExposingLogContents()
+    {
+        var dir = Path.Combine(_dir, "usage-claude");
+        Directory.CreateDirectory(dir);
+        var marker = "private-prompt-that-must-not-return";
+        File.WriteAllText(Path.Combine(dir, "sample.jsonl"),
+            $"{{\"type\":\"assistant\",\"timestamp\":\"{DateTimeOffset.UtcNow:O}\",\"message\":{{\"id\":\"m1\",\"model\":\"claude-test\",\"content\":\"{marker}\",\"usage\":{{\"input_tokens\":12,\"output_tokens\":3}}}}}}\n");
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/usage?days=7");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(marker, text);
+        Assert.DoesNotContain(_dir, text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
+        Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
     }
 
     [Fact]

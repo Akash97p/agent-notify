@@ -451,6 +451,18 @@ details.advanced[open] > summary { margin-bottom: 12px; }
 .table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .table tr:last-child td { border-bottom: 0; }
 
+.usage-sources { display: grid; gap: 12px; }
+.usage-sources .row-between { border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.usage-sources .row-between:last-child { border-bottom: 0; padding-bottom: 0; }
+.usage-days { display: grid; gap: 8px; }
+.usage-day { display: grid; grid-template-columns: 88px minmax(0, 1fr) 90px; align-items: center; gap: 12px; font-size: 12px; }
+.usage-date { color: var(--muted); white-space: nowrap; }
+.usage-day strong { font-variant-numeric: tabular-nums; text-align: right; }
+.usage-track { height: 9px; background: var(--panel-2); border-radius: 20px; overflow: hidden; }
+.usage-fill { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+@media (max-width: 600px) { .usage-stats { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .usage-day { grid-template-columns: 76px minmax(0, 1fr) 66px; gap: 6px; font-size: 11px; } }
+
 .kind-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
 .kind { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .kind:hover { border-color: var(--border-strong); background: var(--panel-2); }
