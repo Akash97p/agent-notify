@@ -1332,6 +1332,29 @@ Not verified: exact agreement with Codex or Claude account dashboards after subs
 stability of Anthropic's undocumented first-party OAuth usage endpoint, Windows CLI discovery,
 Windows installer payload, or a human visual check from the owner's Windows browser.
 
+## WebUI over an SSH forward with a different local port (`fix/webui-forwarded-port`, 2026-09-13)
+
+- Reproduced the owner's `421` with `Host: 127.0.0.1:47822` against the Mac broker listening on
+  `127.0.0.1:47821`. The original guard required the `Host` port to equal the listener port, which
+  cannot hold when an SSH local forward uses a different browser-side port. A separate SSH command
+  targeting Mac port 47822 would fail to connect because the broker does not listen there.
+- The guard now accepts only loopback host names with an explicit port and compares state-changing
+  requests' `Origin` to that exact `Host`, including its forwarded port. Foreign host names still
+  return 421. A WebUI integration test covers page and API reads on the forwarded host, a successful
+  same-origin write, and refusal of a write from the broker-port origin.
+- Native macOS .NET 10 Release solution build passed with 0 warnings/errors; the full suite passed
+  897 tests, 0 failed, 0 skipped. The repository's WSL `scripts/build.sh` and `scripts/test.sh` were
+  attempted but cannot run on this Mac without `/mnt/d/dev/dotnet/dotnet.exe`. Windows installer
+  packaging was not needed for this API guard change and was not run.
+- A self-contained `osx-x64` broker publish succeeded, was ad-hoc signed and verified, and replaced
+  the installed launchd broker. Its predecessor is backed up at
+  `~/.local/bin/.agentnotifyd-backup-forwarded-port-20260913`. After restart, requests to the live
+  `127.0.0.1:47821` listener carrying `Host: 127.0.0.1:47822` returned 200 for `/ui/`,
+  `/ui/api/quota`, and a same-origin quota-refresh POST. A wrong-port `Origin` returned 403 and a
+  foreign `Host` returned 421. The quota response reported Codex and Claude Code `ok` and OpenCode
+  `unavailable`. These checks simulate SSH's forwarded `Host` and `Origin` headers; the owner's
+  Windows browser and end-to-end SSH tunnel remain for owner verification.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

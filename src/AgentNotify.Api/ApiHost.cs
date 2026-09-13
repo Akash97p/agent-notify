@@ -98,7 +98,7 @@ public static class ApiHost
         {
             if (webUi is not null && context.Request.Path.StartsWithSegments(WebUi.WebUiEndpoints.BasePath))
             {
-                if (await WebUi.WebUiEndpoints.Guard(context, webUi, listenPort))
+                if (await WebUi.WebUiEndpoints.Guard(context))
                     await next();
                 return;
             }

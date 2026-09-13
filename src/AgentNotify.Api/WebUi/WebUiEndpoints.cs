@@ -66,12 +66,12 @@ public static class WebUiEndpoints
     public static string Url(int port) => $"http://127.0.0.1:{port}{BasePath}/";
 
     /// <summary>Runs the web UI's host and cross-site checks. Returns false when it has already responded.</summary>
-    internal static async Task<bool> Guard(HttpContext context, WebUiOptions options, int port)
+    internal static async Task<bool> Guard(HttpContext context)
     {
         var request = context.Request;
         var response = context.Response;
 
-        if (!IsLoopbackHost(request.Host, port))
+        if (!IsLoopbackHost(request.Host))
         {
             response.StatusCode = StatusCodes.Status421MisdirectedRequest;
             await response.WriteAsJsonAsync(new { error = "This interface is only served to the local machine address." }, JsonOptions);
@@ -98,7 +98,7 @@ public static class WebUiEndpoints
         {
             var origin = request.Headers.Origin.ToString();
             if (request.Headers[CsrfHeader] != "1" ||
-                origin.Length > 0 && !IsLoopbackOrigin(origin, port))
+                origin.Length > 0 && !IsLoopbackOrigin(origin, request.Host))
             {
                 response.StatusCode = StatusCodes.Status403Forbidden;
                 await response.WriteAsJsonAsync(new { error = "Cross-site request refused." }, JsonOptions);
@@ -110,18 +110,20 @@ public static class WebUiEndpoints
         return true;
     }
 
-    internal static bool IsLoopbackHost(HostString host, int port)
+    internal static bool IsLoopbackHost(HostString host)
     {
-        if (!host.HasValue || host.Port != port) return false;
+        // An SSH local forward keeps the browser's local port in Host, which need not match
+        // the broker's listening port. The listener itself remains bound to loopback.
+        if (!host.HasValue || host.Port is not > 0) return false;
         return host.Host is "127.0.0.1" or "localhost" or "[::1]";
     }
 
-    private static bool IsLoopbackOrigin(string origin, int port) =>
+    private static bool IsLoopbackOrigin(string origin, HostString host) =>
         Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
         uri.Scheme == Uri.UriSchemeHttp &&
-        uri.Port == port &&
-        uri.Host is "127.0.0.1" or "localhost" or "[::1]" &&
-        uri.AbsolutePath == "/";
+        string.Equals(uri.Authority, host.Value, StringComparison.OrdinalIgnoreCase) &&
+        uri.UserInfo.Length == 0 && uri.AbsolutePath == "/" &&
+        uri.Query.Length == 0 && uri.Fragment.Length == 0;
 
     private static void ApplySecurityHeaders(HttpResponse response, PathString path)
     {

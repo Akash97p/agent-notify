@@ -65,7 +65,9 @@ toolchain. It talks only to `/ui/api`, which calls the same Core services the Se
 There is no sign-in, matching the tray app. A middleware guard runs before routing: it refuses
 foreign `Host` headers (DNS rebinding) and requires `X-AgentNotify-UI: 1` plus a same-origin
 `Origin` on every state change, so a page on another site can neither read the interface nor change
-anything through it.
+anything through it. Loopback host names may carry a different browser-side port when an SSH local
+forward targets the broker's listening port; the guard compares a state change's `Origin` to the
+actual `Host` header, including that browser-side port.
 
 Provider editors are driven by `ProviderFormCatalog` (field descriptors), `ProviderFormBuilder`
 (validation and the stored configuration document), and `ProviderFormReader` (non-secret values
