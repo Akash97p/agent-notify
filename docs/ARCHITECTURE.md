@@ -93,6 +93,22 @@ the current cache is in memory and is rebuilt after restart. More complete fork/
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 
+The Live quota page is a separate provider/account snapshot, never calculated from the Usage
+ledger. `LiveQuotaService` in Core coalesces simultaneous requests, caches each provider for five
+minutes, limits manual rechecks to one per 30 seconds, and retains a clearly marked stale value
+after transient failure only while the credential-file scope is unchanged. Codex is queried
+through its documented `app-server` `account/rateLimits/read` RPC; Codex owns its credentials and
+AgentNotify receives only quota fields. The child process gets the Codex launcher's bin directory
+in its own `PATH` so npm's `/usr/bin/env node` launcher works under launchd. Claude Code's current
+OAuth credential is read without
+modification for a bounded, read-only request to Anthropic's account-usage endpoint; no refresh
+token is redeemed and no response or token is logged. A 429 respects `Retry-After`. The endpoint
+is a first-party implementation dependency without a stable public API guarantee. OpenCode is
+explicitly unavailable because it routes to multiple independent provider accounts. The quota
+endpoint returns only normalized percentages, reset times, optional plan/credit values, source,
+and freshness; it never returns access tokens or account email. The page triggers on-demand
+checks; there is no background network polling or dependency on internet for the rest of the app.
+
 ### Desktop app
 
 `AgentNotify.App` owns the application lifetime. Startup order is:

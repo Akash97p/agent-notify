@@ -1299,6 +1299,39 @@ embedded native libraries succeeded. The required WSL build/test/package scripts
 but could not start because `/mnt/d/dev/dotnet/dotnet.exe` is absent on this Mac. Windows installer
 packaging and a human browser visual check for this edit remain unverified.
 
+## Live quota WebUI (`feature/live-quota-webui`, 2026-09-13)
+
+- Native macOS .NET SDK 10.0.401 Release solution build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 896 tests, 0 failed,
+  0 skipped. New fixtures cover Codex multi-bucket windows and credits, Claude missing/scoped
+  windows, five-minute cache and 30-second manual-refresh gate, stale-on-failure behavior,
+  credential-scope invalidation, fixed-endpoint Claude request and token omission, and the WebUI
+  quota route/refresh header guard.
+- `node --check` passed for the app shell and Quota view; `git diff --check` passed. The required
+  WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` were attempted but could not
+  start on this Mac because `/mnt/d/dev/dotnet/dotnet.exe` is absent. Windows installer packaging
+  and Windows tray-hosted quota probing remain unverified.
+- A self-contained `osx-x64` broker with native SQLite embedded was published. An isolated
+  scratch broker on `127.0.0.1:47878` returned current Codex app-server five-hour/seven-day
+  windows and Claude Code account five-hour/seven-day windows, plus an explicit unavailable
+  OpenCode state. No access token or bearer header appeared in the JSON response. Its embedded
+  Usage JavaScript no longer contained the unpriced-model banner. Headless Chrome screenshots
+  at 1440 and 500 CSS pixels showed the Quota page and three provider cards rendering. These
+  are browser rendering checks, not a human visual review.
+- The initial installed binary exposed a launchd-only Codex failure: the npm Codex launcher uses
+  `/usr/bin/env node`, while launchd supplied a minimal `PATH`. Reproducing that minimal `PATH`
+  against a scratch broker returned Codex unavailable; after adding the launcher's bin directory
+  to the child process environment, the same restricted-path scratch check returned both Codex
+  and Claude windows. The corrected signed standalone binary was installed with the prior broker
+  backed up at `~/.local/bin/.agentnotifyd-backup-live-quota-20260913`. On the normal
+  `127.0.0.1:47821` listener, `/ui/api/quota` returned Codex and Claude `ok` with two windows
+  each and OpenCode `unavailable`; the Usage script lacked the removed banner, overview returned
+  200, and unauthenticated `/v1/notifications` returned 401.
+
+Not verified: exact agreement with Codex or Claude account dashboards after subsequent activity,
+stability of Anthropic's undocumented first-party OAuth usage endpoint, Windows CLI discovery,
+Windows installer payload, or a human visual check from the owner's Windows browser.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

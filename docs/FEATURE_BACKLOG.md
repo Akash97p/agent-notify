@@ -143,6 +143,9 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Local usage: read-only Claude Code, Codex, and OpenCode token, project, provider, and estimated
   token-cost summaries are in the WebUI. Add a durable/versioned file index, session views, fork replay
   attribution, and historical rate schedules before treating the numbers as a spend ledger.
+- Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
+  endpoint feed cached provider/account windows in the WebUI. OpenCode has no single account quota.
+  Add a stable Claude source or statusline bridge, additional account providers, and Windows smoke.
 
 - Search, filtering, export, route/delivery audit views, backups, and retention controls.
 - Safer terminal/editor activation, Windows Terminal integration, and virtual desktop awareness.

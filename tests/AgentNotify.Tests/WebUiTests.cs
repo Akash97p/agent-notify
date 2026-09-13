@@ -12,6 +12,7 @@ using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Usage;
+using AgentNotify.Core.Quota;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -52,6 +53,7 @@ public sealed class WebUiTests : IAsyncLifetime
             Dispatcher = _dispatcher,
             Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")],
                 Path.Combine(_dir, "usage-opencode.db")),
+            Quota = new LiveQuotaService([new WebQuotaProbe()]),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
@@ -158,6 +160,31 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal("openai", body.GetProperty("models")[0].GetProperty("provider").GetString());
         Assert.Equal("opencode-project", body.GetProperty("projects")[0].GetProperty("name").GetString());
         Assert.Equal(0.0001m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
+    }
+
+    [Fact]
+    public async Task QuotaPageReturnsAccountWindowsWithoutSecretsAndRequiresUiHeaderToRefresh()
+    {
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/quota");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("fixture-secret", text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal("codex", body.GetProperty("providers")[0].GetProperty("provider").GetString());
+        Assert.Equal(24, body.GetProperty("providers")[0].GetProperty("windows")[0].GetProperty("used_percent").GetDouble());
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsync("/ui/api/quota/refresh", JsonContent.Create(new { }))).StatusCode);
+        using var otherPage = Browser().Client;
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PostAsync("/ui/api/quota/refresh", JsonContent.Create(new { }))).StatusCode);
+    }
+
+    private sealed class WebQuotaProbe : ILiveQuotaProbe
+    {
+        public string Provider => "codex";
+        public string ScopeKey() => "fixture";
+        public Task<LiveQuotaSnapshot> FetchAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+            Task.FromResult(new LiveQuotaSnapshot("codex", "ok", "fixture", now, "pro", null,
+                [new LiveQuotaWindow("session", "5-hour", 24, 76, 300, now.AddHours(5))], null));
     }
 
     [Fact]
