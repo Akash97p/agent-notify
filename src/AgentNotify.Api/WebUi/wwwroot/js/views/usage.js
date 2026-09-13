@@ -4,7 +4,8 @@ import { h, mount, card, pageHead, button, select, notice, empty } from "../dom.
 const fmt = new Intl.NumberFormat();
 const usd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const smallUsd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 });
-const sourceName = (source) => source === "claude_code" ? "Claude Code" : source === "codex" ? "Codex" : source;
+const sourceName = (source) => source === "claude_code" ? "Claude Code" : source === "codex" ? "Codex" : source === "opencode" ? "OpenCode" : source;
+const providerName = (provider) => provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : provider === "opencode-go" ? "OpenCode Go" : provider;
 const n = (value) => fmt.format(value || 0);
 const money = (value) => value > 0 && value < 0.0001 ? "<$0.0001" : value > 0 && value < 0.01 ? smallUsd.format(value) : usd.format(value || 0);
 const costText = (cost) => cost.unpriced_events ? `${money(cost.priced_usd)} + unpriced` : money(cost.priced_usd);
@@ -20,11 +21,12 @@ function modelsTable(models) {
   return h("div", { class: "table-wrap" },
     h("table", { class: "table" },
       h("thead", null, h("tr", null,
-        h("th", { text: "Agent" }), h("th", { text: "Model" }), h("th", { text: "Input" }),
+        h("th", { text: "Agent" }), h("th", { text: "Provider" }), h("th", { text: "Model" }), h("th", { text: "Input" }),
         h("th", { text: "Cache read" }), h("th", { text: "Cache write" }), h("th", { text: "Output" }),
-        h("th", { text: "API cost" }))),
+        h("th", { text: "Est. cost" }))),
       h("tbody", null, models.map((row) => h("tr", null,
         h("td", { text: sourceName(row.source) }),
+        h("td", { text: providerName(row.provider) }),
         h("td", { class: "mono small", text: row.model }),
         h("td", { text: n(row.counts.input) }),
         h("td", { text: n(row.counts.cache_read) }),
@@ -80,17 +82,17 @@ export default {
     function draw(data) {
       const counts = data.totals;
       mount(page,
-        pageHead("Usage", "Local token history and what it would cost at published standard API rates. This is not a bill or subscription usage.",
+        pageHead("Usage", "Local token history and estimated cost at published token rates. This is not a bill or subscription usage.",
           h("div", { class: "row" }, periodControl, refresh)),
-        data.files_skipped ? notice(`${data.files_skipped} log file(s) could not be read, so totals may be incomplete.`, "warn") : null,
+        data.files_skipped ? notice(`${data.files_skipped} local usage store(s) could not be read, so totals may be incomplete.`, "warn") : null,
         data.cost.unpriced_events ? notice(`${n(data.cost.unpriced_events)} usage records (${n(data.cost.unpriced_tokens)} tokens) have no verified model price. Cost totals include only priced records.`, "warn") : null,
-        data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code or Codex on this computer, then refresh. AgentNotify reads their local session logs; no setup is needed.", "pulse") }) : [
+        data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code, Codex, or OpenCode on this computer, then refresh. AgentNotify reads their local usage history; no setup is needed.", "pulse") }) : [
           h("div", { class: "stats usage-stats" },
             metric("Total tokens", counts.total, `${n(data.events)} usage records`),
             h("div", { class: "card stat" },
-              h("span", { class: "stat-label", text: "API-equivalent cost" }),
+              h("span", { class: "stat-label", text: "Est. token cost" }),
               h("span", { class: "stat-value", text: money(data.cost.priced_usd) }),
-              h("span", { class: "stat-sub", text: data.cost.complete ? "Estimated at standard public rates" : "Priced records only; see warning" })),
+              h("span", { class: "stat-sub", text: data.cost.complete ? "Estimated at published token rates" : "Priced records only; see warning" })),
             metric("Cache read", counts.cache_read, "Reused prompt tokens"),
             metric("Output", counts.output, `${n(counts.reasoning)} reasoning tokens included`)),
           h("div", { class: "grid-2" },
@@ -100,17 +102,18 @@ export default {
                   h("span", { text: sourceName(source.source) }),
                   h("strong", { text: costText(source.cost) }),
                   h("span", { class: "muted small", text: `${n(source.counts.total)} tokens` })))) }),
-            card({ title: "Pricing basis", description: `Published standard text-token API rates as of ${data.pricing_as_of}.`,
+            card({ title: "Pricing basis", description: `Published text-token rates as of ${data.pricing_as_of}.`,
               body: h("div", { class: "stack" },
-                h("p", { class: "muted small", text: "Current rates are applied to the selected history. Claude cache reads and 5-minute/1-hour writes have separate prices; Codex cached input is counted once. This excludes plan allowances, Fast/Batch, long-context premiums, tools, taxes, and discounts." }),
+                h("p", { class: "muted small", text: "OpenAI and Claude use standard API rates; OpenCode Go uses its published token rates, which count toward plan limits rather than being extra subscription spend. OpenCode reasoning tokens are included in output once. Current rates are applied to selected history. This excludes plan allowances, Fast/Batch, long-context premiums, tools, taxes, and discounts." }),
                 h("div", { class: "row" },
                   h("a", { href: "https://developers.openai.com/api/docs/models", target: "_blank", rel: "noopener noreferrer", text: "OpenAI prices ↗" }),
-                  h("a", { href: "https://platform.claude.com/docs/en/about-claude/pricing", target: "_blank", rel: "noopener noreferrer", text: "Claude prices ↗" }))) })),
+                  h("a", { href: "https://platform.claude.com/docs/en/about-claude/pricing", target: "_blank", rel: "noopener noreferrer", text: "Claude prices ↗" }),
+                  h("a", { href: "https://opencode.ai/docs/go/", target: "_blank", rel: "noopener noreferrer", text: "OpenCode Go prices ↗" }))) })),
           card({ title: "By project", description: "Working-directory projects. Open one to see its models; full paths stay on the broker.", body: projectsList(data.projects) }),
           card({ title: "By model", description: "Up to 30 models, ordered by token volume.", body: modelsTable(data.models) }),
           card({ title: "Recent active days", description: "Local calendar days with recorded usage; up to 30 shown.", body: dailyChart(data.daily) })
         ],
-        h("p", { class: "muted small", text: `${n(data.files_scanned)} local log files checked · refreshed ${new Date(data.scanned_at).toLocaleString()}. Prompt and response text is never returned by this page.` }));
+        h("p", { class: "muted small", text: `${n(data.files_scanned)} local usage stores checked · refreshed ${new Date(data.scanned_at).toLocaleString()}. Prompt and response text is never returned by this page.` }));
     }
 
     await load();

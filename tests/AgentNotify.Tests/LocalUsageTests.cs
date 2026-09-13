@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentNotify.Core.Usage;
+using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Tests;
 
@@ -40,7 +41,7 @@ public sealed class LocalUsageTests : IDisposable
             count(100, 40, 20, 8), count(100, 40, 20, 8), count(130, 50, 25, 10)
         ]);
 
-        var service = new LocalUsageService([claude], [codex]);
+        var service = new LocalUsageService([claude], [codex], "");
         var report = await service.GetReportAsync(7);
 
         Assert.Equal(3, report.Events); // one Claude response, two changing Codex samples
@@ -64,7 +65,7 @@ public sealed class LocalUsageTests : IDisposable
             message = new { id, model = "claude-test", usage = new { input_tokens = input, output_tokens = 1 } }
         });
         File.WriteAllLines(path, [row("a", 2)]);
-        var service = new LocalUsageService([claude], []);
+        var service = new LocalUsageService([claude], [], "");
         Assert.Equal(3, (await service.GetReportAsync(30)).Totals.Total);
         File.AppendAllLines(path, [row("b", 4)]);
         Assert.Equal(8, (await service.GetReportAsync(30)).Totals.Total);
@@ -89,7 +90,7 @@ public sealed class LocalUsageTests : IDisposable
             Line(new { type = "session_meta", payload = new { thread_source = "subagent" } }), count()
         ]);
 
-        var report = await new LocalUsageService([], [codex]).GetReportAsync(7);
+        var report = await new LocalUsageService([], [codex], "").GetReportAsync(7);
 
         Assert.Equal(1, report.Events);
         Assert.Equal(new TokenCounts(6, 2, 4, 0, 0), report.Totals);
@@ -128,7 +129,7 @@ public sealed class LocalUsageTests : IDisposable
             } } })
         ]);
 
-        var report = await new LocalUsageService([claude], [codex]).GetReportAsync(7);
+        var report = await new LocalUsageService([claude], [codex], "").GetReportAsync(7);
 
         Assert.Equal(3, report.Events);
         Assert.Equal(0.00086725m, report.Cost.PricedUsd);
@@ -139,6 +140,84 @@ public sealed class LocalUsageTests : IDisposable
         Assert.NotEqual(report.Projects[0].Id, report.Projects[1].Id);
         Assert.Equal(0.00086725m, report.Projects[0].Cost.PricedUsd);
         Assert.DoesNotContain(_root, JsonSerializer.Serialize(report));
+    }
+
+    [Fact]
+    public async Task ReadsOpenCodeAssistantMessagesFromLiveDatabaseWithoutExposingContents()
+    {
+        Directory.CreateDirectory(_root);
+        var db = Path.Combine(_root, "opencode.db");
+        var project = Path.Combine(_root, "work", "my-project");
+        using var connection = new SqliteConnection($"Data Source={db}");
+        connection.Open();
+        using (var schema = connection.CreateCommand())
+        {
+            schema.CommandText = """
+                CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT);
+                CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+                """;
+            schema.ExecuteNonQuery();
+        }
+        using (var session = connection.CreateCommand())
+        {
+            session.CommandText = "INSERT INTO session VALUES ('s1', $directory)";
+            session.Parameters.AddWithValue("$directory", project);
+            session.ExecuteNonQuery();
+        }
+        void insert(string id, long time, object data)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO message VALUES ($id, 's1', $time, $data)";
+            command.Parameters.AddWithValue("$id", id);
+            command.Parameters.AddWithValue("$time", time);
+            command.Parameters.AddWithValue("$data", Line(data));
+            command.ExecuteNonQuery();
+        }
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        insert("openai", now, new { role = "assistant", providerID = "openai", modelID = "gpt-5.6-sol",
+            content = "private-prompt-that-must-not-return", tokens = new
+            {
+                input = 100, output = 20, reasoning = 5, cache = new { read = 40, write = 0 }
+            } });
+        insert("go", now, new { role = "assistant", providerID = "opencode-go", modelID = "muse-spark-1.3-contributor",
+            tokens = new { input = 10, output = 2, reasoning = 3, cache = new { read = 50, write = 0 } } });
+        insert("unknown", now, new { role = "assistant", providerID = "deepseek", modelID = "deepseek-flash",
+            tokens = new { input = 7, output = 0 } });
+        insert("user", now, new { role = "user", providerID = "openai", modelID = "gpt-5.6-sol",
+            tokens = new { input = 999 } });
+        insert("old", DateTimeOffset.UtcNow.AddDays(-40).ToUnixTimeMilliseconds(),
+            new { role = "assistant", providerID = "openai", modelID = "gpt-5.6-sol", tokens = new { input = 1000 } });
+        using (var malformed = connection.CreateCommand())
+        {
+            malformed.CommandText = "INSERT INTO message VALUES ('bad', 's1', $time, '{bad json')";
+            malformed.Parameters.AddWithValue("$time", now);
+            malformed.ExecuteNonQuery();
+        }
+
+        var usage = new LocalUsageService([], [], db);
+        var report = await usage.GetReportAsync(30);
+
+        Assert.Equal(3, report.Events);
+        Assert.Equal(1, report.FilesScanned);
+        Assert.Equal(0, report.FilesSkipped);
+        Assert.Equal(new TokenCounts(117, 30, 90, 0, 8), report.Totals);
+        Assert.Single(report.Sources);
+        Assert.Equal("opencode", report.Sources[0].Source);
+        Assert.Equal(0.0009181m, report.Cost.PricedUsd);
+        Assert.Equal(1, report.Cost.UnpricedEvents);
+        Assert.Equal(7, report.Cost.UnpricedTokens);
+        Assert.Contains(report.Models, model => model.Provider == "openai" && model.Model == "gpt-5.6-sol");
+        Assert.Contains(report.Models, model => model.Provider == "opencode-go" && model.Cost.PricedUsd == 0.0000021m);
+        Assert.Single(report.Projects);
+        Assert.Equal("my-project", report.Projects[0].Name);
+        var serialized = JsonSerializer.Serialize(report);
+        Assert.DoesNotContain(project, serialized);
+        Assert.DoesNotContain("private-prompt", serialized);
+
+        insert("new", now, new { role = "assistant", providerID = "openai", modelID = "gpt-5.6-sol",
+            tokens = new { input = 1 } });
+        Assert.Equal(4, (await usage.GetReportAsync(30)).Events);
+        Assert.Equal(5, (await usage.GetReportAsync(0)).Events);
     }
 
     public void Dispose()

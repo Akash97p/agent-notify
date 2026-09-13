@@ -182,7 +182,9 @@ code, kbd, .mono { font-family: var(--mono); font-size: 0.92em; }
 .dot.off { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
 
 .main { min-width: 0; padding: 32px clamp(16px, 4vw, 48px) 64px; }
-.page { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+.page { max-width: 1120px; min-width: 0; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.page > *, .page-head > div, .notice > div { min-width: 0; }
+.notice > div { overflow-wrap: anywhere; }
 
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 4px; }
 .page-title { font-size: 26px; font-weight: 650; letter-spacing: -0.03em; }

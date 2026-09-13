@@ -1,7 +1,7 @@
 # Future scope: usage, quota, and routing
 
-The read-only Claude Code and Codex local usage view now includes project groups and a dated
-standard-API cost estimate. The rest is unscheduled.
+The read-only Claude Code, Codex, and OpenCode local usage view now includes project groups and a
+dated API/Go token-rate estimate. The rest is unscheduled.
 These notes record how four capabilities
 work, so that when AgentNotify grows past human attention into the cost and capacity of the agents
 it watches, the design starts from known mechanisms instead of a blank page.
@@ -12,8 +12,8 @@ source before building on it.
 
 | Capability | What it would measure | Notes |
 | --- | --- | --- |
-| Local usage indexing | WebUI view: local Claude Code and Codex tokens by source, project, model, and day, with a current-standard-API cost estimate. Durable index, session grouping, historical pricing, and cache savings remain. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
-| Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode), normalized, deduplicated, and priced. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
+| Local usage indexing | WebUI view: local Claude Code, Codex, and OpenCode tokens by source, provider, project, model, and day, with current published token-rate estimates. Durable index, session grouping, historical pricing, and cache savings remain. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
+| Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode) is projected into the Usage view. Richer normalization, fork replay handling, and pricing remain. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
 | Live quota probing | Account-reported utilization, reset times, and credits fetched from provider APIs or CLI sources, combined into per-provider snapshots and refreshed safely. | [Fetch sources](live-quota-probing/01-fetch-sources.md), [normalization and refresh](live-quota-probing/02-normalization-and-refresh.md); native Windows engine: [provider sources](live-quota-probing/03-windows-provider-sources.md), [normalization and cache](live-quota-probing/04-windows-normalization-and-cache.md) |
 | Local provider routing | Requests routed across providers and models, with protocol translation, policy- and quota-aware target selection, failover, and a proxy-observed usage and cost ledger. | [Routing and translation](local-provider-routing/01-routing-and-translation.md), [failover and usage ledger](local-provider-routing/02-failover-and-usage-ledger.md) |
 
