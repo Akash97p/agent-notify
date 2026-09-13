@@ -95,6 +95,52 @@ public sealed class LocalUsageTests : IDisposable
         Assert.Equal(new TokenCounts(6, 2, 4, 0, 0), report.Totals);
     }
 
+    [Fact]
+    public async Task EstimatesPublishedApiCostAndKeepsSameNamedProjectsDistinct()
+    {
+        var claude = Path.Combine(_root, "claude");
+        var codex = Path.Combine(_root, "codex");
+        Directory.CreateDirectory(claude);
+        Directory.CreateDirectory(codex);
+        var projectA = Path.Combine(_root, "one", "repo");
+        var projectB = Path.Combine(_root, "two", "repo");
+        var now = DateTimeOffset.UtcNow;
+        File.WriteAllLines(Path.Combine(claude, "session.jsonl"), [
+            Line(new { type = "assistant", timestamp = now, cwd = projectA, requestId = "r1", message = new
+            {
+                id = "m1", model = "claude-opus-5", usage = new
+                {
+                    input_tokens = 10, output_tokens = 5, cache_read_input_tokens = 20,
+                    cache_creation_input_tokens = 3,
+                    cache_creation = new { ephemeral_5m_input_tokens = 1, ephemeral_1h_input_tokens = 2 }
+                }
+            } }),
+            Line(new { type = "assistant", timestamp = now, cwd = projectB, requestId = "r2", message = new
+            {
+                id = "m2", model = "claude-new-model", usage = new { input_tokens = 10, output_tokens = 5 }
+            } })
+        ]);
+        File.WriteAllLines(Path.Combine(codex, "session.jsonl"), [
+            Line(new { type = "turn_context", payload = new { model = "gpt-5.6-sol", cwd = projectA } }),
+            Line(new { type = "event_msg", timestamp = now, payload = new { type = "token_count", info = new
+            {
+                total_token_usage = new { input_tokens = 100, cached_input_tokens = 40, output_tokens = 20 }
+            } } })
+        ]);
+
+        var report = await new LocalUsageService([claude], [codex]).GetReportAsync(7);
+
+        Assert.Equal(3, report.Events);
+        Assert.Equal(0.00086725m, report.Cost.PricedUsd);
+        Assert.Equal(1, report.Cost.UnpricedEvents);
+        Assert.Equal(15, report.Cost.UnpricedTokens);
+        Assert.Equal(2, report.Projects.Count);
+        Assert.All(report.Projects, project => Assert.Equal("repo", project.Name));
+        Assert.NotEqual(report.Projects[0].Id, report.Projects[1].Id);
+        Assert.Equal(0.00086725m, report.Projects[0].Cost.PricedUsd);
+        Assert.DoesNotContain(_root, JsonSerializer.Serialize(report));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }

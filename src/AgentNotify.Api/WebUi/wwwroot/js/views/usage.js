@@ -2,8 +2,12 @@ import { api } from "../api.js";
 import { h, mount, card, pageHead, button, select, notice, empty } from "../dom.js";
 
 const fmt = new Intl.NumberFormat();
+const usd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const smallUsd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 });
 const sourceName = (source) => source === "claude_code" ? "Claude Code" : source === "codex" ? "Codex" : source;
 const n = (value) => fmt.format(value || 0);
+const money = (value) => value > 0 && value < 0.0001 ? "<$0.0001" : value > 0 && value < 0.01 ? smallUsd.format(value) : usd.format(value || 0);
+const costText = (cost) => cost.unpriced_events ? `${money(cost.priced_usd)} + unpriced` : money(cost.priced_usd);
 
 function metric(label, value, detail) {
   return h("div", { class: "card stat" },
@@ -17,14 +21,30 @@ function modelsTable(models) {
     h("table", { class: "table" },
       h("thead", null, h("tr", null,
         h("th", { text: "Agent" }), h("th", { text: "Model" }), h("th", { text: "Input" }),
-        h("th", { text: "Cache read" }), h("th", { text: "Cache write" }), h("th", { text: "Output" }))),
+        h("th", { text: "Cache read" }), h("th", { text: "Cache write" }), h("th", { text: "Output" }),
+        h("th", { text: "API cost" }))),
       h("tbody", null, models.map((row) => h("tr", null,
         h("td", { text: sourceName(row.source) }),
         h("td", { class: "mono small", text: row.model }),
         h("td", { text: n(row.counts.input) }),
         h("td", { text: n(row.counts.cache_read) }),
         h("td", { text: n(row.counts.cache_write) }),
-        h("td", { text: n(row.counts.output) }))))));
+        h("td", { text: n(row.counts.output) }),
+        h("td", { text: costText(row.cost) }))))));
+}
+
+function projectsList(projects) {
+  const names = new Map();
+  for (const project of projects) names.set(project.name, (names.get(project.name) || 0) + 1);
+  return h("div", { class: "usage-projects" }, projects.map((project) => {
+    const label = names.get(project.name) > 1 ? `${project.name} · ${project.id.slice(-4)}` : project.name;
+    return h("details", { class: "usage-project" },
+      h("summary", null,
+        h("span", { class: "usage-project-name", text: label }),
+        h("span", { class: "usage-project-tokens", text: `${n(project.counts.total)} tokens` }),
+        h("strong", { text: costText(project.cost) })),
+      modelsTable(project.models));
+  }));
 }
 
 function dailyChart(days) {
@@ -60,13 +80,17 @@ export default {
     function draw(data) {
       const counts = data.totals;
       mount(page,
-        pageHead("Usage", "Tokens recorded by Claude Code and Codex on this computer. Read-only local history; no account quota or billing data.",
+        pageHead("Usage", "Local token history and what it would cost at published standard API rates. This is not a bill or subscription usage.",
           h("div", { class: "row" }, periodControl, refresh)),
         data.files_skipped ? notice(`${data.files_skipped} log file(s) could not be read, so totals may be incomplete.`, "warn") : null,
+        data.cost.unpriced_events ? notice(`${n(data.cost.unpriced_events)} usage records (${n(data.cost.unpriced_tokens)} tokens) have no verified model price. Cost totals include only priced records.`, "warn") : null,
         data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code or Codex on this computer, then refresh. AgentNotify reads their local session logs; no setup is needed.", "pulse") }) : [
           h("div", { class: "stats usage-stats" },
             metric("Total tokens", counts.total, `${n(data.events)} usage records`),
-            metric("Uncached input", counts.input, "New prompt tokens"),
+            h("div", { class: "card stat" },
+              h("span", { class: "stat-label", text: "API-equivalent cost" }),
+              h("span", { class: "stat-value", text: money(data.cost.priced_usd) }),
+              h("span", { class: "stat-sub", text: data.cost.complete ? "Estimated at standard public rates" : "Priced records only; see warning" })),
             metric("Cache read", counts.cache_read, "Reused prompt tokens"),
             metric("Output", counts.output, `${n(counts.reasoning)} reasoning tokens included`)),
           h("div", { class: "grid-2" },
@@ -74,9 +98,15 @@ export default {
               body: h("div", { class: "usage-sources" }, data.sources.map((source) =>
                 h("div", { class: "row-between" },
                   h("span", { text: sourceName(source.source) }),
-                  h("strong", { text: n(source.counts.total) })))) }),
-            card({ title: "What is counted", description: "These are token counters, not subscription limits.",
-              body: h("p", { class: "muted small", text: "Cached input is counted separately from new input. Claude cache writes are separate; Codex reasoning is already part of output. A model without pricing is never shown as free." }) })),
+                  h("strong", { text: costText(source.cost) }),
+                  h("span", { class: "muted small", text: `${n(source.counts.total)} tokens` })))) }),
+            card({ title: "Pricing basis", description: `Published standard text-token API rates as of ${data.pricing_as_of}.`,
+              body: h("div", { class: "stack" },
+                h("p", { class: "muted small", text: "Current rates are applied to the selected history. Claude cache reads and 5-minute/1-hour writes have separate prices; Codex cached input is counted once. This excludes plan allowances, Fast/Batch, long-context premiums, tools, taxes, and discounts." }),
+                h("div", { class: "row" },
+                  h("a", { href: "https://developers.openai.com/api/docs/models", target: "_blank", rel: "noopener noreferrer", text: "OpenAI prices ↗" }),
+                  h("a", { href: "https://platform.claude.com/docs/en/about-claude/pricing", target: "_blank", rel: "noopener noreferrer", text: "Claude prices ↗" }))) })),
+          card({ title: "By project", description: "Working-directory projects. Open one to see its models; full paths stay on the broker.", body: projectsList(data.projects) }),
           card({ title: "By model", description: "Up to 30 models, ordered by token volume.", body: modelsTable(data.models) }),
           card({ title: "Recent active days", description: "Local calendar days with recorded usage; up to 30 shown.", body: dailyChart(data.daily) })
         ],

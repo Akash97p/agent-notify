@@ -78,9 +78,14 @@ normalizes non-overlapping token buckets, and caches parsed events by path, size
 the lifetime of the broker. It deduplicates Claude message/request identities and differences
 Codex cumulative counters per rollout. The `/ui/api/usage` route returns aggregated counts only;
 it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
-estimate prices, or assert subscription quota. The source logs remain authoritative; the current
-cache is in memory and is rebuilt after restart. More complete fork/replay attribution, OpenCode,
-durable indexing, and pricing remain separate work.
+or assert subscription quota. A dated, exact-model price catalog estimates what those token
+records would cost at published standard API rates, with separate Claude 5-minute and 1-hour
+cache-write prices. Unknown models remain explicitly unpriced. Project grouping uses each row's
+working directory (Claude) or the active turn/session working directory (Codex); the page receives
+only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
+the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
+OpenCode, durable indexing, historical rate schedules, and provider-specific billing modifiers
+remain separate work.
 
 ### Desktop app
 

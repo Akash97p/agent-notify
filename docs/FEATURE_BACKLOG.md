@@ -140,9 +140,9 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ## Product and platform tasks
 
-- Local usage: initial read-only Claude Code and Codex token summaries are in the WebUI. Add
-  OpenCode, a durable/versioned file index, project and session views, fork replay attribution,
-  and separately sourced pricing estimates before treating the numbers as a spend ledger.
+- Local usage: read-only Claude Code and Codex token, project, and API-equivalent cost summaries
+  are in the WebUI. Add OpenCode, a durable/versioned file index, session views, fork replay
+  attribution, and historical rate schedules before treating the numbers as a spend ledger.
 
 - Search, filtering, export, route/delivery audit views, backups, and retention controls.
 - Safer terminal/editor activation, Windows Terminal integration, and virtual desktop awareness.
