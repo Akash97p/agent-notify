@@ -29,7 +29,7 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
-| Usage | Read local Claude Code and Codex tokens and API-equivalent cost for 7 days, 30 days, or all history, split by source, project, model, and day |
+| Usage | Read local Claude Code, Codex, and OpenCode tokens and estimated token cost for 7 days, 30 days, or all history, split by source, provider, project, model, and day |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -41,20 +41,26 @@ stored, and the page says so, but the platform decides how a notification looks.
 An answer given here is the same as one given from a toast, the CLI, or a paired phone: the first
 valid answer wins and later ones are refused.
 
-Usage reads the broker user's local session logs. It needs no account key or network connection,
+Usage reads the broker user's local Claude Code/Codex session logs and OpenCode SQLite database.
+It needs no account key or network connection,
 and does not return prompt text, full project paths, or log paths to the browser. Projects are
 grouped by working directory and shown by folder name; same-named folders get distinct opaque IDs.
 Counts are historical token records, not provider billing or live quota. Cached input is separate
-from uncached input, and Codex reasoning is included within output.
+from uncached input. Codex reasoning is included within output; OpenCode reasoning is a separate
+counter added to output once. OpenCode's current `message` table is queried on every refresh.
+`OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
+`~/.local/share/opencode/opencode.db` is used.
 
-The cost number answers **what these tokens would cost at published standard API rates**, using
-the dated rate snapshot shown on the page. It is not a subscription charge or invoice. Claude
+The cost number answers **what these tokens would cost at published token rates**, using
+the dated rate snapshot shown on the page. OpenAI and Claude use standard API rates; OpenCode Go
+uses its published quota-equivalent token rates. It is not a subscription charge or invoice. Claude
 5-minute and 1-hour cache writes use different rates. The estimate excludes plan allowances,
 Fast/Batch pricing, long-context premiums, server-side tool fees, taxes, and discounts. A model
 without an exact verified rate is marked *unpriced*; its tokens remain in usage totals but no zero
 cost is implied. Current rates are applied to old records, not historical price schedules.
 The dated catalog uses published [OpenAI model prices](https://developers.openai.com/api/docs/models)
-and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing); changing rates
+and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing), plus
+[OpenCode Go token rates](https://opencode.ai/docs/go/); changing rates
 requires a new catalog snapshot.
 
 ## How it stays local

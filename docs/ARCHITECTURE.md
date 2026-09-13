@@ -72,19 +72,25 @@ Provider editors are driven by `ProviderFormCatalog` (field descriptors), `Provi
 back into a form), all in Core. Relay pairing runs in the broker through `RelayPairingSessions`, so
 the issued installation token never reaches the page. See [WEB_UI.md](WEB_UI.md).
 
-The Usage page is a read-only local-log projection. `LocalUsageService` in Core discovers Claude
-Code and Codex session JSONL under the broker user's profile, retains only usage-bearing rows,
-normalizes non-overlapping token buckets, and caches parsed events by path, size, and mtime for
-the lifetime of the broker. It deduplicates Claude message/request identities and differences
-Codex cumulative counters per rollout. The `/ui/api/usage` route returns aggregated counts only;
+The Usage page is a read-only local-history projection. `LocalUsageService` in Core discovers
+Claude Code and Codex session JSONL and OpenCode's `opencode.db` under the broker user's profile.
+It retains only usage-bearing assistant rows, normalizes non-overlapping token buckets, and caches
+JSONL events by path, size, and mtime for the lifetime of the broker. OpenCode's current `message`
+table is queried afresh in read-only mode on each report, so live database updates are visible;
+the SQL selects only scalar usage fields, never message payloads. It deduplicates Claude
+message/request identities and differences Codex cumulative counters per rollout. OpenCode's
+reasoning counter is separate from output and is added once; Codex reasoning is already included
+in output. The `/ui/api/usage` route returns aggregated counts only;
 it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
 or assert subscription quota. A dated, exact-model price catalog estimates what those token
-records would cost at published standard API rates, with separate Claude 5-minute and 1-hour
-cache-write prices. Unknown models remain explicitly unpriced. Project grouping uses each row's
-working directory (Claude) or the active turn/session working directory (Codex); the page receives
+records would cost at published standard API rates or OpenCode Go's published quota-equivalent
+token rates, with separate Claude 5-minute and 1-hour cache-write prices. Unknown models and
+OpenCode Go records with unpriced cache writes remain explicitly unpriced. Project grouping uses
+each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
+directory; the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
 the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
-OpenCode, durable indexing, historical rate schedules, and provider-specific billing modifiers
+durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 
 ### Desktop app

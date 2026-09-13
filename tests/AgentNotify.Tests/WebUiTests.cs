@@ -50,7 +50,8 @@ public sealed class WebUiTests : IAsyncLifetime
             Providers = profiles,
             Routes = new DeliveryRouteService(delivery),
             Dispatcher = _dispatcher,
-            Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")]),
+            Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")],
+                Path.Combine(_dir, "usage-opencode.db")),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
@@ -121,6 +122,42 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Single(body.GetProperty("projects").EnumerateArray());
         Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
+    }
+
+    [Fact]
+    public async Task UsagePageIncludesOpenCodeProviderAndProjectWithoutMessageText()
+    {
+        var path = Path.Combine(_dir, "usage-opencode.db");
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT);
+                CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+                INSERT INTO session VALUES ('s1', $project);
+                INSERT INTO message VALUES ('m1', 's1', $time, $data);
+                """;
+            command.Parameters.AddWithValue("$project", Path.Combine(_dir, "opencode-project"));
+            command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            command.Parameters.AddWithValue("$data", JsonSerializer.Serialize(new
+            {
+                role = "assistant", providerID = "openai", modelID = "gpt-5.6-sol",
+                content = "private-opencode-response", tokens = new { input = 10, output = 2, reasoning = 1 }
+            }));
+            command.ExecuteNonQuery();
+        }
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/usage?days=7");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("private-opencode-response", text);
+        Assert.DoesNotContain(_dir, text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal("opencode", body.GetProperty("sources")[0].GetProperty("source").GetString());
+        Assert.Equal("openai", body.GetProperty("models")[0].GetProperty("provider").GetString());
+        Assert.Equal("opencode-project", body.GetProperty("projects")[0].GetProperty("name").GetString());
+        Assert.Equal(0.0001m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
     }
 
     [Fact]

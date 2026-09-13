@@ -1,8 +1,9 @@
 namespace AgentNotify.Core.Usage;
 
 /// <summary>
-/// A dated snapshot of published standard, text-token API prices in USD per million tokens.
-/// These rates answer a counterfactual question; they are not subscription spend or an invoice.
+/// A dated snapshot of published text-token rates in USD per million tokens.
+/// Standard API and OpenCode Go quota rates answer a counterfactual question; they are not
+/// subscription spend or an invoice.
 /// Keep mappings exact so a new model is visibly unpriced until its rate is verified.
 /// </summary>
 public static class ApiPriceCatalog
@@ -10,6 +11,7 @@ public static class ApiPriceCatalog
     public const string AsOf = "2026-09-13";
     public const string OpenAiSource = "https://developers.openai.com/api/docs/models";
     public const string AnthropicSource = "https://platform.claude.com/docs/en/about-claude/pricing";
+    public const string OpenCodeGoSource = "https://opencode.ai/docs/go/";
 
     private static readonly IReadOnlyDictionary<string, ApiTokenRates> Rates =
         new Dictionary<string, ApiTokenRates>(StringComparer.OrdinalIgnoreCase)
@@ -30,8 +32,27 @@ public static class ApiPriceCatalog
             ["claude_code:claude-haiku-4-5"] = new(1m, 0.1m, 1.25m, 2m, 5m)
         };
 
-    public static ApiTokenRates? Find(string source, string model) =>
-        Rates.TryGetValue(source + ":" + model, out var rates) ? rates : null;
+    private static readonly IReadOnlyDictionary<string, ApiTokenRates> OpenCodeGoRates =
+        new Dictionary<string, ApiTokenRates>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Published OpenCode Go token rates are quota-equivalent, not extra subscription spend.
+            // Go does not publish a cache-write price for these models; such records stay unpriced.
+            ["muse-spark-1.3-contributor"] = new(0.10m, 0.002m, 0m, 0m, 0.20m),
+            ["muse-spark-1.2-contributor"] = new(0.10m, 0.002m, 0m, 0m, 0.20m),
+            ["glm-5.3"] = new(1.40m, 0.26m, 0m, 0m, 4.40m)
+        };
+
+    public static ApiTokenRates? Find(string source, string provider, string model)
+    {
+        if (source == "opencode")
+        {
+            if (provider == "opencode-go")
+                return OpenCodeGoRates.TryGetValue(model, out var goRates) ? goRates : null;
+            if (provider != "openai") return null;
+            source = "codex";
+        }
+        return Rates.TryGetValue(source + ":" + model, out var rates) ? rates : null;
+    }
 }
 
 public sealed record ApiTokenRates(decimal Input, decimal CacheRead, decimal CacheWrite5m,

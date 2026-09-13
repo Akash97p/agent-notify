@@ -1256,6 +1256,39 @@ Not verified: exact agreement with either provider's bill or subscription allowa
 rate changes, long-context/priority/server-tool modifiers, Windows tray hosting, or installer
 payload. The price catalog is an explicitly dated counterfactual standard-API estimate.
 
+## OpenCode local Usage adapter (`feature/usage-opencode`, 2026-09-13)
+
+- The native macOS .NET SDK 10.0.401 full Release build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 891 tests, 0 failed,
+  0 skipped. New fixtures cover read-only OpenCode SQLite assistant-message extraction, malformed
+  and user row exclusion, date filtering, separate reasoning normalization, provider/model price
+  selection, project path and message-text omission, live DB refresh, and the WebUI endpoint.
+- `node --check` passed for the edited Usage module and `git diff --check` passed. A self-contained
+  `osx-x64` broker publish succeeded with `IncludeNativeLibrariesForSelfExtract=true`. The first
+  publish omitted that flag and failed when installed without its sibling SQLite dylib; the
+  corrected standalone binary was tested from `~/.local/bin` before installation. The required
+  WSL `scripts/build.sh`, `scripts/test.sh`, and
+  `scripts/package.sh` were attempted but cannot start on this Mac because their configured
+  `/mnt/d/dev/dotnet/dotnet.exe` is absent. Windows installer packaging remains unverified.
+- A scratch published broker on `127.0.0.1:47878` read 17 local usage stores with 0 skipped,
+  including the owner's live OpenCode database. Its 30-day response included Claude Code, Codex,
+  and OpenCode, 34 working-directory project groups, and explicitly unpriced OpenCode records.
+  The response omitted full home paths; `/ui/api/overview` returned 200 and the bearer-protected
+  `/v1/notifications` returned 401 without a token. Headless Chrome screenshots at 1440 and 500
+  CSS pixels showed the Usage view rendering on desktop and narrow layouts. A 390-pixel Chrome
+  screenshot was clipped by headless Chrome's 500-CSS-pixel minimum viewport, so it was not used
+  as a layout verdict. These are browser rendering checks, not human visual review.
+- The corrected broker was ad-hoc signed and installed on the owner's usual launchd service,
+  with the previous binary backed up at
+  `~/.local/bin/.agentnotifyd-backup-usage-opencode-20260913`. On `127.0.0.1:47821`, the 30-day
+  Usage API returned all three sources and 34 project groups; overview returned 200 and the agent
+  API returned 401 without a bearer token. The response omitted full home paths.
+
+Not verified: reconciliation with OpenCode's account charges or quota, prices for models without
+an exact published rate, historical prices, a physical-phone viewport, Windows tray hosting, or
+the Windows installer payload. OpenCode Go estimates use published quota-equivalent token rates,
+not additional subscription spend.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

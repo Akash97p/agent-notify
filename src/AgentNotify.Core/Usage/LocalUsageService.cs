@@ -1,22 +1,35 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Core.Usage;
 
-/// <summary>Read-only, in-process index of the local Claude Code and Codex token ledgers.</summary>
+/// <summary>Read-only, in-process index of local coding-agent token ledgers.</summary>
 public sealed class LocalUsageService
 {
     private readonly IReadOnlyList<string> _claudeRoots;
     private readonly IReadOnlyList<string> _codexRoots;
+    private readonly string _openCodeDatabase;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private Dictionary<string, CachedFile> _files = new(StringComparer.Ordinal);
 
-    public LocalUsageService(IEnumerable<string>? claudeRoots = null, IEnumerable<string>? codexRoots = null)
+    public LocalUsageService(IEnumerable<string>? claudeRoots = null, IEnumerable<string>? codexRoots = null,
+        string? openCodeDatabase = null)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _claudeRoots = (claudeRoots ?? ClaudeRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
         _codexRoots = (codexRoots ?? CodexRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
+        _openCodeDatabase = openCodeDatabase ?? OpenCodeDatabase(home);
+    }
+
+    private static string OpenCodeDatabase(string home)
+    {
+        var configured = Environment.GetEnvironmentVariable("OPENCODE_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(configured)) return Path.Combine(configured, "opencode.db");
+        var xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        return Path.Combine(string.IsNullOrWhiteSpace(xdg) ? Path.Combine(home, ".local", "share") : xdg,
+            "opencode", "opencode.db");
     }
 
     private static IEnumerable<string> ClaudeRoots(string home)
@@ -62,28 +75,92 @@ public sealed class LocalUsageService
         AddFiles("claude_code", _claudeRoots, next, ref skipped, ct);
         AddFiles("codex", _codexRoots, next, ref skipped, ct);
         _files = next;
+        var openCode = ReadOpenCode(ref skipped, ct);
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var cutoff = days == 0 ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddDays(-days);
-        var rows = next.Values.SelectMany(file => file.Events)
+        var rows = next.Values.SelectMany(file => file.Events).Concat(openCode)
             .OrderBy(row => row.Timestamp)
             .Where(row => row.Identity is null || seen.Add(row.Source + ":" + row.Identity))
             .Where(row => row.Timestamp >= cutoff)
             .ToArray();
         var sources = rows.GroupBy(row => row.Source).OrderBy(group => group.Key)
             .Select(group => new UsageGroup(group.Key, Sum(group), Estimate(group))).ToArray();
-        var models = rows.GroupBy(row => (row.Source, row.Model)).OrderByDescending(group => Sum(group).Total)
+        var models = rows.GroupBy(row => (row.Source, row.Provider, row.Model)).OrderByDescending(group => Sum(group).Total)
             .Take(30).Select(group => Model(group)).ToArray();
         var daily = rows.GroupBy(row => DateOnly.FromDateTime(row.Timestamp.LocalDateTime))
             .OrderBy(group => group.Key).Select(group => new UsageDay(group.Key.ToString("yyyy-MM-dd"), Sum(group), Estimate(group))).ToArray();
         var projects = rows.GroupBy(row => (row.Project.Id, row.Project.Name))
             .Select(group => new UsageProject(group.Key.Id, group.Key.Name, Sum(group), Estimate(group),
-                group.GroupBy(row => (row.Source, row.Model)).Select(Model)
+                group.GroupBy(row => (row.Source, row.Provider, row.Model)).Select(Model)
                     .OrderByDescending(model => model.Cost.PricedUsd).ToArray()))
             .OrderByDescending(project => project.Cost.PricedUsd)
             .ThenByDescending(project => project.Counts.Total).ToArray();
-        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count, skipped, rows.Length,
+        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count + (File.Exists(_openCodeDatabase) ? 1 : 0), skipped, rows.Length,
             Sum(rows), Estimate(rows), sources, models, projects, daily, ApiPriceCatalog.AsOf);
+    }
+
+    private UsageEvent[] ReadOpenCode(ref int skipped, CancellationToken ct)
+    {
+        if (!File.Exists(_openCodeDatabase)) return [];
+        try
+        {
+            var builder = new SqliteConnectionStringBuilder
+            {
+                DataSource = _openCodeDatabase,
+                Mode = SqliteOpenMode.ReadOnly,
+                Pooling = false
+            };
+            using var connection = new SqliteConnection(builder.ToString());
+            connection.Open();
+            using var command = connection.CreateCommand();
+            // Select only scalar usage fields. Prompt, response, and tool payloads never leave SQLite.
+            command.CommandText = """
+                SELECT m.id, m.session_id, m.time_created, s.directory,
+                       json_extract(m.data, '$.providerID'), json_extract(m.data, '$.modelID'),
+                       json_extract(m.data, '$.tokens.input'), json_extract(m.data, '$.tokens.output'),
+                       json_extract(m.data, '$.tokens.reasoning'),
+                       json_extract(m.data, '$.tokens.cache.read'), json_extract(m.data, '$.tokens.cache.write')
+                FROM message AS m
+                LEFT JOIN session AS s ON s.id = m.session_id
+                WHERE CASE WHEN json_valid(m.data) THEN json_extract(m.data, '$.role') END = 'assistant'
+                """;
+            using var reader = command.ExecuteReader();
+            var events = new List<UsageEvent>();
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                var model = reader.IsDBNull(5) ? null : reader.GetString(5);
+                if (string.IsNullOrWhiteSpace(model) || reader.IsDBNull(2)) continue;
+                var millis = reader.GetInt64(2);
+                DateTimeOffset timestamp;
+                try { timestamp = DateTimeOffset.FromUnixTimeMilliseconds(millis); }
+                catch (ArgumentOutOfRangeException) { continue; }
+                var input = SqliteCount(reader, 6);
+                var output = SqliteCount(reader, 7);
+                var reasoning = SqliteCount(reader, 8);
+                var counts = new TokenCounts(input, output + reasoning, SqliteCount(reader, 9),
+                    SqliteCount(reader, 10), reasoning);
+                if (counts.Total == 0) continue;
+                var provider = reader.IsDBNull(4) ? "unknown" : reader.GetString(4);
+                var project = ProjectInfo.FromDirectory(reader.IsDBNull(3) ? null : reader.GetString(3));
+                events.Add(new UsageEvent("opencode", timestamp, model, provider,
+                    reader.IsDBNull(1) ? "" : reader.GetString(1), project,
+                    reader.IsDBNull(0) ? null : reader.GetString(0), counts, 0));
+            }
+            return events.ToArray();
+        }
+        catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            skipped++;
+            return [];
+        }
+    }
+
+    private static long SqliteCount(SqliteDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index) || reader.GetFieldType(index) != typeof(long)) return 0;
+        return Math.Max(0, reader.GetInt64(index));
     }
 
     private void AddFiles(string source, IReadOnlyList<string> roots, Dictionary<string, CachedFile> next, ref int skipped, CancellationToken ct)
@@ -185,7 +262,7 @@ public sealed class LocalUsageService
                     }
                     if (delta.Total == 0) continue;
                     if (!DateTimeOffset.TryParse(String(row, "timestamp"), out var timestamp)) continue;
-                    events.Add(new UsageEvent("codex", timestamp, model, session, project, null, delta, 0));
+                    events.Add(new UsageEvent("codex", timestamp, model, "openai", session, project, null, delta, 0));
                 }
             }
             catch (JsonException) { /* One malformed line must not discard the rest of a session. */ }
@@ -210,7 +287,7 @@ public sealed class LocalUsageService
             Number(usage, "cache_read_input_tokens"), Number(usage, "cache_creation_input_tokens"), 0);
         if (counts.Total == 0) return null;
         var oneHour = Number(Child(usage, "cache_creation"), "ephemeral_1h_input_tokens");
-        return new UsageEvent("claude_code", timestamp, model, String(row, "sessionId") ?? "",
+        return new UsageEvent("claude_code", timestamp, model, "anthropic", String(row, "sessionId") ?? "",
             ProjectInfo.FromDirectory(String(row, "cwd")), identity, counts, Math.Min(counts.CacheWrite, oneHour));
     }
 
@@ -244,9 +321,9 @@ public sealed class LocalUsageService
         return result;
     }
 
-    private static UsageModel Model(IGrouping<(string Source, string Model), UsageEvent> group) =>
-        new(group.Key.Source, group.Key.Model, Sum(group), Estimate(group),
-            ApiPriceCatalog.Find(group.Key.Source, group.Key.Model));
+    private static UsageModel Model(IGrouping<(string Source, string Provider, string Model), UsageEvent> group) =>
+        new(group.Key.Source, group.Key.Provider, group.Key.Model, Sum(group), Estimate(group),
+            ApiPriceCatalog.Find(group.Key.Source, group.Key.Provider, group.Key.Model));
 
     private static ApiCostEstimate Estimate(IEnumerable<UsageEvent> rows)
     {
@@ -255,8 +332,8 @@ public sealed class LocalUsageService
         long unpricedTokens = 0;
         foreach (var row in rows)
         {
-            var rate = ApiPriceCatalog.Find(row.Source, row.Model);
-            if (rate is null)
+            var rate = ApiPriceCatalog.Find(row.Source, row.Provider, row.Model);
+            if (rate is null || row.Source == "opencode" && row.Provider == "opencode-go" && row.Counts.CacheWrite > 0)
             {
                 unpricedEvents++;
                 unpricedTokens += row.Counts.Total;
@@ -291,7 +368,7 @@ public sealed class LocalUsageService
     }
 
     private sealed record CachedFile(long Length, DateTime Modified, UsageEvent[] Events);
-    private sealed record UsageEvent(string Source, DateTimeOffset Timestamp, string Model, string Session,
+    private sealed record UsageEvent(string Source, DateTimeOffset Timestamp, string Model, string Provider, string Session,
         ProjectInfo Project, string? Identity, TokenCounts Counts, long CacheWrite1h);
 }
 
@@ -306,7 +383,7 @@ public readonly record struct TokenCounts(long Input, long Output, long CacheRea
 }
 
 public sealed record UsageGroup(string Source, TokenCounts Counts, ApiCostEstimate Cost);
-public sealed record UsageModel(string Source, string Model, TokenCounts Counts, ApiCostEstimate Cost, ApiTokenRates? Rate);
+public sealed record UsageModel(string Source, string Provider, string Model, TokenCounts Counts, ApiCostEstimate Cost, ApiTokenRates? Rate);
 public sealed record UsageProject(string Id, string Name, TokenCounts Counts, ApiCostEstimate Cost,
     IReadOnlyList<UsageModel> Models);
 public sealed record UsageDay(string Date, TokenCounts Counts, ApiCostEstimate Cost);
