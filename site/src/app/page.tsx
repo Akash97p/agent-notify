@@ -35,7 +35,7 @@ export default function Home() {
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
               <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">Windows has the full graphical app. macOS and Linux currently run the CLI and headless broker.</p>
+            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface.</p>
           </div>
 
           <Card className="overflow-hidden bg-card/90 shadow-2xl shadow-black">
@@ -68,7 +68,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid divide-y rounded-xl border bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {[['835', 'automated tests'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
+          {[['887', 'automated tests'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
             <div className="px-6 py-5" key={label}><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div>
           ))}
         </div>

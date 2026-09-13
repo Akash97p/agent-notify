@@ -12,6 +12,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="WebUi\wwwroot\**\*" LogicalName="AgentNotify.WebUi/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\distribution\agentnotify\SKILL.md" LogicalName="AgentNotify.Api.Resources.SKILL.md" />
+    <EmbeddedResource Include="..\..\distribution\agentnotify\agents\openai.yaml" LogicalName="AgentNotify.Api.Resources.openai.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentNotify.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
     <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
   </ItemGroup>

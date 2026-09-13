@@ -13,6 +13,23 @@ build.
 
 ### Added
 
+- **A web interface, on every platform.** The broker now serves its own settings and
+  notification center at `http://127.0.0.1:<port>/ui/`, from both `agentnotifyd` and the
+  Windows tray app. macOS and Linux had no way to configure channels, routes, custom types or
+  sounds except by editing files; now `agentnotify ui` opens all of it in a browser: overview,
+  attention, questions (answer permissions, choices and text), channels (all nineteen, including
+  connecting a Relay), routes and delivery counts, notification and toast settings, custom
+  types, sounds with upload and preview, and agent skill installs. On Windows the tray menu
+  gains **Open in browser…**.
+  The browser never holds the bearer token: the command mints a single-use, two-minute
+  launch code that becomes an `HttpOnly`, `SameSite=Strict` session. Foreign host names are
+  refused (DNS rebinding), state changes need a custom header and same-origin `Origin`, a
+  strict content security policy applies, and stored credentials and question nonces are never
+  sent to the page. See `docs/WEB_UI.md`.
+- `agentnotify ui [--print]` and `POST /v1/ui/launch`.
+- Provider validation for every channel now lives in Core (`ProviderFormCatalog`), so a
+  profile saved from the browser is validated exactly as one saved from the Settings window.
+
 - **The skill can now ask.** The distributable `SKILL.md` documented `send`, `resolve`
   and `list` only, so an agent had no way to know it could raise a bounded question — and
   the harness covers `permission` alone, which left `single_choice` and `text` with no

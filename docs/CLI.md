@@ -387,6 +387,18 @@ agentnotify install-harness codex --scope project
 agentnotify install-harness claude --dry-run
 ```
 
+### `ui` — open the web interface
+
+```bash
+agentnotify ui [--print] [--port N] [--token T]
+```
+
+Asks the broker for a one-time sign-in link and opens it in the default browser. The link works
+once, for two minutes, and never contains the bearer token. `--print` writes the link to stdout
+instead of opening a browser, for SSH sessions and machines without a display; the expiry note goes
+to stderr. Exits `1` when the broker is unreachable or predates the web interface. See
+[WEB_UI.md](WEB_UI.md).
+
 ### `interactions` — ask a waiting question and collect the answer
 
 ```text

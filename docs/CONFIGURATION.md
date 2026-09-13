@@ -142,6 +142,9 @@ Example fragment:
 
 ## Settings window coverage
 
+The [web interface](WEB_UI.md) edits the same properties as the tray Settings window, on every
+platform, except `launchAtStartup`, which stays in the tray menu.
+
 The tray Settings window (`src/AgentNotify.App/SettingsWindow.xaml`, `.xaml.cs`) edits these config properties directly:
 
 - General tab: `port` (1–65535), `historyRetentionDays` (0–3650), `pauseNotifications`, `doNotDisturb`.
