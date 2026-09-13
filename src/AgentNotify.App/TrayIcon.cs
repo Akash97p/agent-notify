@@ -21,7 +21,7 @@ public sealed class TrayIcon : IDisposable
 
     public TrayIcon(Icon icon, string logsDir,
         Func<bool> isPaused, Func<bool> isStartupEnabled,
-        Action onShowCenter, Action onOpenSettings, Action onOpenGettingStarted,
+        Action onShowCenter, Action onOpenSettings, Action onOpenWebUi, Action onOpenGettingStarted,
         Action onInstallSkill, Action onCopySkill, Action onSaveSkill,
         Action onTogglePause, Action onToggleStartup, Action onOpenAbout, Action onExit)
     {
@@ -55,6 +55,7 @@ public sealed class TrayIcon : IDisposable
         });
         var gettingStarted = new WinForms.ToolStripMenuItem("Getting started", null, (_, _) => onOpenGettingStarted());
         var settings = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onOpenSettings());
+        var webSettings = new WinForms.ToolStripMenuItem("Open in browser…", null, (_, _) => onOpenWebUi());
         // First of the three, because it is the one that finishes the job:
         // copying and downloading both leave the person holding a file with
         // somewhere to put it.
@@ -65,7 +66,7 @@ public sealed class TrayIcon : IDisposable
         var exit = new WinForms.ToolStripMenuItem("Exit", null, (_, _) => onExit());
 
         _menu = new WinForms.ContextMenuStrip();
-        _menu.Items.AddRange([_centerItem, settings, new WinForms.ToolStripSeparator(),
+        _menu.Items.AddRange([_centerItem, settings, webSettings, new WinForms.ToolStripSeparator(),
             gettingStarted, installSkill, copySkill, saveSkill, new WinForms.ToolStripSeparator(),
             _pauseItem, _startupItem, new WinForms.ToolStripSeparator(), openLogs, new WinForms.ToolStripSeparator(), about, exit]);
         _menu.Opening += (_, _) => RefreshChecks();

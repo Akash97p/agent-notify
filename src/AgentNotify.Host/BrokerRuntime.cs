@@ -1,4 +1,5 @@
 using AgentNotify.Api;
+using AgentNotify.Api.WebUi;
 using AgentNotify.Core;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
@@ -134,13 +135,37 @@ public sealed class BrokerRuntime : IAsyncDisposable
             }
         };
 
-        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService, interactionPublisher);
+        var webUi = new WebUiOptions
+        {
+            ConfigStore = _configStore,
+            Providers = profiles,
+            Routes = new DeliveryRouteService(_deliveryRepository),
+            Dispatcher = _dispatcher,
+            SecretProtection = protection.Description,
+            DesktopSurface = DesktopSurfaceName(_notifier.Name),
+            // Toast placement and sounds belong to the Windows tray app; the portable broker hands
+            // notifications to the platform, which decides both.
+            SupportsToastPlacement = false,
+            SupportsSounds = false
+        };
+
+        _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService, interactionPublisher, webUi);
         await _api.StartAsync(cancellationToken).ConfigureAwait(false);
         _interactionResponsePoller.Start();
         _logger.Info($"API listening on {Url}");
 
         await PruneHistoryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>The web UI address. Signing in needs a launch link from <c>agentnotify ui</c> or the token.</summary>
+    public string WebUiUrl => $"{Url}{WebUiEndpoints.BasePath}/";
+
+    private static string DesktopSurfaceName(string notifier) => notifier switch
+    {
+        "console" => "the broker's console output (desktop notifications are off)",
+        "osascript" or "terminal-notifier" => $"macOS Notification Center ({notifier})",
+        _ => $"the desktop notification service ({notifier})"
+    };
 
     /// <summary>
     /// Fires the desktop notification without blocking the API response. Local persistence has
