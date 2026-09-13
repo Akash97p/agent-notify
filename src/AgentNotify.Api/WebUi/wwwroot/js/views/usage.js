@@ -85,7 +85,6 @@ export default {
         pageHead("Usage", "Local token history and estimated cost at published token rates. This is not a bill or subscription usage.",
           h("div", { class: "row" }, periodControl, refresh)),
         data.files_skipped ? notice(`${data.files_skipped} local usage store(s) could not be read, so totals may be incomplete.`, "warn") : null,
-        data.cost.unpriced_events ? notice(`${n(data.cost.unpriced_events)} usage records (${n(data.cost.unpriced_tokens)} tokens) have no verified model price. Cost totals include only priced records.`, "warn") : null,
         data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code, Codex, or OpenCode on this computer, then refresh. AgentNotify reads their local usage history; no setup is needed.", "pulse") }) : [
           h("div", { class: "stats usage-stats" },
             metric("Total tokens", counts.total, `${n(data.events)} usage records`),
