@@ -77,7 +77,7 @@
 - [x] Checksum-verifying POSIX `install.sh`
 - [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
-- [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center
+- [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center — no sign-in; owner-verified on macOS
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients

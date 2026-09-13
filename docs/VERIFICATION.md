@@ -1183,7 +1183,8 @@ Environment: Intel MacBook Pro (x86_64), macOS, .NET SDK 10.0.401, headless Goog
 
 Not verified: the web interface served by the Windows tray app, **Open in browser…** in the tray
 menu, sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
-started from the page against a live Relay. No person has looked at the page yet.
+started from the page against a live Relay. (A person has since used it on macOS; see the next
+section.)
 
 ## Web interface without sign-in (`fix/web-ui-no-sign-in`, 2026-09-13)
 
@@ -1196,6 +1197,11 @@ the required header and same-origin `Origin` on changes, the CSP, and write-only
 - `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true`: succeeded, 0 warnings.
 - Full suite: 884 passed (887 − 4 sign-in tests + 1 test that the page needs no token while `/v1`
   still does), 0 failed.
+- Deployed to this Mac's launchd broker: `/ui/` and `/ui/api/overview` answered 200 with no token,
+  a foreign `Host` got 421, and `/v1/notifications` without the token still got 401.
+- **Owner check (2026-09-13):** the repository owner opened `http://127.0.0.1:47821/ui/` on this
+  Mac and confirmed it opens straight to the dashboard and works. This is the first time a person
+  has used the web interface; the Windows tray app serving it is still unverified.
 
 ## Owner verification still outstanding
 
