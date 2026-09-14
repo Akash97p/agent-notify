@@ -571,8 +571,8 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .balance-value { font-size: 14px; font-variant-numeric: tabular-nums; }
 .balance-track { height: 8px; overflow: hidden; border-radius: 999px; background: var(--panel-3); }
 .balance-fill { display: block; height: 100%; border-radius: inherit; transform-origin: left; animation: balance-in .65s cubic-bezier(.2, .8, .2, 1) both; }
-.balance-ok { color: var(--ok); }
-.balance-fill.balance-ok { background: var(--ok); }
+.balance-ok { color: var(--text); }
+.balance-fill.balance-ok { background: var(--accent); }
 .balance-warn { color: var(--warn); }
 .balance-fill.balance-warn { background: var(--warn); }
 .balance-danger { color: var(--danger); }

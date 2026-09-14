@@ -11,7 +11,7 @@ const sourceColors = { claude_code: "#8b5cf6", codex: "#3b82f6", opencode: "#14b
 const compact = (value) => number.format(value || 0);
 const money = (value) => usd.format(value || 0);
 const clamp = (value) => Math.max(0, Math.min(100, Number(value) || 0));
-const balanceTone = (value) => value <= 20 ? "danger" : value <= 45 ? "warn" : "ok";
+const balanceTone = (value) => value < 20 ? "danger" : value < 40 ? "warn" : "ok";
 
 function metric(label, value, detail, iconName, href) {
   return h("a", { class: "card dashboard-metric reveal", href },

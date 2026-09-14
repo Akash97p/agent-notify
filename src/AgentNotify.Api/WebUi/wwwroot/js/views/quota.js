@@ -7,7 +7,7 @@ const money = (value) => new Intl.NumberFormat(undefined,
   { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value);
 const when = (value) => value ? new Date(value).toLocaleString() : "Reset time unavailable";
 const clamp = (value) => Math.max(0, Math.min(100, Number(value) || 0));
-const tone = (remaining) => remaining <= 20 ? "danger" : remaining <= 45 ? "warn" : "ok";
+const tone = (remaining) => remaining < 20 ? "danger" : remaining < 40 ? "warn" : "ok";
 
 function balanceBar(label, remaining, detail, reset) {
   const value = clamp(remaining);

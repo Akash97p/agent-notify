@@ -88,7 +88,8 @@ provider responses to the browser. Snapshots are cached for five minutes; a manu
 limited to once every 30 seconds. A failed check keeps the last known result marked *stale* for
 the same credential scope; an account change clears it. Missing windows are never displayed as
 0% remaining. Each quota bar represents the balance left and shrinks as usage rises. Each named
-profile has its own cache and failure state. OpenCode has no single quota
+profile has its own cache and failure state. A balance of 40% or more uses the neutral bar, 20–39%
+uses yellow, and 0–19% uses red. OpenCode has no single quota
 because its models can use different provider accounts.
 The local Usage page continues to work without internet or signed-in agent accounts.
 
