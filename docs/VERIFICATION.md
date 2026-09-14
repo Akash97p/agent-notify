@@ -1457,12 +1457,25 @@ owner's real profiles, or a human visual review of the new layouts.
   passed. The WebUI module passed `node --check`.
 - The documentation site's TypeScript check and all 27 static pages passed. The repository's
   WSL build/test/package scripts were attempted but cannot run on this Mac without
-  `/mnt/d/dev/dotnet/dotnet.exe`; the Windows package remains a CI check.
+  `/mnt/d/dev/dotnet/dotnet.exe`. GitHub Actions for `f52a5b3` passed the Windows Release build,
+  all 903 tests, installer/embedded-resource packaging, and the Linux/macOS matrix.
+- A first manual `osx-x64` single-file publish omitted
+  `IncludeNativeLibrariesForSelfExtract=true`. The executable worked alongside its SQLite dylib
+  in the publish directory but failed under launchd when copied alone; the prior broker was
+  immediately restored and confirmed healthy. The corrected publish used the repository release
+  flags for native-library embedding and compression, was ad-hoc signed, and started from a
+  directory containing only that executable. After installation and launchd restart,
+  `agentnotify health` returned `ok` on `127.0.0.1:47821`. The previous executable is backed up
+  at `~/.local/bin/.agentnotifyd-backup-opencode-go-pricing-20260914`.
+- The live 30-day Usage API reported `pricing_as_of: 2026-09-14`; Live quota reported three
+  windows each for the two locally observed Go models. The embedded quota module served the new
+  20-model coverage text, and the page returned HTTP 200 with a forwarded browser-side `Host`
+  port of 47822. A 1440-pixel headless Chrome screenshot rendered the compact quota page and
+  its 20-model coverage line. This was a browser rendering check, not a human visual review.
 
-Not yet verified: a browser rendering of the updated broker, Windows tray-hosted Go estimates,
-or provider-reported Go quota. Local Go usage on this Mac currently includes only Muse Spark 1.3
-Contributor and GLM-5.3, so newly priced models need future local usage before they appear as
-model cards.
+Not yet verified: Windows tray-hosted Go estimates or provider-reported Go quota. Local Go usage
+on this Mac currently includes only Muse Spark 1.3 Contributor and GLM-5.3, so newly priced models
+need future local usage before they appear as model cards.
 
 ## Owner verification still outstanding
 
