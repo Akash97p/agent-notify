@@ -1,23 +1,40 @@
 # Bidirectional agent communication
 
-Status: **research and implementation plan**, not a shipped compatibility claim.
+Status: **durable broker interactions, WebUI answering, Codex/Claude ask hooks, and the Relay/mobile
+answer path are implemented**. The Agent Client Protocol bridge, broader host-native answer
+adapters, host-acceptance receipts, and sealed mobile responses remain design work. See
+[INTERACTIONS.md](INTERACTIONS.md), [HARNESS.md](HARNESS.md), and
+[RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md) for the shipped contracts.
 
 Research checked: **2026-09-03**. Agent APIs and draft protocols can change; adapters must pin and
 test the versions they support.
 
-## Decision summary
+## What is implemented
 
-AgentNotify should add bidirectional interaction as a new durable broker capability, while keeping
-ARC and the local AgentNotify database as the product's source of truth.
+AgentNotify now persists bounded questions and permissions in SQLite, exposes authenticated
+loopback request/list/wait/respond/cancel routes and CLI commands, and accepts the first valid
+answer. The local WebUI answers pending questions. Codex and Claude Code `--ask` hooks pause a
+live permission request and return an allow/deny decision to that same session; on timeout or
+failure they leave the host's ordinary prompt in control. Hermes and OpenClaw have separate
+answer bridges. Eleven hosts have installable notification harnesses, but notification coverage
+does not imply answer control for every host.
 
-The recommended design has two integration modes:
+The Relay can carry an interaction to a paired phone and the broker polls for its answer while it
+runs. This path has been exercised end to end, but response sealing to an installation key and an
+explicit host-acceptance receipt are still missing. Relay sees v1 response content in plaintext;
+it is trusted for transport integrity while the broker revalidates digest, nonce, expiry, and
+first-wins rules. See [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md) for the current wire contract.
+
+## Remaining integration direction
+
+Two integration modes shape further work:
 
 1. **Direct/native adapters** use a coding agent's supported hooks, plugin API, SDK, gateway, or RPC
-   surface. This is the only practical way to preserve an already-running terminal or editor
-   session.
-2. **Managed Agent Client Protocol sessions** let an AgentNotify bridge start an ACP-capable coding
-   agent as a child process, act as its client, receive permission and elicitation requests, and
-   return the human response over the same JSON-RPC session.
+   surface. Codex/Claude ask hooks, Hermes, and OpenClaw already use this path; other hosts need
+   verified decision schemas before they can return an answer to an existing session.
+2. **Managed Agent Client Protocol sessions** would let an AgentNotify bridge start an ACP-capable
+   coding agent as a child process, act as its client, receive permission and elicitation requests,
+   and return the human response over the same JSON-RPC session. This bridge is not implemented.
 
 Do not rebuild AgentNotify on Agent Communication Protocol/A2A, either project named Agent Event
 Protocol, or MCP. Those standards solve useful adjacent problems, but none replaces AgentNotify's
@@ -26,27 +43,27 @@ durable human-attention lifecycle, local history, relay routing, and mobile resp
 The practical topology is:
 
 ```text
-existing terminal/editor session                 AgentNotify-managed session
+existing terminal/editor session                 future managed session
         |                                                    |
-native hook / plugin / SDK                          Agent Client Protocol
+native hook / plugin / SDK                       Agent Client Protocol bridge
         |                                                    |
         +--------------- AgentNotify host adapter -----------+
                                   |
                     local broker + SQLite source of truth
                          /                         \
-          desktop decision UI                 durable relay outbox
+          local WebUI / CLI                    durable relay outbox
                                                     |
                                            Relay + mobile UI
                                                     |
-                                      sealed response envelope
+                             authenticated answer (visible to Relay)
                                                     |
                          interaction broker completes one waiter
                                                     |
                            host adapter returns the native answer
 ```
 
-This is event-driven at the agent boundary, but it is also durable. The adapter owns a live waiter;
-SQLite owns the request and response record; relay delivery is allowed to disconnect and resume.
+The shipped direct path is event-driven at the agent boundary and durable in SQLite. The adapter
+owns a live waiter; SQLite owns the request and response record; Relay can disconnect and resume.
 The language model itself does not need to subscribe to a message bus.
 
 ## Why a skill or ordinary tool is insufficient
@@ -72,36 +89,36 @@ Skills and MCP remain useful installation and fallback surfaces. They are not th
 
 ## The protocol layers
 
-AgentNotify needs to keep three different concerns separate.
+AgentNotify keeps three different concerns separate.
 
-| Layer | Responsibility | Planned owner |
+| Layer | Responsibility | Current state |
 | --- | --- | --- |
-| Host adapter | Translate a vendor's live permission/question request and return its answer | Cross-platform AgentNotify bridge |
-| Interaction contract | Stable identity, choices, expiry, state, idempotency, and response outcome | ARC next-version work in `AgentNotify.Protocol` |
-| Remote transport | Deliver sealed requests/responses, reconnect, backfill, and acknowledge transport | AgentNotify Relay and mobile app |
+| Host adapter | Translate a vendor's live permission/question request and return its answer | Codex/Claude ask hooks, Hermes, and OpenClaw answer paths; ACP bridge planned |
+| Interaction contract | Stable identity, choices, expiry, state, idempotency, and response outcome | Broker model and loopback API shipped; ARC response profile and host-acceptance receipt planned |
+| Remote transport | Deliver requests/responses, reconnect, backfill, and acknowledge transport | Relay/mobile round trip shipped; response sealing to the installation planned |
 
 The relay transport should not contain Codex-, Claude-, or Cursor-specific payloads. The WPF app
 should not embed every vendor SDK. Adapters translate at the edge into one bounded AgentNotify
 interaction model.
 
-## Planned interaction model
+## Interaction model and extensions
 
-The following is the recommended model for design and migration work. Names are not normative until
-the ARC schema and API branch is implemented.
+The broker's implemented fields and API are normative in [INTERACTIONS.md](INTERACTIONS.md).
+The table below also includes extension ideas, which are not part of the current wire contract.
 
 ### Request identity and state
 
 | Field | Purpose |
 | --- | --- |
-| `interaction_id` | AgentNotify-assigned stable interaction identity |
-| `request_event_id` | Immutable producer event/correlation identity |
-| `agent_session_id` | Native session identity |
+| `id` | AgentNotify-assigned stable interaction identity |
+| `request_event_id` | Future immutable producer event/correlation identity |
+| `session_id` | Native session identity |
 | `turn_id` | Native turn/generation identity when available |
 | `native_request_id` | Opaque ID required to answer the host request |
-| `kind` | `permission`, `single_choice`, `multi_choice`, `text`, or bounded `form` |
+| `kind` | `permission`, `single_choice`, or `text` today; `multi_choice` and bounded `form` are future work |
 | `prompt` | Exact human-readable question or permission explanation |
 | `choices` | Stable choice IDs, labels, and optional semantics |
-| `allowed_decisions` | The exact choices the host currently accepts |
+| `allowed_decisions` | Future separate scope-aware field; today the offered `choices` define valid answers |
 | `expires_at` | Absolute response deadline |
 | `status` | `pending`, `answered`, `expired`, `cancelled`, or `superseded` |
 | `request_digest` | Digest binding the displayed request to an eventual response |
@@ -112,8 +129,8 @@ scope the host did not offer.
 
 ### Response and outcome
 
-A mobile tap is not yet proof that the coding agent accepted the decision. Track these states
-separately:
+A mobile tap is not proof that the coding agent accepted the decision. The broker records its own
+answer acceptance; an explicit native-host acceptance receipt remains future work:
 
 ```text
 submitted by human -> accepted by AgentNotify -> accepted by host
@@ -126,10 +143,9 @@ Likewise, keep delivery state separate from interaction state:
 delivered != viewed != answered != accepted by host
 ```
 
-The response record should contain the interaction ID, request digest, selected stable choice IDs or
-bounded text/form data, responder device, response time, idempotency key, and host acceptance
-outcome. Suggested future events include response submitted/accepted/rejected and request
-expired/cancelled/superseded; exact ARC event names remain an implementation decision.
+The current response record contains the interaction ID, request digest, selected choice or
+bounded text, response time, and idempotency key. A host-acceptance outcome and ARC response
+events remain design decisions.
 
 ### Adapter capabilities
 
@@ -143,48 +159,30 @@ Every adapter should declare capabilities rather than relying on product-name as
 - whether answers survive a desktop or adapter restart; and
 - whether the host can confirm that it accepted the answer.
 
-## Broker and API direction
+## Broker and API state
 
-The first implementation should add portable domain and storage boundaries before any vendor
-adapter:
-
-- versioned SQLite migrations for interactions, choices, responses, and host acceptance;
-- a single interaction broker implementing first-valid-response-wins;
-- authenticated loopback create/list/respond/cancel routes;
-- local desktop UI for permission and single-choice requests;
-- durable publication to Relay after local persistence;
-- an adapter connection that can wait asynchronously and be cancelled; and
-- status projection into the existing notification/history view without making a notification row
-  the only copy of the interaction data.
-
-The existing notification lifecycle remains valuable for visibility, deduplication, and history.
-Interaction state needs its own tables because an answer, expiry, and host acceptance are not merely
-notification statuses.
+SQLite interaction records, keyed idempotency, first-valid-response-wins, expiry, cancellation,
+supersession, authenticated loopback routes, CLI wait/respond commands, local WebUI answering,
+and durable Relay publication are implemented. The interaction remains distinct from the
+notification that makes it visible. Native Windows toast/center answering and a durable
+host-acceptance receipt remain separate work; the WebUI and CLI already provide local answers.
 
 ## Relay and mobile return path
 
-WebSocket, server-sent events, long polling, and MQTT are transports, not the semantic contract. A
-reasonable first design is:
+The implemented v1 path sends a sealed request envelope to Relay, lets the phone submit an
+authenticated answer, and has the running broker poll Relay with bounded backoff and a persisted
+cursor. The broker revalidates the answer and completes the waiting adapter. The Relay response
+body is currently plaintext to Relay; end-to-end response sealing is a follow-up. A future push
+wake-up may reduce latency, but polling/backfill must remain so a dropped connection cannot lose
+an answer. Relay acceptance, broker acceptance, and host acceptance are distinct states.
 
-1. mobile submits a sealed response to Relay over authenticated HTTPS;
-2. Relay stores the opaque response durably and acknowledges transport acceptance;
-3. desktop receives a wake-up over an authenticated WebSocket/SSE channel or discovers the response
-   through bounded polling/backfill;
-4. desktop decrypts and validates it, persists it idempotently, and asks the local interaction
-   broker to complete the waiter; and
-5. the adapter maps the result into the host's native response and records accepted/rejected.
-
-Always keep a polling/backfill path even if WebSocket is the normal low-latency channel. A dropped
-socket must not lose a permission decision. MQTT may be an optional self-hosted binding later, but
-making it the only response path would couple the product contract to one broker deployment.
-
-## Security requirements
+## Security requirements and remaining gaps
 
 Remote permission responses are authorization messages. They require a stronger boundary than an
 ordinary notification acknowledgement.
 
-- Seal and authenticate response content end to end for the intended installation. Protect the
-  installation private key with the platform secret store.
+- Seal and authenticate response content end to end for the intended installation. This is not
+  implemented for v1 responses; Relay currently sees plaintext answers.
 - Cryptographically bind a response to the installation, agent session, turn/native request,
   request digest, expiry, and a single-use nonce.
 - Accept at most one valid response. Duplicate transport delivery must be idempotent.
@@ -198,8 +196,8 @@ ordinary notification acknowledgement.
   only when the native host defines and enforces the same scope.
 - Default to deny or the ordinary desktop prompt on timeout/adapter failure according to explicit
   user policy. Never auto-allow because Relay or mobile is unavailable.
-- Keep local desktop response available and make first-valid-response-wins deterministic when local
-  and mobile answers race.
+- Keep local WebUI/CLI response available and make first-valid-response-wins deterministic when
+  local and mobile answers race. Native Windows toast/center answering remains future work.
 - Keep Relay transport acknowledgement distinct from desktop decryption, user view, submitted
   response, and host acceptance.
 - Redact prompts, command arguments, paths, and answers from logs by default. Retain only the minimum
@@ -213,10 +211,10 @@ rejection, timeout, and simultaneous local/mobile responses.
 
 ### ARC — keep as AgentNotify's semantic contract
 
-ARC 0.1 already models durable attention request create/update/resolve state and intentionally
-excludes structured answers. The next ARC work should add a versioned interaction/response profile
-only after the local UI, persistence, adapter callback, Relay, and mobile path can be tested end to
-end. ARC should stay transport-neutral.
+ARC 0.1 models durable attention request create/update/resolve state and intentionally excludes
+structured answers. The broker's separate interaction contract is already live; a future ARC
+interaction/response profile should follow its stabilized semantics, including host-acceptance
+receipts when available. ARC should stay transport-neutral.
 
 ### Agent Client Protocol — adopt as the common managed-session adapter
 
@@ -284,12 +282,12 @@ the coding agent.
 
 | Coding agent | Feasibility | Best first integration | Important constraint |
 | --- | --- | --- | --- |
-| Codex | Excellent | Native synchronous hooks for existing sessions; app-server for managed sessions | Background hooks cannot decide a live request; app-server must remain locally authenticated |
-| Claude Code | Excellent | `PermissionRequest`/`PreToolUse` hooks or Agent SDK | Use the host's exact decision and question schemas; blocking handler owns the waiter |
+| Codex | Excellent | `PermissionRequest` ask hook shipped; app-server for managed sessions planned | Background hooks cannot decide a live request; app-server must remain locally authenticated |
+| Claude Code | Excellent | `PermissionRequest` ask hook shipped; Agent SDK path planned | Use the host's exact decision and question schemas; blocking handler owns the waiter |
 | OpenCode | Excellent | Plugin + SDK permission list/get/reply; ACP where available | Pin/test current API; reconcile pending requests after reconnect |
 | Kilo Code | Excellent | Plugin event/permission API or `kilo acp` | CLI and editor share concepts, but test each surface and version |
-| Hermes | Excellent | Native approval transport plugin | Best security match: immutable request, ID/digest binding, allowed choices, bounded timeout |
-| OpenClaw | Excellent | Gateway operator client with approvals scope | Treat canonical command/cwd/session plan as authoritative; backfill pending approvals |
+| Hermes | Excellent | Native approval transport shipped | Best security match: immutable request, ID/digest binding, allowed choices, bounded timeout |
+| OpenClaw | Excellent | Gateway approval watcher shipped | Treat canonical command/cwd/session plan as authoritative; backfill pending approvals |
 | Gemini CLI | High | Managed `gemini --acp` | Notification hook observes permission prompts but cannot answer them |
 | Muse Code | High, preview | Official SDK approval and user-input streams | Developer Preview, pre-1.0; pin schema/SDK and expect change |
 | Pi coding agent/harness | High | Extension + RPC extension-UI protocol | Pi intentionally has no universal built-in permission policy; AgentNotify extension supplies it |
@@ -423,26 +421,16 @@ was shut down on May 15 and points users to successors/forks. Preserve the resea
 not spend first-party adapter effort on an inactive distribution. A fork can reuse the generic
 extension or protocol work later.
 
-## Implementation sequence
+## Implementation status and next steps
 
-Each phase should be a separate topic branch and must preserve a working local-only AgentNotify.
-
-1. **Interaction domain and storage** — finalize the ARC-compatible model, schema migration,
-   idempotency, expiry/cancellation, response acceptance, and loopback API.
-2. **Local desktop interaction UI** — permission and single-choice cards, exact detail display,
-   timeout, race handling, and accessible keyboard behavior.
-3. **Generic Agent Client Protocol bridge** — a separate cross-platform bridge process/package that
-   owns ACP subprocesses and maps permissions/elicitation to the local broker.
-4. **First direct adapters** — Hermes (best reference design), Claude Code, Codex, and Copilot CLI;
-   add OpenCode/Kilo together where their shared API permits.
-5. **Relay reverse envelopes** — authenticated response submission, durable response queue,
-   reconnect/backfill, E2E request binding, and desktop ingestion.
-6. **Mobile response UI** — allow/deny and single choice first; show expiry and host-acceptance
-   result; keep persistent grant scopes out of the first release.
-7. **Additional adapters** — OpenClaw, Gemini ACP, Pi RPC, Cursor ACP, Muse SDK, then lower-priority
-   or community-maintained hosts.
-8. **Optional standards projections** — MCP elicitation, AEP import/export, and A2A exposure only
-   after the native interaction contract is stable.
+- **Shipped:** interaction domain/storage and loopback API; WebUI and CLI answers; Codex/Claude
+  ask hooks; Hermes/OpenClaw answer paths; Relay reverse polling and mobile answer UI. See the
+  linked implementation docs for limits and verification.
+- **Next:** native Windows toast/center answer controls, a broker-to-host acceptance receipt,
+  and end-to-end sealed mobile responses. These are distinct from the already working WebUI and
+  Relay answer path.
+- **Planned:** a managed Agent Client Protocol bridge; verified answer adapters for more hosts;
+  scope-aware grants and richer question kinds; optional MCP/AEP/A2A projections.
 
 TypeScript is the likely best language for the standalone bridge because ACP has an official
 TypeScript SDK and OpenCode, Kilo, Pi, OpenClaw, Muse, and Copilot offer TypeScript-friendly
@@ -455,8 +443,8 @@ policy; WPF owns Windows presentation only.
   profile.
 - Whether the bridge is distributed inside AgentNotify archives or as a separate npm/package
   artifact with a small launcher.
-- The first local adapter IPC: authenticated loopback HTTP plus long poll, named pipe/Unix socket,
-  or a broker-owned WebSocket. The semantic and persistence model should not depend on this choice.
+- Whether the shipped authenticated loopback HTTP/wait path needs a second local adapter transport
+  for managed sessions. The semantic and persistence model should not depend on that choice.
 - How long a response remains visible after the native host cancels or supersedes it.
 - Which exact host details may leave the computer under the user's route redaction policy.
 - Whether mobile can answer only requests from installations it has explicitly trusted for control,

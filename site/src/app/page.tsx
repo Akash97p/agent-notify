@@ -1,10 +1,13 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  BarChart3,
   BellRing,
   Check,
   Database,
+  FolderKanban,
   GitBranch,
+  Gauge,
   LockKeyhole,
   Network,
   Radio,
@@ -26,8 +29,8 @@ export default function Home() {
     <main>
       <section className="relative overflow-hidden border-b">
         <div className="grid-surface pointer-events-none absolute inset-0" />
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-24 sm:px-6 sm:py-32 lg:grid-cols-[1.15fr_.85fr] lg:items-center lg:py-40">
-          <div>
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 sm:py-32 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-center lg:py-40">
+          <div className="min-w-0">
             <Badge variant="outline" className="mb-6 border-border bg-background/70 px-3 py-1 text-muted-foreground">Open source · Local first · No telemetry</Badge>
             <h1 className="max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-7xl">Know exactly when your agents need you.</h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">AgentNotify turns permissions, questions, blockers, failures, and completions into durable human-attention requests—then routes them to the surfaces you already use, and carries your answer back to the agent that is waiting.</p>
@@ -35,10 +38,10 @@ export default function Home() {
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
               <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface.</p>
+            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface with usage and quota insights. The current source includes Insights; tagged v0.1.0-alpha.2 binaries predate it.</p>
           </div>
 
-          <Card className="overflow-hidden bg-card/90 shadow-2xl shadow-black">
+          <Card className="min-w-0 overflow-hidden bg-card/90 shadow-2xl shadow-black">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground"><Terminal className="size-4" />agentnotify</div>
@@ -68,7 +71,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid divide-y rounded-xl border bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {[['903', 'automated tests'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
+          {[['3', 'local usage sources'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
             <div className="px-6 py-5" key={label}><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div>
           ))}
         </div>
@@ -85,7 +88,26 @@ export default function Home() {
 
       <Separator />
 
-      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
+      <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6" id="insights">
+        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-3xl">
+            <Badge variant="secondary">Web interface · Insights</Badge>
+            <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">See the work and the runway.</h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">Run <code className="rounded border bg-card px-1.5 py-0.5 font-mono text-base text-foreground">agentnotify ui</code> to open your local dashboard. Review what Claude Code, Codex, and OpenCode used, what those tokens would cost at published rates, and how much quota your signed-in accounts have left.</p>
+          </div>
+          <Button asChild variant="outline"><Link href="/docs/web-ui/">Explore the web interface <ArrowRight /></Link></Button>
+        </div>
+        <div className="mt-12 grid gap-4 md:grid-cols-3">
+          <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Published-rate costs are estimates; records without a verified model rate stay unpriced.</Feature>
+          <Feature icon={Gauge} title="Live quota, every account">Name and monitor several Codex and Claude Code profiles together. Remaining-balance gauges show available quota and reset times; OpenCode Go has a separate local estimate.</Feature>
+          <Feature icon={FolderKanban} title="One Insights dashboard">See 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health in one view. Account quota and local usage retain their separate sources.</Feature>
+        </div>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live Codex and Claude Code quota is checked on demand; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
+      </section>
+
+      <Separator />
+
+      <section className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
         <div>
           <Badge variant="secondary">Two-way</Badge>
           <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Answer it, don&apos;t just read it.</h2>
@@ -93,7 +115,7 @@ export default function Home() {
           <p className="mt-5 leading-7 text-muted-foreground">For Codex and Claude Code, the host&apos;s own approval prompt can wait for you: every shell command and file write pauses with the exact command shown. If nothing answers in time it falls back to the ordinary local prompt, so it can never lock you out.</p>
           <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/docs/interactions/">How interactions work <ArrowRight /></Link></Button><Button asChild variant="outline"><Link href="/docs/harness/">Agent harnesses</Link></Button></div>
         </div>
-        <Card className="bg-black">
+        <Card className="min-w-0 bg-black">
           <CardContent className="p-5 font-mono text-[13px] leading-6 text-zinc-300">
             <pre className="overflow-x-auto"><code>{`$ agentnotify install-harness claude --ask
 
@@ -112,14 +134,14 @@ export default function Home() {
 
       <Separator />
 
-      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
+      <section className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
         <div>
           <Badge variant="secondary">ARC 0.1</Badge>
           <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">One contract for attention.</h2>
           <p className="mt-5 text-lg leading-8 text-muted-foreground">The Attention Request Contract is an open JSON contract for creating, updating, and resolving bounded requests for human attention. It separates an immutable event from the condition that remains unresolved.</p>
           <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/docs/arc/">Read the specification <ArrowRight /></Link></Button><Button asChild variant="outline"><a href={`${site.url}/schemas/arc-0.1.schema.json`}>JSON Schema</a></Button></div>
         </div>
-        <Card className="bg-black">
+        <Card className="min-w-0 bg-black">
           <CardContent className="p-5 font-mono text-[13px] leading-6 text-zinc-300">
             <pre className="overflow-x-auto"><code>{`{
   "arc_version": "0.1",

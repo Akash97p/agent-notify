@@ -78,7 +78,7 @@ Implement each channel on its own `feature/channel-*` branch after F04–F06. Al
 | C17 | Twilio WhatsApp | Twilio Messages API + Content Templates | Adapter and Settings integration implemented with text-template attestation and consent/cost controls; real-account smoke and delivery status pending |
 | C18 | Signal | User-managed `signal-cli` process adapter | Experimental/unofficial; never imply official Signal support |
 | C19 | MQTT | MQTT 5 publish to configured TLS broker/topic | Adapter and Settings integration implemented with DNS pinning, platform trust/mTLS, fixed encrypted topic, and explicit QoS semantics; real-broker smoke pending |
-| C20 | AgentNotify Relay | Self-hosted/Custom HTTPS envelope API with per-device opaque transport | Adapter, browser/device-grant pairing, CLI pairing/status, encrypted credential storage, DNS pinning, and durable outbox implemented; Relay Go hosted UI disabled until base URL/billing ready; live-relay interoperability, E2E crypto review, and delivery-status polling pending; experimental opaque transport |
+| C20 | AgentNotify Relay | Self-hosted/Custom HTTPS envelope API with per-device opaque transport | Adapter, browser/device-grant pairing, CLI pairing/status, encrypted credential storage, DNS pinning, and durable outbox implemented; owner Mac-to-phone notification and question-answer round trips verified. Relay Go hosted UI remains disabled until base URL/billing ready; independent crypto review, sealed response content, and delivery-status polling remain pending. |
 | C21 | AWS SNS | Signed AWS API/SDK publish | Paused/not implemented; revisit only with explicit static credentials, no ambient credential-chain inheritance, fixed destination, cost controls, and a provider-specific retry review |
 | C22 | Azure Communication Services | Email/SMS provider SDK/API | Medium; connection credentials and cost controls required |
 | C23 | SendGrid | Mail Send API | High; useful when SMTP is unavailable |
@@ -100,17 +100,17 @@ Allow an agent to provide a safe loopback callback or polling correlation ID and
 
 Support buttons and bounded text choices that return a structured response to a waiting agent without executing arbitrary commands.
 
-- Status: broker side shipped. Durable interaction model (SQLite, keyed idempotency,
+- Status: broker, WebUI answering, and Relay/mobile answer path shipped. Durable interaction model (SQLite, keyed idempotency,
   supersede, first-valid-response-wins, digest/nonce binding, TTL, waiters) with loopback
   API (`request/list/get/wait/respond/cancel/publish`) and `interactions` CLI lives in
   [INTERACTIONS.md](INTERACTIONS.md). Host answer return works for Codex/Claude ask mode,
-  Hermes transport, and the OpenClaw watcher; Relay publish + response polling works broker
-  side per [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md). Remaining: local desktop response
-  UI, dispatcher-integrated polling, mobile UI (owner builds against the contract).
-- Add versioned interaction, choice, response, expiry/cancellation, and host-acceptance persistence.
+  Hermes transport, and the OpenClaw watcher; Relay publish, background response polling, and the
+  mobile answer UI form the shipped path in [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md). Remaining: native WPF response
+  controls, sealed mobile responses, host-acceptance receipts, and broader answer adapters.
+- Extend versioned interaction persistence with host-acceptance outcomes.
 - Implement first-valid-response-wins across local desktop and mobile surfaces.
-- Start with permission allow-once/deny and single choice; add multiselect/text/form and wider grant
-  scopes only when the native host exposes matching semantics.
+- Permission allow-once/deny, single choice, and bounded text are implemented; add multiselect/form
+  and wider grant scopes only when the native host exposes matching semantics.
 - Bind every remote response to the installation, session/turn, native request, request digest,
   expiry, and one-time nonce. Reject replay, stale, changed, and wrong-session responses.
 
@@ -130,9 +130,9 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Implement an Agent Client Protocol client as the common managed-session bridge. Do not confuse it
   with the Agent Communication Protocol that moved into A2A.
 - Add direct native adapters for existing sessions where hosts expose synchronous hooks, plugins,
-  SDKs, gateways, or RPC. Initial notify-only targets are shipped: OpenCode, Codex, and
-  Claude Code (see `docs/HARNESS.md`). Hermes, Copilot CLI, and Kilo Code remain planned,
-  as does returning the human answer into the waiting call.
+  SDKs, gateways, or RPC. Notify-only harnesses cover eleven hosts; Codex/Claude ask mode,
+  Hermes, and OpenClaw return human answers through their host surfaces. Other answer adapters
+  remain planned (see [HARNESS.md](HARNESS.md)).
 - Keep provider streams and ACP/A2A/AEP adapters behind the same validation and persistence
   boundary as direct ARC events.
 - Treat A2A, both current Agent Event Protocol drafts, and MCP elicitation as optional projections

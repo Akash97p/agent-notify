@@ -30,7 +30,11 @@ platform secret store differ.
 
 ---
 
-## Starting point
+## Historical starting point
+
+The three blockers below describe the state before the portable broker work. Phases 1–3 are now
+done; the WebUI also gives macOS and Linux users browser-based configuration, questions, history,
+usage, and quota without a native tray application. See [WEB_UI.md](WEB_UI.md).
 
 Already portable — these target `net10.0` with no Windows-only API use:
 
@@ -49,7 +53,7 @@ Windows-only by design — these target `net10.0-windows` and use WPF/WinForms:
 | `AgentNotify.App` | Tray process, toasts, notification center, Settings |
 | `AgentNotify.Setup` | Per-user installer |
 
-The three things that actually block non-Windows use:
+The three things that originally blocked non-Windows use:
 
 1. The broker only exists inside the WPF tray process. There is no headless host, so on
    macOS or Linux nothing starts the API, the repository, or the delivery dispatcher.
@@ -161,10 +165,10 @@ possible without a rewrite.
 
 ## Verification honesty
 
-The maintainer's development machine is Windows with WSL and has no Linux desktop session and no
-Linux .NET SDK. It had no macOS host either until 2026-09-04, when the released `osx-x64`
-archive was run on owner Intel hardware — that run is the source of every macOS "verified" below
-that is not marked as CI. What can and cannot be claimed:
+The first portable-broker verification used Windows with WSL and had no Linux desktop session or
+macOS host. On 2026-09-04 the released `osx-x64` archive ran on owner Intel hardware. Since then,
+the development environment has also used that Intel Mac for live broker and WebUI checks; the
+dated evidence is in [VERIFICATION.md](VERIFICATION.md). What can and cannot be claimed:
 
 WSL turned out to be more useful than expected: it is a real Linux x64 userland, so a
 `linux-x64` self-contained publish of `agentnotifyd` and `agentnotify` runs natively there. That
@@ -194,7 +198,7 @@ macOS CI jobs are part of Phase 3 rather than an optional extra.
 
 ## Positioning
 
-AgentNotify is not "desktop notifications for one agent on Windows". It is the notification layer
-for AI coding agents: agent-agnostic, channel-agnostic, repo-local, no Node or Python runtime, and
-cross-platform. The phases above are what turn that description into something true on three
-operating systems.
+AgentNotify is the local attention layer for coding agents across Windows, macOS, and Linux. The
+broker, CLI, API, and browser interface run on all three; native tray/toast settings remain Windows
+only. Some optional agent harnesses invoke Python or a host's own runtime, but the broker and WebUI
+need neither Node nor Python at runtime.
