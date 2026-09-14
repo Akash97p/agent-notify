@@ -147,7 +147,7 @@ export default {
           report.open_code_go?.models?.length ? [
             h("div", { class: "section-heading" },
               h("div", null, h("h2", { text: "OpenCode Go" }),
-                h("p", { class: "muted small", text: "Local estimates against published per-model caps." })),
+                h("p", { class: "muted small", text: "Local estimates against published per-model caps · 20 fixed-rate models covered." })),
               h("a", { class: "small", href: "https://opencode.ai/docs/go/", target: "_blank", rel: "noreferrer", text: "How limits work ↗" })),
             h("div", { class: "quota-grid" }, report.open_code_go.models.map(goCard)),
             h("details", { class: "meta-disclosure page-disclosure" },

@@ -146,9 +146,9 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
   endpoint feed separately cached windows for the current and up to 16 named extra agent profiles
   in the WebUI. All profiles can be renamed, and compact gauges show remaining balance. OpenCode Go
-  has a separate local, per-model published-cap estimate, never a live
+  has a separate local, per-model published-cap estimate for 20 exact fixed-rate IDs, never a live
   remaining balance. Add a stable Claude source or statusline bridge, broader account providers,
-  more verified Go model rates, and Windows smoke.
+  Go models with context/time-dependent rates, and Windows smoke.
 - Insights dashboard: implemented as a responsive, animated browser composition of live account
   balances, 30-day usage/cost, agent mix, daily trend, top projects, Go estimates, and broker health.
   It preserves quota-versus-local-history provenance and reduced-motion behavior.

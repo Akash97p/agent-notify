@@ -72,6 +72,9 @@ public sealed class LocalUsageTests : IDisposable
             insert("m2", "muse-spark-1.3-contributor", now.AddDays(-2), 100, 5);
             insert("m3", "glm-5.3", now.AddHours(-1), 1_000_000);
             insert("m4", "new-go-model", now.AddHours(-1), 100);
+            insert("m5", "glm-5.3-flash", now.AddHours(-1), 1_000_000);
+            insert("m6", "minimax-m2.7", now.AddHours(-1), 1_000_000, 1_000_000);
+            insert("m7", "gpt-5.6-luna", now.AddHours(-1), 1_000_000);
         }
 
         var report = await new LocalUsageService([], [], db).GetOpenCodeGoEstimateAsync(now);
@@ -85,7 +88,21 @@ public sealed class LocalUsageTests : IDisposable
         Assert.Equal(1, muse.Windows[1].UnpricedRecords);
         var glm = Assert.Single(report.Models, model => model.Model == "glm-5.3");
         Assert.Equal(3m, glm.Windows[0].LimitUsd);
+        var flash = Assert.Single(report.Models, model => model.Model == "glm-5.3-flash");
+        Assert.Equal(12m, flash.Windows[0].LimitUsd);
+        Assert.Equal(0.15m, flash.Windows[0].ObservedUsd);
+        var miniMax = Assert.Single(report.Models, model => model.Model == "minimax-m2.7");
+        Assert.Equal(12m, miniMax.Windows[0].LimitUsd);
+        Assert.Equal(0.675m, miniMax.Windows[0].ObservedUsd);
+        Assert.Equal(0, miniMax.Windows[0].UnpricedRecords);
+        Assert.NotNull(miniMax.Windows[0].EstimatedUsedPercent);
+        Assert.Null(Assert.Single(report.Models, model => model.Model == "gpt-5.6-luna").Windows[0].EstimatedUsedPercent);
         Assert.Null(Assert.Single(report.Models, model => model.Model == "new-go-model").Windows[0].EstimatedUsedPercent);
+
+        var usage = await new LocalUsageService([], [], db).GetReportAsync(7);
+        var miniMaxUsage = Assert.Single(usage.Models, model => model.Model == "minimax-m2.7");
+        Assert.Equal(0.675m, miniMaxUsage.Cost.PricedUsd);
+        Assert.Equal(0, miniMaxUsage.Cost.UnpricedEvents);
     }
 
     [Fact]

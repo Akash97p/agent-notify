@@ -87,7 +87,9 @@ it never returns log paths, prompt text, response text, or credentials. It does 
 or assert subscription quota. A dated, exact-model price catalog estimates what those token
 records would cost at published standard API rates or OpenCode Go's published quota-equivalent
 token rates, with separate Claude 5-minute and 1-hour cache-write prices. Unknown models and
-OpenCode Go records with unpriced cache writes remain explicitly unpriced. Project grouping uses
+OpenCode Go records with cache writes remain unpriced unless Go publishes that model's exact
+cache-write rate. Only exact, single-rate Go model IDs are priced; context-tiered and peak/off-peak
+models remain unknown until the local ledger can select the applicable rate. Project grouping uses
 each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
 directory; the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;

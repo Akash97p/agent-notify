@@ -83,7 +83,7 @@
 - [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
 - [x] Compact remaining-balance quota UI, editable names for current/additional agent profiles, simplified Usage disclosures, and animated Insights dashboard
 - [ ] Complete local usage indexing: durable cache, fork replay handling, and historical/versioned pricing; recent-session grouping is implemented
-- [ ] Expand live quota: a stable public Claude API or documented statusline bridge, more verified Go model rates, additional provider-account sources, and Windows tray-hosted verification
+- [ ] Expand live quota: a stable public Claude API or documented statusline bridge, context/time-dependent Go model rates, additional provider-account sources, and Windows tray-hosted verification
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients

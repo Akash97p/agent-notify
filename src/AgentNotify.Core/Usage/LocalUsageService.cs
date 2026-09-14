@@ -106,8 +106,8 @@ public sealed class LocalUsageService
                 var windows = periods.Select(period =>
                 {
                     var selected = group.Where(row => row.Timestamp >= now - period.Length).ToArray();
-                    var unpriced = rates is null ? selected.Length : selected.Count(row => row.Counts.CacheWrite > 0);
-                    var observed = rates is null ? 0m : selected.Where(row => row.Counts.CacheWrite == 0)
+                    var unpriced = selected.Count(row => !ApiPriceCatalog.CanPriceOpenCodeGo(group.Key, row.Counts));
+                    var observed = rates is null ? 0m : selected.Where(row => ApiPriceCatalog.CanPriceOpenCodeGo(group.Key, row.Counts))
                         .Sum(row => rates.EstimateUsd(row.Counts, row.CacheWrite1h));
                     var limit = monthlyLimit * period.Fraction;
                     double? percent = unpriced == 0 && limit is > 0
@@ -401,7 +401,8 @@ public sealed class LocalUsageService
         foreach (var row in rows)
         {
             var rate = ApiPriceCatalog.Find(row.Source, row.Provider, row.Model);
-            if (rate is null || row.Source == "opencode" && row.Provider == "opencode-go" && row.Counts.CacheWrite > 0)
+            if (rate is null || row.Source == "opencode" && row.Provider == "opencode-go" &&
+                !ApiPriceCatalog.CanPriceOpenCodeGo(row.Model, row.Counts))
             {
                 unpricedEvents++;
                 unpricedTokens += row.Counts.Total;

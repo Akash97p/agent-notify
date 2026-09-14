@@ -1444,6 +1444,26 @@ fork/replay parentage. Session cost remains the same current-rate estimate used 
 Not verified: Windows tray-hosted rendering, installer payload execution, manually renaming the
 owner's real profiles, or a human visual review of the new layouts.
 
+## Expanded OpenCode Go catalog (`feature/opencode-go-pricing`, 2026-09-14)
+
+- Checked the official [OpenCode Go table](https://opencode.ai/docs/go/) on 2026-09-14 for
+  exact model IDs, per-million-token rates, published cache-write prices where present, and
+  monthly dollar caps. The catalog now contains 20 exact fixed-rate IDs. Context-tiered and
+  peak/off-peak entries remain unpriced because the local ledger cannot select their rate.
+- The focused usage tests passed 7/7. A native macOS .NET 10 Release solution build passed with
+  0 warnings and 0 errors. After updating the catalog date assertion, the full suite passed
+  903 tests, 0 failed, 0 skipped. The fixture covers a newly priced model, a published cache-write
+  rate in both Usage and Go quota estimates, and an excluded tiered model. `git diff --check`
+  passed. The WebUI module passed `node --check`.
+- The documentation site's TypeScript check and all 27 static pages passed. The repository's
+  WSL build/test/package scripts were attempted but cannot run on this Mac without
+  `/mnt/d/dev/dotnet/dotnet.exe`; the Windows package remains a CI check.
+
+Not yet verified: a browser rendering of the updated broker, Windows tray-hosted Go estimates,
+or provider-reported Go quota. Local Go usage on this Mac currently includes only Muse Spark 1.3
+Contributor and GLM-5.3, so newly priced models need future local usage before they appear as
+model cards.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
