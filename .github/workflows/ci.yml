@@ -34,7 +34,10 @@ jobs:
               $failed = Select-Xml -Xml $results -XPath "//*[local-name()='UnitTestResult' and @outcome='Failed']"
               foreach ($failure in $failed) {
                 $name = $failure.Node.testName -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
-                Write-Host "::error title=Failed test::$name"
+                $detail = $failure.Node.Output.ErrorInfo.Message
+                if ([string]::IsNullOrWhiteSpace($detail)) { $detail = $name }
+                $detail = $detail -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+                Write-Host "::error title=Failed test: $name::$detail"
               }
             }
           }
