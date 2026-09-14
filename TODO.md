@@ -81,7 +81,7 @@
 - [x] Local Usage page: read-only Claude Code, Codex, and OpenCode token summaries by source, provider, project, model, and day, with dated API/Go token-rate estimates; live browser check on macOS
 - [x] Live quota page: Codex app-server and Claude Code account-usage probes with cached five-hour/weekly windows, reset times, stale state, and OpenCode unavailable state; live broker/browser check on macOS
 - [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
-- [ ] Complete local usage indexing: durable cache, session attribution, fork replay handling, and historical/versioned pricing
+- [ ] Complete local usage indexing: durable cache, fork replay handling, and historical/versioned pricing; recent-session grouping is implemented
 - [ ] Expand live quota: a stable public Claude API or documented statusline bridge, more verified Go model rates, additional provider-account sources, and Windows tray-hosted verification
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
@@ -91,7 +91,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 902 passed, 0 failed, 0 skipped
+- [x] Automated tests: 903 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

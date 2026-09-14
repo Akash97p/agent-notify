@@ -49,6 +49,10 @@ Usage reads the broker user's local Claude Code/Codex session logs and OpenCode 
 It needs no account key or network connection,
 and does not return prompt text, full project paths, or log paths to the browser. Projects are
 grouped by working directory and shown by folder name; same-named folders get distinct opaque IDs.
+**Recent sessions** groups deduplicated rows by agent session and project. It shows the latest 50
+sessions in the selected period with their time span, token totals, models, and estimated cost;
+raw provider session IDs remain on the broker. Records without a usable session ID still count in
+overall and project totals but do not appear in that list.
 Counts are historical token records, not provider billing or live quota. Cached input is separate
 from uncached input. Codex reasoning is included within output; OpenCode reasoning is a separate
 counter added to output once. OpenCode's current `message` table is queried on every refresh.

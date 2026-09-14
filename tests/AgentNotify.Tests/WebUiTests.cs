@@ -121,6 +121,7 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
         Assert.Equal(0.000135m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
         Assert.Equal("2026-09-13", body.GetProperty("pricing_as_of").GetString());
+        Assert.Equal("2", body.GetProperty("contract_version").GetString());
         Assert.Single(body.GetProperty("projects").EnumerateArray());
         Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);

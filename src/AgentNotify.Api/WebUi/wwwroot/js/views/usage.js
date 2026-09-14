@@ -49,6 +49,18 @@ function projectsList(projects) {
   }));
 }
 
+function sessionsList(sessions) {
+  return h("div", { class: "usage-projects" }, sessions.map((session) =>
+    h("details", { class: "usage-project" },
+      h("summary", null,
+        h("span", { class: "usage-project-name", text: `${sourceName(session.source)} · ${session.project_name} · ${session.id.slice(-4)}` }),
+        h("span", { class: "usage-project-tokens", text: `${new Date(session.ended_at).toLocaleString()} · ${n(session.counts.total)} tokens` }),
+        h("strong", { text: costText(session.cost) })),
+      h("div", { class: "muted small", style: { padding: "0 14px 10px" },
+        text: `${new Date(session.started_at).toLocaleString()} to ${new Date(session.ended_at).toLocaleString()} · ${n(session.events)} usage records` }),
+      modelsTable(session.models))));
+}
+
 function dailyChart(days) {
   const recent = days.slice(-30);
   const max = Math.max(1, ...recent.map((day) => day.counts.total));
@@ -80,6 +92,7 @@ export default {
     refresh.addEventListener("click", load);
 
     function draw(data) {
+      if (data.contract_version !== "2") throw new Error("The Usage page and broker need to be updated together.");
       const counts = data.totals;
       mount(page,
         pageHead("Usage", "Local token history and estimated cost at published token rates. This is not a bill or subscription usage.",
@@ -108,6 +121,8 @@ export default {
                   h("a", { href: "https://developers.openai.com/api/docs/models", target: "_blank", rel: "noopener noreferrer", text: "OpenAI prices ↗" }),
                   h("a", { href: "https://platform.claude.com/docs/en/about-claude/pricing", target: "_blank", rel: "noopener noreferrer", text: "Claude prices ↗" }),
                   h("a", { href: "https://opencode.ai/docs/go/", target: "_blank", rel: "noopener noreferrer", text: "OpenCode Go prices ↗" }))) })),
+          card({ title: "Recent sessions", description: `${n(data.session_count)} sessions in this period; showing the latest ${n(data.sessions.length)}. Open one for models and estimated cost.`,
+            body: data.sessions.length ? sessionsList(data.sessions) : empty("No session IDs found", "This usage history has no attributable session IDs.", "pulse") }),
           card({ title: "By project", description: "Working-directory projects. Open one to see its models; full paths stay on the broker.", body: projectsList(data.projects) }),
           card({ title: "By model", description: "Up to 30 models, ordered by token volume.", body: modelsTable(data.models) }),
           card({ title: "Recent active days", description: "Local calendar days with recorded usage; up to 30 shown.", body: dailyChart(data.daily) })
