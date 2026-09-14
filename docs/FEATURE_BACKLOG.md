@@ -140,9 +140,9 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ## Product and platform tasks
 
-- Local usage: read-only Claude Code, Codex, and OpenCode token, project, provider, and estimated
-  token-cost summaries are in the WebUI. Add a durable/versioned file index, session views, fork replay
-  attribution, and historical rate schedules before treating the numbers as a spend ledger.
+- Local usage: read-only Claude Code, Codex, and OpenCode token, project, provider, recent-session,
+  and estimated token-cost summaries are in the WebUI. Add a durable/versioned file index, fork
+  replay attribution, and historical rate schedules before treating the numbers as a spend ledger.
 - Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
   endpoint feed separately cached windows for the current and up to 16 named extra agent profiles
   in the WebUI. OpenCode Go has a separate local, per-model published-cap estimate, never a live

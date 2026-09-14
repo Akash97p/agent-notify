@@ -1385,6 +1385,29 @@ quota; the 30-day view is rolling rather than the provider's billing cycle.
   `unavailable`. These checks simulate SSH's forwarded `Host` and `Origin` headers; the owner's
   Windows browser and end-to-end SSH tunnel remain for owner verification.
 
+## Usage recent-session view (`feature/usage-session-view`, 2026-09-14)
+
+- Native macOS .NET SDK 10.0.401 Release solution build with
+  `-p:EnableWindowsTargeting=true` succeeded with 0 warnings and 0 errors. After that build, the
+  full suite passed without rebuilding: 903 tests, 0 failed, 0 skipped. The new fixture verifies
+  session grouping after deduplication, chronological aggregation, opaque IDs, and omission of raw
+  provider session IDs and full project paths. `node --check` and `git diff --check` passed.
+- The documentation site's TypeScript check and 27-page static export passed. The required WSL
+  build, test, and package scripts were attempted but cannot start on this Mac because
+  `/mnt/d/dev/dotnet/dotnet.exe` is absent; Windows installer packaging is unverified. One earlier
+  test run overlapped the Release build and collided on a generated runtime-config file; the clean
+  sequential full-suite run above is the reported result.
+- A self-contained, ad-hoc-signed `osx-x64` broker was installed into the owner's launchd service.
+  The live 30-day Usage response on `127.0.0.1:47821` reported contract version 2, 6,505 usage
+  records, 58 attributable sessions, and the newest 50 session summaries, with no home-directory
+  path in the response. The SSH-forwarded host header still returned the UI and quota API, and the
+  quota report still returned both current provider accounts plus the OpenCode Go estimate. A
+  1440-pixel headless Chrome rendering showed the updated Usage view; this was a browser rendering
+  check, not a human visual review.
+
+Not verified: Windows tray hosting, a human visual review, sessions missing from source records, or
+fork/replay parentage. Session cost remains the same current-rate estimate used elsewhere in Usage.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
