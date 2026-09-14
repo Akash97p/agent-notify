@@ -100,7 +100,9 @@ remain separate work.
 
 The Live quota page is a separate provider/account snapshot, never calculated from the Usage
 ledger. The owner can add up to 16 named Codex/Claude profile directories under their home folder;
-the owner-only config file stores profile IDs, labels, and paths, never copied credentials. The
+the owner-only config file stores profile IDs, editable labels, and paths, never copied credentials.
+Labels for the two built-in current profiles are stored separately so renaming never changes agent
+profile discovery. The
 page's profile-management endpoint returns paths only for the local owner to edit. A Codex child
 process receives its selected `CODEX_HOME`; a Claude probe reads only that profile's
 `.credentials.json` if available. `LiveQuotaService` in Core coalesces simultaneous requests,
@@ -122,6 +124,13 @@ exactly priced models against OpenCode's published per-model dollar caps over ro
 7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
 balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
+
+The Insights Dashboard is a browser-side composition of the existing Overview, Usage, and Live
+quota projections. It keeps their provenance separate: account quota cannot be attributed to
+project token history when the source logs do not expose a reliable account identity. Compact
+quota gauges visualize remaining balance, and Usage keeps dense session/project/model details in
+disclosures. Motion is implemented with embedded CSS, includes no external runtime, and obeys
+`prefers-reduced-motion`.
 
 ### Desktop app
 

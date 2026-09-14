@@ -60,6 +60,7 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `toastDurations` | `object` | see below | Map of type ID → auto-dismiss seconds. `0` means sticky until dismissed/resolved. Backfilled from defaults and normalized. Editable in Settings → Toasts per built-in type (0–86400). |
 | `customNotificationTypes` | `array` | `[]` | User-defined type definitions. See Custom types. Editable in Settings → Custom types. |
 | `quotaAccounts` | `array` | `[]` | Additional named Codex/Claude Code profile directories shown in Live quota. Each entry has an AgentNotify-generated `id`, `provider`, `label`, and absolute `directory` under the user's home folder; no credentials are stored. Add/remove through Live quota, up to 16 extras. |
+| `defaultQuotaAccountLabels` | `object` | `{}` | Optional owner-chosen display labels for the built-in `codex` and `claude_code` profiles. Values are trimmed to 1–60 printable characters; unknown keys and invalid labels are removed. Editable through Live quota → Manage accounts. |
 
 ### Toast duration defaults
 

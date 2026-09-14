@@ -81,6 +81,7 @@
 - [x] Local Usage page: read-only Claude Code, Codex, and OpenCode token summaries by source, provider, project, model, and day, with dated API/Go token-rate estimates; live browser check on macOS
 - [x] Live quota page: Codex app-server and Claude Code account-usage probes with cached five-hour/weekly windows, reset times, stale state, and OpenCode unavailable state; live broker/browser check on macOS
 - [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
+- [x] Compact remaining-balance quota UI, editable names for current/additional agent profiles, simplified Usage disclosures, and animated Insights dashboard
 - [ ] Complete local usage indexing: durable cache, fork replay handling, and historical/versioned pricing; recent-session grouping is implemented
 - [ ] Expand live quota: a stable public Claude API or documented statusline bridge, more verified Go model rates, additional provider-account sources, and Windows tray-hosted verification
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
