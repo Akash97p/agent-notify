@@ -78,6 +78,10 @@ The dated catalog uses published [OpenAI model prices](https://developers.openai
 and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing), plus
 [OpenCode Go token rates](https://opencode.ai/docs/go/); changing rates
 requires a new catalog snapshot.
+The Go catalog currently covers 20 exact fixed-rate model IDs. Published cache-write rates are
+included for MiniMax M2.7/M2.5 and Qwen3.8 Max/Flash and Qwen3.7 Max. Models with context-length
+or time-of-day prices remain unpriced because local records cannot select a verified tier; a
+cache-write record is also unpriced when Go publishes no cache-write rate for that model.
 
 Live quota is fetched when its page is opened or **Check now** is pressed. Codex uses its own
 documented app-server RPC, so AgentNotify does not read Codex credentials. Claude Code uses its

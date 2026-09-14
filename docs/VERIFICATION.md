@@ -1444,6 +1444,39 @@ fork/replay parentage. Session cost remains the same current-rate estimate used 
 Not verified: Windows tray-hosted rendering, installer payload execution, manually renaming the
 owner's real profiles, or a human visual review of the new layouts.
 
+## Expanded OpenCode Go catalog (`feature/opencode-go-pricing`, 2026-09-14)
+
+- Checked the official [OpenCode Go table](https://opencode.ai/docs/go/) on 2026-09-14 for
+  exact model IDs, per-million-token rates, published cache-write prices where present, and
+  monthly dollar caps. The catalog now contains 20 exact fixed-rate IDs. Context-tiered and
+  peak/off-peak entries remain unpriced because the local ledger cannot select their rate.
+- The focused usage tests passed 7/7. A native macOS .NET 10 Release solution build passed with
+  0 warnings and 0 errors. After updating the catalog date assertion, the full suite passed
+  903 tests, 0 failed, 0 skipped. The fixture covers a newly priced model, a published cache-write
+  rate in both Usage and Go quota estimates, and an excluded tiered model. `git diff --check`
+  passed. The WebUI module passed `node --check`.
+- The documentation site's TypeScript check and all 27 static pages passed. The repository's
+  WSL build/test/package scripts were attempted but cannot run on this Mac without
+  `/mnt/d/dev/dotnet/dotnet.exe`. GitHub Actions for `f52a5b3` passed the Windows Release build,
+  all 903 tests, installer/embedded-resource packaging, and the Linux/macOS matrix.
+- A first manual `osx-x64` single-file publish omitted
+  `IncludeNativeLibrariesForSelfExtract=true`. The executable worked alongside its SQLite dylib
+  in the publish directory but failed under launchd when copied alone; the prior broker was
+  immediately restored and confirmed healthy. The corrected publish used the repository release
+  flags for native-library embedding and compression, was ad-hoc signed, and started from a
+  directory containing only that executable. After installation and launchd restart,
+  `agentnotify health` returned `ok` on `127.0.0.1:47821`. The previous executable is backed up
+  at `~/.local/bin/.agentnotifyd-backup-opencode-go-pricing-20260914`.
+- The live 30-day Usage API reported `pricing_as_of: 2026-09-14`; Live quota reported three
+  windows each for the two locally observed Go models. The embedded quota module served the new
+  20-model coverage text, and the page returned HTTP 200 with a forwarded browser-side `Host`
+  port of 47822. A 1440-pixel headless Chrome screenshot rendered the compact quota page and
+  its 20-model coverage line. This was a browser rendering check, not a human visual review.
+
+Not yet verified: Windows tray-hosted Go estimates or provider-reported Go quota. Local Go usage
+on this Mac currently includes only Muse Spark 1.3 Contributor and GLM-5.3, so newly priced models
+need future local usage before they appear as model cards.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
