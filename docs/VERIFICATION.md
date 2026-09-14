@@ -1434,6 +1434,12 @@ fork/replay parentage. Session cost remains the same current-rate estimate used 
   management panel was present with all four local profiles and remains collapsed by default.
   These were browser rendering checks, not an owner visual sign-off. Reduced motion is covered by
   the existing CSS media rule; assistive-technology behavior was not manually tested.
+- GitHub Actions on commit `301ace7` passed the Windows Release build, all 903 tests, Windows
+  packaging, and the Linux/macOS matrix. The preceding color-only merge had one unexplained Windows
+  test-step failure after the same dashboard revision had passed; its anonymous run exposed no TRX
+  detail. CI now writes the TRX to an explicit runner-temporary directory and emits a clear
+  annotation even when `dotnet test` exits before producing that file. The clean rerun required no
+  product-code change.
 
 Not verified: Windows tray-hosted rendering, installer payload execution, manually renaming the
 owner's real profiles, or a human visual review of the new layouts.
