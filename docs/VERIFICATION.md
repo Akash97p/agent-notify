@@ -1394,9 +1394,12 @@ quota; the 30-day view is rolling rather than the provider's billing cycle.
   provider session IDs and full project paths. `node --check` and `git diff --check` passed.
 - The documentation site's TypeScript check and 27-page static export passed. The required WSL
   build, test, and package scripts were attempted but cannot start on this Mac because
-  `/mnt/d/dev/dotnet/dotnet.exe` is absent; Windows installer packaging is unverified. One earlier
+  `/mnt/d/dev/dotnet/dotnet.exe` is absent. GitHub Actions then completed the Windows Release build,
+  all 903 tests, and installer/embedded-resource packaging successfully on commit `e74107d`. The
+  previously failing Windows fixture had placed an unescaped `C:\\...` path in hand-built JSON;
+  serializing that fixture properly fixed the test without changing production parsing. One local
   test run overlapped the Release build and collided on a generated runtime-config file; the clean
-  sequential full-suite run above is the reported result.
+  sequential full-suite run above is the reported local result.
 - A self-contained, ad-hoc-signed `osx-x64` broker was installed into the owner's launchd service.
   The live 30-day Usage response on `127.0.0.1:47821` reported contract version 2, 6,505 usage
   records, 58 attributable sessions, and the newest 50 session summaries, with no home-directory
