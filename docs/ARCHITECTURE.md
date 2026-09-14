@@ -65,12 +65,60 @@ toolchain. It talks only to `/ui/api`, which calls the same Core services the Se
 There is no sign-in, matching the tray app. A middleware guard runs before routing: it refuses
 foreign `Host` headers (DNS rebinding) and requires `X-AgentNotify-UI: 1` plus a same-origin
 `Origin` on every state change, so a page on another site can neither read the interface nor change
-anything through it.
+anything through it. Loopback host names may carry a different browser-side port when an SSH local
+forward targets the broker's listening port; the guard compares a state change's `Origin` to the
+actual `Host` header, including that browser-side port.
 
 Provider editors are driven by `ProviderFormCatalog` (field descriptors), `ProviderFormBuilder`
 (validation and the stored configuration document), and `ProviderFormReader` (non-secret values
 back into a form), all in Core. Relay pairing runs in the broker through `RelayPairingSessions`, so
 the issued installation token never reaches the page. See [WEB_UI.md](WEB_UI.md).
+
+The Usage page is a read-only local-history projection. `LocalUsageService` in Core discovers
+Claude Code and Codex session JSONL and OpenCode's `opencode.db` under the broker user's profile.
+It retains only usage-bearing assistant rows, normalizes non-overlapping token buckets, and caches
+JSONL events by path, size, and mtime for the lifetime of the broker. OpenCode's current `message`
+table is queried afresh in read-only mode on each report, so live database updates are visible;
+the SQL selects only scalar usage fields, never message payloads. It deduplicates Claude
+message/request identities and differences Codex cumulative counters per rollout. OpenCode's
+reasoning counter is separate from output and is added once; Codex reasoning is already included
+in output. The `/ui/api/usage` route returns aggregated counts only;
+it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
+or assert subscription quota. A dated, exact-model price catalog estimates what those token
+records would cost at published standard API rates or OpenCode Go's published quota-equivalent
+token rates, with separate Claude 5-minute and 1-hour cache-write prices. Unknown models and
+OpenCode Go records with unpriced cache writes remain explicitly unpriced. Project grouping uses
+each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
+directory; the page receives
+only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
+the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
+durable indexing, historical rate schedules, and provider-specific billing modifiers
+remain separate work.
+
+The Live quota page is a separate provider/account snapshot, never calculated from the Usage
+ledger. The owner can add up to 16 named Codex/Claude profile directories under their home folder;
+the owner-only config file stores profile IDs, labels, and paths, never copied credentials. The
+page's profile-management endpoint returns paths only for the local owner to edit. A Codex child
+process receives its selected `CODEX_HOME`; a Claude probe reads only that profile's
+`.credentials.json` if available. `LiveQuotaService` in Core coalesces simultaneous requests,
+caches each account for five
+minutes, limits manual rechecks to one per 30 seconds, and retains a clearly marked stale value
+after transient failure only while the credential-file scope is unchanged. Codex is queried
+through its documented `app-server` `account/rateLimits/read` RPC; Codex owns its credentials and
+AgentNotify receives only quota fields. The child process gets the Codex launcher's bin directory
+in its own `PATH` so npm's `/usr/bin/env node` launcher works under launchd. Claude Code's current
+OAuth credential is read without
+modification for a bounded, read-only request to Anthropic's account-usage endpoint; no refresh
+token is redeemed and no response or token is logged. A 429 respects `Retry-After`. The endpoint
+is a first-party implementation dependency without a stable public API guarantee. OpenCode is
+explicitly unavailable because it routes to multiple independent provider accounts. The quota
+endpoint returns only normalized percentages, reset times, optional plan/credit values, source,
+account ID/label, and freshness; it never returns access tokens or account email. Its quota report
+uses `contract_version: "2"`. A separate OpenCode Go estimate sums only local SQLite token rows for
+exactly priced models against OpenCode's published per-model dollar caps over rolling 5-hour,
+7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
+balance; unpriced rows suppress a window percentage. The page triggers on-demand
+checks; there is no background network polling or dependency on internet for the rest of the app.
 
 ### Desktop app
 

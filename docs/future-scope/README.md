@@ -1,6 +1,10 @@
 # Future scope: usage, quota, and routing
 
-Nothing in this folder is implemented or scheduled. These notes record how four capabilities
+The read-only Claude Code, Codex, and OpenCode local usage view now includes project groups and a
+dated API/Go token-rate estimate. A separate live quota view now shows named Codex and Claude Code
+profile windows and a clearly labeled local OpenCode Go per-model estimate. Durable indexing,
+broader provider quota sources, and routing remain unscheduled.
+These notes record how four capabilities
 work, so that when AgentNotify grows past human attention into the cost and capacity of the agents
 it watches, the design starts from known mechanisms instead of a blank page.
 
@@ -10,9 +14,9 @@ source before building on it.
 
 | Capability | What it would measure | Notes |
 | --- | --- | --- |
-| Local usage indexing | Tokens that Claude Code and Codex recorded on this machine, grouped by time, model, project, and session, with estimated cost and cache savings. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
-| Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode), normalized, deduplicated, and priced. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
-| Live quota probing | Account-reported utilization, reset times, and credits fetched from provider APIs or CLI sources, combined into per-provider snapshots and refreshed safely. | [Fetch sources](live-quota-probing/01-fetch-sources.md), [normalization and refresh](live-quota-probing/02-normalization-and-refresh.md); native Windows engine: [provider sources](live-quota-probing/03-windows-provider-sources.md), [normalization and cache](live-quota-probing/04-windows-normalization-and-cache.md) |
+| Local usage indexing | WebUI view: local Claude Code, Codex, and OpenCode tokens by source, provider, project, model, and day, with current published token-rate estimates. Durable index, session grouping, historical pricing, and cache savings remain. | [Log parsing](local-usage-indexing/01-log-parsing.md), [index and cost](local-usage-indexing/02-index-and-cost.md) |
+| Multi-agent usage adapters | Historical usage from each agent's own log or database (Claude Code, Codex, OpenCode) is projected into the Usage view. Richer normalization, fork replay handling, and pricing remain. | [Source adapters](multi-agent-usage-adapters/01-source-adapters.md), [normalization and pricing](multi-agent-usage-adapters/02-normalization-and-pricing.md) |
+| Live quota probing | WebUI view: current and named Codex/Claude profiles, with per-account windows, reset times, optional credits, freshness and unavailable state. OpenCode Go receives a separate local-only per-model estimate. Additional provider sources remain. | [Fetch sources](live-quota-probing/01-fetch-sources.md), [normalization and refresh](live-quota-probing/02-normalization-and-refresh.md); native Windows engine: [provider sources](live-quota-probing/03-windows-provider-sources.md), [normalization and cache](live-quota-probing/04-windows-normalization-and-cache.md) |
 | Local provider routing | Requests routed across providers and models, with protocol translation, policy- and quota-aware target selection, failover, and a proxy-observed usage and cost ledger. | [Routing and translation](local-provider-routing/01-routing-and-translation.md), [failover and usage ledger](local-provider-routing/02-failover-and-usage-ledger.md) |
 
 ## Three records that must stay separate
@@ -48,7 +52,8 @@ the account changes.
 3. Pricing as a separate, versioned estimate layer. Unknown pricing stays unknown; it is never
    treated as free.
 4. Live quota fetchers with explicit credential ownership, account-scoped snapshots, stale-response
-   guards, and rate-limit handling.
+   guards, and rate-limit handling. Named Codex/Claude profiles and a local-only OpenCode Go
+   estimate are implemented; broader sources and a stable Claude integration remain.
 5. A local routing proxy only if routing is actually wanted, with its own ledger correlated to
    log-derived records where possible.
 
@@ -60,11 +65,11 @@ These are directions, not decisions. The standing decisions in
 - **Where it runs.** Each capability would be a broker module in Core behind the same boundaries as
   delivery: SQLite as the source of truth, versioned migrations, credentials encrypted before
   storage, and no network work on the API request path. Reading another agent's logs is local and
-  read-only; live quota probes and a routing proxy are outbound network features, so they stay off
-  until the user enables them.
-- **Where it shows.** The [web interface](../WEB_UI.md) groups its navigation so new areas slot in
-  beside Activity, Delivery, and Configuration: Usage and Quota under a new group, Routing alongside
-  Channels. Its API conventions (session-authenticated `/ui/api`, write-only secrets) carry over.
+  read-only; live quota probes run only when the owner opens or refreshes the Quota page, while a
+  routing proxy remains off until explicitly enabled.
+- **Where it shows.** The [web interface](../WEB_UI.md) now has Usage and Live quota under Insights.
+  Routing can sit alongside Channels. Its local `/ui/api` convention and
+  write-only secrets carry over.
 - **How it meets attention.** Quota and spend thresholds are natural attention requests: "Claude
   weekly limit at 90%, resets Thursday" is an ARC `request.created` with a stable key that updates
   and resolves like any other condition, and routes to the phone through the existing delivery

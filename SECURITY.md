@@ -35,10 +35,36 @@ The token prevents accidental or unsophisticated calls from unrelated local soft
 The web interface at `/ui/` shares the loopback listener and, deliberately, asks for no sign-in: like
 the Windows tray app, it trusts the person using the computer. Anyone who can reach the loopback
 port can use it, which includes other local accounts on a shared machine. It defends against other
-web sites instead: requests naming any host other than the loopback listener are refused (DNS
-rebinding), state changes need a custom header and a same-origin `Origin`, and a strict content
+web sites instead: requests naming any host other than a loopback address are refused (DNS
+rebinding), even when an SSH local forward presents a different browser-side port. State changes
+need a custom header and an `Origin` matching that exact loopback host and port; a strict content
 security policy applies. Stored channel secrets and question nonces are never sent to the page. The
 `/v1` agent API still requires the bearer token. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
+
+The Usage page reads Claude Code and Codex session logs and OpenCode's SQLite message table as
+local, read-only input. The OpenCode query selects usage scalars only, not prompt or response
+payloads. Its endpoint returns aggregate token counts, model identifiers, project folder names
+with opaque IDs, and a
+published-rate cost estimate. It never returns full project paths, log paths, prompt/response text,
+or provider credentials. It does not contact agent providers or billing APIs.
+
+Live quota is a separate on-demand feature. Codex quota is requested through the locally
+installed Codex app-server RPC, which owns its authentication. Claude Code quota uses a bounded
+read-only request to the fixed `https://api.anthropic.com/api/oauth/usage` endpoint with the
+current local OAuth access token. AgentNotify never stores, refreshes, logs, or returns that
+token, disables redirects and ambient proxies, and gives generic failure messages. The response
+is reduced to percentages, reset times, optional plan/credit data, source, and freshness. The
+Claude endpoint is a first-party implementation dependency without a stable public API contract;
+quota failure never affects notifications or local Usage. Cross-origin pages cannot force manual
+refresh because it is a same-origin-header-protected POST.
+
+Additional quota profiles store only a label and agent profile directory in the owner-only
+configuration file. The WebUI accepts absolute directories under the broker user's home folder,
+never passwords or token text. The profile-management page returns these paths to its local owner;
+the quota report still returns no credential paths or account emails. Codex credentials stay with
+Codex in the selected `CODEX_HOME`. The Claude probe reads the selected agent-owned credential
+file without copying it into AgentNotify storage. OpenCode Go estimates read only local usage
+scalars and are labeled as incomplete local observations, never provider-confirmed balance.
 
 ## External-channel requirements
 

@@ -11,6 +11,8 @@ using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
+using AgentNotify.Core.Usage;
+using AgentNotify.Core.Quota;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -49,6 +51,9 @@ public sealed class WebUiTests : IAsyncLifetime
             Providers = profiles,
             Routes = new DeliveryRouteService(delivery),
             Dispatcher = _dispatcher,
+            Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")],
+                Path.Combine(_dir, "usage-opencode.db")),
+            Quota = new LiveQuotaService([new WebQuotaProbe()]),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
@@ -99,6 +104,112 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UsagePageReportsLocalTokensWithoutExposingLogContents()
+    {
+        var dir = Path.Combine(_dir, "usage-claude");
+        Directory.CreateDirectory(dir);
+        var marker = "private-prompt-that-must-not-return";
+        File.WriteAllText(Path.Combine(dir, "sample.jsonl"),
+            $"{{\"type\":\"assistant\",\"timestamp\":\"{DateTimeOffset.UtcNow:O}\",\"cwd\":\"{_dir}\",\"message\":{{\"id\":\"m1\",\"model\":\"claude-opus-5\",\"content\":\"{marker}\",\"usage\":{{\"input_tokens\":12,\"output_tokens\":3}}}}}}\n");
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/usage?days=7");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(marker, text);
+        Assert.DoesNotContain(_dir, text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
+        Assert.Equal(0.000135m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
+        Assert.Equal("2026-09-13", body.GetProperty("pricing_as_of").GetString());
+        Assert.Single(body.GetProperty("projects").EnumerateArray());
+        Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
+    }
+
+    [Fact]
+    public async Task UsagePageIncludesOpenCodeProviderAndProjectWithoutMessageText()
+    {
+        var path = Path.Combine(_dir, "usage-opencode.db");
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT);
+                CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+                INSERT INTO session VALUES ('s1', $project);
+                INSERT INTO message VALUES ('m1', 's1', $time, $data);
+                """;
+            command.Parameters.AddWithValue("$project", Path.Combine(_dir, "opencode-project"));
+            command.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            command.Parameters.AddWithValue("$data", JsonSerializer.Serialize(new
+            {
+                role = "assistant", providerID = "openai", modelID = "gpt-5.6-sol",
+                content = "private-opencode-response", tokens = new { input = 10, output = 2, reasoning = 1 }
+            }));
+            command.ExecuteNonQuery();
+        }
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/usage?days=7");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("private-opencode-response", text);
+        Assert.DoesNotContain(_dir, text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal("opencode", body.GetProperty("sources")[0].GetProperty("source").GetString());
+        Assert.Equal("openai", body.GetProperty("models")[0].GetProperty("provider").GetString());
+        Assert.Equal("opencode-project", body.GetProperty("projects")[0].GetProperty("name").GetString());
+        Assert.Equal(0.0001m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
+    }
+
+    [Fact]
+    public async Task QuotaPageReturnsAccountWindowsWithoutSecretsAndRequiresUiHeaderToRefresh()
+    {
+        using var browser = Page();
+        var response = await browser.GetAsync("/ui/api/quota");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("fixture-secret", text);
+        var body = JsonDocument.Parse(text).RootElement;
+        Assert.Equal("codex", body.GetProperty("providers")[0].GetProperty("provider").GetString());
+        Assert.Equal(24, body.GetProperty("providers")[0].GetProperty("windows")[0].GetProperty("used_percent").GetDouble());
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsync("/ui/api/quota/refresh", JsonContent.Create(new { }))).StatusCode);
+        using var otherPage = Browser().Client;
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PostAsync("/ui/api/quota/refresh", JsonContent.Create(new { }))).StatusCode);
+    }
+
+    [Fact]
+    public async Task AdditionalQuotaAccountCanBeAddedListedAndRemovedWithoutCredentials()
+    {
+        using var browser = Page();
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".codex-agentnotify-test-" + Guid.NewGuid().ToString("N"));
+        var added = await browser.PostAsJsonAsync("/ui/api/quota/accounts",
+            new { provider = "codex", label = "Second", directory });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var id = (await added.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        Assert.StartsWith("q_", id);
+        var listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(3, listed.GetProperty("accounts").GetArrayLength());
+        Assert.Equal("Second", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
+        Assert.Single(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PostAsJsonAsync("/ui/api/quota/accounts",
+            new { provider = "codex", label = "Duplicate", directory })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/" + id)).StatusCode);
+        Assert.Empty(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+    }
+
+    private sealed class WebQuotaProbe : ILiveQuotaProbe
+    {
+        public string Provider => "codex";
+        public string ScopeKey() => "fixture";
+        public Task<LiveQuotaSnapshot> FetchAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+            Task.FromResult(new LiveQuotaSnapshot("codex", "ok", "fixture", now, "pro", null,
+                [new LiveQuotaWindow("session", "5-hour", 24, 76, 300, now.AddHours(5))], null));
+    }
+
+    [Fact]
     public async Task NeedsNoSignInOrToken()
     {
         var (browser, _) = Browser();
@@ -121,6 +232,36 @@ public sealed class WebUiTests : IAsyncLifetime
         using var page = new HttpRequestMessage(HttpMethod.Get, "/ui/");
         page.Headers.Host = $"attacker.example:{_port}";
         Assert.Equal(HttpStatusCode.MisdirectedRequest, (await browser.SendAsync(page)).StatusCode);
+    }
+
+    [Fact]
+    public async Task SshForwardedLoopbackPortServesPageAndAcceptsOnlyItsOwnOrigin()
+    {
+        using var browser = Page();
+        const int forwardedPort = 47822;
+        var forwardedHost = $"127.0.0.1:{forwardedPort}";
+
+        using var page = new HttpRequestMessage(HttpMethod.Get, "/ui/");
+        page.Headers.Host = forwardedHost;
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(page)).StatusCode);
+
+        using var read = new HttpRequestMessage(HttpMethod.Get, "/ui/api/overview");
+        read.Headers.Host = forwardedHost;
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(read)).StatusCode);
+
+        using var wrongOrigin = new HttpRequestMessage(HttpMethod.Put, "/ui/api/settings")
+        { Content = JsonContent.Create(new { pause_notifications = true }) };
+        wrongOrigin.Headers.Host = forwardedHost;
+        wrongOrigin.Headers.Add("Origin", Base);
+        Assert.Equal(HttpStatusCode.Forbidden, (await browser.SendAsync(wrongOrigin)).StatusCode);
+        Assert.False(_config.PauseNotifications);
+
+        using var sameOrigin = new HttpRequestMessage(HttpMethod.Put, "/ui/api/settings")
+        { Content = JsonContent.Create(new { pause_notifications = true }) };
+        sameOrigin.Headers.Host = forwardedHost;
+        sameOrigin.Headers.Add("Origin", $"http://{forwardedHost}");
+        Assert.Equal(HttpStatusCode.OK, (await browser.SendAsync(sameOrigin)).StatusCode);
+        Assert.True(_config.PauseNotifications);
     }
 
     [Fact]

@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   basePath,
   images: { unoptimized: true },
   reactStrictMode: true,
+  experimental: {
+    cpus: 1,
+    staticGenerationMaxConcurrency: 1,
+    staticGenerationRetryCount: 3,
+    useTypeScriptCli: true,
+  },
 };
 
 export default nextConfig;

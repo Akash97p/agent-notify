@@ -1203,12 +1203,195 @@ the required header and same-origin `Origin` on changes, the CSP, and write-only
   Mac and confirmed it opens straight to the dashboard and works. This is the first time a person
   has used the web interface; the Windows tray app serving it is still unverified.
 
+## Local Usage WebUI (`feature/local-usage-webui`, 2026-09-13)
+
+Automated checks on the owner's Intel Mac with .NET SDK 10.0.401:
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true --no-restore`
+  succeeded with 0 warnings and 0 errors, including the Windows-targeted projects.
+- The full test suite passed: 888 passed, 0 failed, 0 skipped. The new fixture tests cover
+  malformed Claude lines, duplicate Claude assistant responses, cumulative and unchanged Codex
+  samples, mirrored subagent exclusion, counter normalization, changed-file invalidation, and
+  file deletion. A WebUI integration test confirms the aggregate route omits prompt text and log
+  paths.
+- `node --check` passed for the Usage page and application shell; `git diff --check` passed.
+- The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` were attempted
+  but could not start on macOS because `/mnt/d/dev/dotnet/dotnet.exe` is absent. Native .NET build
+  and tests ran instead. Windows installer packaging remains unverified for this branch.
+
+Live local checks:
+
+- A scratch broker on `127.0.0.1:47877` read 16 Claude Code/Codex log files with no skipped
+  files and returned nonempty 30-day source, model, and daily aggregates. A headless Chrome
+  screenshot at 1440 px showed the Usage page and its tables/charts rendering with real data.
+  This was a browser rendering check, not a human visual review.
+- A self-contained `osx-x64` broker was published and ad-hoc signed; `codesign --verify` and
+  `agentnotifyd --version` passed. The prior installed broker was backed up to
+  `~/.local/bin/.agentnotifyd-backup-local-usage-20260913`, and launchd restarted the updated
+  broker. On the usual `127.0.0.1:47821` listener, `/ui/api/usage?days=30` returned HTTP 200
+  with 16 files and no skips, `/ui/api/overview` returned HTTP 200, and unauthenticated
+  `/v1/notifications` still returned HTTP 401.
+
+Not verified: a Windows tray-hosted Usage page, Windows installer payload, a human visual check
+of this new page, or exact agreement with provider invoices. The in-memory file cache is rebuilt
+on broker restart; advanced fork/replay attribution, OpenCode, and pricing remain work.
+
+## API-equivalent cost and project usage (`feature/usage-api-cost-projects`, 2026-09-13)
+
+- The native macOS .NET SDK 10.0.401 full Release build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 889 tests, 0 failed,
+  0 skipped. Fixture checks cover exact-rate arithmetic, separate Claude 1-hour cache writes,
+  unknown-model cost coverage, two same-named but distinct working-directory projects, opaque
+  project IDs, and omission of full paths and prompt text from the WebUI response.
+- `node --check` passed for the edited Usage module. A self-contained `osx-x64` broker publish
+  succeeded. The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh`
+  could not start on this Mac because the Windows SDK path `/mnt/d/dev/dotnet/dotnet.exe` is absent;
+  Windows installer packaging is unverified.
+- A scratch broker on `127.0.0.1:47878` read 16 local Claude Code/Codex logs, returned 30 project
+  groups with no unpriced events in the 30-day view, and did not return working-directory paths.
+  A headless Chrome screenshot at 1440 px showed the new cost tile, source costs, dated pricing
+  basis, and project rows. This was a browser rendering check, not a human visual review.
+
+Not verified: exact agreement with either provider's bill or subscription allowance, historical
+rate changes, long-context/priority/server-tool modifiers, Windows tray hosting, or installer
+payload. The price catalog is an explicitly dated counterfactual standard-API estimate.
+
+## OpenCode local Usage adapter (`feature/usage-opencode`, 2026-09-13)
+
+- The native macOS .NET SDK 10.0.401 full Release build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 891 tests, 0 failed,
+  0 skipped. New fixtures cover read-only OpenCode SQLite assistant-message extraction, malformed
+  and user row exclusion, date filtering, separate reasoning normalization, provider/model price
+  selection, project path and message-text omission, live DB refresh, and the WebUI endpoint.
+- `node --check` passed for the edited Usage module and `git diff --check` passed. A self-contained
+  `osx-x64` broker publish succeeded with `IncludeNativeLibrariesForSelfExtract=true`. The first
+  publish omitted that flag and failed when installed without its sibling SQLite dylib; the
+  corrected standalone binary was tested from `~/.local/bin` before installation. The required
+  WSL `scripts/build.sh`, `scripts/test.sh`, and
+  `scripts/package.sh` were attempted but cannot start on this Mac because their configured
+  `/mnt/d/dev/dotnet/dotnet.exe` is absent. Windows installer packaging remains unverified.
+- A scratch published broker on `127.0.0.1:47878` read 17 local usage stores with 0 skipped,
+  including the owner's live OpenCode database. Its 30-day response included Claude Code, Codex,
+  and OpenCode, 34 working-directory project groups, and explicitly unpriced OpenCode records.
+  The response omitted full home paths; `/ui/api/overview` returned 200 and the bearer-protected
+  `/v1/notifications` returned 401 without a token. Headless Chrome screenshots at 1440 and 500
+  CSS pixels showed the Usage view rendering on desktop and narrow layouts. A 390-pixel Chrome
+  screenshot was clipped by headless Chrome's 500-CSS-pixel minimum viewport, so it was not used
+  as a layout verdict. These are browser rendering checks, not human visual review.
+- The corrected broker was ad-hoc signed and installed on the owner's usual launchd service,
+  with the previous binary backed up at
+  `~/.local/bin/.agentnotifyd-backup-usage-opencode-20260913`. On `127.0.0.1:47821`, the 30-day
+  Usage API returned all three sources and 34 project groups; overview returned 200 and the agent
+  API returned 401 without a bearer token. The response omitted full home paths.
+
+Not verified: reconciliation with OpenCode's account charges or quota, prices for models without
+an exact published rate, historical prices, a physical-phone viewport, Windows tray hosting, or
+the Windows installer payload. OpenCode Go estimates use published quota-equivalent token rates,
+not additional subscription spend.
+
+## Usage unpriced-banner removal (`fix/usage-unpriced-banner`, 2026-09-13)
+
+The top-of-page unpriced-model warning was removed. Source, project, and model cost labels still
+show `+ unpriced`, and the total cost tile still says it covers priced records only. Native macOS
+.NET 10 Release solution build succeeded with 0 warnings and 0 errors; all 891 tests passed.
+`node --check` and `git diff --check` passed. A self-contained `osx-x64` broker publish with
+embedded native libraries succeeded. The required WSL build/test/package scripts were attempted
+but could not start because `/mnt/d/dev/dotnet/dotnet.exe` is absent on this Mac. Windows installer
+packaging and a human browser visual check for this edit remain unverified.
+
+## Live quota WebUI (`feature/live-quota-webui`, 2026-09-13)
+
+- Native macOS .NET SDK 10.0.401 Release solution build, including Windows cross-targeted
+  projects, succeeded with 0 warnings and 0 errors. The full suite passed: 896 tests, 0 failed,
+  0 skipped. New fixtures cover Codex multi-bucket windows and credits, Claude missing/scoped
+  windows, five-minute cache and 30-second manual-refresh gate, stale-on-failure behavior,
+  credential-scope invalidation, fixed-endpoint Claude request and token omission, and the WebUI
+  quota route/refresh header guard.
+- `node --check` passed for the app shell and Quota view; `git diff --check` passed. The required
+  WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` were attempted but could not
+  start on this Mac because `/mnt/d/dev/dotnet/dotnet.exe` is absent. Windows installer packaging
+  and Windows tray-hosted quota probing remain unverified.
+- A self-contained `osx-x64` broker with native SQLite embedded was published. An isolated
+  scratch broker on `127.0.0.1:47878` returned current Codex app-server five-hour/seven-day
+  windows and Claude Code account five-hour/seven-day windows, plus an explicit unavailable
+  OpenCode state. No access token or bearer header appeared in the JSON response. Its embedded
+  Usage JavaScript no longer contained the unpriced-model banner. Headless Chrome screenshots
+  at 1440 and 500 CSS pixels showed the Quota page and three provider cards rendering. These
+  are browser rendering checks, not a human visual review.
+- The initial installed binary exposed a launchd-only Codex failure: the npm Codex launcher uses
+  `/usr/bin/env node`, while launchd supplied a minimal `PATH`. Reproducing that minimal `PATH`
+  against a scratch broker returned Codex unavailable; after adding the launcher's bin directory
+  to the child process environment, the same restricted-path scratch check returned both Codex
+  and Claude windows. The corrected signed standalone binary was installed with the prior broker
+  backed up at `~/.local/bin/.agentnotifyd-backup-live-quota-20260913`. On the normal
+  `127.0.0.1:47821` listener, `/ui/api/quota` returned Codex and Claude `ok` with two windows
+  each and OpenCode `unavailable`; the Usage script lacked the removed banner, overview returned
+  200, and unauthenticated `/v1/notifications` returned 401.
+
+Not verified: exact agreement with Codex or Claude account dashboards after subsequent activity,
+stability of Anthropic's undocumented first-party OAuth usage endpoint, Windows CLI discovery,
+Windows installer payload, or a human visual check from the owner's Windows browser.
+
+## Multiple quota accounts and OpenCode Go estimate (`feature/multi-account-quota`, 2026-09-14)
+
+- Native macOS .NET SDK 10.0.401 Release solution build with
+  `-p:EnableWindowsTargeting=true` succeeded with 0 warnings and 0 errors. The full suite passed:
+  902 tests, 0 failed, 0 skipped. New checks cover named-account cache isolation and removal,
+  profile validation and startup normalization, persisted WebUI add/remove operations, per-model
+  OpenCode Go cap arithmetic, and unknown estimates when a published rate is incomplete.
+- `node --check` passed for the Quota view and `git diff --check` passed. The documentation site's
+  TypeScript check and 27-page static export passed locally. Next.js 16.3.3 intermittently lost
+  request context during cold static export (upstream issue 98200), so the site is pinned to
+  Next.js 16.2.12 with its supported TypeScript CLI mode and one static worker. Cold builds also
+  failed on this Mac's Node 22; a cold Node 24.21.0 export passed, and the Pages workflow runs Node
+  24. The local build script uses that Node version when its host Node is older.
+- A self-contained `osx-x64` broker with embedded native libraries was published, ad-hoc signed,
+  and installed into the owner's launchd service. On `127.0.0.1:47821`, the quota response used
+  contract version 2, returned two live windows each for the current Codex and Claude Code
+  profiles, and returned local five-hour, seven-day, and rolling 30-day estimates for the owner's
+  two observed OpenCode Go models. The response contained no access token, bearer header, or
+  credential-file content. A 1440-pixel headless Chrome screenshot showed the account editor,
+  named profile cards, and Go estimate. This was a browser rendering check, not a human visual
+  review.
+
+The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` cannot start on
+this Mac because `/mnt/d/dev/dotnet/dotnet.exe` is absent; Windows installer packaging is therefore
+unverified. Also unverified are actual second-profile probes using the owner's credentials,
+Windows tray hosting, exact provider-dashboard agreement, and Claude profiles whose macOS login is
+stored only in Keychain rather than the selected profile's `.credentials.json`. OpenCode Go values
+are local token-based estimates against published per-model caps, not provider-reported remaining
+quota; the 30-day view is rolling rather than the provider's billing cycle.
+
+## WebUI over an SSH forward with a different local port (`fix/webui-forwarded-port`, 2026-09-13)
+
+- Reproduced the owner's `421` with `Host: 127.0.0.1:47822` against the Mac broker listening on
+  `127.0.0.1:47821`. The original guard required the `Host` port to equal the listener port, which
+  cannot hold when an SSH local forward uses a different browser-side port. A separate SSH command
+  targeting Mac port 47822 would fail to connect because the broker does not listen there.
+- The guard now accepts only loopback host names with an explicit port and compares state-changing
+  requests' `Origin` to that exact `Host`, including its forwarded port. Foreign host names still
+  return 421. A WebUI integration test covers page and API reads on the forwarded host, a successful
+  same-origin write, and refusal of a write from the broker-port origin.
+- Native macOS .NET 10 Release solution build passed with 0 warnings/errors; the full suite passed
+  897 tests, 0 failed, 0 skipped. The repository's WSL `scripts/build.sh` and `scripts/test.sh` were
+  attempted but cannot run on this Mac without `/mnt/d/dev/dotnet/dotnet.exe`. Windows installer
+  packaging was not needed for this API guard change and was not run.
+- A self-contained `osx-x64` broker publish succeeded, was ad-hoc signed and verified, and replaced
+  the installed launchd broker. Its predecessor is backed up at
+  `~/.local/bin/.agentnotifyd-backup-forwarded-port-20260913`. After restart, requests to the live
+  `127.0.0.1:47821` listener carrying `Host: 127.0.0.1:47822` returned 200 for `/ui/`,
+  `/ui/api/quota`, and a same-origin quota-refresh POST. A wrong-port `Origin` returned 403 and a
+  foreign `Host` returned 421. The quota response reported Codex and Claude Code `ok` and OpenCode
+  `unavailable`. These checks simulate SSH's forwarded `Host` and `Origin` headers; the owner's
+  Windows browser and end-to-end SSH tunnel remain for owner verification.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
 
 - The human WPF checks listed earlier in this file, for the settings theme and the
   built-in tones. No visual surface has been confirmed by a person.
+- A human visual check of the new Usage page, including a narrow browser window.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,

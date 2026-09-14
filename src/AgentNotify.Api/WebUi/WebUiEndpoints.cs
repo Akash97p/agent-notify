@@ -13,6 +13,7 @@ using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
+using AgentNotify.Core.Usage;
 using AgentNotify.Protocol;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -65,12 +66,12 @@ public static class WebUiEndpoints
     public static string Url(int port) => $"http://127.0.0.1:{port}{BasePath}/";
 
     /// <summary>Runs the web UI's host and cross-site checks. Returns false when it has already responded.</summary>
-    internal static async Task<bool> Guard(HttpContext context, WebUiOptions options, int port)
+    internal static async Task<bool> Guard(HttpContext context)
     {
         var request = context.Request;
         var response = context.Response;
 
-        if (!IsLoopbackHost(request.Host, port))
+        if (!IsLoopbackHost(request.Host))
         {
             response.StatusCode = StatusCodes.Status421MisdirectedRequest;
             await response.WriteAsJsonAsync(new { error = "This interface is only served to the local machine address." }, JsonOptions);
@@ -97,7 +98,7 @@ public static class WebUiEndpoints
         {
             var origin = request.Headers.Origin.ToString();
             if (request.Headers[CsrfHeader] != "1" ||
-                origin.Length > 0 && !IsLoopbackOrigin(origin, port))
+                origin.Length > 0 && !IsLoopbackOrigin(origin, request.Host))
             {
                 response.StatusCode = StatusCodes.Status403Forbidden;
                 await response.WriteAsJsonAsync(new { error = "Cross-site request refused." }, JsonOptions);
@@ -109,18 +110,20 @@ public static class WebUiEndpoints
         return true;
     }
 
-    internal static bool IsLoopbackHost(HostString host, int port)
+    internal static bool IsLoopbackHost(HostString host)
     {
-        if (!host.HasValue || host.Port != port) return false;
+        // An SSH local forward keeps the browser's local port in Host, which need not match
+        // the broker's listening port. The listener itself remains bound to loopback.
+        if (!host.HasValue || host.Port is not > 0) return false;
         return host.Host is "127.0.0.1" or "localhost" or "[::1]";
     }
 
-    private static bool IsLoopbackOrigin(string origin, int port) =>
+    private static bool IsLoopbackOrigin(string origin, HostString host) =>
         Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
         uri.Scheme == Uri.UriSchemeHttp &&
-        uri.Port == port &&
-        uri.Host is "127.0.0.1" or "localhost" or "[::1]" &&
-        uri.AbsolutePath == "/";
+        string.Equals(uri.Authority, host.Value, StringComparison.OrdinalIgnoreCase) &&
+        uri.UserInfo.Length == 0 && uri.AbsolutePath == "/" &&
+        uri.Query.Length == 0 && uri.Fragment.Length == 0;
 
     private static void ApplySecurityHeaders(HttpResponse response, PathString path)
     {
@@ -152,6 +155,10 @@ public static class WebUiEndpoints
         var pairings = new RelayPairingSessions();
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
+        var usage = options.Usage ?? new LocalUsageService();
+        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
+            accounts: () => config.QuotaAccounts.ToArray(), usage: usage);
+        var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
         // ---- overview ----------------------------------------------------------------------
@@ -186,6 +193,70 @@ public static class WebUiEndpoints
                 },
                 delivery = DeliveryJson(delivery)
             }, JsonOptions);
+        });
+
+        // Local agent logs are read-only inputs. This route never accepts a filesystem path.
+        app.MapGet($"{BasePath}/api/usage", async (HttpContext http, CancellationToken ct) =>
+        {
+            var requested = http.Request.Query["days"].ToString();
+            var days = requested switch { "7" => 7, "30" or "" => 30, "all" => 0, _ => -1 };
+            if (days < 0) return Error("Choose 7 days, 30 days, or all history.");
+            var report = await usage.GetReportAsync(days, ct);
+            return Results.Json(report, JsonOptions);
+        });
+
+        // Provider/account snapshots are separate from local token history. Manual refresh is
+        // a same-origin POST so unrelated pages cannot trigger credential-backed probes.
+        app.MapGet($"{BasePath}/api/quota", async (CancellationToken ct) =>
+            Results.Json(await quota.GetReportAsync(cancellationToken: ct), JsonOptions));
+        app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
+            Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
+
+        app.MapGet($"{BasePath}/api/quota/accounts", () => Results.Json(new
+        {
+            accounts = new[] { QuotaAccountDefinition.Default("codex"), QuotaAccountDefinition.Default("claude_code") }
+                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true })
+                .Concat(config.QuotaAccounts.Select(account => new
+                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false })).ToArray()
+        }, JsonOptions));
+
+        app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
+        {
+            var body = await ReadAsync<QuotaAccountBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                QuotaAccountDefinition account;
+                lock (quotaAccountsGate)
+                {
+                    if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
+                    account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
+                        config.QuotaAccounts.Concat([QuotaAccountDefinition.Default("codex"),
+                            QuotaAccountDefinition.Default("claude_code")]));
+                    var previous = config.QuotaAccounts;
+                    config.QuotaAccounts = [.. previous, account];
+                    try { options.ConfigStore.Save(config); }
+                    catch { config.QuotaAccounts = previous; throw; }
+                }
+                Notify(options, config, false, logger);
+                return Results.Json(account, JsonOptions, statusCode: StatusCodes.Status201Created);
+            }
+            catch (ArgumentException error) { return Error(error.Message); }
+        }));
+
+        app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
+        {
+            lock (quotaAccountsGate)
+            {
+                var previous = config.QuotaAccounts;
+                var updated = previous.Where(account => account.Id != id).ToList();
+                if (updated.Count == previous.Count) return Error("That additional account was not found.", StatusCodes.Status404NotFound);
+                config.QuotaAccounts = updated;
+                try { options.ConfigStore.Save(config); }
+                catch { config.QuotaAccounts = previous; throw; }
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { deleted = id }, JsonOptions);
         });
 
         // ---- settings ----------------------------------------------------------------------
@@ -799,6 +870,13 @@ public static class WebUiEndpoints
     }
 
     // ---- request bodies --------------------------------------------------------------------
+
+    private sealed class QuotaAccountBody
+    {
+        public string? Provider { get; set; }
+        public string? Label { get; set; }
+        public string? Directory { get; set; }
+    }
 
     private sealed class SettingsBody
     {

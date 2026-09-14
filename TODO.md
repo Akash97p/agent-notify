@@ -78,6 +78,11 @@
 - [x] Green Linux/macOS CI with self-contained CLI/broker execution on both hosted runners
 - [ ] Homebrew tap and Winget manifest
 - [x] Cross-platform web interface served by the broker at `/ui/` (`agentnotify ui`), covering Settings and Notification Center — no sign-in; owner-verified on macOS
+- [x] Local Usage page: read-only Claude Code, Codex, and OpenCode token summaries by source, provider, project, model, and day, with dated API/Go token-rate estimates; live browser check on macOS
+- [x] Live quota page: Codex app-server and Claude Code account-usage probes with cached five-hour/weekly windows, reset times, stale state, and OpenCode unavailable state; live broker/browser check on macOS
+- [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
+- [ ] Complete local usage indexing: durable cache, session attribution, fork replay handling, and historical/versioned pricing
+- [ ] Expand live quota: a stable public Claude API or documented statusline bridge, more verified Go model rates, additional provider-account sources, and Windows tray-hosted verification
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app
 - [ ] Native macOS menu-bar and Linux tray clients
@@ -86,7 +91,7 @@
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 884 passed, 0 failed, 0 skipped
+- [x] Automated tests: 902 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification
@@ -122,7 +127,7 @@
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
 
-Longer-range capabilities — local usage indexing, live quota probing, and provider routing — are
-recorded, not scheduled, in [docs/future-scope](docs/future-scope/README.md).
+The first local usage and live quota views are implemented; remaining usage/quota work and provider
+routing are recorded in [docs/future-scope](docs/future-scope/README.md).
 
 The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. The constraints the implementation is held to live in `docs/ARCHITECTURE.md`, and what has actually been verified lives in `docs/VERIFICATION.md`.

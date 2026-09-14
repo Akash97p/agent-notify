@@ -16,9 +16,11 @@ The replay planner relates child rollouts to parents and removes replayed usage 
 
 ## OpenCode SQLite adapter
 
-`opencode/loader.rs` opens `opencode.db` (or selected `opencode-*.db`) under `${OPENCODE_DATA_DIR}` or `${XDG_DATA_HOME:-~/.local/share}/opencode`. It reads message tables, including the newer `session_message` shape, and only assistant messages for that shape. Legacy `storage/message/<session>/<message>.json` is a fallback: DB message IDs win and duplicate JSON files are skipped before reading. Session aggregate tables can fill missing session reports, but are not used for filtered periods because cumulative aggregates cannot be safely sliced by date.
+The implemented `LocalUsageService` opens `opencode.db` read-only under `${OPENCODE_DATA_DIR}` or `${XDG_DATA_HOME:-~/.local/share}/opencode`. It reads the current `message` table's assistant rows and joins `session.directory` for project grouping. The SQL extracts only usage scalars, so prompt and response payloads do not cross into the broker's report path. It queries the live database on each refresh, and never uses cumulative session aggregates for a date-filtered report.
 
-`opencode/parser.rs` maps `tokens.input`, `tokens.output`, `tokens.cache.read`, `tokens.cache.write`, and informative `tokens.reasoning` into the common usage record. It carries `modelID`, `providerID`, session/message IDs, creation time and optional stored `cost`. The parser uses lenient field decoding so one unexpected field type does not discard every other valid field in the row.
+It maps `tokens.input`, `tokens.output`, `tokens.cache.read`, and `tokens.cache.write` into the common record. OpenCode's separate `tokens.reasoning` is added to billed output once and retained as an informative counter. `modelID` and `providerID` stay distinct so similarly named models from different providers cannot share a price. Malformed JSON and non-assistant rows are skipped. Stored `cost` is not used: the WebUI explicitly calculates a dated token-rate estimate.
+
+The proposed `session_message` and legacy JSON fallback paths remain future work if the installed OpenCode schema changes; the current pre-release implementation uses only the observed `message` shape rather than maintaining multiple compatibility paths.
 
 ## Extending the design
 

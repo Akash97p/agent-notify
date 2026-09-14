@@ -59,6 +59,7 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `maxMetadataBytes` | `int` | `8192` | Serialized metadata map size cap. When `<= 0` reset to `8192`. Not editable in Settings. Validation uses `JsonSerializer.SerializeToUtf8Bytes(metadata, Json.Options)`. |
 | `toastDurations` | `object` | see below | Map of type ID → auto-dismiss seconds. `0` means sticky until dismissed/resolved. Backfilled from defaults and normalized. Editable in Settings → Toasts per built-in type (0–86400). |
 | `customNotificationTypes` | `array` | `[]` | User-defined type definitions. See Custom types. Editable in Settings → Custom types. |
+| `quotaAccounts` | `array` | `[]` | Additional named Codex/Claude Code profile directories shown in Live quota. Each entry has an AgentNotify-generated `id`, `provider`, `label`, and absolute `directory` under the user's home folder; no credentials are stored. Add/remove through Live quota, up to 16 extras. |
 
 ### Toast duration defaults
 
