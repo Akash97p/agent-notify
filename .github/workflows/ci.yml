@@ -25,10 +25,11 @@ jobs:
       - name: Test
         shell: pwsh
         run: |
-          dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release --no-build --no-restore --logger "trx;LogFileName=test-results.trx"
+          $resultDirectory = Join-Path $env:RUNNER_TEMP "agentnotify-test-results"
+          dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj --configuration Release --no-build --no-restore --results-directory $resultDirectory --logger "trx;LogFileName=test-results.trx"
           $testExitCode = $LASTEXITCODE
           if ($testExitCode -ne 0) {
-            $resultPath = Join-Path $env:GITHUB_WORKSPACE "tests/AgentNotify.Tests/TestResults/test-results.trx"
+            $resultPath = Join-Path $resultDirectory "test-results.trx"
             if (Test-Path $resultPath) {
               [xml]$results = Get-Content -Raw $resultPath
               $failed = Select-Xml -Xml $results -XPath "//*[local-name()='UnitTestResult' and @outcome='Failed']"
@@ -39,6 +40,8 @@ jobs:
                 $detail = $detail -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
                 Write-Host "::error title=Failed test: $name::$detail"
               }
+            } else {
+              Write-Host "::error title=Test results unavailable::dotnet test exited with code $testExitCode before writing its TRX result."
             }
           }
           exit $testExitCode
