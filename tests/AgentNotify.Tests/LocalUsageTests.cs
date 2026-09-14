@@ -10,6 +10,41 @@ public sealed class LocalUsageTests : IDisposable
     private static string Line(object value) => JsonSerializer.Serialize(value);
 
     [Fact]
+    public async Task SessionsGroupDeduplicatedRowsAndHideProviderSessionIds()
+    {
+        var root = Path.Combine(_root, "claude");
+        var project = Path.Combine(_root, "work", "session-project");
+        Directory.CreateDirectory(root);
+        var now = DateTimeOffset.UtcNow;
+        string row(string session, string id, DateTimeOffset at, int input) => Line(new
+        {
+            type = "assistant", timestamp = at, sessionId = session, cwd = project,
+            requestId = id, message = new { id, model = "claude-opus-5", usage = new { input_tokens = input } }
+        });
+        const string first = "private-provider-session-first";
+        const string second = "private-provider-session-second";
+        var oldest = row(first, "m1", now.AddHours(-2), 10);
+        File.WriteAllLines(Path.Combine(root, "one.jsonl"),
+            [oldest, oldest, row(first, "m2", now.AddHours(-1), 5), row(second, "m3", now, 7)]);
+
+        var report = await new LocalUsageService([root], [], "").GetReportAsync(7);
+
+        Assert.Equal("2", report.ContractVersion);
+        Assert.Equal(3, report.Events);
+        Assert.Equal(2, report.SessionCount);
+        Assert.Equal(2, report.Sessions.Count);
+        Assert.Equal(7, report.Sessions[0].Counts.Total);
+        Assert.Equal(15, report.Sessions[1].Counts.Total);
+        Assert.Equal(2, report.Sessions[1].Events);
+        Assert.Equal("session-project", report.Sessions[1].ProjectName);
+        Assert.StartsWith("s_", report.Sessions[1].Id);
+        var json = JsonSerializer.Serialize(report);
+        Assert.DoesNotContain(first, json);
+        Assert.DoesNotContain(second, json);
+        Assert.DoesNotContain(project, json);
+    }
+
+    [Fact]
     public async Task OpenCodeGoEstimateUsesPerModelCapsAndMarksIncompleteWindowsUnknown()
     {
         Directory.CreateDirectory(_root);

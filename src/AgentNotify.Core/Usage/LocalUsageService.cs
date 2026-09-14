@@ -149,8 +149,23 @@ public sealed class LocalUsageService
                     .OrderByDescending(model => model.Cost.PricedUsd).ToArray()))
             .OrderByDescending(project => project.Cost.PricedUsd)
             .ThenByDescending(project => project.Counts.Total).ToArray();
+        var sessionGroups = rows.Where(row => !string.IsNullOrWhiteSpace(row.Session))
+            .GroupBy(row => (row.Source, row.Session, row.Project.Id, row.Project.Name))
+            .Select(group => new UsageSession(SessionId(group.Key.Source, group.Key.Session, group.Key.Id),
+                group.Key.Source, group.Key.Id, group.Key.Name, group.Min(row => row.Timestamp),
+                group.Max(row => row.Timestamp), group.Count(), Sum(group), Estimate(group),
+                group.GroupBy(row => (row.Source, row.Provider, row.Model)).Select(Model)
+                    .OrderByDescending(model => model.Counts.Total).ToArray()))
+            .OrderByDescending(session => session.EndedAt).ToArray();
         return new UsageReport(DateTimeOffset.UtcNow, days, next.Count + (File.Exists(_openCodeDatabase) ? 1 : 0), skipped, rows.Length,
-            Sum(rows), Estimate(rows), sources, models, projects, daily, ApiPriceCatalog.AsOf);
+            Sum(rows), Estimate(rows), sources, models, projects, daily, ApiPriceCatalog.AsOf,
+            sessionGroups.Length, sessionGroups.Take(50).ToArray());
+    }
+
+    private static string SessionId(string source, string session, string projectId)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(source + "\0" + session + "\0" + projectId));
+        return "s_" + Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
     }
 
     private UsageEvent[] ReadOpenCode(ref int skipped, CancellationToken ct)
@@ -440,7 +455,13 @@ public sealed record UsageModel(string Source, string Provider, string Model, To
 public sealed record UsageProject(string Id, string Name, TokenCounts Counts, ApiCostEstimate Cost,
     IReadOnlyList<UsageModel> Models);
 public sealed record UsageDay(string Date, TokenCounts Counts, ApiCostEstimate Cost);
+public sealed record UsageSession(string Id, string Source, string ProjectId, string ProjectName,
+    DateTimeOffset StartedAt, DateTimeOffset EndedAt, int Events, TokenCounts Counts,
+    ApiCostEstimate Cost, IReadOnlyList<UsageModel> Models);
 public sealed record UsageReport(DateTimeOffset ScannedAt, int Days, int FilesScanned, int FilesSkipped,
     int Events, TokenCounts Totals, ApiCostEstimate Cost, IReadOnlyList<UsageGroup> Sources,
     IReadOnlyList<UsageModel> Models, IReadOnlyList<UsageProject> Projects, IReadOnlyList<UsageDay> Daily,
-    string PricingAsOf);
+    string PricingAsOf, int SessionCount, IReadOnlyList<UsageSession> Sessions)
+{
+    public string ContractVersion => "2";
+}

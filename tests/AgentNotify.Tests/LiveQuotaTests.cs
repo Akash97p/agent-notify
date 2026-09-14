@@ -65,7 +65,7 @@ public sealed class LiveQuotaTests
                 valid,
                 valid with { Id = "bad", Label = "Broken" },
                 valid with { Id = "q_" + Guid.NewGuid().ToString("N"), Label = "Duplicate" },
-                valid with { Id = "q_" + Guid.NewGuid().ToString("N"), Directory = Path.GetTempPath() }
+                valid with { Id = "q_" + Guid.NewGuid().ToString("N"), Directory = Path.GetPathRoot(home)! }
             ]
         };
 

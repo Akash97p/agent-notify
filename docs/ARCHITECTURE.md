@@ -91,6 +91,9 @@ OpenCode Go records with unpriced cache writes remain explicitly unpriced. Proje
 each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
 directory; the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
+the Usage view also groups deduplicated rows by source, session, and project, exposing only a
+hashed session ID, time span, token/model aggregates, and estimated cost for the 50 most recent
+sessions. Its response uses `contract_version: "2"`; raw provider session IDs stay on the broker.
 the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
