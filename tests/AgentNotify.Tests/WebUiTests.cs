@@ -109,8 +109,15 @@ public sealed class WebUiTests : IAsyncLifetime
         var dir = Path.Combine(_dir, "usage-claude");
         Directory.CreateDirectory(dir);
         var marker = "private-prompt-that-must-not-return";
-        File.WriteAllText(Path.Combine(dir, "sample.jsonl"),
-            $"{{\"type\":\"assistant\",\"timestamp\":\"{DateTimeOffset.UtcNow:O}\",\"cwd\":\"{_dir}\",\"message\":{{\"id\":\"m1\",\"model\":\"claude-opus-5\",\"content\":\"{marker}\",\"usage\":{{\"input_tokens\":12,\"output_tokens\":3}}}}}}\n");
+        File.WriteAllText(Path.Combine(dir, "sample.jsonl"), JsonSerializer.Serialize(new
+        {
+            type = "assistant", timestamp = DateTimeOffset.UtcNow, cwd = _dir,
+            message = new
+            {
+                id = "m1", model = "claude-opus-5", content = marker,
+                usage = new { input_tokens = 12, output_tokens = 3 }
+            }
+        }) + Environment.NewLine);
         using var browser = Page();
         var response = await browser.GetAsync("/ui/api/usage?days=7");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
