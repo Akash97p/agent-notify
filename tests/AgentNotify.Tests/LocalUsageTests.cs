@@ -10,6 +10,50 @@ public sealed class LocalUsageTests : IDisposable
     private static string Line(object value) => JsonSerializer.Serialize(value);
 
     [Fact]
+    public async Task OpenCodeGoEstimateUsesPerModelCapsAndMarksIncompleteWindowsUnknown()
+    {
+        Directory.CreateDirectory(_root);
+        var db = Path.Combine(_root, "opencode.db");
+        var now = DateTimeOffset.UtcNow;
+        using (var connection = new SqliteConnection($"Data Source={db}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT); " +
+                "CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT); " +
+                "INSERT INTO session VALUES ('s1', '/test/project');";
+            command.ExecuteNonQuery();
+            void insert(string id, string model, DateTimeOffset at, long input, long cacheWrite = 0)
+            {
+                using var row = connection.CreateCommand();
+                row.CommandText = "INSERT INTO message VALUES ($id, 's1', $time, $data)";
+                row.Parameters.AddWithValue("$id", id);
+                row.Parameters.AddWithValue("$time", at.ToUnixTimeMilliseconds());
+                row.Parameters.AddWithValue("$data", Line(new { role = "assistant", providerID = "opencode-go",
+                    modelID = model, tokens = new { input, output = 0, cache = new { write = cacheWrite } } }));
+                row.ExecuteNonQuery();
+            }
+            insert("m1", "muse-spark-1.3-contributor", now.AddHours(-1), 12_000_000);
+            insert("m2", "muse-spark-1.3-contributor", now.AddDays(-2), 100, 5);
+            insert("m3", "glm-5.3", now.AddHours(-1), 1_000_000);
+            insert("m4", "new-go-model", now.AddHours(-1), 100);
+        }
+
+        var report = await new LocalUsageService([], [], db).GetOpenCodeGoEstimateAsync(now);
+
+        Assert.Equal("estimated", report.Status);
+        var muse = Assert.Single(report.Models, model => model.Model == "muse-spark-1.3-contributor");
+        Assert.Equal(12m, muse.Windows[0].LimitUsd);
+        Assert.Equal(1.2m, muse.Windows[0].ObservedUsd);
+        Assert.Equal(10, muse.Windows[0].EstimatedUsedPercent);
+        Assert.Null(muse.Windows[1].EstimatedUsedPercent);
+        Assert.Equal(1, muse.Windows[1].UnpricedRecords);
+        var glm = Assert.Single(report.Models, model => model.Model == "glm-5.3");
+        Assert.Equal(3m, glm.Windows[0].LimitUsd);
+        Assert.Null(Assert.Single(report.Models, model => model.Model == "new-go-model").Windows[0].EstimatedUsedPercent);
+    }
+
+    [Fact]
     public async Task NormalizesClaudeDuplicatesAndCodexCumulativeCounters()
     {
         var claude = Path.Combine(_root, "claude");

@@ -178,6 +178,28 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PostAsync("/ui/api/quota/refresh", JsonContent.Create(new { }))).StatusCode);
     }
 
+    [Fact]
+    public async Task AdditionalQuotaAccountCanBeAddedListedAndRemovedWithoutCredentials()
+    {
+        using var browser = Page();
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".codex-agentnotify-test-" + Guid.NewGuid().ToString("N"));
+        var added = await browser.PostAsJsonAsync("/ui/api/quota/accounts",
+            new { provider = "codex", label = "Second", directory });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var id = (await added.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        Assert.StartsWith("q_", id);
+        var listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(3, listed.GetProperty("accounts").GetArrayLength());
+        Assert.Equal("Second", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
+        Assert.Single(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PostAsJsonAsync("/ui/api/quota/accounts",
+            new { provider = "codex", label = "Duplicate", directory })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/" + id)).StatusCode);
+        Assert.Empty(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+    }
+
     private sealed class WebQuotaProbe : ILiveQuotaProbe
     {
         public string Provider => "codex";

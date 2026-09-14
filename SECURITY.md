@@ -58,6 +58,14 @@ Claude endpoint is a first-party implementation dependency without a stable publ
 quota failure never affects notifications or local Usage. Cross-origin pages cannot force manual
 refresh because it is a same-origin-header-protected POST.
 
+Additional quota profiles store only a label and agent profile directory in the owner-only
+configuration file. The WebUI accepts absolute directories under the broker user's home folder,
+never passwords or token text. The profile-management page returns these paths to its local owner;
+the quota report still returns no credential paths or account emails. Codex credentials stay with
+Codex in the selected `CODEX_HOME`. The Claude probe reads the selected agent-owned credential
+file without copying it into AgentNotify storage. OpenCode Go estimates read only local usage
+scalars and are labeled as incomplete local observations, never provider-confirmed balance.
+
 ## External-channel requirements
 
 Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the 1.0 baseline. Any implementation must be separately reviewed for:

@@ -156,7 +156,9 @@ public static class WebUiEndpoints
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
         var usage = options.Usage ?? new LocalUsageService();
-        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService();
+        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
+            accounts: () => config.QuotaAccounts.ToArray(), usage: usage);
+        var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
         // ---- overview ----------------------------------------------------------------------
@@ -209,6 +211,53 @@ public static class WebUiEndpoints
             Results.Json(await quota.GetReportAsync(cancellationToken: ct), JsonOptions));
         app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
             Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
+
+        app.MapGet($"{BasePath}/api/quota/accounts", () => Results.Json(new
+        {
+            accounts = new[] { QuotaAccountDefinition.Default("codex"), QuotaAccountDefinition.Default("claude_code") }
+                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true })
+                .Concat(config.QuotaAccounts.Select(account => new
+                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false })).ToArray()
+        }, JsonOptions));
+
+        app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
+        {
+            var body = await ReadAsync<QuotaAccountBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                QuotaAccountDefinition account;
+                lock (quotaAccountsGate)
+                {
+                    if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
+                    account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
+                        config.QuotaAccounts.Concat([QuotaAccountDefinition.Default("codex"),
+                            QuotaAccountDefinition.Default("claude_code")]));
+                    var previous = config.QuotaAccounts;
+                    config.QuotaAccounts = [.. previous, account];
+                    try { options.ConfigStore.Save(config); }
+                    catch { config.QuotaAccounts = previous; throw; }
+                }
+                Notify(options, config, false, logger);
+                return Results.Json(account, JsonOptions, statusCode: StatusCodes.Status201Created);
+            }
+            catch (ArgumentException error) { return Error(error.Message); }
+        }));
+
+        app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
+        {
+            lock (quotaAccountsGate)
+            {
+                var previous = config.QuotaAccounts;
+                var updated = previous.Where(account => account.Id != id).ToList();
+                if (updated.Count == previous.Count) return Error("That additional account was not found.", StatusCodes.Status404NotFound);
+                config.QuotaAccounts = updated;
+                try { options.ConfigStore.Save(config); }
+                catch { config.QuotaAccounts = previous; throw; }
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { deleted = id }, JsonOptions);
+        });
 
         // ---- settings ----------------------------------------------------------------------
 
@@ -821,6 +870,13 @@ public static class WebUiEndpoints
     }
 
     // ---- request bodies --------------------------------------------------------------------
+
+    private sealed class QuotaAccountBody
+    {
+        public string? Provider { get; set; }
+        public string? Label { get; set; }
+        public string? Directory { get; set; }
+    }
 
     private sealed class SettingsBody
     {

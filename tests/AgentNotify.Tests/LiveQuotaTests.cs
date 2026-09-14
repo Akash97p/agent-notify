@@ -2,11 +2,81 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using AgentNotify.Core.Quota;
+using AgentNotify.Core.Config;
 
 namespace AgentNotify.Tests;
 
 public sealed class LiveQuotaTests
 {
+    [Fact]
+    public async Task NamedAccountsHaveIndependentCacheAndDisappearWhenRemoved()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var primary = new FakeProbe { Scope = "primary" };
+        var extra = new FakeProbe { Scope = "secondary" };
+        var account = new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), "codex", "Second",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex-second"));
+        var accounts = new List<QuotaAccountDefinition> { account };
+        var service = new LiveQuotaService([primary], clock, () => accounts.ToArray(), probeFactory: _ => extra);
+
+        var first = await service.GetReportAsync();
+        Assert.Equal(2, first.Providers.Count);
+        Assert.Equal("codex:default", first.Providers[0].AccountId);
+        Assert.Equal(account.Id, first.Providers[1].AccountId);
+        Assert.Equal("Second", first.Providers[1].AccountLabel);
+        Assert.Equal(1, primary.Calls);
+        Assert.Equal(1, extra.Calls);
+        await service.GetReportAsync();
+        Assert.Equal(1, extra.Calls);
+
+        extra.Fails = true;
+        clock.Advance(TimeSpan.FromSeconds(31));
+        var refreshed = await service.GetReportAsync(refresh: true);
+        Assert.Equal("ok", refreshed.Providers[0].Status);
+        Assert.Equal("stale", refreshed.Providers[1].Status);
+
+        accounts.Clear();
+        Assert.Single((await service.GetReportAsync()).Providers);
+        accounts.Add(account);
+        clock.Advance(TimeSpan.FromSeconds(31));
+        Assert.Equal("unavailable", (await service.GetReportAsync()).Providers[1].Status);
+    }
+
+    [Fact]
+    public void AccountProfileRequiresUniqueDirectoryUnderHome()
+    {
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex-other");
+        var account = QuotaAccountDefinition.Create("codex", " Other ", directory, []);
+        Assert.Equal("Other", account.Label);
+        Assert.Throws<ArgumentException>(() => QuotaAccountDefinition.Create("codex", "Again", directory, [account]));
+        Assert.Throws<ArgumentException>(() => QuotaAccountDefinition.Create("codex", "Relative", "not-absolute", []));
+    }
+
+    [Fact]
+    public void ConfigDefaultsDiscardMalformedAndDuplicateAccountProfiles()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var directory = Path.Combine(home, ".codex-other");
+        var valid = new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), "codex", " Other ", directory);
+        var config = new AgentNotifyConfig
+        {
+            QuotaAccounts =
+            [
+                valid,
+                valid with { Id = "bad", Label = "Broken" },
+                valid with { Id = "q_" + Guid.NewGuid().ToString("N"), Label = "Duplicate" },
+                valid with { Id = "q_" + Guid.NewGuid().ToString("N"), Directory = Path.GetTempPath() }
+            ]
+        };
+
+        config.ApplyDefaults();
+
+        var account = Assert.Single(config.QuotaAccounts);
+        Assert.Equal(valid.Id, account.Id);
+        Assert.Equal("Other", account.Label);
+        Assert.Equal(Path.GetFullPath(directory), account.Directory);
+    }
+
     [Fact]
     public void CodexParserKeepsBucketsWindowsAndCreditsSeparate()
     {

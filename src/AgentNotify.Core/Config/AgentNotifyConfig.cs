@@ -57,6 +57,9 @@ public sealed class AgentNotifyConfig
     /// <summary>User-defined presentation and behavior. Built-in definitions remain code-owned.</summary>
     public List<NotificationTypeDefinition> CustomNotificationTypes { get; set; } = [];
 
+    /// <summary>Additional signed-in Codex/Claude profile directories to show in Live quota.</summary>
+    public List<QuotaAccountDefinition> QuotaAccounts { get; set; } = [];
+
     public int ToastDurationSeconds(NotificationType type)
         => ToastDurationSeconds(NotificationTypes.FromBuiltIn(type));
 
@@ -123,6 +126,12 @@ public sealed class AgentNotifyConfig
         foreach (var kv in DefaultDurations())
             ToastDurations.TryAdd(kv.Key, kv.Value);
         CustomNotificationTypes ??= [];
+        QuotaAccounts ??= [];
+        var normalizedQuotaAccounts = new List<QuotaAccountDefinition>();
+        foreach (var account in QuotaAccounts.Take(16))
+            if (QuotaAccountDefinition.TryNormalizeExisting(account, normalizedQuotaAccounts, out var normalized))
+                normalizedQuotaAccounts.Add(normalized);
+        QuotaAccounts = normalizedQuotaAccounts;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         CustomNotificationTypes = CustomNotificationTypes.Where(def =>
         {

@@ -9,6 +9,7 @@ namespace AgentNotify.Core.Usage;
 public static class ApiPriceCatalog
 {
     public const string AsOf = "2026-09-13";
+    public const string OpenCodeGoAsOf = "2026-09-14";
     public const string OpenAiSource = "https://developers.openai.com/api/docs/models";
     public const string AnthropicSource = "https://platform.claude.com/docs/en/about-claude/pricing";
     public const string OpenCodeGoSource = "https://opencode.ai/docs/go/";
@@ -41,6 +42,19 @@ public static class ApiPriceCatalog
             ["muse-spark-1.2-contributor"] = new(0.10m, 0.002m, 0m, 0m, 0.20m),
             ["glm-5.3"] = new(1.40m, 0.26m, 0m, 0m, 4.40m)
         };
+
+    // OpenCode Go publishes separate per-model monthly dollar limits. The five-hour and
+    // weekly limits are 20% and 50% of the monthly amount respectively.
+    private static readonly IReadOnlyDictionary<string, decimal> OpenCodeGoMonthlyLimits =
+        new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["muse-spark-1.3-contributor"] = 60m,
+            ["muse-spark-1.2-contributor"] = 60m,
+            ["glm-5.3"] = 15m
+        };
+
+    public static decimal? OpenCodeGoMonthlyLimit(string model) =>
+        OpenCodeGoMonthlyLimits.TryGetValue(model, out var limit) ? limit : null;
 
     public static ApiTokenRates? Find(string source, string provider, string model)
     {
