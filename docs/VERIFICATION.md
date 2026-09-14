@@ -1332,6 +1332,36 @@ Not verified: exact agreement with Codex or Claude account dashboards after subs
 stability of Anthropic's undocumented first-party OAuth usage endpoint, Windows CLI discovery,
 Windows installer payload, or a human visual check from the owner's Windows browser.
 
+## Multiple quota accounts and OpenCode Go estimate (`feature/multi-account-quota`, 2026-09-14)
+
+- Native macOS .NET SDK 10.0.401 Release solution build with
+  `-p:EnableWindowsTargeting=true` succeeded with 0 warnings and 0 errors. The full suite passed:
+  902 tests, 0 failed, 0 skipped. New checks cover named-account cache isolation and removal,
+  profile validation and startup normalization, persisted WebUI add/remove operations, per-model
+  OpenCode Go cap arithmetic, and unknown estimates when a published rate is incomplete.
+- `node --check` passed for the Quota view and `git diff --check` passed. The documentation site's
+  TypeScript check and 27-page static export passed locally. Next.js 16.3.3 intermittently lost
+  request context during cold static export (upstream issue 98200), so the site is pinned to
+  Next.js 16.2.12 with its supported TypeScript CLI mode and one static worker. Cold builds also
+  failed on this Mac's Node 22; a cold Node 24.21.0 export passed, and the Pages workflow runs Node
+  24. The local build script uses that Node version when its host Node is older.
+- A self-contained `osx-x64` broker with embedded native libraries was published, ad-hoc signed,
+  and installed into the owner's launchd service. On `127.0.0.1:47821`, the quota response used
+  contract version 2, returned two live windows each for the current Codex and Claude Code
+  profiles, and returned local five-hour, seven-day, and rolling 30-day estimates for the owner's
+  two observed OpenCode Go models. The response contained no access token, bearer header, or
+  credential-file content. A 1440-pixel headless Chrome screenshot showed the account editor,
+  named profile cards, and Go estimate. This was a browser rendering check, not a human visual
+  review.
+
+The required WSL `scripts/build.sh`, `scripts/test.sh`, and `scripts/package.sh` cannot start on
+this Mac because `/mnt/d/dev/dotnet/dotnet.exe` is absent; Windows installer packaging is therefore
+unverified. Also unverified are actual second-profile probes using the owner's credentials,
+Windows tray hosting, exact provider-dashboard agreement, and Claude profiles whose macOS login is
+stored only in Keychain rather than the selected profile's `.credentials.json`. OpenCode Go values
+are local token-based estimates against published per-model caps, not provider-reported remaining
+quota; the 30-day view is rolling rather than the provider's billing cycle.
+
 ## WebUI over an SSH forward with a different local port (`fix/webui-forwarded-port`, 2026-09-13)
 
 - Reproduced the owner's `421` with `Host: 127.0.0.1:47822` against the Mac broker listening on

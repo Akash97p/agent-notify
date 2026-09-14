@@ -68,6 +68,59 @@ public sealed class LocalUsageService
         finally { _scanGate.Release(); }
     }
 
+    public async Task<OpenCodeGoEstimate> GetOpenCodeGoEstimateAsync(DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        await _scanGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await Task.Run(() => EstimateOpenCodeGo(now, cancellationToken), cancellationToken);
+        }
+        finally { _scanGate.Release(); }
+    }
+
+    private OpenCodeGoEstimate EstimateOpenCodeGo(DateTimeOffset now, CancellationToken ct)
+    {
+        var skipped = 0;
+        var rows = ReadOpenCode(ref skipped, ct)
+            .Where(row => row.Provider == "opencode-go" && row.Timestamp <= now &&
+                          row.Timestamp >= now.AddDays(-30)).ToArray();
+        if (skipped > 0)
+            return new OpenCodeGoEstimate("unavailable", [], "The local OpenCode usage database could not be read.");
+        if (rows.Length == 0)
+            return new OpenCodeGoEstimate("no_data", [], "No OpenCode Go requests were found in the last 30 days on this machine.");
+
+        var periods = new (string Key, string Label, TimeSpan Length, decimal Fraction)[]
+        {
+            ("five_hour", "Last 5 hours", TimeSpan.FromHours(5), .20m),
+            ("seven_day", "Last 7 days", TimeSpan.FromDays(7), .50m),
+            ("thirty_day", "Last 30 days", TimeSpan.FromDays(30), 1m)
+        };
+        var models = rows.GroupBy(row => row.Model, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(30)
+            .Select(group =>
+            {
+                var rates = ApiPriceCatalog.Find("opencode", "opencode-go", group.Key);
+                var monthlyLimit = ApiPriceCatalog.OpenCodeGoMonthlyLimit(group.Key);
+                var windows = periods.Select(period =>
+                {
+                    var selected = group.Where(row => row.Timestamp >= now - period.Length).ToArray();
+                    var unpriced = rates is null ? selected.Length : selected.Count(row => row.Counts.CacheWrite > 0);
+                    var observed = rates is null ? 0m : selected.Where(row => row.Counts.CacheWrite == 0)
+                        .Sum(row => rates.EstimateUsd(row.Counts, row.CacheWrite1h));
+                    var limit = monthlyLimit * period.Fraction;
+                    double? percent = unpriced == 0 && limit is > 0
+                        ? (double)(observed / limit.Value * 100m) : null;
+                    return new OpenCodeGoWindowEstimate(period.Key, period.Label, observed, limit,
+                        percent, selected.Length, unpriced);
+                }).ToArray();
+                return new OpenCodeGoModelEstimate(group.Key, windows);
+            }).ToArray();
+        return new OpenCodeGoEstimate("estimated", models,
+            "Local OpenCode requests only. Other clients, billing-cycle boundaries, and provider-side adjustments are unknown; these are not live remaining quotas.");
+    }
+
     private UsageReport Scan(int days, CancellationToken ct)
     {
         var next = new Dictionary<string, CachedFile>(StringComparer.Ordinal);

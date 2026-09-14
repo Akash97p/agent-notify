@@ -96,7 +96,12 @@ durable indexing, historical rate schedules, and provider-specific billing modif
 remain separate work.
 
 The Live quota page is a separate provider/account snapshot, never calculated from the Usage
-ledger. `LiveQuotaService` in Core coalesces simultaneous requests, caches each provider for five
+ledger. The owner can add up to 16 named Codex/Claude profile directories under their home folder;
+the owner-only config file stores profile IDs, labels, and paths, never copied credentials. The
+page's profile-management endpoint returns paths only for the local owner to edit. A Codex child
+process receives its selected `CODEX_HOME`; a Claude probe reads only that profile's
+`.credentials.json` if available. `LiveQuotaService` in Core coalesces simultaneous requests,
+caches each account for five
 minutes, limits manual rechecks to one per 30 seconds, and retains a clearly marked stale value
 after transient failure only while the credential-file scope is unchanged. Codex is queried
 through its documented `app-server` `account/rateLimits/read` RPC; Codex owns its credentials and
@@ -108,7 +113,11 @@ token is redeemed and no response or token is logged. A 429 respects `Retry-Afte
 is a first-party implementation dependency without a stable public API guarantee. OpenCode is
 explicitly unavailable because it routes to multiple independent provider accounts. The quota
 endpoint returns only normalized percentages, reset times, optional plan/credit values, source,
-and freshness; it never returns access tokens or account email. The page triggers on-demand
+account ID/label, and freshness; it never returns access tokens or account email. Its quota report
+uses `contract_version: "2"`. A separate OpenCode Go estimate sums only local SQLite token rows for
+exactly priced models against OpenCode's published per-model dollar caps over rolling 5-hour,
+7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
+balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
 
 ### Desktop app

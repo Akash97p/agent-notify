@@ -33,7 +33,7 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
 | Usage | Read local Claude Code, Codex, and OpenCode tokens and estimated token cost for 7 days, 30 days, or all history, split by source, provider, project, model, and day |
-| Live quota | Check Codex and Claude Code account allowance percentages and reset times; see a clear unavailable state for OpenCode |
+| Live quota | Check multiple named Codex and Claude Code profile allowances; compare a separately labeled local OpenCode Go per-model estimate |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -75,8 +75,43 @@ public API and can become unavailable. Neither source sends token text, account 
 provider responses to the browser. Snapshots are cached for five minutes; a manual recheck is
 limited to once every 30 seconds. A failed check keeps the last known result marked *stale* for
 the same credential scope; an account change clears it. Missing windows are never displayed as
-0% used. OpenCode has no single quota because its models can use different provider accounts.
+0% used. Each named profile has its own cache and failure state. OpenCode has no single quota
+because its models can use different provider accounts.
 The local Usage page continues to work without internet or signed-in agent accounts.
+
+### Monitor several Codex or Claude Code accounts
+
+The current Codex and Claude Code profiles appear automatically. To add another, open **Live quota
+→ Monitor another account**, choose the agent, enter a name and the *agent profile directory*, then
+press **Add account**. The directory can be under your home folder and does not need to exist yet;
+sign in with that agent using the same directory. For macOS/Linux, for example:
+
+```bash
+CODEX_HOME="$HOME/.codex-second" codex login
+CLAUDE_CONFIG_DIR="$HOME/.claude-second" claude
+```
+
+On Windows PowerShell, set `$env:CODEX_HOME` or `$env:CLAUDE_CONFIG_DIR` to a separate directory
+under `$HOME` before running `codex login` or `claude`. These are the agents' own documented profile
+switches: [Codex config location](https://learn.chatgpt.com/docs/config-file/config-advanced) and
+[Claude Code environment variables](https://code.claude.com/docs/en/env-vars). AgentNotify does not
+copy a login or offer a password field. Codex is queried with that profile's `CODEX_HOME`; Claude
+Code is queried only when that profile has a readable `.credentials.json`. Claude Code may store
+credentials in the macOS Keychain instead, so an extra macOS Claude profile can show unavailable
+until its agent-owned credential file is present. Removing a monitored account removes only its
+AgentNotify entry, not its agent profile or sign-in. Up to 16 additional profiles can be listed.
+
+### OpenCode Go local estimate
+
+OpenCode Go publishes [per-model dollar caps and token rates](https://opencode.ai/docs/go/):
+the five-hour cap is 20% and the weekly cap is 50% of that model's monthly cap. The page compares
+only usage-bearing OpenCode Go records in this machine's SQLite database against those caps for
+rolling last-five-hour, last-seven-day, and last-30-day periods. It currently has exact verified
+rates and caps for Muse Spark 1.2/1.3 Contributor and GLM-5.3; other models stay unknown until
+priced. A window with an unpriced record has no percentage. This is **not** the Go account's live
+remaining quota: usage in other clients or on other machines, multiple Go keys in the same local
+database, the actual monthly billing boundary, and provider-side adjustments are unavailable from
+the local records. It displays no invented provider reset time or subscription charge.
 
 ## How it stays local
 

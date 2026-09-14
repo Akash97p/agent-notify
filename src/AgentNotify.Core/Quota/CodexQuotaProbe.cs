@@ -9,12 +9,13 @@ public sealed class CodexQuotaProbe : ILiveQuotaProbe
 {
     private readonly string _executable;
     private readonly string _authPath;
+    private readonly string _codexHome;
 
     public CodexQuotaProbe(string? executable = null, string? codexHome = null)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var root = codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME") ?? Path.Combine(home, ".codex");
-        _authPath = Path.Combine(root, "auth.json");
+        _codexHome = codexHome ?? Environment.GetEnvironmentVariable("CODEX_HOME") ?? Path.Combine(home, ".codex");
+        _authPath = Path.Combine(_codexHome, "auth.json");
         _executable = executable ?? ResolveExecutable(home);
     }
 
@@ -38,6 +39,7 @@ public sealed class CodexQuotaProbe : ILiveQuotaProbe
         };
         process.StartInfo.ArgumentList.Add("app-server");
         process.StartInfo.ArgumentList.Add("--stdio");
+        process.StartInfo.Environment["CODEX_HOME"] = _codexHome;
         // npm's Codex launcher uses `#!/usr/bin/env node`. Launchd often has a minimal PATH,
         // so include the launcher's directory where its paired Node binary is installed.
         if (Path.IsPathFullyQualified(_executable))
