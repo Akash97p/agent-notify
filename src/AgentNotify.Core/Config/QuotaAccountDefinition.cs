@@ -3,7 +3,7 @@ namespace AgentNotify.Core.Config;
 /// <summary>A named local agent profile. Credentials stay in the agent-owned directory.</summary>
 public sealed record QuotaAccountDefinition(string Id, string Provider, string Label, string Directory)
 {
-    public static QuotaAccountDefinition Default(string provider)
+    public static QuotaAccountDefinition Default(string provider, string? label = null)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var directory = provider == "codex"
@@ -11,7 +11,8 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
             : Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR")?.Split(',',
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault()
                 ?? Path.Combine(home, ".claude");
-        return new QuotaAccountDefinition(provider + ":default", provider, "Current account", directory);
+        return new QuotaAccountDefinition(provider + ":default", provider,
+            TryNormalizeLabel(label) ?? "Current account", directory);
     }
 
     public static QuotaAccountDefinition Create(string? provider, string? label, string? directory,
@@ -19,9 +20,7 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
     {
         if (provider is not ("codex" or "claude_code"))
             throw new ArgumentException("Choose Codex or Claude Code.");
-        label = label?.Trim();
-        if (string.IsNullOrWhiteSpace(label) || label.Length > 60 || label.Any(char.IsControl))
-            throw new ArgumentException("Give this account a name of 1–60 characters.");
+        label = NormalizeLabel(label);
         if (string.IsNullOrWhiteSpace(directory) || directory.Length > 1024 || directory.Any(char.IsControl))
             throw new ArgumentException("Enter the agent's absolute profile directory.");
 
@@ -44,6 +43,16 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
             string.Equals(item.Directory, path, comparison)))
             throw new ArgumentException("That profile directory is already listed for this provider.");
         return new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), provider, label, path);
+    }
+
+    public static string NormalizeLabel(string? label) => TryNormalizeLabel(label)
+        ?? throw new ArgumentException("Give this account a name of 1–60 characters.");
+
+    public static string? TryNormalizeLabel(string? label)
+    {
+        label = label?.Trim();
+        return string.IsNullOrWhiteSpace(label) || label.Length > 60 || label.Any(char.IsControl)
+            ? null : label;
     }
 
     public static bool TryNormalizeExisting(QuotaAccountDefinition? value,

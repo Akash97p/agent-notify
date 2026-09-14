@@ -202,6 +202,19 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal("Second", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
         Assert.Single(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
 
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/codex:default",
+            new { label = "Primary Codex" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/" + id,
+            new { label = "Backup Codex" })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal("Primary Codex", listed.GetProperty("accounts")[0].GetProperty("label").GetString());
+        Assert.Equal("Backup Codex", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
+        var saved = new ConfigStore(_dir, applyEnvOverrides: false).Load();
+        Assert.Equal("Primary Codex", saved.DefaultQuotaAccountLabels["codex"]);
+        Assert.Equal("Backup Codex", Assert.Single(saved.QuotaAccounts).Label);
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/" + id,
+            new { label = "   " })).StatusCode);
+
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.PostAsJsonAsync("/ui/api/quota/accounts",
             new { provider = "codex", label = "Duplicate", directory })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/" + id)).StatusCode);

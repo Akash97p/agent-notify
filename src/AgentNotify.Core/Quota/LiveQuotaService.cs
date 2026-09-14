@@ -8,6 +8,7 @@ public sealed class LiveQuotaService
 {
     private readonly IReadOnlyList<ILiveQuotaProbe>? _fixedProbes;
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
+    private readonly Func<string, string> _defaultAccountLabel;
     private readonly Func<QuotaAccountDefinition, ILiveQuotaProbe> _probeFactory;
     private readonly LocalUsageService? _usage;
     private readonly CodexQuotaProbe _defaultCodex = new();
@@ -21,10 +22,12 @@ public sealed class LiveQuotaService
 
     public LiveQuotaService(IEnumerable<ILiveQuotaProbe>? probes = null, TimeProvider? clock = null,
         Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, LocalUsageService? usage = null,
-        Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null)
+        Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null,
+        Func<string, string>? defaultAccountLabel = null)
     {
         _fixedProbes = probes?.ToArray();
         _accounts = accounts;
+        _defaultAccountLabel = defaultAccountLabel ?? (_ => "Current account");
         _usage = usage;
         _probeFactory = probeFactory ?? (account => account.Provider == "codex"
             ? new CodexQuotaProbe(codexHome: account.Directory)
@@ -87,10 +90,10 @@ public sealed class LiveQuotaService
         var result = _fixedProbes is null
             ? new List<(ILiveQuotaProbe, string, string)>
               {
-                  (_defaultCodex, "codex:default", "Current account"),
-                  (_defaultClaude, "claude_code:default", "Current account")
+                  (_defaultCodex, "codex:default", _defaultAccountLabel("codex")),
+                  (_defaultClaude, "claude_code:default", _defaultAccountLabel("claude_code"))
               }
-            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", "Current account")).ToList();
+            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", _defaultAccountLabel(probe.Provider))).ToList();
         var configured = (_accounts?.Invoke() ?? []).Take(16).ToArray();
         var active = new HashSet<string>(StringComparer.Ordinal);
         foreach (var account in configured)

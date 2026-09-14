@@ -1411,6 +1411,39 @@ quota; the 30-day view is rolling rather than the provider's billing cycle.
 Not verified: Windows tray hosting, a human visual review, sessions missing from source records, or
 fork/replay parentage. Session cost remains the same current-rate estimate used elsewhere in Usage.
 
+## Compact Insights dashboard (`feature/insights-dashboard`, 2026-09-14)
+
+- Native macOS .NET SDK 10.0.401 built the Release solution with
+  `-p:EnableWindowsTargeting=true`: 0 warnings and 0 errors. The focused WebUI/quota/config run
+  passed 36 tests, and the sequential full suite passed 903 tests with 0 failed and 0 skipped.
+  The account-management fixture renames both a built-in profile and an additional profile,
+  reloads their persisted labels, and rejects an empty label. Every embedded JavaScript module
+  passed `node --check`, and `git diff --check` passed.
+- `scripts/build-site.sh` completed its TypeScript check and generated all 27 static pages. The
+  required WSL build/test/package entry points cannot run on this Mac because their configured
+  Windows SDK path, `/mnt/d/dev/dotnet/dotnet.exe`, is absent; Windows packaging remains a CI gate.
+- A self-contained, ad-hoc-signed `osx-x64` broker containing the new embedded assets was installed
+  into the owner's launchd service, with the previous executable saved as
+  `~/.local/bin/.agentnotifyd-backup-insights-dashboard-20260914`. `agentnotify health` returned
+  `ok` on `127.0.0.1:47821`. The live Dashboard composed four healthy Codex/Claude profiles,
+  OpenCode Go estimates, 30-day local usage, project rankings, and delivery health. The Live quota
+  view showed remaining-balance bars whose fill matched the reported remaining percentage. A final
+  owner-directed color pass assigns the neutral bar at 40–100%, yellow at 20–39%, and red at 0–19%.
+- Headless Chrome rendered the Dashboard, Live quota, and simplified Usage pages with real data at
+  1440 CSS pixels. A narrow render confirmed the single-column dashboard breakpoint. The account
+  management panel was present with all four local profiles and remains collapsed by default.
+  These were browser rendering checks, not an owner visual sign-off. Reduced motion is covered by
+  the existing CSS media rule; assistive-technology behavior was not manually tested.
+- GitHub Actions on commit `301ace7` passed the Windows Release build, all 903 tests, Windows
+  packaging, and the Linux/macOS matrix. The preceding color-only merge had one unexplained Windows
+  test-step failure after the same dashboard revision had passed; its anonymous run exposed no TRX
+  detail. CI now writes the TRX to an explicit runner-temporary directory and emits a clear
+  annotation even when `dotnet test` exits before producing that file. The clean rerun required no
+  product-code change.
+
+Not verified: Windows tray-hosted rendering, installer payload execution, manually renaming the
+owner's real profiles, or a human visual review of the new layouts.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

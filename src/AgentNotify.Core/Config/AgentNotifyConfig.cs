@@ -60,6 +60,9 @@ public sealed class AgentNotifyConfig
     /// <summary>Additional signed-in Codex/Claude profile directories to show in Live quota.</summary>
     public List<QuotaAccountDefinition> QuotaAccounts { get; set; } = [];
 
+    /// <summary>Owner-chosen labels for the built-in Codex and Claude profiles.</summary>
+    public Dictionary<string, string> DefaultQuotaAccountLabels { get; set; } = new(StringComparer.Ordinal);
+
     public int ToastDurationSeconds(NotificationType type)
         => ToastDurationSeconds(NotificationTypes.FromBuiltIn(type));
 
@@ -127,6 +130,12 @@ public sealed class AgentNotifyConfig
             ToastDurations.TryAdd(kv.Key, kv.Value);
         CustomNotificationTypes ??= [];
         QuotaAccounts ??= [];
+        DefaultQuotaAccountLabels ??= new(StringComparer.Ordinal);
+        DefaultQuotaAccountLabels = DefaultQuotaAccountLabels
+            .Where(item => item.Key is "codex" or "claude_code")
+            .Select(item => new KeyValuePair<string, string?>(item.Key, QuotaAccountDefinition.TryNormalizeLabel(item.Value)))
+            .Where(item => item.Value is not null)
+            .ToDictionary(item => item.Key, item => item.Value!, StringComparer.Ordinal);
         var normalizedQuotaAccounts = new List<QuotaAccountDefinition>();
         foreach (var account in QuotaAccounts.Take(16))
             if (QuotaAccountDefinition.TryNormalizeExisting(account, normalizedQuotaAccounts, out var normalized))
