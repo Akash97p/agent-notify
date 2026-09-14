@@ -1427,7 +1427,8 @@ fork/replay parentage. Session cost remains the same current-rate estimate used 
   `~/.local/bin/.agentnotifyd-backup-insights-dashboard-20260914`. `agentnotify health` returned
   `ok` on `127.0.0.1:47821`. The live Dashboard composed four healthy Codex/Claude profiles,
   OpenCode Go estimates, 30-day local usage, project rankings, and delivery health. The Live quota
-  view showed remaining-balance bars whose fill matched the reported remaining percentage.
+  view showed remaining-balance bars whose fill matched the reported remaining percentage. A final
+  owner-directed color pass assigns the neutral bar at 40–100%, yellow at 20–39%, and red at 0–19%.
 - Headless Chrome rendered the Dashboard, Live quota, and simplified Usage pages with real data at
   1440 CSS pixels. A narrow render confirmed the single-column dashboard breakpoint. The account
   management panel was present with all four local profiles and remains collapsed by default.
