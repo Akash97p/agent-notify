@@ -26,7 +26,12 @@ cp "$SITE/.nojekyll" "$PUBLIC/.nojekyll"
 
 npm ci --prefix "$SITE" --no-audit --no-fund
 npm run typecheck --prefix "$SITE"
-npm run build --prefix "$SITE"
+if node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'; then
+  npm run build --prefix "$SITE"
+else
+  # Next static export loses request context on this Mac's Node 22. The Pages workflow uses 24.
+  (cd "$SITE" && npm exec --yes --package=node@24.21.0 -- node node_modules/next/dist/bin/next build --webpack)
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
