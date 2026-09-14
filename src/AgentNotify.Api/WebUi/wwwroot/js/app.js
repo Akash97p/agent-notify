@@ -11,6 +11,7 @@ import agents from "./views/agents.js";
 import about from "./views/about.js";
 import usage from "./views/usage.js";
 import quota from "./views/quota.js";
+import insights from "./views/insights.js";
 
 // Navigation is grouped so new areas slot in as another group or entry without reshaping the shell.
 const NAV = [
@@ -24,8 +25,9 @@ const NAV = [
     { path: "routes", title: "Routes", icon: "route", view: routes },
   ] },
   { label: "Insights", items: [
+    { path: "insights", title: "Dashboard", icon: "chart", view: insights },
     { path: "usage", title: "Usage", icon: "pulse", view: usage },
-    { path: "quota", title: "Live quota", icon: "pulse", view: quota },
+    { path: "quota", title: "Live quota", icon: "gauge", view: quota },
   ] },
   { label: "Configuration", items: [
     { path: "notifications", title: "Notifications", icon: "sliders", view: notifications },

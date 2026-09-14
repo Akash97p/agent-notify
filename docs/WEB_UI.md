@@ -32,8 +32,9 @@ On Windows the tray menu has **Open in browser…**, which does the same thing.
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
-| Usage | Read local Claude Code, Codex, and OpenCode tokens and estimated token cost for 7 days, 30 days, or all history, split by source, provider, project, model, and day |
-| Live quota | Check multiple named Codex and Claude Code profile allowances; compare a separately labeled local OpenCode Go per-model estimate |
+| Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
+| Usage | Read compact local Claude Code, Codex, and OpenCode activity summaries; expand sessions, projects, models, token buckets, and pricing when needed |
+| Live quota | Check remaining balances for multiple named Codex and Claude Code profiles; compare a separately labeled local OpenCode Go per-model estimate |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -59,6 +60,13 @@ counter added to output once. OpenCode's current `message` table is queried on e
 `OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
 `~/.local/share/opencode/opencode.db` is used.
 
+The Insights **Dashboard** combines the existing 30-day Usage, Live quota, and broker Overview
+responses in the browser. It does not add account percentages to local token totals: local logs do
+not reliably identify which subscription account made each request. Quota cards therefore remain
+account-scoped while token and cost charts remain agent/project-scoped. Dashboard animation uses
+local CSS only, respects the operating system's reduced-motion preference, and loads no third-party
+script or telemetry service.
+
 The cost number answers **what these tokens would cost at published token rates**, using
 the dated rate snapshot shown on the page. OpenAI and Claude use standard API rates; OpenCode Go
 uses its published quota-equivalent token rates. It is not a subscription charge or invoice. Claude
@@ -79,20 +87,22 @@ public API and can become unavailable. Neither source sends token text, account 
 provider responses to the browser. Snapshots are cached for five minutes; a manual recheck is
 limited to once every 30 seconds. A failed check keeps the last known result marked *stale* for
 the same credential scope; an account change clears it. Missing windows are never displayed as
-0% used. Each named profile has its own cache and failure state. OpenCode has no single quota
+0% remaining. Each quota bar represents the balance left and shrinks as usage rises. Each named
+profile has its own cache and failure state. OpenCode has no single quota
 because its models can use different provider accounts.
 The local Usage page continues to work without internet or signed-in agent accounts.
 
 ### Monitor several Codex or Claude Code accounts
 
 The current Codex and Claude Code profiles appear automatically. To add another, open **Live quota
-→ Monitor another account**, choose the agent, enter a name and the *agent profile directory*, then
-press **Add account**. The directory can be under your home folder and does not need to exist yet;
-sign in with that agent using the same directory. For macOS/Linux, for example:
+→ Manage accounts**, choose the agent, enter a name and the *agent profile directory*, then
+press **Add account**. The directory must be under your home folder. Create it before signing in;
+current Codex versions reject a missing `CODEX_HOME`. For macOS/Linux, for example:
 
 ```bash
+mkdir -p "$HOME/.codex-second" "$HOME/.claude-second"
 CODEX_HOME="$HOME/.codex-second" codex login
-CLAUDE_CONFIG_DIR="$HOME/.claude-second" claude
+CLAUDE_CONFIG_DIR="$HOME/.claude-second" claude auth login
 ```
 
 On Windows PowerShell, set `$env:CODEX_HOME` or `$env:CLAUDE_CONFIG_DIR` to a separate directory
@@ -103,7 +113,9 @@ copy a login or offer a password field. Codex is queried with that profile's `CO
 Code is queried only when that profile has a readable `.credentials.json`. Claude Code may store
 credentials in the macOS Keychain instead, so an extra macOS Claude profile can show unavailable
 until its agent-owned credential file is present. Removing a monitored account removes only its
-AgentNotify entry, not its agent profile or sign-in. Up to 16 additional profiles can be listed.
+AgentNotify entry, not its agent profile or sign-in. Any current or additional Codex/Claude account
+can be renamed in **Manage accounts**; the owner-only config stores the display name and the agent
+login is unchanged. Up to 16 additional profiles can be listed.
 
 ### OpenCode Go local estimate
 

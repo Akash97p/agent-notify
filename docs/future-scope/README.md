@@ -3,7 +3,8 @@
 The read-only Claude Code, Codex, and OpenCode local usage view now includes project groups and a
 dated API/Go token-rate estimate. A separate live quota view now shows named Codex and Claude Code
 profile windows and a clearly labeled local OpenCode Go per-model estimate. Recent-session grouping
-is also in the Usage view. Durable indexing,
+is also in the Usage view, and the Insights dashboard combines the existing summaries without
+mixing their provenance. Durable indexing,
 broader provider quota sources, and routing remain unscheduled.
 These notes record how four capabilities
 work, so that when AgentNotify grows past human attention into the cost and capacity of the agents
@@ -68,7 +69,7 @@ These are directions, not decisions. The standing decisions in
   storage, and no network work on the API request path. Reading another agent's logs is local and
   read-only; live quota probes run only when the owner opens or refreshes the Quota page, while a
   routing proxy remains off until explicitly enabled.
-- **Where it shows.** The [web interface](../WEB_UI.md) now has Usage and Live quota under Insights.
+- **Where it shows.** The [web interface](../WEB_UI.md) now has Dashboard, Usage, and Live quota under Insights.
   Routing can sit alongside Channels. Its local `/ui/api` convention and
   write-only secrets carry over.
 - **How it meets attention.** Quota and spend thresholds are natural attention requests: "Claude

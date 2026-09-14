@@ -17,11 +17,13 @@ public sealed class LiveQuotaTests
         var account = new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), "codex", "Second",
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex-second"));
         var accounts = new List<QuotaAccountDefinition> { account };
-        var service = new LiveQuotaService([primary], clock, () => accounts.ToArray(), probeFactory: _ => extra);
+        var service = new LiveQuotaService([primary], clock, () => accounts.ToArray(), probeFactory: _ => extra,
+            defaultAccountLabel: _ => "Primary");
 
         var first = await service.GetReportAsync();
         Assert.Equal(2, first.Providers.Count);
         Assert.Equal("codex:default", first.Providers[0].AccountId);
+        Assert.Equal("Primary", first.Providers[0].AccountLabel);
         Assert.Equal(account.Id, first.Providers[1].AccountId);
         Assert.Equal("Second", first.Providers[1].AccountLabel);
         Assert.Equal(1, primary.Calls);
@@ -60,6 +62,12 @@ public sealed class LiveQuotaTests
         var valid = new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), "codex", " Other ", directory);
         var config = new AgentNotifyConfig
         {
+            DefaultQuotaAccountLabels = new()
+            {
+                ["codex"] = " Primary ",
+                ["claude_code"] = "\0invalid",
+                ["unknown"] = "Discard"
+            },
             QuotaAccounts =
             [
                 valid,
@@ -75,6 +83,7 @@ public sealed class LiveQuotaTests
         Assert.Equal(valid.Id, account.Id);
         Assert.Equal("Other", account.Label);
         Assert.Equal(Path.GetFullPath(directory), account.Directory);
+        Assert.Equal("Primary", Assert.Single(config.DefaultQuotaAccountLabels).Value);
     }
 
     [Fact]

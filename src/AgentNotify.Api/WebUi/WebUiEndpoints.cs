@@ -157,7 +157,8 @@ public static class WebUiEndpoints
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
         var usage = options.Usage ?? new LocalUsageService();
         var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
-            accounts: () => config.QuotaAccounts.ToArray(), usage: usage);
+            accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
+            defaultAccountLabel: provider => config.DefaultQuotaAccountLabels.GetValueOrDefault(provider, "Current account"));
         var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
@@ -214,7 +215,11 @@ public static class WebUiEndpoints
 
         app.MapGet($"{BasePath}/api/quota/accounts", () => Results.Json(new
         {
-            accounts = new[] { QuotaAccountDefinition.Default("codex"), QuotaAccountDefinition.Default("claude_code") }
+            accounts = new[]
+                {
+                    QuotaAccountDefinition.Default("codex", config.DefaultQuotaAccountLabels.GetValueOrDefault("codex")),
+                    QuotaAccountDefinition.Default("claude_code", config.DefaultQuotaAccountLabels.GetValueOrDefault("claude_code"))
+                }
                 .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true })
                 .Concat(config.QuotaAccounts.Select(account => new
                     { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false })).ToArray()
@@ -243,6 +248,46 @@ public static class WebUiEndpoints
             }
             catch (ArgumentException error) { return Error(error.Message); }
         }));
+
+        app.MapPut($"{BasePath}/api/quota/accounts/{{id}}", async (string id, HttpContext http) =>
+        {
+            var body = await ReadAsync<QuotaAccountBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                var label = QuotaAccountDefinition.NormalizeLabel(body.Label);
+                QuotaAccountDefinition renamed;
+                lock (quotaAccountsGate)
+                {
+                    if (id is "codex:default" or "claude_code:default")
+                    {
+                        var provider = id[..id.IndexOf(':')];
+                        var previous = new Dictionary<string, string>(config.DefaultQuotaAccountLabels, StringComparer.Ordinal);
+                        var updated = new Dictionary<string, string>(previous, StringComparer.Ordinal)
+                            { [provider] = label };
+                        config.DefaultQuotaAccountLabels = updated;
+                        try { options.ConfigStore.Save(config); }
+                        catch { config.DefaultQuotaAccountLabels = previous; throw; }
+                        renamed = QuotaAccountDefinition.Default(provider, label);
+                    }
+                    else
+                    {
+                        var index = config.QuotaAccounts.FindIndex(account => account.Id == id);
+                        if (index < 0) return Error("That account was not found.", StatusCodes.Status404NotFound);
+                        var previous = config.QuotaAccounts;
+                        var updated = previous.ToList();
+                        renamed = updated[index] with { Label = label };
+                        updated[index] = renamed;
+                        config.QuotaAccounts = updated;
+                        try { options.ConfigStore.Save(config); }
+                        catch { config.QuotaAccounts = previous; throw; }
+                    }
+                }
+                Notify(options, config, false, logger);
+                return Results.Json(renamed, JsonOptions);
+            }
+            catch (ArgumentException error) { return Error(error.Message); }
+        });
 
         app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
         {
