@@ -1477,6 +1477,28 @@ Not yet verified: Windows tray-hosted Go estimates or provider-reported Go quota
 on this Mac currently includes only Muse Spark 1.3 Contributor and GLM-5.3, so newly priced models
 need future local usage before they appear as model cards.
 
+## GitHub Pages and documentation status refresh (`docs/webui-landing-page`, 2026-09-14)
+
+- Updated the landing page and published guide descriptions for the shipped WebUI, three local
+  usage sources, published-rate cost estimates, named Codex/Claude Code quota profiles, the
+  separately labeled OpenCode Go local estimate, and the Insights dashboard. Reconciled the
+  bidirectional, interaction, harness, Relay, architecture, roadmap, backlog, cross-platform,
+  installation, troubleshooting, and release docs with current implementation status.
+- `./scripts/build-site.sh` passed TypeScript checking and exported all 27 pages. A read-only check
+  confirmed that internal links from the exported landing and guide pages resolve and that the
+  landing, WebUI, and bidirectional guide contain the updated claims. `git diff --check` passed.
+- A native macOS .NET 10 Release solution build passed with 0 warnings and 0 errors. The full
+  `AgentNotify.Tests` suite passed 903 tests, 0 failed, 0 skipped. The repository's WSL
+  `./scripts/build.sh` and `./scripts/test.sh` could not run on this Mac because their configured
+  Windows SDK path, `/mnt/d/dev/dotnet/dotnet.exe`, is absent. Installer packaging was not run;
+  this branch changes documentation and the separate GitHub Pages site, not installer payloads.
+- Headless Chrome rendered the exported landing page at desktop width and at an emulated 390-pixel
+  mobile viewport. The mobile document's `scrollWidth` equaled its 390-pixel viewport width after
+  constraining the grid columns. These are browser rendering checks, not a human visual review.
+
+Not verified locally: Windows tray-hosted behavior, provider interoperability, or a human review
+of the updated Pages layout. Those product behaviors are unchanged by this documentation branch.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

@@ -1,11 +1,15 @@
 # CLI reference
 
-The `agentnotify` command-line client talks to the local AgentNotify broker over HTTP. Every command except `health` (unauthenticated probe fallback), `token`, and `relay` requires the broker to be running and a valid bearer token. Relay commands talk directly to the configured Relay and local protected provider store.
+The `agentnotify` command-line client talks to the local AgentNotify broker over HTTP. Broker `/v1`
+commands require a running broker and valid bearer token; `health` can use an unauthenticated probe,
+and `ui` opens the local browser interface without sending a token. `token` reads local configuration.
+Relay commands talk to the configured Relay and local protected provider store.
 
 Binary name:
 
 - `agentnotify.exe` on Windows (`%LOCALAPPDATA%\Programs\AgentNotify\agentnotify.exe` after installation, added to the current user's `PATH`).
 - Reachable from WSL as `agentnotify.exe`. After installation open a new WSL shell so the updated Windows `PATH` is imported.
+- `agentnotify` on macOS and Linux, installed alongside the headless `agentnotifyd` broker.
 
 Source: `src/AgentNotify.Cli/Program.cs`.
 
@@ -20,7 +24,10 @@ agentnotify --help | -h | help [<command>]
 agentnotify --version
 ```
 
-When no command is given the usage text is printed and the process exits `0`. When the first argument does not match a known command (`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `install-skill`, `install-harness`, `install`, `help`/`--help`/`-h`, `--version`) it is treated as a positional `send` invocation.
+When no command is given the usage text is printed and the process exits `0`. Known commands include
+`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `ui`, `interactions`,
+`install-skill`, `install-harness`, `install`, `help`, and `--version`. An unknown first argument is
+treated as a positional `send` invocation.
 
 All commands that contact the broker use a 10-second HTTP timeout. Connection failure prints to stderr and exits non-zero (see Exit codes).
 

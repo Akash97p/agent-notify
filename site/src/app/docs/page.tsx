@@ -15,7 +15,7 @@ export default function DocumentationIndex() {
     <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
       <Badge variant="secondary">Documentation</Badge>
       <h1 className="mt-5 max-w-3xl text-5xl font-semibold tracking-[-0.05em]">Build a dependable attention path.</h1>
-      <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">Install the broker, connect an agent, understand ARC, configure delivery, and inspect the exact security and verification boundaries.</p>
+      <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">Install the broker, connect an agent, answer its questions, explore local usage and live quota, and inspect the exact security and verification boundaries.</p>
       <div className="mt-14 grid gap-5 md:grid-cols-2">
         {Object.entries(docsBySection()).map(([section, entries]) => {
           const Icon = sectionIcons[section as keyof typeof sectionIcons] ?? BookOpen;

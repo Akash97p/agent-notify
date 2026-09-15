@@ -4,6 +4,10 @@ The broker serves a web interface for everything the Windows Settings window and
 Center manage. It runs wherever the broker runs, so macOS and Linux get the same configuration
 surface as Windows, and nothing extra is installed.
 
+This guide describes the current development source. The tagged `v0.1.0-alpha.2` binaries predate
+the WebUI Insights pages; build the current `main` branch or wait for the next tagged release to
+use Usage, Live quota, and Dashboard.
+
 ```bash
 agentnotify ui
 ```
@@ -128,8 +132,9 @@ OpenCode Go publishes [per-model dollar caps and token rates](https://opencode.a
 the five-hour cap is 20% and the weekly cap is 50% of that model's monthly cap. The page compares
 only usage-bearing OpenCode Go records in this machine's SQLite database against those caps for
 rolling last-five-hour, last-seven-day, and last-30-day periods. It currently has exact verified
-rates and caps for Muse Spark 1.2/1.3 Contributor and GLM-5.3; other models stay unknown until
-priced. A window with an unpriced record has no percentage. This is **not** the Go account's live
+rates and caps for 20 fixed-rate model IDs, including Muse Spark 1.2/1.3 Contributor and GLM-5.3.
+Context-tiered, peak/off-peak, and other unverified models stay unknown. A window with an unpriced
+record has no percentage. This is **not** the Go account's live
 remaining quota: usage in other clients or on other machines, multiple Go keys in the same local
 database, the actual monthly billing boundary, and provider-side adjustments are unavailable from
 the local records. It displays no invented provider reset time or subscription charge.

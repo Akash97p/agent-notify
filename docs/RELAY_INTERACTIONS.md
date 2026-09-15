@@ -27,10 +27,10 @@ Relay POST /v1/envelopes (existing flow, unchanged)
   v
 phone renders question + choices + expiry countdown
   |  user taps Allow / Deny (or types)
-  |  POST /v1/interaction-responses (device bearer)      <-- IMPLEMENT
+  |  POST /v1/interaction-responses (device bearer)
   v
 Relay stores the opaque answer
-  |  desktop polls GET /v1/interaction-responses          <-- IMPLEMENT
+  |  broker polls GET /v1/interaction-responses
   v
 broker revalidates (digest, nonce, kind, expiry, first-wins) and settles
   |

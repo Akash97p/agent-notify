@@ -26,14 +26,19 @@ Source: `src/AgentNotify.Cli/Program.cs`.
 
 **Cause**
 
-The WPF tray process `AgentNotify.Tray.exe` owns the Kestrel host. It is not running, it failed during initialization, or the CLI is contacting the wrong port.
+The broker host is not running, failed during initialization, or the CLI is contacting the wrong port. On Windows the tray process `AgentNotify.Tray.exe` owns Kestrel; on macOS/Linux the headless `agentnotifyd` process does.
 
 **Fix**
 
-1. Launch `AgentNotify.Tray.exe` from the Start menu or `%LOCALAPPDATA%\Programs\AgentNotify`. A second launch signals the existing tray process and exits (`src/AgentNotify.App/App.xaml.cs`).
-2. Check `agentnotify.exe health`. When a token is present it probes `GET /v1/health`; otherwise `GET /health` (`src/AgentNotify.Cli/Program.cs`).
-3. Confirm the port in `%LOCALAPPDATA%\AgentNotify\config.json` (`port`, default `47821`) matches the port the CLI uses (`--port` or `AGENTNOTIFY_PORT`).
-4. Inspect `%LOCALAPPDATA%\AgentNotify\logs\agentnotify-YYYYMMDD.log` for initialization failures. A failed startup terminates the incomplete tray process rather than leaving a partial listener (`docs/ARCHITECTURE.md`).
+1. On Windows, launch `AgentNotify.Tray.exe` from the Start menu or `%LOCALAPPDATA%\Programs\AgentNotify`. On macOS/Linux, start `agentnotifyd` or its systemd/launchd user service. A second Windows launch signals the existing tray process and exits (`src/AgentNotify.App/App.xaml.cs`).
+2. Check `agentnotify health`. When a token is present it probes `GET /v1/health`; otherwise `GET /health` (`src/AgentNotify.Cli/Program.cs`).
+3. Confirm the `port` in the broker's per-user `config.json` (default `47821`) matches the CLI's `--port` or `AGENTNOTIFY_PORT` setting.
+4. Inspect the broker's local log for initialization failures. On Windows this is `%LOCALAPPDATA%\AgentNotify\logs\agentnotify-YYYYMMDD.log`. A failed startup terminates the incomplete host rather than leaving a partial listener (`docs/ARCHITECTURE.md`).
+
+For an SSH-forwarded WebUI, keep the local and remote ports distinct. If `agentnotifyd` listens
+on remote port 47821, forward `-L 127.0.0.1:47822:127.0.0.1:47821` and open
+`http://127.0.0.1:47822/ui/` locally. A LAN or tailnet host address in the browser is rejected by
+the WebUI host guard; see [WEB_UI.md](WEB_UI.md#troubleshooting).
 
 ---
 

@@ -57,8 +57,7 @@ shapes are unconfirmed), and a wrong guess would look exactly like success.
 Muse follows automatically once its `PermissionRequest` round trip is
 confirmed live.
 
-Nothing else approves, denies, allows, or blocks a tool call. The full
-relay→phone→host loop (answering from mobile) is specified in
+The full relay→phone→host loop (answering from mobile) is implemented and documented in
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
 ## Install
