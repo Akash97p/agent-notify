@@ -2,7 +2,10 @@
 
 ## Design goals
 
-AgentNotify is one interactive per-user Windows process. It owns the tray icon, localhost API, notification lifecycle, SQLite repository, dashboard, and custom WPF toast windows. This keeps installation and diagnostics simple while preserving clean boundaries inside the process.
+AgentNotify runs one broker per user. On Windows the WPF tray process owns the broker, native
+notification center, Settings window, and custom toasts. On macOS and Linux `agentnotifyd` owns the
+same loopback API, lifecycle, SQLite repository, outbound delivery, and local WebUI without a native
+tray. Portable domain boundaries keep the two hosts aligned.
 
 ## Components
 
@@ -39,21 +42,17 @@ unkeyed retries idempotent across active and resolved history. An explicit reque
 active-condition lifecycle. Unknown core fields are rejected, and only bounded correlation metadata
 is retained.
 
-### Planned interaction and host-adapter boundary
+### Interaction and host-adapter boundary
 
-Bidirectional permission and question handling is planned as a portable Core/Protocol capability,
-not as vendor logic inside WPF. A host adapter will translate a coding agent's synchronous hook,
-plugin, SDK, gateway, RPC, or Agent Client Protocol request into one durable AgentNotify
-interaction. SQLite will remain authoritative for the pending request, response, expiry, and native
-host acceptance; desktop and mobile are competing response surfaces under a deterministic
-first-valid-response-wins rule.
-
-The adapter that owns the live native request also owns the in-memory waiter. Relay transports a
-sealed response back to the desktop, but neither Relay nor the language model completes the waiter
-directly. A response is successful only after the desktop validates and persists it and the native
-host accepts the mapped decision. See
-[BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md) for the researched
-protocol split, security boundary, and agent-by-agent feasibility.
+Portable Core services persist bounded permissions and questions in SQLite, enforce expiry,
+supersession, digest/nonce checks, idempotency, and first-valid-response-wins, and expose
+authenticated `/v1/interactions` routes. The WebUI and CLI answer locally. Codex/Claude ask hooks,
+Hermes, and OpenClaw translate answers back through their host-owned control surfaces. The
+adapter with a live native request owns its in-memory waiter; the SQLite record remains authoritative.
+Relay/mobile can return an answer through background polling, and the broker validates it before
+settling the waiter. Native-host acceptance is not yet persisted separately, and v1 mobile answers
+are visible to Relay rather than sealed end to end. A managed Agent Client Protocol bridge remains
+planned. See [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
 
 ### Web interface
 
@@ -204,9 +203,9 @@ them changes the product rather than the implementation.
 2. SQLite is the source of truth for notification history. Provider profiles, routing
    rules, outbox entries, and delivery attempts are added through explicit migrations
    that preserve existing history.
-3. Provider credentials are encrypted with Windows DPAPI at current-user scope before
-   persistence. Only sealed envelopes reach SQLite, and secret fields are redacted from
-   every API and log.
+3. Provider credentials are encrypted before persistence: current-user DPAPI on Windows and
+   platform-backed AES-GCM keys on macOS/Linux, with a documented owner-only key-file fallback on
+   Linux. Only sealed envelopes reach SQLite, and secret fields are redacted from every API and log.
 4. Local desktop delivery is authoritative. Outbound channels are opt-in secondary
    deliveries and can never make notification creation fail.
 5. Prefer official provider APIs. An unofficial bridge — Signal through `signal-cli`,
@@ -216,17 +215,16 @@ them changes the product rather than the implementation.
 7. ARC plus the local SQLite record is the canonical human-attention and interaction
    history. External agent protocols are adapters or projections over it, never
    replacements for the local lifecycle.
-8. Bidirectional agent communication has two modes: direct native adapters for existing
-   terminal and editor sessions, and an Agent Client Protocol client for sessions
-   AgentNotify manages as subprocesses.
+8. Bidirectional agent communication uses direct native adapters for existing terminal and editor
+   sessions. An Agent Client Protocol client for managed subprocess sessions remains planned.
 9. A skill or ordinary MCP tool cannot intercept a host-native approval. An adapter has
    to own a synchronous host hook, plugin/SDK/gateway/RPC request, or ACP
    server-initiated request, and return the human answer through that same control
    surface.
-10. A remote answer is an authorization message. It is bound to the exact installation,
-    session/turn, native request, and request digest; it expires; replayed or stale
-    responses are rejected; and Relay acceptance, human response, and native-host
-    acceptance stay three distinct facts.
+10. A remote answer is an authorization message. The current broker checks the request digest,
+    single-use nonce, expiry, and first-wins state and rejects stale/replayed responses. Relay
+    acceptance, broker answer acceptance, and native-host acceptance are distinct facts; the last
+    is not yet persisted as a receipt. End-to-end sealing to the installation remains required work.
 
 ## Adding a new outbound adapter
 

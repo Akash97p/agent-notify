@@ -1,14 +1,15 @@
 # AgentNotify documentation
 
 AgentNotify is a local human-attention broker for coding agents. This directory holds the project
-documentation. The current release line is the prerelease `0.0.3-alpha.1`; the mature `1.0.0`
+documentation. The current published prerelease is `0.1.0-alpha.2`; the mature `1.0.0`
 milestone is intentionally reserved and has not been reached.
 
 ## Platform support
 
-The **graphical application is Windows-only**: the tray icon, notification center, custom toasts and
+The **native graphical application is Windows-only**: the tray icon, notification center, custom toasts and
 Settings window are WPF. macOS and Linux run the same CLI, loopback API, SQLite history and outbound
-adapters through the headless `agentnotifyd` broker, configured by editing `config.json` directly.
+adapters through the headless `agentnotifyd` broker. Its local web interface configures the broker
+and shows notifications, questions, usage, costs, and quotas on all three platforms.
 [CROSS_PLATFORM.md](CROSS_PLATFORM.md) describes the plan for native clients.
 
 ## Start here
@@ -17,7 +18,8 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | --- | --- |
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
 | [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
-| [WEB_UI.md](WEB_UI.md) | The browser interface for settings, channels, questions, and history, and how it stays local |
+| [WEB_UI.md](WEB_UI.md) | The browser interface for settings, questions, usage, published-rate cost estimates, named-account live quota, and Insights |
+| [RELAY.md](RELAY.md) | Pair a broker and phone with a self-hosted Relay; send notifications and answer questions |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
 | [ARC.md](ARC.md) | Attention Request Contract 0.1 lifecycle, schema, and AgentNotify binding |
@@ -52,7 +54,7 @@ adapters through the headless `agentnotifyd` broker, configured by editing `conf
 | [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md) | The ordered backlog with per-item status |
 | [VERIFICATION.md](VERIFICATION.md) | What has actually been verified, and what remains unverified |
 | [BUG.md](BUG.md) | Defects found after a capability was called complete, and what caused them |
-| [future-scope/](future-scope/README.md) | Unscheduled: local usage indexing, live quota probing, and provider routing |
+| [future-scope/](future-scope/README.md) | Shipped usage/quota foundations and remaining durable indexing, broader quota sources, and provider routing |
 | [RELEASING.md](RELEASING.md) | Version scheme, tagging, and the release/Pages workflows |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Branching rules, quality gates, and how to propose a change |
 

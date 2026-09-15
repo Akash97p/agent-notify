@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha.2-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-884%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-903%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -19,6 +19,7 @@
   <a href="https://akash97p.github.io/agent-notify/">Documentation</a> ·
   <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
   <a href="docs/INSTALLATION.md">Installation</a> ·
+  <a href="docs/WEB_UI.md">Web interface</a> ·
   <a href="docs/API.md">API</a> ·
   <a href="docs/ARC.md">ARC</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
@@ -70,8 +71,12 @@ Everywhere:
   [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
   transport that can carry a question to a paired device and the answer back.
 - **A web interface on every platform.** `agentnotify ui` opens the broker's own settings,
-  channels, routes, questions, and history in your browser — no sign-in, served only to this
-  machine, and never handed a stored credential.
+  channels, routes, questions, and history in your browser. Insights adds an animated dashboard,
+  local Claude Code/Codex/OpenCode usage by project, model, day, and recent session, plus
+  published-rate token-cost estimates. Live quota shows the remaining balance and reset times for
+  several named Codex and Claude Code profiles; OpenCode Go has a separate local per-model estimate.
+  The interface has no sign-in, is served only to the local machine, and never receives stored
+  credentials. See [Web interface](docs/WEB_UI.md) for the source and estimate limits.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:
@@ -427,7 +432,8 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current `v0.0.3-alpha.1` build completes with zero warnings. The test suite has 720 passing tests.
+The current development branch has 903 passing automated tests. See the exact build and test
+environments in [VERIFICATION.md](docs/VERIFICATION.md).
 
 ### Build the single-file installer
 
@@ -443,7 +449,7 @@ artifacts/AgentNotifySetup.exe
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
 
-The current [v0.0.3-alpha.1 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1) includes the installer, checksum, and distributable skill. Future exact `v`-prefixed tags publish through the release workflow; hyphenated prerelease tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
+The latest tagged [v0.1.0-alpha.2 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2) includes the installer, portable archives, checksums, and distributable skill. Newer development features are on `main`/`dev` until the next tagged release; use a fresh build to try them. Exact `v`-prefixed tags publish through the release workflow; hyphenated tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
 
 ## API
 

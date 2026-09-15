@@ -29,7 +29,7 @@ published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an e
 To install elsewhere or pin a version:
 
 ```sh
-AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.0.3-alpha.1 sh install.sh
+AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.1.0-alpha.2 sh install.sh
 ```
 
 ### Manual install
@@ -86,6 +86,11 @@ agentnotify health
 agentnotify send --agent codex --project payments --type input_required \
   --key payments-decision --title "Need a decision" --message "Normalized or denormalized?"
 ```
+
+Open the broker's local web interface with `agentnotify ui`. It provides settings, channels,
+questions, history, and an Insights area for local usage, API-equivalent cost estimates, and
+on-demand live Codex/Claude Code quota. See [WEB_UI.md](WEB_UI.md) for account setup, estimate
+limits, and SSH forwarding from another computer.
 
 ## Run it in the background
 

@@ -38,9 +38,9 @@ Coding agent → ARC → AgentNotify (local history, toast)
 | Piece | Status |
 | --- | --- |
 | The relay service | Open source, self-hostable today |
-| The desktop provider | Shipped in AgentNotify — pairing, sending, revocation |
+| The broker provider | Shipped on Windows, macOS, and Linux — pairing, sending, revocation |
 | The operator console | Shipped with the relay — sign-in, pairing, live delivery view |
-| The mobile app | Android Expo/TypeScript receiver implemented in [`agent-notify-relay-mobile`](https://github.com/Akash97p/agent-notify-relay-mobile); owner-reported live flow working on 2026-09-03 |
+| The mobile app | Android Expo/TypeScript receiver and question-answer UI implemented in [`agent-notify-relay-mobile`](https://github.com/Akash97p/agent-notify-relay-mobile); owner phone round trips verified through 2026-09-13 |
 | Relay Go (hosted) | **Not available yet.** Visible in the UI as *coming soon* |
 
 The relay repository also retains `scripts/dummy-device.ts`, a command-line stand-in for contract
@@ -74,13 +74,16 @@ is a short-lived, single-use challenge rather than a credential; the phone's dev
 minted only when it presents that challenge.
 
 A phone belongs to your relay account rather than to one computer, so you scan once and every
-computer you have paired can reach it.
+computer you have paired can reach it. When a coding agent asks a question or awaits an approval,
+an enabled Relay route with message-content consent can carry that interaction to the phone. The
+running broker polls for the answer and returns it to a waiting supported host adapter. See
+[Interactions](INTERACTIONS.md) and the [Relay/mobile answer contract](RELAY_INTERACTIONS.md).
 
 ---
 
 ## What the relay can and cannot see
 
-Notification payloads are sealed per recipient device with X25519 + XChaCha20-Poly1305 before they
+Notification and interaction-request payloads are sealed per recipient device with X25519 + XChaCha20-Poly1305 before they
 leave your machine, and the relay stores only the sealed bytes. It is not a decryption client, and
 its operator console renders delivery metadata only — never message content.
 
@@ -97,9 +100,12 @@ sent in the clear.
 
 > **Scope of the claim.** The envelope format has not had an independent cryptographic review,
 > and the mobile implementation is Android-first. The owner reports a successful live end-to-end
-> device test on 2026-09-03; this documentation branch did not repeat it. Confidentiality against
+> notification delivery test in September 2026; the owner later verified phone-to-host answers
+> for permission, choice, and text interactions on 2026-09-13. Confidentiality against
 > the relay operator is implemented and tested; treat it as unreviewed rather than as an audited
-> guarantee.
+> guarantee for the sealed request/notification direction. **V1 answers are plaintext to Relay**;
+> they are authenticated, then revalidated by the broker for digest, nonce, expiry, and first-wins
+> state. Sealing answers to the installation key remains future work.
 
 Per-route, the **Include notification message off-device** switch controls whether the message body
 leaves the machine at all. Leave it off for routes carrying anything you would not want stored
@@ -159,7 +165,8 @@ contract are documented in the
 
 ## Related pages
 
-- [Outbound channels](channels) — every adapter, including the Relay provider's settings and
+- [Outbound channels](CHANNELS.md) — every adapter, including the Relay provider's settings and
   security policy
-- [Architecture](architecture) — where outbound delivery sits in the process model
-- [ARC](arc) — the attention request contract the relay transports
+- [Architecture](ARCHITECTURE.md) — where outbound delivery sits in the process model
+- [ARC](ARC.md) — the attention request contract the relay transports
+- [Relay interaction sync](RELAY_INTERACTIONS.md) — the phone answer path and its security limits

@@ -6,9 +6,10 @@ AgentNotify keeps the local broker, notification lifecycle, and history as the s
 
 - Keep the completed native Settings UI, custom notification definitions, managed WAV/MP3 sounds, and channel diagnostics stable while human visual/audio/accessibility checks are completed.
 - Quiet hours, schedules, snooze, escalation, routing, grouping, cooldowns, and coalescing controls.
-- Response/acknowledgement buttons with a safe path back to the waiting agent.
-- A durable bidirectional interaction broker, native host adapters, and a managed Agent Client
-  Protocol bridge. See [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
+- Native Windows toast/center answer controls and host-acceptance receipts for the shipped
+  interaction broker and WebUI/Relay answer path. See
+  [BIDIRECTIONAL_AGENT_COMMUNICATION.md](BIDIRECTIONAL_AGENT_COMMUNICATION.md).
+- A managed Agent Client Protocol bridge, broader answer adapters, and sealed mobile responses.
 - Better “Open Agent” support for Windows Terminal tabs, editors, and virtual desktops.
 - ARM64 builds, Authenticode-signed releases, checksums, and update/migration tooling.
 
@@ -32,11 +33,13 @@ WhatsApp must use the official business platform rather than browser automation 
 ## Agent ecosystem
 
 - Agent Client Protocol client for AgentNotify-managed coding sessions.
-- Native synchronous hook/plugin/SDK/gateway adapters for existing coding-agent sessions.
+- More native answer adapters for existing coding-agent sessions; Codex/Claude ask hooks, Hermes,
+  and OpenClaw answer paths already exist.
 - Optional MCP elicitation and A2A/AEP projections after the response contract is stable.
 - Small SDKs for PowerShell, .NET, Python, JavaScript, and shell environments.
 - Agent heartbeat and “currently waiting” status.
-- Acknowledgement callbacks and structured user responses.
+- Host-acceptance acknowledgements and richer structured responses beyond the shipped
+  permission, single-choice, and text interactions.
 - Additional local transports such as named pipes, without replacing the REST API prematurely.
 
 ## Longer term
