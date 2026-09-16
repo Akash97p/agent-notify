@@ -112,6 +112,16 @@ public sealed class SqliteInteractionRepository : IInteractionRepository
         return await reader.ReadAsync(ct) ? ReadInteraction(reader) : null;
     }
 
+    public async Task<Interaction?> FindLatestByKeyAsync(string key, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = SelectColumns + " WHERE key = $key ORDER BY created_at DESC LIMIT 1";
+        command.Parameters.AddWithValue("$key", key);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? ReadInteraction(reader) : null;
+    }
+
     public async Task<IReadOnlyList<Interaction>> QueryAsync(InteractionQuery query, CancellationToken ct = default)
     {
         var where = new List<string>();

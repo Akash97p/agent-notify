@@ -192,7 +192,43 @@ public static class ApiHost
             if (!ArcEventMapper.TryMap(arcEvent, out var mapping, out var mappingError))
                 return Results.Json(new { error = mappingError }, statusCode: StatusCodes.Status400BadRequest);
 
-            if (mapping!.Operation == ArcOperation.Resolve)
+            if (mapping!.Operation == ArcOperation.Respond)
+            {
+                if (interactions is null)
+                    return Results.Json(new { error = "this broker does not accept answers" },
+                        statusCode: StatusCodes.Status400BadRequest);
+
+                // The latest interaction for the key, not just a pending one: an answer that
+                // arrives after the condition closed is a conflict, not a missing question.
+                var question = await interactions.FindLatestByKeyAsync(mapping.LocalKey, http.RequestAborted);
+                if (question is null)
+                    return Results.Json(new { error = "no answerable ARC request is waiting for that key" },
+                        statusCode: StatusCodes.Status404NotFound);
+
+                var answer = await interactions.RespondAsync(question.Id, mapping.Response!, http.RequestAborted);
+                if (answer.NotFound)
+                    return Results.Json(new { error = "no answerable ARC request is waiting for that key" },
+                        statusCode: StatusCodes.Status404NotFound);
+                if (answer.Error is not null)
+                    return Results.Json(new { error = answer.Error },
+                        statusCode: answer.Error is "interaction already answered"
+                            ? StatusCodes.Status409Conflict
+                            : StatusCodes.Status400BadRequest);
+
+                // An answered condition is no longer waiting for attention, so the notification
+                // half of the same request resolves with it.
+                var answered = await service.ResolveByKeyAsync(mapping.LocalKey, http.RequestAborted);
+                if (answered.Value is not null)
+                    InvokeCallback(callbacks?.Updated, answered.Value, logger);
+
+                return Results.Json(new ArcEventResponse
+                {
+                    Notification = answered.Value is null ? null : DtoMapper.ToDto(answered.Value),
+                    Interaction = DtoMapper.ToDto(answer.Value!)
+                }, statusCode: StatusCodes.Status200OK);
+            }
+
+            if (mapping.Operation == ArcOperation.Resolve)
             {
                 var resolution = await service.ResolveByKeyAsync(mapping.LocalKey, http.RequestAborted);
                 if (resolution.NotFound)
@@ -200,8 +236,37 @@ public static class ApiHost
                 if (resolution.Error is not null)
                     return Results.Json(new { error = resolution.Error }, statusCode: StatusCodes.Status400BadRequest);
 
+                // Resolving the condition withdraws the question asked with it, so a producer
+                // that stops waiting never leaves a live prompt on somebody's phone.
+                InteractionDto? withdrawn = null;
+                if (interactions is not null)
+                {
+                    var open = await interactions.FindPendingByKeyAsync(mapping.LocalKey, http.RequestAborted);
+                    if (open is not null)
+                    {
+                        var cancelled = await interactions.CancelAsync(open.Id, http.RequestAborted);
+                        if (cancelled.Value is not null)
+                            withdrawn = DtoMapper.ToDto(cancelled.Value);
+                    }
+                }
+
                 InvokeCallback(callbacks?.Updated, resolution.Value!, logger);
-                return Results.Json(DtoMapper.ToDto(resolution.Value!), statusCode: StatusCodes.Status200OK);
+                return Results.Json(new ArcEventResponse
+                {
+                    Notification = DtoMapper.ToDto(resolution.Value!),
+                    Interaction = withdrawn
+                }, statusCode: StatusCodes.Status200OK);
+            }
+
+            // Reject an answerable event before anything is stored, so a rejected question
+            // cannot leave a visible notification behind with nothing waiting on it.
+            if (mapping.Interaction is not null)
+            {
+                if (interactions is null)
+                    return Results.Json(new { error = "this broker does not accept answerable requests" },
+                        statusCode: StatusCodes.Status400BadRequest);
+                if (InteractionService.Validate(mapping.Interaction) is { } interactionError)
+                    return Results.Json(new { error = interactionError }, statusCode: StatusCodes.Status400BadRequest);
             }
 
             // An unkeyed request.created event is immutable. Its derived event-identity key makes
@@ -210,7 +275,16 @@ public static class ApiHost
             {
                 var existing = await repository.FindByKeyAsync(mapping.LocalKey, http.RequestAborted);
                 if (existing is not null)
-                    return Results.Json(DtoMapper.ToDto(existing), statusCode: StatusCodes.Status200OK);
+                {
+                    var open = interactions is null
+                        ? null
+                        : await interactions.FindPendingByKeyAsync(mapping.LocalKey, http.RequestAborted);
+                    return Results.Json(new ArcEventResponse
+                    {
+                        Notification = DtoMapper.ToDto(existing),
+                        Interaction = open is null ? null : DtoMapper.ToDto(open)
+                    }, statusCode: StatusCodes.Status200OK);
+                }
             }
 
             var result = mapping.Operation == ArcOperation.Update
@@ -232,8 +306,19 @@ public static class ApiHost
                 notification,
                 logger);
 
+            InteractionDto? asked = null;
+            if (mapping.Interaction is not null)
+            {
+                var opened = await interactions!.RequestAsync(mapping.Interaction, http.RequestAborted);
+                if (opened.Error is not null)
+                    return Results.Json(new { error = opened.Error }, statusCode: StatusCodes.Status400BadRequest);
+                if (opened.WasCreated)
+                    await InvokeCallbackAsync(callbacks?.InteractionCreated, opened.Value!, logger);
+                asked = DtoMapper.ToDto(opened.Value!);
+            }
+
             return Results.Json(
-                DtoMapper.ToDto(notification),
+                new ArcEventResponse { Notification = DtoMapper.ToDto(notification), Interaction = asked },
                 statusCode: result.WasCreated ? StatusCodes.Status201Created : StatusCodes.Status200OK);
         });
 

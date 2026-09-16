@@ -78,6 +78,26 @@ public sealed class InteractionService
         return item is null ? ServiceResult<Interaction>.NotExist() : ServiceResult<Interaction>.Ok(item);
     }
 
+    /// <summary>
+    /// The pending interaction for a logical key, if there is one. ARC addresses an answer by
+    /// the condition key it carries rather than by a broker-assigned interaction id.
+    /// </summary>
+    public async Task<Interaction?> FindPendingByKeyAsync(string key, CancellationToken ct = default)
+    {
+        await SweepAsync(ct);
+        return await _repository.FindPendingByKeyAsync(key, ct);
+    }
+
+    /// <summary>
+    /// The most recent interaction for a key whatever its status. An answer that arrives after
+    /// the condition closed must be told apart from an answer to a question nobody ever asked.
+    /// </summary>
+    public async Task<Interaction?> FindLatestByKeyAsync(string key, CancellationToken ct = default)
+    {
+        await SweepAsync(ct);
+        return await _repository.FindLatestByKeyAsync(key, ct);
+    }
+
     public async Task<IReadOnlyList<Interaction>> ListAsync(InteractionQuery query, CancellationToken ct = default)
     {
         await SweepAsync(ct);
@@ -353,6 +373,13 @@ public sealed class InteractionService
 
     private static string NewNonce() =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+
+    /// <summary>
+    /// Validates a request without opening it. The ARC binding needs to reject an answerable
+    /// event before it stores the notification half of the same event, so a rejected question
+    /// cannot leave a visible notification behind with nothing waiting on it.
+    /// </summary>
+    public static string? Validate(CreateInteractionRequest request) => ValidateRequest(request);
 
     private static string? ValidateRequest(CreateInteractionRequest request)
     {

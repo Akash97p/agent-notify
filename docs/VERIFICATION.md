@@ -1499,6 +1499,39 @@ need future local usage before they appear as model cards.
 Not verified locally: Windows tray-hosted behavior, provider interoperability, or a human review
 of the updated Pages layout. Those product behaviors are unchanged by this documentation branch.
 
+## Hosted-only Relay, tray label, and ARC 0.2 (2026-09-16)
+
+Run on the owner's Mac with the local .NET 10 SDK at `~/.dotnet` rather than `scripts/*.sh`,
+which resolve a Windows SDK path that does not exist on this machine. The whole solution,
+including the WPF app and the installer, compiles there with `-p:EnableWindowsTargeting=true`.
+
+Performed:
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true` — **succeeded, 0 warnings,
+  0 errors**, covering `AgentNotify.App` and `AgentNotify.Setup`. This is a compile of the WPF
+  project including XAML markup compilation, so the removed `RelayDeploymentBox` and
+  `RelayBaseUrlBox` controls leave no dangling `x:Name` reference in the code-behind.
+- `dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj -c Release` — **915 passed, 0 failed**,
+  up from 906 before this work.
+- `npm run build` in `site/` — the GitHub Pages export generated all 27 routes, and the built output
+  contains no link to any Relay repository.
+- The ARC 0.2 JSON Schema was checked with `jsonschema` 4.26 (Draft 2020-12): the schema itself is
+  valid, all four `docs/ARC.md` examples validate against it, 14 malformed envelopes are rejected
+  (0.1 version, a response on a created event, an outcome on a created event, a text kind carrying
+  choices, a choice kind without them, a single choice, an answer with both or neither answer field,
+  an answer without a key, an answer with no response object, a short digest, a resolution carrying a
+  message, an unknown outcome, an unknown core field), and three further valid shapes are accepted.
+
+Not verified:
+
+- **No WPF surface was rendered or exercised.** The Relay panel with its deployment selector and
+  server-address field removed, and the renamed **Web interface…** tray entry, compile but have not
+  been looked at by a person. Layout, spacing, and the read-only hosted-endpoint line are unconfirmed.
+  A cross-compile is not a running Windows app; run it before trusting the appearance.
+- No live Relay was contacted. Pairing against the hosted endpoint, and a real phone answering an
+  ARC 0.2 answerable request end to end, remain unobserved.
+- Packaging was not run.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

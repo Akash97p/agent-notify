@@ -12,6 +12,10 @@
           CopyToOutputDirectory="PreserveNewest"
           Pack="true"
           PackagePath="schemas/" />
+    <None Include="Schemas\arc-0.2.schema.json"
+          CopyToOutputDirectory="PreserveNewest"
+          Pack="true"
+          PackagePath="schemas/" />
   </ItemGroup>
 
 </Project>

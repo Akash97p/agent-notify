@@ -13,6 +13,17 @@ build.
 
 ### Added
 
+- **ARC 0.2 — the contract can now carry the answer back.** 0.1 could say a person was needed
+  but not what was being asked, and had no way to return what the person said. A request may
+  now carry a `response` specification — a permission, one of a bounded list of choices, or a
+  short text, with a deadline — which opens a durable question alongside the notification. A
+  new `response.submitted` event delivers one answer, bound to the exact question by the
+  digest and nonce the broker issued, settled first-valid-wins. `request.outcome` records why
+  a condition closed, and `context` gained `turn_id` and `native_request_id` so a host adapter
+  can return an accepted answer into the call blocking on it. `POST /v1/events` now returns
+  `{ "notification": …, "interaction": … }` for every event. See `docs/ARC.md` and the
+  published `schemas/arc-0.2.schema.json`.
+
 - **A web interface, on every platform.** The broker now serves its own settings and
   notification center at `http://127.0.0.1:<port>/ui/`, from both `agentnotifyd` and the
   Windows tray app. macOS and Linux had no way to configure channels, routes, custom types or
@@ -20,7 +31,7 @@ build.
   attention, questions (answer permissions, choices and text), channels (all nineteen, including
   connecting a Relay), routes and delivery counts, notification and toast settings, custom
   types, sounds with upload and preview, and agent skill installs. On Windows the tray menu
-  gains **Open in browser…**.
+  gains **Web interface…**.
   Like the tray app it asks for no password. It defends against other web sites instead:
   foreign host names are refused (DNS rebinding), state changes need a custom header and a
   same-origin `Origin`, a strict content security policy applies, and stored credentials and
@@ -38,6 +49,22 @@ build.
   all the context the user gets, and never raise a `permission` yourself because the
   harness already owns those. Mirrored into the portable snippet in `docs/AGENT_SKILLS.md`
   for agents without skill discovery.
+
+### Changed
+
+- **Relay is hosted only.** The deployment selector and the "Relay server base URL" field are
+  gone from the Channels panel, the web interface and the CLI: there is one endpoint, and
+  connecting is just **Connect** plus a browser approval. `agentnotify relay pair` no longer
+  needs `--url`. Profiles saved by an older build keep working — a leftover `deployment` key
+  is ignored rather than rejected.
+- **AgentNotify Relay is not open source.** Its repository links are gone from the
+  documentation and the site; the service, the mobile app and the receiver SDKs are still
+  documented, as products rather than as repositories. Running your own relay is no longer a
+  supported path.
+- The tray menu's web interface entry is named **Web interface…** rather than
+  **Open in browser…**, which read as a second way to open the Settings window.
+- `arc_version` must be exactly `"0.2"`. ARC 0.1 events are rejected; the 0.1 schema stays
+  published so its URL keeps resolving, but it is no longer normative.
 
 ### Fixed
 
