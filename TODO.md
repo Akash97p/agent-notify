@@ -69,6 +69,9 @@
 - [x] MIT License and setup no-warranty acknowledgement
 - [x] README, contributing, security, architecture, installation, API, CLI, configuration, troubleshooting, integration, roadmap, and verification docs, indexed by `docs/README.md`
 - [x] Preserve local user data on uninstall
+- [ ] In-place update: setup detects the installed version, skips the licence, stops the tray
+      through a named exit event, renames in-use files, and restarts the tray. Implemented and
+      cross-compiled only; not yet run on Windows.
 - [ ] Authenticode signing and timestamping
 - [ ] Published SHA-256 checksums
 - [ ] ARM64 installer

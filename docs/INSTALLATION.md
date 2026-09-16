@@ -42,7 +42,35 @@ For managed deployment and verification, setup supports a license-gated silent m
 AgentNotifySetup.exe --silent --accept-license --install-dir "D:\Apps\AgentNotify" --no-startup
 ```
 
-`--accept-license` is mandatory with `--silent`. Optional switches are `--no-startup` and `--desktop-shortcut`. Silent mode does not launch the app or browser guide.
+`--accept-license` is mandatory with `--silent` for a first install. Optional switches are `--no-startup` and `--desktop-shortcut`. A silent first install does not launch the app or browser guide.
+
+## Updating
+
+Run the newer `AgentNotifySetup.exe`; there is no need to quit AgentNotify first. Setup finds the
+existing installation through its uninstall registration (`InstallLocation` and `DisplayVersion`,
+provided `AgentNotify.Tray.exe` is still in that folder) and switches to an update:
+
+- it shows the installed and new versions, keeps the install folder, and keeps the current
+  **Start when I sign in** and desktop-shortcut choices;
+- it does not ask for the MIT License again — that was accepted at install — though the licence
+  can still be opened;
+- **Update AgentNotify** asks the running tray to exit through the named event
+  `Local\AgentNotify.Exit.v1`, which runs the same clean shutdown as the tray's **Exit**; a tray
+  that has not exited after ten seconds (including one from a build without that event) is ended;
+- a running `agentnotify.exe` is not stopped, because an agent may be waiting on
+  `interactions wait`. Setup renames the in-use file to `agentnotify.exe.<id>.old`, puts the new
+  file in its place, and deletes leftovers on the next install or uninstall;
+- the tray is started again when setup finishes, and the getting-started guide is not reopened.
+
+Silent updates need no licence switch:
+
+```powershell
+AgentNotifySetup.exe --silent
+```
+
+With an existing installation, `--silent` keeps its folder and choices (an explicit `--install-dir`,
+`--no-startup`, or `--desktop-shortcut` still wins), stops the tray, and starts it again afterwards if
+it was running. Add `--no-launch` to leave it stopped.
 
 ## Uninstall
 

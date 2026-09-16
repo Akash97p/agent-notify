@@ -6,9 +6,13 @@ public sealed class SingleInstance : IDisposable
 {
     private const string MutexName = "Local\\AgentNotify.SingleInstance.v1";
     private const string ShowCenterEventName = "Local\\AgentNotify.ShowCenter.v1";
+    /// <summary>Set by AgentNotifySetup to stop the tray before replacing its files.</summary>
+    private const string ExitEventName = "Local\\AgentNotify.Exit.v1";
 
     private Mutex? _mutex;
     private EventWaitHandle? _showCenterEvent;
+    private EventWaitHandle? _exitEvent;
+    private volatile bool _disposed;
 
     public bool IsFirstInstance { get; private init; }
 
@@ -38,7 +42,8 @@ public sealed class SingleInstance : IDisposable
         {
             IsFirstInstance = true,
             _mutex = mutex,
-            _showCenterEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowCenterEventName)
+            _showCenterEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowCenterEventName),
+            _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName)
         };
     }
 
@@ -56,12 +61,26 @@ public sealed class SingleInstance : IDisposable
         catch (ObjectDisposedException) { return false; }
     }
 
+    /// <summary>Blocks the calling thread until setup asks the owner to exit. Returns false when
+    /// the instance is being disposed rather than asked to exit.</summary>
+    public bool WaitForExitRequest()
+    {
+        try { return _exitEvent is not null && _exitEvent.WaitOne(Timeout.Infinite) && !_disposed; }
+        catch (ObjectDisposedException) { return false; }
+    }
+
     public void Dispose()
     {
+        _disposed = true;
         if (IsFirstInstance)
+        {
             try { _showCenterEvent?.Set(); } catch { }
+            try { _exitEvent?.Set(); } catch { }
+        }
         _showCenterEvent?.Dispose();
         _showCenterEvent = null;
+        _exitEvent?.Dispose();
+        _exitEvent = null;
         _mutex?.Dispose();
         _mutex = null;
     }

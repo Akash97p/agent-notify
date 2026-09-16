@@ -11,6 +11,9 @@ namespace AgentNotify.Setup;
 internal sealed record InstallOptions(string InstallDirectory, bool StartWithWindows, bool DesktopShortcut);
 internal sealed record InstallProgress(int Percent, string Message);
 
+/// <summary>An AgentNotify this user installed earlier; setup updates it in place.</summary>
+internal sealed record ExistingInstallation(string Directory, string? Version, bool StartWithWindows, bool DesktopShortcut);
+
 internal static class InstallerService
 {
     public static string ProductVersion =>
@@ -23,6 +26,36 @@ internal static class InstallerService
     private const string EnvironmentKey = @"Environment";
     private static readonly string[] InstalledFiles =
         ["AgentNotify.Tray.exe", "agentnotify.exe", "SKILL.md", "GettingStarted.html", "LICENSE.txt", "THIRD_PARTY_NOTICES.txt", "uninstall.ps1"];
+
+    /// <summary>
+    /// The installation recorded in this user's uninstall registration, when its files are still
+    /// there. A registration whose directory is gone is a fresh install, not an update.
+    /// </summary>
+    public static ExistingInstallation? FindExisting()
+    {
+        try
+        {
+            using var product = Registry.CurrentUser.OpenSubKey(ProductKey);
+            if (product?.GetValue("InstallLocation") is not string location) return null;
+            string directory;
+            try { directory = ValidateInstallDirectory(location); }
+            catch (ArgumentException) { return null; }
+            if (!File.Exists(Path.Combine(directory, "AgentNotify.Tray.exe"))) return null;
+
+            var version = product.GetValue("DisplayVersion") as string;
+            using var run = Registry.CurrentUser.OpenSubKey(RunKey);
+            var startup = run?.GetValue("AgentNotify") is not null;
+            var desktop = File.Exists(DesktopShortcutPath);
+            return new ExistingInstallation(directory, string.IsNullOrWhiteSpace(version) ? null : version.Trim(), startup, desktop);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+
+    private static string DesktopShortcutPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AgentNotify.lnk");
 
     public static string ValidateInstallDirectory(string path)
     {
@@ -46,6 +79,7 @@ internal static class InstallerService
     {
         var directory = ValidateInstallDirectory(options.InstallDirectory);
         Directory.CreateDirectory(directory);
+        DeleteReplacedFiles(directory);
 
         progress.Report(new(12, "Installing AgentNotify…"));
         WriteResourceAtomically("Payload.AgentNotify.Tray.exe", Path.Combine(directory, "AgentNotify.Tray.exe"));
@@ -93,7 +127,35 @@ internal static class InstallerService
     {
         var temporary = destination + ".installing";
         File.WriteAllBytes(temporary, ReadBinaryResource(resourceName));
-        File.Move(temporary, destination, overwrite: true);
+        try
+        {
+            File.Move(temporary, destination, overwrite: true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // A running executable cannot be overwritten, but it can be renamed. Agents may be
+            // blocked in `agentnotify interactions wait`; they keep the old image and the next
+            // command they run gets the new one. The renamed file is removed by a later install.
+            if (!File.Exists(destination)) throw;
+            File.Move(destination, $"{destination}.{Guid.NewGuid():N}.old");
+            File.Move(temporary, destination);
+        }
+    }
+
+    /// <summary>Removes executables a previous update renamed because they were in use.</summary>
+    private static void DeleteReplacedFiles(string directory)
+    {
+        foreach (var name in new[] { "AgentNotify.Tray.exe", "agentnotify.exe" })
+        {
+            IEnumerable<string> leftovers;
+            try { leftovers = Directory.EnumerateFiles(directory, name + ".*.old").ToArray(); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { continue; }
+            foreach (var leftover in leftovers)
+            {
+                try { File.Delete(leftover); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            }
+        }
     }
 
     private static void SetStartup(bool enabled, string executable)
@@ -145,7 +207,7 @@ internal static class InstallerService
         CreateShortcut(Path.Combine(startFolder, "AgentNotify.lnk"), executable, "--show-center", directory);
         CreateShortcut(Path.Combine(startFolder, "Getting Started.lnk"), Path.Combine(directory, "GettingStarted.html"), "", directory);
 
-        var desktopPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "AgentNotify.lnk");
+        var desktopPath = DesktopShortcutPath;
         if (desktopShortcut)
             CreateShortcut(desktopPath, executable, "--show-center", directory);
         else if (File.Exists(desktopPath))
@@ -205,6 +267,7 @@ internal static class InstallerService
         @('AgentNotify.Tray.exe','agentnotify.exe','SKILL.md','GettingStarted.html','LICENSE.txt','THIRD_PARTY_NOTICES.txt') | ForEach-Object {
           Remove-Item -LiteralPath (Join-Path $InstallDir $_) -Force
         }
+        Get-ChildItem -LiteralPath $InstallDir -Filter '*.exe.*.old' | Remove-Item -Force
         $self = $MyInvocation.MyCommand.Path
         Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c', "ping 127.0.0.1 -n 2 > nul & del /f /q `"$self`" & rmdir `"$InstallDir`" 2>nul"
         """;
