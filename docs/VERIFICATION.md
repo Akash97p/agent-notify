@@ -1532,6 +1532,31 @@ Not verified:
   ARC 0.2 answerable request end to end, remain unobserved.
 - Packaging was not run.
 
+## Release `v0.1.0-alpha.3` (2026-09-16)
+
+Tag `v0.1.0-alpha.3` on `main` at `a8c27e2`. The hosted Windows release workflow
+([`35105119307`](https://github.com/Akash97p/agent-notify/actions/runs/35105119307)) succeeded in
+under six minutes: tag/version match, SemVer-style metadata check, Release build, the full suite,
+`package.ps1`, and prerelease publication. The Linux job then attached the portable archives. Every
+other workflow on the same commits also passed — CI and CI (Linux and macOS) on both `dev` and
+`main`, and the documentation site deploy.
+
+Published assets and checksums:
+
+```text
+5ddd439eec47b39e8167d7693b5c5214e5f81b0c37f680bd428604fdd80253ce  AgentNotifySetup.exe
+c62552fd67aa8c3920fe3799fd2f5f64c6d2106bd0b6e89efef4511253ceaf51  agentnotify-linux-arm64.tar.gz
+e9bceab3e2de27373229a946b532937c2c68a39e76beee8a6b89c9b16f913bf5  agentnotify-linux-x64.tar.gz
+1b58e63904dee6ca5aac85624a751ece50e567604d286ee14c547a388112ac60  agentnotify-osx-arm64.tar.gz
+bf334dd04609c460bfee053508976f8afac01bef9f1de91841f866f9707260dc  agentnotify-osx-x64.tar.gz
+890a137070b7f1d0347a666b049df838c94e36f7b4664a95f49855490d6168bb  agentnotify-win-x64.zip
+```
+
+Not verified: **nobody has installed or run this build.** The installer was produced and checksummed
+by CI, not executed. Everything listed as unverified in the section above still stands — no WPF
+surface has been looked at, no live Relay has been contacted with the hosted-only client, and no
+phone has answered an ARC 0.2 request end to end. The binaries remain unsigned.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
