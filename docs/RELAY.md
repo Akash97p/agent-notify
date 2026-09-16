@@ -1,14 +1,14 @@
 # AgentNotify Relay
 
-AgentNotify Relay is a separate, self-hostable service that carries attention requests from your
-computers to your phone. It is open source and lives in its own repository:
+AgentNotify Relay is the hosted service that carries attention requests from your computers to your
+phone. It runs at:
 
-**[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay)**
+**`https://an.relay.dev.kabanitech.com`**
 
 From AgentNotify's point of view Relay is one more opt-in outbound channel, selected in
 **Settings → Channels → Providers** as the provider type **AgentNotify Relay**. Everything on this
-page describes that channel; the relay's own setup, operator console, and API are documented in the
-relay repository.
+page describes that channel. There is no server to install and no address to enter: the endpoint is
+fixed, and connecting a computer is a browser approval.
 
 ---
 
@@ -18,15 +18,16 @@ The other outbound channels hand your notifications to somebody else's product �
 an SMTP server, a push service. That works, but the message passes through an account and an
 infrastructure you do not control.
 
-Relay is the alternative for people who would rather run the hop themselves: a small service on a
-VPS or home server that your computers send to and your phone reads from. Local AgentNotify history
-stays authoritative either way — the relay is a transport, not a system of record, and a relay that
-is unreachable never blocks or loses a local notification.
+Relay is the alternative: a hop built for this one job, that your computers send to and your phone
+reads from. It is not a chat product with a notification feature bolted on, so the payload is sealed
+per recipient device before it leaves your machine and the relay stores ciphertext it cannot read.
+Local AgentNotify history stays authoritative either way — the relay is a transport, not a system of
+record, and a relay that is unreachable never blocks or loses a local notification.
 
 ```
 Coding agent → ARC → AgentNotify (local history, toast)
                           ↓ durable outbox
-                     AgentNotify Relay          ← you host this
+                     AgentNotify Relay          ← hosted
                           ↓ opaque push wake-up
                      AgentNotify mobile app
 ```
@@ -37,14 +38,10 @@ Coding agent → ARC → AgentNotify (local history, toast)
 
 | Piece | Status |
 | --- | --- |
-| The relay service | Open source, self-hostable today |
+| The relay service | Hosted and running |
 | The broker provider | Shipped on Windows, macOS, and Linux — pairing, sending, revocation |
-| The operator console | Shipped with the relay — sign-in, pairing, live delivery view |
-| The mobile app | Android Expo/TypeScript receiver and question-answer UI implemented in [`agent-notify-relay-mobile`](https://github.com/Akash97p/agent-notify-relay-mobile); owner phone round trips verified through 2026-09-13 |
-| Relay Go (hosted) | **Not available yet.** Visible in the UI as *coming soon* |
-
-The relay repository also retains `scripts/dummy-device.ts`, a command-line stand-in for contract
-and deployment checks without an Android device.
+| The operator console | Sign-in, pairing, and live delivery view in the browser |
+| The mobile app | Android receiver and question-answer UI; owner phone round trips verified through 2026-09-13 |
 
 ---
 
@@ -54,13 +51,11 @@ No tokens are typed anywhere. Pairing follows the OAuth device authorization gra
 same handshake used when signing a CLI or a smart TV into an account.
 
 1. In **Settings → Channels → Providers**, add a provider and choose **AgentNotify Relay**.
-2. Choose **Custom — self-hosted** and enter your relay's base URL.
-   For a relay on the same machine, also tick **Allow private/loopback destinations**.
-3. Press **Connect**. AgentNotify shows a short code and opens your browser at the relay's approval
+2. Press **Connect**. AgentNotify shows a short code and opens your browser at the relay's approval
    page. If no browser can be opened — a headless server, an SSH session — it keeps polling and
    shows the URL and code so you can approve from any other device.
-4. Sign in to the relay console and approve the code shown on the computer.
-5. Press **Save provider**, then add a route so notifications actually flow.
+3. Sign in to the relay console and approve the code shown on the computer.
+4. Press **Save provider**, then add a route so notifications actually flow.
 
 The installation credential is delivered to the *waiting computer*, never to the browser, so there
 is nothing to copy between the two. It is written straight into the platform-protected secret store
@@ -110,56 +105,6 @@ sent in the clear.
 Per-route, the **Include notification message off-device** switch controls whether the message body
 leaves the machine at all. Leave it off for routes carrying anything you would not want stored
 outside your computer, regardless of transport.
-
----
-
-## Running your own relay
-
-A prebuilt container image is published on every release, so you do not need to clone the
-repository or install anything to build it. Save this as `compose.yaml`, change the four values at
-the top, and run `docker compose up -d`:
-
-```yaml
-services:
-  relay:
-    image: ghcr.io/akash97p/agent-notify-relay:latest
-    restart: unless-stopped
-    ports:
-      # Change the left number to publish on a different port.
-      - "4000:8787"
-    environment:
-      # --- change these four ---
-      RELAY_ADMIN_EMAIL: you@example.com
-      RELAY_ADMIN_PASSWORD: change-me-to-a-long-passphrase
-      # The address AgentNotify and your phone will reach this relay at.
-      # Must match the published port above, and be https:// once it is not local.
-      RELAY_PUBLIC_URL: http://localhost:4000
-      # 32 random bytes. Generate with: openssl rand -base64 32
-      RELAY_ENCRYPTION_KEY: replace-with-openssl-rand-base64-32
-      # --- sensible defaults ---
-      RELAY_DATABASE_URL: sqlite:///data/relay.db
-      # Leave true until you have configured Firebase; deliveries still progress.
-      RELAY_FCM_STUB: "true"
-    volumes:
-      - relay-data:/data
-
-volumes:
-  relay-data:
-```
-
-Open `http://localhost:4000` and sign in with the email and password you set. That is the address
-you then give AgentNotify when you press **Connect**.
-
-The password must be at least 12 characters — the relay refuses to start in production without an
-operator account, and rejects the development encryption key. `RELAY_ENCRYPTION_KEY` protects push
-tokens at rest, so losing it means re-pairing every phone. Put anything internet-facing behind TLS
-and set `RELAY_PUBLIC_URL` to the `https://` address, since that value is what the desktop
-validates and what your phone scans.
-
-SQLite is the default and is right for a single instance; PostgreSQL is supported for
-multi-instance deployments. Running from source, the configuration reference, and the full API
-contract are documented in the
-[relay repository](https://github.com/Akash97p/agent-notify-relay).
 
 ---
 

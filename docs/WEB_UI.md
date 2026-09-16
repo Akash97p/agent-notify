@@ -25,7 +25,7 @@ ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:47822:127.0.0.1:47821 you@the-ma
 
 Open `http://127.0.0.1:47822/ui/` while the SSH command remains running.
 
-On Windows the tray menu has **Open in browser…**, which does the same thing.
+On Windows, right-click the tray icon and choose **Web interface…**, which does the same thing.
 
 ## What it covers
 

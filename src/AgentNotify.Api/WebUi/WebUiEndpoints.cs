@@ -579,7 +579,7 @@ public static class WebUiEndpoints
 
             try
             {
-                var snapshot = await pairings.StartAsync(body.RelayUrl ?? "", body.SenderName, body.AllowPrivateNetwork, installId, http.RequestAborted);
+                var snapshot = await pairings.StartAsync(body.SenderName, installId, http.RequestAborted);
                 return Results.Json(snapshot, JsonOptions);
             }
             catch (RelayPairingException exception)
@@ -971,9 +971,7 @@ public static class WebUiEndpoints
 
     private sealed class PairingBody
     {
-        public string? RelayUrl { get; set; }
         public string? SenderName { get; set; }
-        public bool AllowPrivateNetwork { get; set; }
         public string? ProviderId { get; set; }
     }
 

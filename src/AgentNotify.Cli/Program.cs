@@ -472,8 +472,8 @@ internal static class Program
             }
         }
 
-        if (string.IsNullOrWhiteSpace(url))
-            return Fail("relay pair requires --url.");
+        // Relay is hosted-only: --url stays for pointing a test build at a stub Relay.
+        url = string.IsNullOrWhiteSpace(url) ? RelayChannelAdapter.HostedBaseUrl : url;
         if (profileName is { Length: > 100 })
             return Fail("--name must be at most 100 characters.");
 
@@ -561,7 +561,6 @@ internal static class Program
                 existing?.Name);
             var config = JsonSerializer.Serialize(new
             {
-                deployment = "custom",
                 relay_url = baseUri.AbsoluteUri.TrimEnd('/'),
                 sender_name = senderName,
                 allowPrivateNetwork = allowPrivate,
@@ -646,11 +645,12 @@ internal static class Program
                 {
                     using var document = JsonDocument.Parse(profile.ConfigJson);
                     var root = document.RootElement;
-                    var url = GetJsonString(root, "relay_url") ?? GetJsonString(root, "relayUrl");
+                    var url = GetJsonString(root, "relay_url") ?? GetJsonString(root, "relayUrl") ??
+                              RelayChannelAdapter.HostedBaseUrl;
                     var allowPrivate = GetJsonBoolean(root, "allowPrivateNetwork") ||
                                        GetJsonBoolean(root, "allow_private_network");
                     var secrets = await profiles.GetSecretsForDeliveryAsync(profile.Id);
-                    if (url is null || !secrets.TryGetValue("installation_token", out var credential))
+                    if (!secrets.TryGetValue("installation_token", out var credential))
                     {
                         detail = "No saved Relay credential.";
                     }
@@ -713,9 +713,9 @@ internal static class Program
         {
             using var document = JsonDocument.Parse(configJson);
             var configured = GetJsonString(document.RootElement, "relay_url") ??
-                             GetJsonString(document.RootElement, "relayUrl");
-            return configured is not null &&
-                   Uri.TryCreate(configured.TrimEnd('/') + "/", UriKind.Absolute, out var candidate) &&
+                             GetJsonString(document.RootElement, "relayUrl") ??
+                             RelayChannelAdapter.HostedBaseUrl;
+            return Uri.TryCreate(configured.TrimEnd('/') + "/", UriKind.Absolute, out var candidate) &&
                    candidate == baseUri;
         }
         catch (JsonException)
@@ -1803,18 +1803,20 @@ internal static class Program
     private static void PrintRelayHelp()
     {
         Console.WriteLine("""
-            agentnotify relay — connect this computer to an AgentNotify Relay
+            agentnotify relay — connect this computer to the hosted AgentNotify Relay
 
             Usage:
-              agentnotify relay pair --url URL [--name NAME] [--sender-name NAME] [--allow-private] [--json]
+              agentnotify relay pair [--name NAME] [--sender-name NAME] [--json]
               agentnotify relay status [--json]
 
             Pair options:
-              --url URL          Relay base URL (HTTPS, or HTTP localhost with --allow-private)
               --name NAME        Provider profile name
               --sender-name NAME Sender label shown by the Relay (default machine name)
-              --allow-private    Explicitly allow private/loopback Relay destinations
               --json             Emit one JSON object per state transition
+
+            Advanced:
+              --url URL          Point at a different Relay build (defaults to the hosted Relay)
+              --allow-private    Allow a private/loopback Relay destination, for local testing
 
             Pairing prints a verification URL and short code, then stores the one-time
             installation credential in AgentNotify's protected provider secret store.

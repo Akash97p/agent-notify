@@ -9,9 +9,20 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
-## [Unreleased]
+## [0.1.0-alpha.3] - 2026-09-16
 
 ### Added
+
+- **ARC 0.2 — the contract can now carry the answer back.** 0.1 could say a person was needed
+  but not what was being asked, and had no way to return what the person said. A request may
+  now carry a `response` specification — a permission, one of a bounded list of choices, or a
+  short text, with a deadline — which opens a durable question alongside the notification. A
+  new `response.submitted` event delivers one answer, bound to the exact question by the
+  digest and nonce the broker issued, settled first-valid-wins. `request.outcome` records why
+  a condition closed, and `context` gained `turn_id` and `native_request_id` so a host adapter
+  can return an accepted answer into the call blocking on it. `POST /v1/events` now returns
+  `{ "notification": …, "interaction": … }` for every event. See `docs/ARC.md` and the
+  published `schemas/arc-0.2.schema.json`.
 
 - **A web interface, on every platform.** The broker now serves its own settings and
   notification center at `http://127.0.0.1:<port>/ui/`, from both `agentnotifyd` and the
@@ -20,7 +31,7 @@ build.
   attention, questions (answer permissions, choices and text), channels (all nineteen, including
   connecting a Relay), routes and delivery counts, notification and toast settings, custom
   types, sounds with upload and preview, and agent skill installs. On Windows the tray menu
-  gains **Open in browser…**.
+  gains **Web interface…**.
   Like the tray app it asks for no password. It defends against other web sites instead:
   foreign host names are refused (DNS rebinding), state changes need a custom header and a
   same-origin `Origin`, a strict content security policy applies, and stored credentials and
@@ -38,6 +49,22 @@ build.
   all the context the user gets, and never raise a `permission` yourself because the
   harness already owns those. Mirrored into the portable snippet in `docs/AGENT_SKILLS.md`
   for agents without skill discovery.
+
+### Changed
+
+- **Relay is hosted only.** The deployment selector and the "Relay server base URL" field are
+  gone from the Channels panel, the web interface and the CLI: there is one endpoint, and
+  connecting is just **Connect** plus a browser approval. `agentnotify relay pair` no longer
+  needs `--url`. Profiles saved by an older build keep working — a leftover `deployment` key
+  is ignored rather than rejected.
+- **AgentNotify Relay is not open source.** Its repository links are gone from the
+  documentation and the site; the service, the mobile app and the receiver SDKs are still
+  documented, as products rather than as repositories. Running your own relay is no longer a
+  supported path.
+- The tray menu's web interface entry is named **Web interface…** rather than
+  **Open in browser…**, which read as a second way to open the Settings window.
+- `arc_version` must be exactly `"0.2"`. ARC 0.1 events are rejected; the 0.1 schema stays
+  published so its URL keeps resolving, but it is no longer normative.
 
 ### Fixed
 
@@ -129,7 +156,6 @@ or never is remembered per session.
   SmartScreen will warn.
 - There is still no graphical application on macOS or Linux — the broker runs headless
   and every setting is edited in `config.json` by hand.
-- Relay is self-hosted only. There is no hosted service.
 
 ## [0.0.4-alpha.2] - 2026-09-04
 
@@ -143,8 +169,7 @@ There is also a phone to receive them. The Android client is real, and a receive
 longer has to be a phone: an ESP32, a Raspberry Pi or anything that speaks MQTT can be
 added from the console and will get the same sealed envelopes.
 
-Still an alpha. The binaries are unsigned, the hosted Relay Go service does not exist,
-and Relay remains something you host yourself.
+Still an alpha, and the binaries are unsigned.
 
 ### Added
 
@@ -153,16 +178,15 @@ and Relay remains something you host yourself.
   sees the public half, so a relay operator — including you — cannot read what passes
   through. The sender, the recipient, the key, the event id and the expiry are all bound
   into the envelope's authenticated data, so none of them can be swapped in transit.
-- **An Android client.** [agent-notify-relay-mobile](https://github.com/Akash97p/agent-notify-relay-mobile)
+- **An Android client.** The AgentNotify Relay mobile app
   pairs by scanning a QR code from the console. Notifications arrive whether or not the app
   is open, and an operator can sign in to see senders, receivers and the audit log from the
   phone.
 - **Hardware receivers over MQTT.** The console's Receivers tab can add a device that has
   no camera and no app store — an ESP32 display, a Raspberry Pi, a desk gadget. It is given
   broker credentials and a single-use enrollment token, generates its own key pair on first
-  boot, and receives the same sealed envelopes. Seven receiver libraries are published at
-  [agent-notify-relay-sdk](https://github.com/Akash97p/agent-notify-relay-sdk): portable C,
-  Arduino, ESP-IDF, MicroPython, Rust, Python and Node.
+  boot, and receives the same sealed envelopes. Seven receiver libraries are published for
+  portable C, Arduino, ESP-IDF, MicroPython, Rust, Python and Node.
 - **An Install tab, and `Install agent skill…` in the tray menu.** One row per coding agent,
   showing where the skill will go and whether it is already there and current. Claude Code,
   Codex and OpenCode have known locations; anything else installs into a folder you pick.
@@ -208,20 +232,18 @@ and Relay remains something you host yourself.
   download until you run `xattr -dr com.apple.quarantine <dir>`; Windows SmartScreen will warn.
 - There is still no graphical application on macOS or Linux — the broker runs headless and
   every setting is edited in `config.json` by hand.
-- Relay is self-hosted only. There is no hosted service.
 - Sticky attention types degrade to ordinary banners under `osascript`.
 
 ## [0.0.4-alpha.1] - 2026-08-31
 
-Adds AgentNotify Relay: a self-hostable service that carries notifications from your computers to
-your phone, without routing them through somebody else's messaging product. Connecting a computer
-is now a browser approval rather than a pasted token.
+Adds AgentNotify Relay: a service that carries notifications from your computers to your phone,
+without routing them through somebody else's messaging product. Connecting a computer is now a
+browser approval rather than a pasted token.
 
-Relay is a separate open-source project —
-[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay) — and is
-documented at [Relay](https://akash97p.github.io/agent-notify/docs/relay/). The mobile client and
-the hosted Relay Go plan do not exist yet, and the desktop still sends an experimental opaque
-transport rather than a sealed box, so end-to-end confidentiality is not yet delivered.
+Relay is a separate service, documented at
+[Relay](https://akash97p.github.io/agent-notify/docs/relay/). At this release the mobile client did
+not exist yet, and the desktop still sent an experimental opaque transport rather than a sealed box,
+so end-to-end confidentiality was not yet delivered.
 
 ### Added
 
@@ -368,6 +390,8 @@ First published prerelease.
 - A single self-contained `AgentNotifySetup.exe` per-user installer with an offline getting-started
   page.
 
+[0.1.0-alpha.3]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.3
+[0.1.0-alpha.2]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.1
 [0.0.3-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1
 [0.0.2-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.2-alpha.1

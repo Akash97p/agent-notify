@@ -254,7 +254,7 @@ export default {
         const idle = () => {
           state.replaceChildren(relay?.connected
             ? notice(`Connected${relay.relay_name ? ` to ${relay.relay_name}` : ""}. The credential is stored encrypted.`, "ok", "check")
-            : notice("Not connected yet. Enter the Relay URL, then press Connect and approve the code.", null, "phone"));
+            : notice("Not connected yet. Press Connect, then approve the short code on the hosted Relay at an.relay.dev.kabanitech.com.", null, "phone"));
         };
         idle();
 
@@ -298,9 +298,7 @@ export default {
           const body = collect();
           try {
             const snapshot = await api.post("relay/pairings", {
-              relay_url: body.values.relay_url,
               sender_name: body.values.sender_name,
-              allow_private_network: body.values.allow_private_network === "true",
               provider_id: profile?.id,
             });
             currentId = snapshot.id;

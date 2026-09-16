@@ -867,10 +867,10 @@ localhost Relay; a successful test delivery still requires an enrolled phone.
 
 Manual report on 2026-09-03:
 
-- The owner reports that the current `agent-notify-relay` and `agent-notify-relay-mobile` builds were
-  tested working, including the live Relay/mobile path.
-- This supersedes the earlier statement that no phone client existed. The Android Expo/TypeScript
-  receiver now exists in its separate repository.
+- The owner reports that the current Relay and Relay mobile builds were tested working, including
+  the live Relay/mobile path.
+- This supersedes the earlier statement that no phone client existed. The Android receiver now
+  exists.
 
 This AgentNotify documentation branch did not repeat the device test, inspect the phone, or capture a
 step-by-step pairing/delivery/decryption/acknowledgement log. Treat the result as an owner-performed
@@ -1059,7 +1059,7 @@ Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=tr
 
 Not verified here: no WPF surface was rendered, no hosted Windows packaging ran, and no
 live Relay was available on this machine for a phone-answer round trip. The end-to-end
-proof remains: answer from a real phone against a real self-hosted Relay with the
+proof remains: answer from a real phone against a real Relay with the
 desktop broker running, and observe the waiting host receive the decision.
 
 ## Interaction wait lifecycle and ask fallback (`fix/interaction-wait-lifecycle`, 2026-09-12)
@@ -1091,7 +1091,7 @@ binaries remain unsigned.
 ## Bidirectional loop, end to end on real hardware (2026-09-13)
 
 The round trip this project exists for was observed for the first time, on the owner's
-Intel Mac against the owner's self-hosted Relay and a real Android handset.
+Intel Mac against the owner's Relay and a real Android handset.
 
 Performed: the installed `ask-permission` hook was invoked with a Claude Code
 `PermissionRequest` payload. It opened a broker interaction, published it through the
@@ -1181,8 +1181,8 @@ Environment: Intel MacBook Pro (x86_64), macOS, .NET SDK 10.0.401, headless Goog
 - `scripts/publish-cross.sh` failed its checksum step on macOS (GNU `find -printf`, `xargs -r`,
   `sha256sum`); fixed to fall back to `shasum -a 256`.
 
-Not verified: the web interface served by the Windows tray app, **Open in browser…** in the tray
-menu, sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
+Not verified: the web interface served by the Windows tray app, the tray menu's web-interface entry
+(**Open in browser…** at the time; **Web interface…** since), sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
 started from the page against a live Relay. (A person has since used it on macOS; see the next
 section.)
 
@@ -1498,6 +1498,39 @@ need future local usage before they appear as model cards.
 
 Not verified locally: Windows tray-hosted behavior, provider interoperability, or a human review
 of the updated Pages layout. Those product behaviors are unchanged by this documentation branch.
+
+## Hosted-only Relay, tray label, and ARC 0.2 (2026-09-16)
+
+Run on the owner's Mac with the local .NET 10 SDK at `~/.dotnet` rather than `scripts/*.sh`,
+which resolve a Windows SDK path that does not exist on this machine. The whole solution,
+including the WPF app and the installer, compiles there with `-p:EnableWindowsTargeting=true`.
+
+Performed:
+
+- `dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true` — **succeeded, 0 warnings,
+  0 errors**, covering `AgentNotify.App` and `AgentNotify.Setup`. This is a compile of the WPF
+  project including XAML markup compilation, so the removed `RelayDeploymentBox` and
+  `RelayBaseUrlBox` controls leave no dangling `x:Name` reference in the code-behind.
+- `dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj -c Release` — **915 passed, 0 failed**,
+  up from 906 before this work.
+- `npm run build` in `site/` — the GitHub Pages export generated all 27 routes, and the built output
+  contains no link to any Relay repository.
+- The ARC 0.2 JSON Schema was checked with `jsonschema` 4.26 (Draft 2020-12): the schema itself is
+  valid, all four `docs/ARC.md` examples validate against it, 14 malformed envelopes are rejected
+  (0.1 version, a response on a created event, an outcome on a created event, a text kind carrying
+  choices, a choice kind without them, a single choice, an answer with both or neither answer field,
+  an answer without a key, an answer with no response object, a short digest, a resolution carrying a
+  message, an unknown outcome, an unknown core field), and three further valid shapes are accepted.
+
+Not verified:
+
+- **No WPF surface was rendered or exercised.** The Relay panel with its deployment selector and
+  server-address field removed, and the renamed **Web interface…** tray entry, compile but have not
+  been looked at by a person. Layout, spacing, and the read-only hosted-endpoint line are unconfirmed.
+  A cross-compile is not a running Windows app; run it before trusting the appearance.
+- No live Relay was contacted. Pairing against the hosted endpoint, and a real phone answering an
+  ARC 0.2 answerable request end to end, remain unobserved.
+- Packaging was not run.
 
 ## Owner verification still outstanding
 

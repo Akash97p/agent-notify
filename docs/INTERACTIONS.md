@@ -11,6 +11,12 @@ harness capture (hooks that open interactions and return the answer) is in
 [HARNESS.md](HARNESS.md); the Relay/mobile wire contract is in
 [RELAY_INTERACTIONS.md](RELAY_INTERACTIONS.md).
 
+[ARC 0.2](ARC.md) is the transport-neutral contract for the same thing. An ARC
+request carrying a `response` specification opens one of these interactions
+alongside its notification, and an ARC `response.submitted` event is this
+answer path expressed as an event. The rules below are the normative ones:
+ARC describes them, the broker enforces them.
+
 ## Relay sync
 
 Phone-bound questions ride the existing Relay envelope flow: on every new

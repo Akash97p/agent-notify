@@ -55,7 +55,9 @@ public sealed class TrayIcon : IDisposable
         });
         var gettingStarted = new WinForms.ToolStripMenuItem("Getting started", null, (_, _) => onOpenGettingStarted());
         var settings = new WinForms.ToolStripMenuItem("Settings…", null, (_, _) => onOpenSettings());
-        var webSettings = new WinForms.ToolStripMenuItem("Open in browser…", null, (_, _) => onOpenWebUi());
+        // Named for what it opens, not for how: "Open in browser…" next to "Settings…"
+        // read as a second way to open the same window.
+        var webSettings = new WinForms.ToolStripMenuItem("Web interface…", null, (_, _) => onOpenWebUi());
         // First of the three, because it is the one that finishes the job:
         // copying and downloading both leave the person holding a file with
         // somewhere to put it.

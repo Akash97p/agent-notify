@@ -244,7 +244,7 @@ desktop exists in v1 — the desktop always pulls.
 - Those bindings stop replay and stale answers; they do not make a malicious
   Relay harmless. Relay sees the nonce, digest, choice and text in plaintext
   and could alter the choice while preserving the digest and nonce, so v1
-  trusts the self-hosted Relay for **answer integrity** as well as liveness
+  trusts the hosted Relay for **answer integrity** as well as liveness
   and ordering. Do not claim otherwise; a sealed response v2 (installation
   key pair) is the fix.
 - Not sealed end-to-end (yet): sealing answers to the installation key
@@ -315,7 +315,7 @@ false. This is follow-up work, tracked in the desktop repository's TODO.
 
 - Phone-side result push (phone learns the outcome only by polling; not specified yet).
 - Sealed (E2E) answers. Relay terminates TLS and sees the answer fields in
-  plaintext, so v1 trusts the self-hosted Relay for answer integrity; the
+  plaintext, so v1 trusts the hosted Relay for answer integrity; the
   digest and nonce bind an answer to a request but do not stop a malicious
   Relay from altering the choice after it receives it. A future sealed
   response v2 needs an installation key pair.

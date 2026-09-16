@@ -136,15 +136,15 @@ export default function Home() {
 
       <section className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center">
         <div>
-          <Badge variant="secondary">ARC 0.1</Badge>
+          <Badge variant="secondary">ARC 0.2</Badge>
           <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">One contract for attention.</h2>
-          <p className="mt-5 text-lg leading-8 text-muted-foreground">The Attention Request Contract is an open JSON contract for creating, updating, and resolving bounded requests for human attention. It separates an immutable event from the condition that remains unresolved.</p>
-          <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/docs/arc/">Read the specification <ArrowRight /></Link></Button><Button asChild variant="outline"><a href={`${site.url}/schemas/arc-0.1.schema.json`}>JSON Schema</a></Button></div>
+          <p className="mt-5 text-lg leading-8 text-muted-foreground">The Attention Request Contract is an open JSON contract for creating, updating, answering, and resolving bounded requests for human attention. It separates an immutable event from the condition that remains unresolved, and a request that expects an answer carries the shape of the answer it is waiting for.</p>
+          <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/docs/arc/">Read the specification <ArrowRight /></Link></Button><Button asChild variant="outline"><a href={`${site.url}/schemas/arc-0.2.schema.json`}>JSON Schema</a></Button></div>
         </div>
         <Card className="min-w-0 bg-black">
           <CardContent className="p-5 font-mono text-[13px] leading-6 text-zinc-300">
             <pre className="overflow-x-auto"><code>{`{
-  "arc_version": "0.1",
+  "arc_version": "0.2",
   "event_id": "evt_release_42",
   "event_type": "request.created",
   "occurred_at": "2026-08-26T01:15:00Z",
@@ -153,7 +153,15 @@ export default function Home() {
     "key": "release-approval",
     "kind": "permission",
     "message": "May I publish the release?",
-    "priority": "high"
+    "priority": "high",
+    "response": {
+      "kind": "permission",
+      "choices": [
+        { "id": "allow_once", "label": "Allow once" },
+        { "id": "deny", "label": "Deny" }
+      ],
+      "expires_at": "2026-08-26T01:25:00Z"
+    }
   }
 }`}</code></pre>
           </CardContent>

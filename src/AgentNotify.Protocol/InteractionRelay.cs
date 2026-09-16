@@ -4,7 +4,7 @@ namespace AgentNotify.Protocol;
 
 /// <summary>
 /// Wire shapes for the Relay/mobile half of interactions. This is the contract
-/// the self-hosted Relay server and the mobile app implement; see
+/// the hosted Relay server and the mobile app implement; see
 /// <c>docs/RELAY_INTERACTIONS.md</c>. Versioned: every payload carries
 /// <c>contract_version: "1"</c>.
 /// </summary>

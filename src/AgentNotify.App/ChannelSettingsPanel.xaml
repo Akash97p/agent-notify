@@ -209,8 +209,8 @@
                             <TextBlock Text="TLS 1.2/1.3 and normal Windows certificate validation are mandatory; no trust bypass exists. Every DNS answer is validated before a pinned-IP connection. Publishes are JSON, non-retained, and include stable delivery/notification IDs as MQTT 5 user properties." Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <StackPanel x:Name="RelayFields" Visibility="Collapsed">
-                            <TextBlock Text="Deployment"/><ComboBox x:Name="RelayDeploymentBox"><ComboBoxItem Content="Relay Go — hosted, paid (coming soon)" Tag="relay_go" IsEnabled="False"/><ComboBoxItem Content="Custom — self-hosted" Tag="custom" IsSelected="True"/></ComboBox>
-                            <TextBlock Text="Relay server base URL"/><TextBox x:Name="RelayBaseUrlBox" Text="https://relay.example.com"/>
+                            <TextBlock Text="Hosted Relay: an.relay.dev.kabanitech.com"
+                                       Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                             <TextBlock Text="Sender name (optional, visible to Relay and devices, ≤100)"/><TextBox x:Name="RelaySenderNameBox"/>
                             <WrapPanel Margin="0,0,0,6">
                                 <Button x:Name="RelayConnectButton" Content="Connect" Click="RelayConnect_Click"
@@ -242,7 +242,7 @@
                                     <CheckBox x:Name="ClearRelayTokenBox" Content="Remove stored installation token"/>
                                 </StackPanel>
                             </Expander>
-                            <TextBlock Text="AgentNotify Relay sends an opaque envelope to paired devices. Enter the server URL, press Connect, and approve the short code in your browser. Custom self-hosted servers may use http://localhost:4000 for development with private-network consent. Relay Go remains unavailable. Local history stays authoritative when the Relay is unreachable."
+                            <TextBlock Text="AgentNotify Relay sends a sealed envelope to your paired phones through the hosted Relay. Press Connect and approve the short code in your browser; there is no server address to enter. Local history stays authoritative when the Relay is unreachable."
                                        Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,8"/>
                         </StackPanel>
                         <CheckBox x:Name="AllowPrivateBox" Content="Allow private/loopback destinations (link-local metadata remains blocked)"/>
