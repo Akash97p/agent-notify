@@ -23,6 +23,15 @@ build.
   not read, so opening the dashboard never starts one. The Usage response is now
   `contract_version: "3"`.
 
+### Changed
+
+- **Updating no longer starts from scratch.** Running a newer `AgentNotifySetup.exe` now finds
+  the existing installation and offers **Update AgentNotify**: it keeps the install folder and
+  startup/shortcut choices, does not ask for the licence again, stops AgentNotify cleanly and starts
+  it again afterwards. An `agentnotify.exe` an agent is still waiting on is replaced without being
+  killed. `AgentNotifySetup.exe --silent` updates an existing installation without
+  `--accept-license`; `--no-launch` leaves the tray stopped.
+
 ## [0.1.0-alpha.3] - 2026-09-16
 
 ### Added

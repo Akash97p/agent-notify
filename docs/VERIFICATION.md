@@ -1587,6 +1587,29 @@ Not verified — none of this has run on Windows or WSL:
   rows were not rendered.
 - `install-skill --wsl` and the wrapper's `WSL_DISTRO_NAME` forwarding.
 
+## In-place installer update (`feature/installer-in-place-update`, 2026-09-16)
+
+Environment: macOS (Darwin 25.6), .NET SDK 10.0.401 at `~/.dotnet`. There is no Windows machine or
+WSL in this session, so the repository scripts were not used.
+
+Ran:
+
+- `dotnet build src/AgentNotify.Setup/AgentNotify.Setup.csproj -c Release -p:EnableWindowsTargeting=true`
+  — **0 warnings, 0 errors**, including XAML markup compilation of the renamed/new `x:Name` elements.
+- `dotnet build src/AgentNotify.App/AgentNotify.App.csproj -c Release -p:EnableWindowsTargeting=true`
+  — **0 warnings, 0 errors**.
+
+Not verified — none of this has run on Windows:
+
+- Update detection from the uninstall registration, the update-mode window layout (collapsed licence
+  panel, read-only folder, version line), and the finish/relaunch actions.
+- That the tray receives `Local\AgentNotify.Exit.v1` and exits cleanly, and the kill fallback
+  against an alpha.3 tray that has no such event.
+- Renaming an in-use `agentnotify.exe` during an update, and deleting the `.old` leftover on the next
+  install and in `uninstall.ps1`.
+- Silent update, relaunch, and `--no-launch`.
+- Packaging was not run, so no installer containing this change exists yet.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

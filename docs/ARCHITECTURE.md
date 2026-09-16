@@ -178,6 +178,15 @@ The portable Core layer validates and imports WAV/MP3 files into a managed per-u
 
 `AgentNotify.Setup` is a WPF per-user installer. `scripts/package.sh` first publishes the tray app and CLI as self-contained single files, then embeds them, the MIT License, the skill, and the offline guide into the self-contained setup executable.
 
+Setup treats a run as an update when this user's uninstall registration names a folder that still
+contains `AgentNotify.Tray.exe`. An update keeps that folder and the startup/shortcut choices and
+does not ask for the licence again. It stops the tray by setting `Local\AgentNotify.Exit.v1`, an
+auto-reset event the single-instance owner creates next to its show-center event; the tray answers
+with the same shutdown as its Exit menu item, and setup kills a tray that has not exited after ten
+seconds. `agentnotify.exe` is never stopped, since an agent may be blocked in it: when a payload
+file is in use, setup renames it to `<name>.<id>.old` (Windows permits renaming a running image),
+moves the new file into place, and deletes those leftovers on the next install or uninstall.
+
 Installed filenames deliberately differ on case-insensitive Windows filesystems:
 
 - `AgentNotify.Tray.exe` — background UI/API process;

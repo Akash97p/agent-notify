@@ -134,7 +134,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Source="/Resources/an.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock Text="AgentNotify" Foreground="#FAFAFA" Margin="9,0,0,0" FontWeight="SemiBold"/>
-                        <TextBlock Text="/ Setup" Foreground="#A1A1AA" Margin="8,0,0,0"/>
+                        <TextBlock x:Name="TitleSuffix" Text="/ Setup" Foreground="#A1A1AA" Margin="8,0,0,0"/>
                     </StackPanel>
                     <Button HorizontalAlignment="Right" Content="&#xE8BB;" Style="{StaticResource WindowButton}"
                             Click="OnClose" ToolTip="Close"/>
@@ -160,7 +160,7 @@
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <TextBox x:Name="InstallPath"/>
-                        <Button Grid.Column="1" Content="Browse" Style="{StaticResource GhostButton}"
+                        <Button x:Name="BrowseButton" Grid.Column="1" Content="Browse" Style="{StaticResource GhostButton}"
                                 Margin="9,0,0,0" Click="OnBrowse"/>
                     </Grid>
 
@@ -171,7 +171,12 @@
                         <CheckBox x:Name="OpenGuide" Content="Open the getting-started guide when setup closes" IsChecked="True"/>
                     </StackPanel>
 
-                    <Border Background="#111113" BorderBrush="#27272A" BorderThickness="1"
+                    <!-- Update mode: the licence was accepted at install, so only a way to read it remains. -->
+                    <Button x:Name="LicenseLink" Content="MIT License" HorizontalAlignment="Left" Visibility="Collapsed"
+                            Padding="0" Margin="0,14,0,0" Background="Transparent" BorderThickness="0"
+                            Foreground="#A1A1AA" Cursor="Hand" Click="OnLicense"/>
+
+                    <Border x:Name="LicensePanel" Background="#111113" BorderBrush="#27272A" BorderThickness="1"
                             CornerRadius="9" Padding="17" Margin="0,20,0,0">
                         <StackPanel>
                             <TextBlock Text="Open-source licence and warranty" Foreground="#FAFAFA" FontWeight="SemiBold"/>

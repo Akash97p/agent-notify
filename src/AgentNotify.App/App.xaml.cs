@@ -76,6 +76,24 @@ public partial class App : System.Windows.Application
         { IsBackground = true, Name = "AgentNotify SingleInstance waiter" };
         waiter.Start();
 
+        // Setup signals this before an update replaces the executable. Exit the same way the tray
+        // menu does, so the API, dispatcher, and SQLite shut down cleanly instead of being killed.
+        var exitWaiter = new Thread(() =>
+        {
+            if (!_singleInstance.WaitForExitRequest()) return;
+            try
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _center?.CloseForExit();
+                    Shutdown(0);
+                });
+            }
+            catch (TaskCanceledException) { }
+        })
+        { IsBackground = true, Name = "AgentNotify exit-request waiter" };
+        exitWaiter.Start();
+
         InitializeInBackground(chosen);
     }
 

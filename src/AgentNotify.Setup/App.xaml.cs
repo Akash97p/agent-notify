@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 
@@ -11,7 +12,9 @@ public partial class App : System.Windows.Application
 
         if (e.Args.Contains("--silent", StringComparer.OrdinalIgnoreCase))
         {
-            if (!e.Args.Contains("--accept-license", StringComparer.OrdinalIgnoreCase))
+            // The licence was accepted when AgentNotify was first installed; an update does not ask again.
+            var existing = InstallerService.FindExisting();
+            if (existing is null && !e.Args.Contains("--accept-license", StringComparer.OrdinalIgnoreCase))
             {
                 Shutdown(2);
                 return;
@@ -19,15 +22,29 @@ public partial class App : System.Windows.Application
 
             try
             {
-                var directory = ValueAfter(e.Args, "--install-dir") ?? Path.Combine(
+                var directory = ValueAfter(e.Args, "--install-dir") ?? existing?.Directory ?? Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "Programs",
                     "AgentNotify");
                 var options = new InstallOptions(
                     InstallerService.ValidateInstallDirectory(directory),
-                    StartWithWindows: !e.Args.Contains("--no-startup", StringComparer.OrdinalIgnoreCase),
-                    DesktopShortcut: e.Args.Contains("--desktop-shortcut", StringComparer.OrdinalIgnoreCase));
+                    StartWithWindows: !e.Args.Contains("--no-startup", StringComparer.OrdinalIgnoreCase) &&
+                        (existing?.StartWithWindows ?? true),
+                    DesktopShortcut: e.Args.Contains("--desktop-shortcut", StringComparer.OrdinalIgnoreCase) ||
+                        existing?.DesktopShortcut == true);
+                var running = RunningAgentNotify.Detect();
+                await running.StopAsync();
                 await InstallerService.InstallAsync(options, new Progress<InstallProgress>());
+                if (running.WasRunning && !e.Args.Contains("--no-launch", StringComparer.OrdinalIgnoreCase))
+                {
+                    // The update itself succeeded; a tray that fails to start is not a setup failure.
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(Path.Combine(options.InstallDirectory, "AgentNotify.Tray.exe"))
+                            { UseShellExecute = true });
+                    }
+                    catch (Exception) { }
+                }
                 Shutdown(0);
             }
             catch (Exception ex)
