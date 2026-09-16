@@ -867,10 +867,10 @@ localhost Relay; a successful test delivery still requires an enrolled phone.
 
 Manual report on 2026-09-03:
 
-- The owner reports that the current `agent-notify-relay` and `agent-notify-relay-mobile` builds were
-  tested working, including the live Relay/mobile path.
-- This supersedes the earlier statement that no phone client existed. The Android Expo/TypeScript
-  receiver now exists in its separate repository.
+- The owner reports that the current Relay and Relay mobile builds were tested working, including
+  the live Relay/mobile path.
+- This supersedes the earlier statement that no phone client existed. The Android receiver now
+  exists.
 
 This AgentNotify documentation branch did not repeat the device test, inspect the phone, or capture a
 step-by-step pairing/delivery/decryption/acknowledgement log. Treat the result as an owner-performed
@@ -1059,7 +1059,7 @@ Automated gates (macOS, user-local .NET SDK 10.0.401, `EnableWindowsTargeting=tr
 
 Not verified here: no WPF surface was rendered, no hosted Windows packaging ran, and no
 live Relay was available on this machine for a phone-answer round trip. The end-to-end
-proof remains: answer from a real phone against a real self-hosted Relay with the
+proof remains: answer from a real phone against a real Relay with the
 desktop broker running, and observe the waiting host receive the decision.
 
 ## Interaction wait lifecycle and ask fallback (`fix/interaction-wait-lifecycle`, 2026-09-12)
@@ -1091,7 +1091,7 @@ binaries remain unsigned.
 ## Bidirectional loop, end to end on real hardware (2026-09-13)
 
 The round trip this project exists for was observed for the first time, on the owner's
-Intel Mac against the owner's self-hosted Relay and a real Android handset.
+Intel Mac against the owner's Relay and a real Android handset.
 
 Performed: the installed `ask-permission` hook was invoked with a Claude Code
 `PermissionRequest` payload. It opened a broker interaction, published it through the

@@ -62,7 +62,7 @@ public sealed class ProviderFormTests : IAsyncLifetime
         "mqtt" => Input(new() { ["broker_host"] = "MQTT.Example.com", ["port"] = "8884", ["client_id"] = "desk-1", ["authentication_mode"] = "username_password", ["qos"] = "2",
                 ["duplicate_risk_acknowledged"] = "true", ["message_expiry_seconds"] = "60", ["allow_private_network"] = "false" },
             new() { ["topic"] = "agents/alerts", ["username"] = "desk", ["password"] = "pw" }),
-        "relay" => Input(new() { ["relay_url"] = "https://relay.example.com", ["sender_name"] = "Desk" },
+        "relay" => Input(new() { ["sender_name"] = "Desk" },
             new() { ["installation_token"] = "inst_abcdefghijklmnop" }),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
@@ -235,7 +235,7 @@ public sealed class ProviderFormTests : IAsyncLifetime
     public async Task RelayPairingSuppliesTheCredentialAndIdentity()
     {
         var forms = new ProviderFormService(_profiles);
-        var input = Input(new() { ["relay_url"] = "https://relay.example.com" }) with
+        var input = Input(new()) with
         {
             Pairing = new RelayPairingOutcome("inst_pairedcredential01", "installation-7", "Home relay", "install-abc123")
         };
@@ -248,19 +248,33 @@ public sealed class ProviderFormTests : IAsyncLifetime
         Assert.Equal("install-abc123", ProviderFormReader.ReadConfigString(saved, "install_id"));
 
         // A later save without a new pairing keeps both the credential and the identity.
-        var renamed = await forms.SaveAsync(saved.Id, "relay", Input(new() { ["relay_url"] = "https://relay.example.com" }) with { Name = "Phone" });
+        var renamed = await forms.SaveAsync(saved.Id, "relay", Input(new()) with { Name = "Phone" });
         Assert.Equal(["installation_token"], renamed.SecretNames);
         Assert.Equal("install-abc123", ProviderFormReader.ReadConfigString(renamed, "install_id"));
     }
 
     [Fact]
-    public void RelayRefusesMissingCredentialAndUnsafeUrl()
+    public void RelayRefusesAMissingCredential()
     {
         Assert.Contains("Connect", Assert.Throws<ArgumentException>(() =>
-            ProviderFormBuilder.Build("relay", Input(new() { ["relay_url"] = "https://relay.example.com" }), null)).Message);
+            ProviderFormBuilder.Build("relay", Input(new()), null)).Message);
+    }
 
-        Assert.Throws<ArgumentException>(() => ProviderFormBuilder.Build("relay",
-            Input(new() { ["relay_url"] = "http://relay.example.com" }, new() { ["installation_token"] = "inst_abcdefghijklmnop" }), null));
+    [Fact]
+    public void RelayFormHasNoServerAddressAndAlwaysWritesTheHostedEndpoint()
+    {
+        // Relay is a hosted service, so neither the endpoint nor a private-network
+        // exemption is a user choice.
+        var descriptor = ProviderFormCatalog.Find("relay");
+        Assert.NotNull(descriptor);
+        Assert.DoesNotContain(descriptor!.Fields, field => field.Key is "relay_url" or "allow_private_network");
+
+        var built = ProviderFormBuilder.Build("relay",
+            Input(new(), new() { ["installation_token"] = "inst_abcdefghijklmnop" }), null);
+
+        using var config = JsonDocument.Parse(built.ConfigJson);
+        Assert.Equal(RelayChannelAdapter.HostedBaseUrl, config.RootElement.GetProperty("relay_url").GetString());
+        Assert.False(config.RootElement.TryGetProperty("deployment", out _));
     }
 
     [Fact]

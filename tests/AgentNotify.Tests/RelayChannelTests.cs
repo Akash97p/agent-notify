@@ -269,19 +269,30 @@ public sealed class RelayChannelTests
     }
 
     [Fact]
-    public async Task RejectsRelayGoDeploymentUntilReady()
+    public void ConfigurationWithoutAUrlResolvesToTheHostedRelay()
     {
-        var handler = new RelayHandler(HttpStatusCode.Created, "{\"envelope_id\":\"id\"}");
-        using var adapter = new RelayChannelAdapter(new HttpClient(handler));
-        var config = JsonSerializer.Serialize(new { deployment = "relay_go", relay_url = "https://relay.example.com", sender_name = "Test" });
-        var result = await adapter.DeliverAsync(MakeDelivery(config: config), CancellationToken.None);
-        Assert.Equal("configuration_invalid", result.ErrorCode);
+        var config = JsonSerializer.Serialize(new { sender_name = "Test" });
+        var parsed = RelayChannelAdapter.ParseAndValidateConfiguration(config, Secrets());
+        Assert.Equal(RelayChannelAdapter.HostedBaseUrl, parsed.RelayUrl);
     }
 
-    private static string Config(string relayUrl = "https://relay.example.com", bool allowPrivate = false, string? senderName = null, string deployment = "custom") =>
+    [Theory]
+    [InlineData("custom")]
+    [InlineData("relay_go")]
+    public void ALegacyDeploymentKeyIsIgnoredRatherThanRejected(string deployment)
+    {
+        // Profiles saved before Relay became hosted-only still carry this key.
+        var config = JsonSerializer.Serialize(new { deployment, sender_name = "Test" });
+        var parsed = RelayChannelAdapter.ParseAndValidateConfiguration(config, Secrets());
+        Assert.Equal(RelayChannelAdapter.HostedBaseUrl, parsed.RelayUrl);
+    }
+
+    private static IReadOnlyDictionary<string, string> Secrets() =>
+        new Dictionary<string, string> { ["installation_token"] = "inst_abcdefghijklmnop" };
+
+    private static string Config(string relayUrl = "https://relay.example.com", bool allowPrivate = false, string? senderName = null) =>
         JsonSerializer.Serialize(new
         {
-            deployment,
             relay_url = relayUrl,
             sender_name = senderName,
             allowPrivateNetwork = allowPrivate,

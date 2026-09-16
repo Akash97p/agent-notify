@@ -119,7 +119,7 @@
 - [x] Official WhatsApp Business Cloud API adapter for approved text templates, one opted-in recipient, and paid-send controls
 - [x] Optional Twilio WhatsApp Content Template adapter with encrypted allowlists and consent/cost controls
 - [x] MQTT 5 adapter with mandatory TLS, pinned validated DNS, encrypted fixed topic/authentication, optional certificate-store mTLS, and explicit QoS semantics
-- [x] AgentNotify Relay adapter plus browser/CLI device-grant pairing, encrypted installation credential, DNS pinning, and durable outbox (Relay Go hosted UI disabled; experimental opaque transport; live-relay interoperability and E2E review pending)
+- [x] AgentNotify Relay adapter plus browser/CLI device-grant pairing, encrypted installation credential, DNS pinning, and durable outbox against the fixed hosted endpoint (experimental opaque transport; independent E2E crypto review pending)
 - [ ] Email provider API adapters
 - [ ] Additional SMS and mobile push adapters
 - [ ] Quiet hours, snooze, escalation, grouping, and per-project routing

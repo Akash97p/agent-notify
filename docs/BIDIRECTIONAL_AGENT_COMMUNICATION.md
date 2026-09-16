@@ -450,20 +450,18 @@ policy; WPF owns Windows presentation only.
 - Whether mobile can answer only requests from installations it has explicitly trusted for control,
   distinct from installations allowed to send notifications.
 
-## Repository and licensing note
+## Licensing note
 
-The owner reports that the local Relay and Android mobile repositories were tested successfully
-end to end on 2026-09-03. This documentation branch did not repeat that device test.
+The owner reports that the Relay and Android mobile builds were tested successfully end to end on
+2026-09-03. This documentation branch did not repeat that device test.
 
-- `agent-notify` is MIT-licensed.
-- [`agent-notify-relay`](https://github.com/Akash97p/agent-notify-relay) is public and MIT-licensed.
-- `agent-notify-relay-mobile` is currently publicly visible but carries a proprietary licence that
-  grants no general permission to use, copy, modify, or distribute it.
+- `agent-notify` — this project — is MIT-licensed and open source.
+- AgentNotify Relay and its mobile client are **not** open source. They are closed-source components
+  operated as a hosted service, and carry no permission to use, copy, modify, or distribute their
+  source.
 
-Repository visibility and copyright licence are separate. Public visibility does not make the
-mobile source open source. Conversely, copies already distributed under MIT retain the rights the
-MIT licence grants; changing repository visibility later does not retract those existing grants.
-This is a project record, not legal advice.
+Copies of this project already distributed under MIT retain the rights the MIT licence grants; the
+Relay's licensing is separate and does not affect them. This is a project record, not legal advice.
 
 ## Primary research sources
 

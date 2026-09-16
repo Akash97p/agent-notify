@@ -19,7 +19,7 @@ and shows notifications, questions, usage, costs, and quotas on all three platfo
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
 | [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
 | [WEB_UI.md](WEB_UI.md) | The browser interface for settings, questions, usage, published-rate cost estimates, named-account live quota, and Insights |
-| [RELAY.md](RELAY.md) | Pair a broker and phone with a self-hosted Relay; send notifications and answer questions |
+| [RELAY.md](RELAY.md) | Pair a broker and phone with the hosted Relay; send notifications and answer questions |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
 | [ARC.md](ARC.md) | Attention Request Contract 0.1 lifecycle, schema, and AgentNotify binding |

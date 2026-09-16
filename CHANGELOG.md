@@ -129,7 +129,6 @@ or never is remembered per session.
   SmartScreen will warn.
 - There is still no graphical application on macOS or Linux — the broker runs headless
   and every setting is edited in `config.json` by hand.
-- Relay is self-hosted only. There is no hosted service.
 
 ## [0.0.4-alpha.2] - 2026-09-04
 
@@ -143,8 +142,7 @@ There is also a phone to receive them. The Android client is real, and a receive
 longer has to be a phone: an ESP32, a Raspberry Pi or anything that speaks MQTT can be
 added from the console and will get the same sealed envelopes.
 
-Still an alpha. The binaries are unsigned, the hosted Relay Go service does not exist,
-and Relay remains something you host yourself.
+Still an alpha, and the binaries are unsigned.
 
 ### Added
 
@@ -153,16 +151,15 @@ and Relay remains something you host yourself.
   sees the public half, so a relay operator — including you — cannot read what passes
   through. The sender, the recipient, the key, the event id and the expiry are all bound
   into the envelope's authenticated data, so none of them can be swapped in transit.
-- **An Android client.** [agent-notify-relay-mobile](https://github.com/Akash97p/agent-notify-relay-mobile)
+- **An Android client.** The AgentNotify Relay mobile app
   pairs by scanning a QR code from the console. Notifications arrive whether or not the app
   is open, and an operator can sign in to see senders, receivers and the audit log from the
   phone.
 - **Hardware receivers over MQTT.** The console's Receivers tab can add a device that has
   no camera and no app store — an ESP32 display, a Raspberry Pi, a desk gadget. It is given
   broker credentials and a single-use enrollment token, generates its own key pair on first
-  boot, and receives the same sealed envelopes. Seven receiver libraries are published at
-  [agent-notify-relay-sdk](https://github.com/Akash97p/agent-notify-relay-sdk): portable C,
-  Arduino, ESP-IDF, MicroPython, Rust, Python and Node.
+  boot, and receives the same sealed envelopes. Seven receiver libraries are published for
+  portable C, Arduino, ESP-IDF, MicroPython, Rust, Python and Node.
 - **An Install tab, and `Install agent skill…` in the tray menu.** One row per coding agent,
   showing where the skill will go and whether it is already there and current. Claude Code,
   Codex and OpenCode have known locations; anything else installs into a folder you pick.
@@ -208,20 +205,18 @@ and Relay remains something you host yourself.
   download until you run `xattr -dr com.apple.quarantine <dir>`; Windows SmartScreen will warn.
 - There is still no graphical application on macOS or Linux — the broker runs headless and
   every setting is edited in `config.json` by hand.
-- Relay is self-hosted only. There is no hosted service.
 - Sticky attention types degrade to ordinary banners under `osascript`.
 
 ## [0.0.4-alpha.1] - 2026-08-31
 
-Adds AgentNotify Relay: a self-hostable service that carries notifications from your computers to
-your phone, without routing them through somebody else's messaging product. Connecting a computer
-is now a browser approval rather than a pasted token.
+Adds AgentNotify Relay: a service that carries notifications from your computers to your phone,
+without routing them through somebody else's messaging product. Connecting a computer is now a
+browser approval rather than a pasted token.
 
-Relay is a separate open-source project —
-[github.com/Akash97p/agent-notify-relay](https://github.com/Akash97p/agent-notify-relay) — and is
-documented at [Relay](https://akash97p.github.io/agent-notify/docs/relay/). The mobile client and
-the hosted Relay Go plan do not exist yet, and the desktop still sends an experimental opaque
-transport rather than a sealed box, so end-to-end confidentiality is not yet delivered.
+Relay is a separate service, documented at
+[Relay](https://akash97p.github.io/agent-notify/docs/relay/). At this release the mobile client did
+not exist yet, and the desktop still sent an experimental opaque transport rather than a sealed box,
+so end-to-end confidentiality was not yet delivered.
 
 ### Added
 

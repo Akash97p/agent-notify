@@ -44,7 +44,6 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioWhatsAppMinimumPriorityBox.SelectedIndex = 0;
         MqttAuthenticationModeBox.SelectedIndex = 0;
         MqttQosBox.SelectedIndex = 1;
-        RelayDeploymentBox.SelectedIndex = 1;
         RoutePriorityBox.ItemsSource = Enum.GetNames<NotificationPriority>();
         RoutePriorityBox.SelectedItem = nameof(NotificationPriority.Normal);
     }
@@ -287,8 +286,6 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         MqttDuplicateRiskBox.IsChecked = false;
         MqttAnonymousBox.IsChecked = false;
         MqttExpiryBox.Text = "300";
-        RelayDeploymentBox.SelectedIndex = 1;
-        RelayBaseUrlBox.Text = "https://relay.example.com";
         RelaySenderNameBox.Clear();
         RelayInstallationTokenBox.Clear();
         ClearRelayTokenBox.IsChecked = false;
@@ -1178,19 +1175,6 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
                                  ClearRelayTokenBox.IsChecked == true &&
                                  hasToken;
 
-        var deployment = (RelayDeploymentBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "custom";
-        if (deployment != "custom" && deployment != "relay_go")
-            throw new ArgumentException("Select a Relay deployment.");
-        // Relay Go is coming soon — forbid saving it until hosted URL ready (UI disables it anyway)
-        if (deployment == "relay_go")
-            throw new ArgumentException("Relay Go is coming soon — choose Custom and enter your self-hosted base URL.");
-
-        var relayUrl = RelayBaseUrlBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(relayUrl))
-            throw new ArgumentException("Enter the Relay server base URL.");
-        if (relayUrl.Length > 2048)
-            throw new ArgumentException("Relay base URL is too long.");
-
         var senderName = RelaySenderNameBox.Text.Trim();
         if (senderName.Length > 100)
             throw new ArgumentException("Relay sender name must be at most 100 characters.");
@@ -1199,10 +1183,9 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
 
         var config = JsonSerializer.Serialize(new
         {
-            deployment,
-            relay_url = relayUrl,
+            // Relay is hosted-only: the endpoint is not a user choice.
+            relay_url = RelayChannelAdapter.HostedBaseUrl,
             sender_name = string.IsNullOrWhiteSpace(senderName) ? null : senderName,
-            allowPrivateNetwork = AllowPrivateBox.IsChecked == true,
             installation_id = _pendingRelayInstallationId ?? ReadRelayConfigValue(existing, "installation_id"),
             relay_name = _pendingRelayName ?? ReadRelayConfigValue(existing, "relay_name"),
             // Written back on every save so it outlives the credential it was
@@ -1446,7 +1429,8 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         TwilioWhatsAppFields.Visibility = twilioWhatsApp ? Visibility.Visible : Visibility.Collapsed;
         MqttFields.Visibility = mqtt ? Visibility.Visible : Visibility.Collapsed;
         RelayFields.Visibility = relay ? Visibility.Visible : Visibility.Collapsed;
-        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp ? Visibility.Collapsed : Visibility.Visible;
+        // Relay is hosted-only, so a private/loopback destination is never a choice there either.
+        AllowPrivateBox.Visibility = telegram || discord || slack || teams || zohoCliq || googleChat || pushover || pushbullet || twilioSms || whatsAppCloud || twilioWhatsApp || relay ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSmtpConfiguration(ProviderProfile profile)
@@ -1866,10 +1850,10 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
             return;
 
         Uri baseUri;
-        var allowPrivate = AllowPrivateBox.IsChecked == true;
+        const bool allowPrivate = false;
         try
         {
-            baseUri = RelayChannelAdapter.ValidateRelayUrl(RelayBaseUrlBox.Text.Trim(), allowPrivate);
+            baseUri = RelayChannelAdapter.ValidateRelayUrl(RelayChannelAdapter.HostedBaseUrl, allowPrivate);
         }
         catch (ArgumentException exception)
         {
@@ -2151,16 +2135,10 @@ public partial class ChannelSettingsPanel : System.Windows.Controls.UserControl
         {
             using var document = JsonDocument.Parse(profile.ConfigJson);
             var root = document.RootElement;
-            var deployment = GetJsonString(root, "deployment");
-            RelayDeploymentBox.SelectedIndex = deployment == "relay_go" ? 0 : 1;
-            RelayBaseUrlBox.Text = GetJsonString(root, "relay_url") != "" ? GetJsonString(root, "relay_url") : GetJsonString(root, "relayUrl");
             RelaySenderNameBox.Text = GetJsonString(root, "sender_name") != "" ? GetJsonString(root, "sender_name") : GetJsonString(root, "senderName");
-            // allowPrivate is reflected via shared AllowPrivateBox already handled by ReadAllowPrivate
         }
         catch (JsonException)
         {
-            RelayDeploymentBox.SelectedIndex = 1;
-            RelayBaseUrlBox.Text = "https://relay.example.com";
             RelaySenderNameBox.Clear();
         }
         ResetRelayConnectionPresentation(
