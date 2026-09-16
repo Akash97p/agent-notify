@@ -68,8 +68,8 @@ Everywhere:
   answer is returned to the session that asked. If nothing answers in time it falls back
   to the ordinary local prompt, so it can never lock you out.
 - Nineteen opt-in outbound channel adapters with encrypted credentials, including
-  [AgentNotify Relay](https://github.com/Akash97p/agent-notify-relay) — a self-hostable
-  transport that can carry a question to a paired device and the answer back.
+  [AgentNotify Relay](docs/RELAY.md) — a hosted transport that can carry a question to a
+  paired device and the answer back.
 - **A web interface on every platform.** `agentnotify ui` opens the broker's own settings,
   channels, routes, questions, and history in your browser. Insights adds an animated dashboard,
   local Claude Code/Codex/OpenCode usage by project, model, day, and recent session, plus
@@ -365,7 +365,7 @@ The SQLite database also contains versioned delivery tables for provider profile
 
 In **Tray icon → Settings → Channels**, create an **AgentNotify Relay** provider:
 
-1. Enter the self-hosted Relay base URL and press **Connect**.
+1. Press **Connect**. The endpoint is the hosted Relay; there is no address to enter.
 2. Confirm the short code on the approval page opened in your browser.
 3. When Settings shows the verified connection, press **Save provider**.
 
@@ -375,9 +375,8 @@ does not send a placeholder envelope that Relay would reject.
 
 The one-time installation credential is never displayed. It moves directly from the pairing poll
 into AgentNotify's protected provider secret store when you save. Headless Windows, macOS, and Linux
-hosts can use `agentnotify relay pair --url https://relay.example.com`; run
-`agentnotify relay status` to verify saved connections. Relay Go remains unavailable, and the
-self-hosted opaque envelope transport remains experimental rather than a claim of end-to-end
+hosts can use `agentnotify relay pair`; run `agentnotify relay status` to verify saved
+connections. The opaque envelope transport remains experimental rather than a claim of end-to-end
 encryption.
 
 Uninstall removes application binaries, shortcuts, startup registration, and the CLI `PATH` entry. It intentionally preserves `%LOCALAPPDATA%\AgentNotify` history/config so an upgrade or reinstall does not destroy user data.
@@ -489,7 +488,7 @@ Content-Type: application/json
   [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
 - “Open Agent” cannot reliably focus a specific Windows Terminal tab or cross virtual desktops yet.
-- Nineteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, MQTT 5 over TLS/mTLS, and the experimental self-hosted AgentNotify Relay transport.
+- Nineteen outbound adapters are configurable: generic HTTPS webhook, authenticated TLS SMTP email, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, unencrypted Matrix rooms, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, Meta WhatsApp Cloud templates, Twilio WhatsApp Content templates, MQTT 5 over TLS/mTLS, and the experimental hosted AgentNotify Relay transport.
 - Real-provider interoperability is not claimed by automated tests. Configure and test each provider with your own account, destination, consent, quotas, and compliance controls.
 - AWS SNS, Signal, provider email APIs, additional SMS/mobile-push services, quiet hours/escalation, agent callbacks, and SDK/MCP work remain backlog items; AWS SNS is currently paused and has no implementation in this branch.
 

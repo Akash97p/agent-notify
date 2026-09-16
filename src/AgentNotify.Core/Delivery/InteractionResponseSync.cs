@@ -81,7 +81,7 @@ public sealed record ProviderPollOutcome(
 /// The broker revalidates every answer (digest, nonce, kind, expiry,
 /// first-wins), so a merged Relay cannot replay or stale-serve an answer into
 /// a host. It can, however, alter the choice or text of an answer it receives,
-/// because v1 answers are plaintext to the trusted self-hosted Relay; sealing
+/// because v1 answers are plaintext to the trusted hosted Relay; sealing
 /// answers to an installation key is future work. Transport errors and any
 /// local broker rejection that may be temporary never move the cursor; only a
 /// fully processed poll advances it.

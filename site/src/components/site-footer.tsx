@@ -13,7 +13,7 @@ export function SiteFooter() {
           <Link href="/docs/">Docs</Link>
           <Link href="/docs/arc/">ARC</Link>
           <a href={site.repository}>Source</a>
-          <a href={site.relayRepository}>Relay</a>
+          <Link href="/docs/relay/">Relay</Link>
         </nav>
       </div>
     </footer>

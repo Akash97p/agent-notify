@@ -145,7 +145,6 @@ public static class ProviderFormReader
                 values["message_expiry_seconds"] = IntOr(root, "messageExpirySeconds", "300");
                 break;
             case "relay":
-                values["relay_url"] = FirstString(root, "relay_url", "relayUrl");
                 values["sender_name"] = FirstString(root, "sender_name", "senderName");
                 break;
         }

@@ -327,21 +327,23 @@ public static class ProviderFormCatalog
             Notes = ["TLS 1.2 or 1.3 with normal certificate validation is mandatory. Publishes are JSON and non-retained."]
         },
 
-        new("relay", "AgentNotify Relay", "Phone", "Send end-to-end encrypted envelopes to paired devices through your Relay.",
+        new("relay", "AgentNotify Relay", "Phone", "Send end-to-end encrypted envelopes to your paired phones through the hosted AgentNotify Relay.",
         [
-            new("relay_url", "Relay server base URL", ProviderFieldType.Url) { Required = true, Placeholder = "https://relay.example.com" },
             new("sender_name", "Sender name", ProviderFieldType.Text) { Help = "Optional. Shown to the Relay and your devices; up to 100 characters." },
             Secret("installation_token", "Manual installation token", required: false) with
             {
                 Clearable = true,
                 Advanced = true,
                 Help = "For headless installs. Connecting normally stores this for you."
-            },
-            AllowPrivate
+            }
         ])
         {
             SupportsPairing = true,
-            Notes = ["Press Connect and approve the short code in your browser. Local history stays authoritative while the Relay is unreachable."]
+            Notes =
+            [
+                "Relay is a hosted service at an.relay.dev.kabanitech.com. There is no server address to enter.",
+                "Press Connect and approve the short code in your browser. Local history stays authoritative while the Relay is unreachable."
+            ]
         }
     ];
 

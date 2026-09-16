@@ -37,13 +37,14 @@ public sealed class RelayPairingSessions : IDisposable
         bool Reconnected,
         int? ActiveDeviceCount);
 
-    /// <summary>Discovers the Relay and requests a pairing code. Only one pairing runs at a time.</summary>
-    /// <exception cref="ArgumentException">The URL or sender name is invalid.</exception>
+    /// <summary>
+    /// Discovers the hosted Relay and requests a pairing code. Only one pairing runs at a time.
+    /// The endpoint is not a client input: Relay is hosted-only.
+    /// </summary>
+    /// <exception cref="ArgumentException">The sender name is invalid.</exception>
     /// <exception cref="RelayPairingException">The Relay could not be reached or refused.</exception>
     public async Task<Snapshot> StartAsync(
-        string relayUrl,
         string? senderName,
-        bool allowPrivateNetwork,
         string? existingInstallId,
         CancellationToken ct)
     {
@@ -51,7 +52,8 @@ public sealed class RelayPairingSessions : IDisposable
         foreach (var running in _pairings.Values.Where(p => !p.IsFinished))
             running.Cancel();
 
-        var baseUri = RelayChannelAdapter.ValidateRelayUrl(relayUrl.Trim(), allowPrivateNetwork);
+        const bool allowPrivateNetwork = false;
+        var baseUri = RelayChannelAdapter.ValidateRelayUrl(RelayChannelAdapter.HostedBaseUrl, allowPrivateNetwork);
         var client = _clientFactory(allowPrivateNetwork);
         try
         {

@@ -29,7 +29,7 @@ export const docs: DocDefinition[] = [
   { source: "docs/ARC.md", slug: "arc", title: "Attention Request Contract", section: "Using AgentNotify", description: "ARC 0.1 lifecycle, schema, and reference binding." },
   { source: "docs/CONFIGURATION.md", slug: "configuration", title: "Configuration", section: "Using AgentNotify", description: "Configuration files, defaults, and notification types." },
   { source: "docs/CHANNELS.md", slug: "channels", title: "Outbound channels", section: "Using AgentNotify", description: "Nineteen opt-in adapters and their security policies." },
-  { source: "docs/RELAY.md", slug: "relay", title: "AgentNotify Relay", section: "Using AgentNotify", description: "Self-hosted transport from your computers to your phone." },
+  { source: "docs/RELAY.md", slug: "relay", title: "AgentNotify Relay", section: "Using AgentNotify", description: "The hosted transport from your computers to your phone." },
   { source: "docs/AGENT_INTEGRATION.md", slug: "agent-integration", title: "Agent integration", section: "Agents", description: "When and how an agent should request attention." },
   { source: "docs/AGENT_SKILLS.md", slug: "agent-skills", title: "Agent skills", section: "Agents", description: "Install the bundled skill into Codex or Claude Code." },
   { source: "docs/HARNESS.md", slug: "harness", title: "Agent harnesses", section: "Agents", description: "Auto-notify harnesses for eleven coding hosts." },

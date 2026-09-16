@@ -643,12 +643,6 @@ public static class ProviderFormBuilder
             throw new ArgumentException("The Relay installation token must start with inst_ and contain base64url characters.");
         var removesStoredToken = selectedToken is null && form.Clears("installation_token") && form.HasStored("installation_token");
 
-        var relayUrl = form.Text("relay_url").Trim();
-        if (relayUrl.Length == 0)
-            throw new ArgumentException("Enter the Relay server base URL.");
-        if (relayUrl.Length > 2048)
-            throw new ArgumentException("Relay base URL is too long.");
-        RelayChannelAdapter.ValidateRelayUrl(relayUrl, form.AllowPrivate);
         var senderName = form.Text("sender_name").Trim();
         if (senderName.Length > 100)
             throw new ArgumentException("Relay sender name must be at most 100 characters.");
@@ -657,10 +651,9 @@ public static class ProviderFormBuilder
 
         var config = Serialize(new
         {
-            deployment = "custom",
-            relay_url = relayUrl,
+            // Relay is hosted-only: the endpoint is not a user choice.
+            relay_url = RelayChannelAdapter.HostedBaseUrl,
             sender_name = senderName.Length == 0 ? null : senderName,
-            allowPrivateNetwork = form.AllowPrivate,
             installation_id = pairing?.InstallationId ?? form.PreviousConfigValue("installation_id"),
             relay_name = pairing?.RelayName ?? form.PreviousConfigValue("relay_name"),
             // Kept across saves so the relay recognises this machine when it reconnects.

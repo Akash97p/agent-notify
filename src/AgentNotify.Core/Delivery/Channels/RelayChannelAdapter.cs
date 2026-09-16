@@ -10,8 +10,8 @@ using AgentNotify.Protocol;
 namespace AgentNotify.Core.Delivery.Channels;
 
 /// <summary>
-/// AgentNotify Relay adapter — experimental opaque transport. Sends a per-device envelope to a
-/// self-hosted or Relay Go endpoint. Local notification history remains authoritative even if the
+/// AgentNotify Relay adapter — experimental opaque transport. Sends a per-device envelope to the
+/// hosted AgentNotify Relay. Local notification history remains authoritative even if the
 /// relay is unavailable. Encryption is currently opaque experimental transport (base64url wire)
 /// and does not yet claim end-to-end guarantees.
 /// </summary>
@@ -37,6 +37,14 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
     }
 
     public string Kind => "relay";
+
+    /// <summary>
+    /// The one AgentNotify Relay endpoint. Relay is a hosted service: there is no deployment
+    /// choice and no server address to enter, so every producer of relay configuration writes
+    /// this value. Stored configuration may still carry an explicit <c>relay_url</c> — the test
+    /// suite points the adapter at a local stub server that way — and that override is honoured.
+    /// </summary>
+    public const string HostedBaseUrl = "https://an.relay.dev.kabanitech.com";
 
     public async Task<DeliveryResult> DeliverAsync(
         OutboundDelivery delivery,
@@ -135,20 +143,12 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
         var config = new RelayConfiguration();
 
-        // deployment: custom (default) or relay_go (coming soon — disabled)
-        var deployment = GetString(root, "deployment") ?? GetString(root, "Deployment") ?? "custom";
-        deployment = deployment.Trim().ToLowerInvariant();
-        if (deployment != "custom" && deployment != "relay_go")
-            throw new ArgumentException("Relay deployment must be custom or relay_go.");
-        if (deployment == "relay_go")
-            throw new ArgumentException("Relay Go is coming soon — choose Custom and enter your self-hosted base URL.");
-        config.Deployment = deployment;
+        // A legacy "deployment" key is ignored rather than rejected: profiles saved before Relay
+        // became hosted-only still carry it and must keep loading.
 
-        // relay_url / relayUrl — required
+        // relay_url / relayUrl — optional; absent means the hosted Relay.
         var relayUrl = GetString(root, "relay_url") ?? GetString(root, "relayUrl") ?? GetString(root, "RelayUrl");
-        if (string.IsNullOrWhiteSpace(relayUrl))
-            throw new ArgumentException("Relay base URL is required.");
-        relayUrl = relayUrl.Trim();
+        relayUrl = string.IsNullOrWhiteSpace(relayUrl) ? HostedBaseUrl : relayUrl.Trim();
         if (relayUrl.Length > 2048)
             throw new ArgumentException("Relay base URL is too long.");
         config.RelayUrl = relayUrl;
@@ -210,9 +210,6 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
         // Validate relay URL now (also validates host policy)
         _ = ValidateRelayUrl(config.RelayUrl, config.AllowPrivateNetwork);
-
-        // If deployment is relay_go, we still validate same URL rules but could add host check later.
-        // For now treat identically; UI disables selection until hosted URL ready.
 
         return config;
     }
@@ -505,7 +502,6 @@ public sealed class RelayChannelAdapter : IOutboundChannelAdapter, IDisposable
 
     internal sealed class RelayConfiguration
     {
-        public string Deployment { get; set; } = "custom";
         public string? RelayUrl { get; set; }
         public string? SenderName { get; set; }
         public bool AllowPrivateNetwork { get; set; }
