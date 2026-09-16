@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using AgentNotify.Core.Skills;
+using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.App;
 
@@ -22,17 +23,20 @@ public sealed class SkillInstallRow : INotifyPropertyChanged
     private SkillInstallState _state = SkillInstallState.NotInstalled;
     private string _status = "";
 
+    /// <param name="wsl">The WSL home this row installs into, or null for this Windows user's own agents.</param>
     public SkillInstallRow(
         AgentSkillTarget target,
-        Func<AgentSkillTarget, IReadOnlyList<SkillInstaller.SkillFile>> files)
+        Func<AgentSkillTarget, IReadOnlyList<SkillInstaller.SkillFile>> files,
+        WslHome? wsl = null)
     {
         Target = target;
+        Wsl = wsl;
         _files = files;
         if (target.HasDefaultLocation)
         {
             try
             {
-                _skillsRoot = AgentSkillCatalog.DefaultSkillsRoot(target);
+                _skillsRoot = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: wsl?.WindowsHome);
             }
             catch (InvalidOperationException)
             {
@@ -44,7 +48,8 @@ public sealed class SkillInstallRow : INotifyPropertyChanged
     }
 
     public AgentSkillTarget Target { get; }
-    public string DisplayName => Target.DisplayName;
+    public WslHome? Wsl { get; }
+    public string DisplayName => Wsl is null ? Target.DisplayName : $"{Target.DisplayName} · WSL {Wsl.Distribution}";
     public string Note => Target.Note;
 
     /// <summary>The skills root, once one is known. Null until a folder is chosen.</summary>

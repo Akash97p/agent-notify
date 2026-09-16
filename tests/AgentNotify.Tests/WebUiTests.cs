@@ -13,6 +13,7 @@ using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Usage;
 using AgentNotify.Core.Quota;
+using AgentNotify.Core.Wsl;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -54,6 +55,8 @@ public sealed class WebUiTests : IAsyncLifetime
             Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")],
                 Path.Combine(_dir, "usage-opencode.db")),
             Quota = new LiveQuotaService([new WebQuotaProbe()]),
+            // Never the real discovery: a Windows test machine may have WSL distributions running.
+            Wsl = new FakeWsl(new WslHome("Ubuntu-Test", "/home/tester", Path.Combine(_dir, "wsl-home"))),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
@@ -128,7 +131,7 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
         Assert.Equal(0.000135m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
         Assert.Equal("2026-09-14", body.GetProperty("pricing_as_of").GetString());
-        Assert.Equal("2", body.GetProperty("contract_version").GetString());
+        Assert.Equal("3", body.GetProperty("contract_version").GetString());
         Assert.Single(body.GetProperty("projects").EnumerateArray());
         Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
@@ -219,6 +222,30 @@ public sealed class WebUiTests : IAsyncLifetime
             new { provider = "codex", label = "Duplicate", directory })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/" + id)).StatusCode);
         Assert.Empty(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+    }
+
+    [Fact]
+    public async Task SkillsCanBeInstalledIntoARunningWslHomeByDistributionName()
+    {
+        using var browser = Page();
+        var agents = await browser.GetFromJsonAsync<JsonElement>("/ui/api/agents");
+        var wslClaude = agents.GetProperty("skills").EnumerateArray()
+            .Single(skill => skill.GetProperty("id").GetString() == "claude" &&
+                             skill.GetProperty("wsl").ValueKind == JsonValueKind.String);
+        Assert.Equal("Ubuntu-Test", wslClaude.GetProperty("wsl").GetString());
+        Assert.Equal("WSL · Ubuntu-Test", wslClaude.GetProperty("environment").GetString());
+        var expected = Path.Combine(_dir, "wsl-home", ".claude", "skills", "agentnotify");
+        Assert.Equal(expected, wslClaude.GetProperty("destination").GetString());
+
+        var installed = await browser.PostAsJsonAsync("/ui/api/agents/skills/claude", new { force = false, wsl = "Ubuntu-Test" });
+        Assert.Equal(HttpStatusCode.OK, installed.StatusCode);
+        Assert.True(File.Exists(Path.Combine(expected, "SKILL.md")));
+        var skill = (await installed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("skill");
+        Assert.Equal("up_to_date", skill.GetProperty("state").GetString());
+        Assert.Equal("Ubuntu-Test", skill.GetProperty("wsl").GetString());
+
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.PostAsJsonAsync("/ui/api/agents/skills/claude",
+            new { force = false, wsl = "Stopped-Distro" })).StatusCode);
     }
 
     private sealed class WebQuotaProbe : ILiveQuotaProbe

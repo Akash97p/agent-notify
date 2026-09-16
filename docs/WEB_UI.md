@@ -63,6 +63,10 @@ from uncached input. Codex reasoning is included within output; OpenCode reasoni
 counter added to output once. OpenCode's current `message` table is queried on every refresh.
 `OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
 `~/.local/share/opencode/opencode.db` is used.
+On Windows, Usage, Live quota, and Agents also include each running WSL distribution: its agents'
+default log locations, a Codex/Claude Code account for each profile directory that exists, and skill
+rows labelled `WSL · <distribution>`. Stopped distributions are not read, because opening their
+files would start them.
 
 The Insights **Dashboard** combines the existing 30-day Usage, Live quota, and broker Overview
 responses in the browser. It does not add account percentages to local token totals: local logs do

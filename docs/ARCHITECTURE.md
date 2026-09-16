@@ -95,7 +95,16 @@ only a basename and stable opaque hash, never the full path. The source logs rem
 the Usage view also groups deduplicated rows by source, session, and project, exposing only a
 hashed session ID, time span, token/model aggregates, and estimated cost for the 50 most recent
 sessions. Its response uses `contract_version: "2"`; raw provider session IDs stay on the broker.
-the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
+the current cache is in memory and is rebuilt after restart.
+On Windows the same sources are also read inside WSL. `WslDiscovery` in Core lists distributions
+from `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`, asks `wsl.exe --list --running` which
+of them are running, resolves each default user's home from that distribution's `/etc/passwd`, and
+reaches it through `\\wsl.localhost\<distribution>`. Only running distributions are touched:
+opening the share of a stopped distribution boots its VM, which a dashboard visit must not do. The
+agents' default locations inside the distribution are used, because their environment variables are
+not visible to the broker. Discovery is cached for 30 seconds and re-resolved on every scan, so
+history from a distribution appears while it runs; the report lists the included distributions and
+uses `contract_version: "3"`. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 
@@ -125,6 +134,14 @@ exactly priced models against OpenCode's published per-model dollar caps over ro
 7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
 balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
+Each running WSL distribution with a `~/.codex` or `~/.claude` directory adds a discovered account
+(`codex:wsl:<distribution>`, renamable through the same label map as the built-in accounts); an
+account the owner added by hand for the same directory takes its place. A profile on the WSL share
+can also be added by hand, as the one exception to the under-home rule. Codex for such a profile is
+run inside that distribution — `wsl.exe --distribution <name> --exec /bin/sh`, then the user's login,
+interactive shell so version-manager PATH setup applies — with `CODEX_HOME` passed through
+`WSLENV`; the probe ignores non-JSON stdout lines a shell rc file may print. Claude's credential file
+is read through the share like any other.
 
 The Insights Dashboard is a browser-side composition of the existing Overview, Usage, and Live
 quota projections. It keeps their provenance separate: account quota cannot be attributed to

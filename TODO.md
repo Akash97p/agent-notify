@@ -82,6 +82,8 @@
 - [x] Live quota page: Codex app-server and Claude Code account-usage probes with cached five-hour/weekly windows, reset times, stale state, and OpenCode unavailable state; live broker/browser check on macOS
 - [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
 - [x] Compact remaining-balance quota UI, editable names for current/additional agent profiles, simplified Usage disclosures, and animated Insights dashboard
+- [x] WSL on Windows: usage, live quota, and skill installs include running WSL distributions; WSL profile directories can be added by hand; `install-skill --wsl` (tests on macOS; not yet run on Windows/WSL)
+- [ ] WSL-aware `install-harness` (hook commands need Linux paths and `python3`)
 - [ ] Complete local usage indexing: durable cache, fork replay handling, and historical/versioned pricing; recent-session grouping is implemented
 - [ ] Expand live quota: a stable public Claude API or documented statusline bridge, context/time-dependent Go model rates, additional provider-account sources, and Windows tray-hosted verification
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once

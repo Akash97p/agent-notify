@@ -1557,6 +1557,36 @@ by CI, not executed. Everything listed as unverified in the section above still 
 surface has been looked at, no live Relay has been contacted with the hosted-only client, and no
 phone has answered an ARC 0.2 request end to end. The binaries remain unsigned.
 
+## WSL agent discovery (`feature/wsl-agent-discovery`, 2026-09-16)
+
+Environment: macOS (Darwin 25.6), .NET SDK 10.0.401 at `~/.dotnet`. There is no Windows machine or
+WSL in this session, so the repository scripts were not used and `WslDiscovery` itself returns
+nothing here.
+
+Ran:
+
+- `dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj -c Release` — **933 passed, 0 failed,
+  0 skipped**, up from 915 on `dev` on the same machine. New coverage: share-path parsing, UTF-8 and
+  UTF-16 `wsl --list` output, `/etc/passwd` home lookup, usage from a fake WSL home including a Linux
+  project path and a distribution that stops, discovered/hand-added/renamed WSL quota accounts,
+  label normalization, the skills-root home override, the Codex-in-WSL start arguments and
+  `WSLENV`, and web interface skill installs by distribution name (including a stopped one).
+- Release builds of `AgentNotify.Tests`, `AgentNotify.Host`, `AgentNotify.Cli`, and
+  `AgentNotify.App` (`-p:EnableWindowsTargeting=true`) — **0 warnings, 0 errors**.
+- `node --check` on the four edited web interface modules and `bash -n scripts/agentnotify`.
+
+Not verified — none of this has run on Windows or WSL:
+
+- Registry enumeration, `wsl.exe --list --running` on a real machine, and reading `/etc/passwd` and
+  agent logs through `\\wsl.localhost`.
+- That a stopped distribution is left stopped when the pages load.
+- The Codex app server started through `wsl.exe` and a login, interactive shell (including nvm), and
+  Claude quota read through the share.
+- SQLite reading OpenCode's database over the WSL share.
+- The Agents page, Live quota account list, Usage "Includes WSL" line, and the WPF Install tab's WSL
+  rows were not rendered.
+- `install-skill --wsl` and the wrapper's `WSL_DISTRO_NAME` forwarding.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

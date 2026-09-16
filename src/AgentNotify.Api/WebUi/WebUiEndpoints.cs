@@ -14,6 +14,7 @@ using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
 using AgentNotify.Core.Usage;
+using AgentNotify.Core.Wsl;
 using AgentNotify.Protocol;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -155,10 +156,13 @@ public static class WebUiEndpoints
         var pairings = new RelayPairingSessions();
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
-        var usage = options.Usage ?? new LocalUsageService();
+        var wsl = options.Wsl ?? WslDiscovery.Default;
+        var usage = options.Usage ?? new LocalUsageService(wsl: wsl);
         var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
             accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
-            defaultAccountLabel: provider => config.DefaultQuotaAccountLabels.GetValueOrDefault(provider, "Current account"));
+            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl);
+        IReadOnlyList<QuotaAccountDefinition> WslAccounts() =>
+            QuotaAccountDefinition.WslDefaults(wsl, key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key));
         var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
@@ -220,9 +224,11 @@ public static class WebUiEndpoints
                     QuotaAccountDefinition.Default("codex", config.DefaultQuotaAccountLabels.GetValueOrDefault("codex")),
                     QuotaAccountDefinition.Default("claude_code", config.DefaultQuotaAccountLabels.GetValueOrDefault("claude_code"))
                 }
-                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true })
+                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = (string?)null })
+                .Concat(WslAccounts().Select(account => new
+                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = (string?)account.Id[(account.Id.LastIndexOf(':') + 1)..] }))
                 .Concat(config.QuotaAccounts.Select(account => new
-                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false })).ToArray()
+                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray()
         }, JsonOptions));
 
         app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
@@ -237,7 +243,7 @@ public static class WebUiEndpoints
                     if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
                     account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
                         config.QuotaAccounts.Concat([QuotaAccountDefinition.Default("codex"),
-                            QuotaAccountDefinition.Default("claude_code")]));
+                            QuotaAccountDefinition.Default("claude_code")]).Concat(WslAccounts()));
                     var previous = config.QuotaAccounts;
                     config.QuotaAccounts = [.. previous, account];
                     try { options.ConfigStore.Save(config); }
@@ -259,16 +265,21 @@ public static class WebUiEndpoints
                 QuotaAccountDefinition renamed;
                 lock (quotaAccountsGate)
                 {
-                    if (id is "codex:default" or "claude_code:default")
+                    if (id is "codex:default" or "claude_code:default" || QuotaAccountDefinition.IsWslAccountId(id))
                     {
+                        // Built-in accounts are keyed by provider; discovered WSL accounts by their full ID.
                         var provider = id[..id.IndexOf(':')];
+                        var key = id.EndsWith(":default", StringComparison.Ordinal) ? provider : id;
                         var previous = new Dictionary<string, string>(config.DefaultQuotaAccountLabels, StringComparer.Ordinal);
                         var updated = new Dictionary<string, string>(previous, StringComparer.Ordinal)
-                            { [provider] = label };
+                            { [key] = label };
                         config.DefaultQuotaAccountLabels = updated;
                         try { options.ConfigStore.Save(config); }
                         catch { config.DefaultQuotaAccountLabels = previous; throw; }
-                        renamed = QuotaAccountDefinition.Default(provider, label);
+                        renamed = key == provider
+                            ? QuotaAccountDefinition.Default(provider, label)
+                            : WslAccounts().FirstOrDefault(account => account.Id == id)
+                              ?? new QuotaAccountDefinition(id, provider, label, "");
                     }
                     else
                     {
@@ -641,7 +652,10 @@ public static class WebUiEndpoints
 
         app.MapGet($"{BasePath}/api/agents", () => Results.Json(new
         {
-            skills = AgentSkillCatalog.WithKnownLocations.Select(SkillJson),
+            // Skills for this user's own agents, then for agents inside each running WSL distribution.
+            skills = AgentSkillCatalog.WithKnownLocations.Select(target => SkillJson(target, null))
+                .Concat(wsl.RunningHomes().SelectMany(home =>
+                    AgentSkillCatalog.WithKnownLocations.Select(target => SkillJson(target, home)))),
             harnesses = HarnessCatalog.All.Select(target => new
             {
                 id = target.Id,
@@ -658,11 +672,19 @@ public static class WebUiEndpoints
             if (target is null || !target.HasDefaultLocation)
                 return Error("Unknown agent.", StatusCodes.Status404NotFound);
             var body = await ReadAsync<SkillBody>(http);
+            // A WSL install names the distribution, never a path; the home comes from discovery.
+            WslHome? home = null;
+            if (!string.IsNullOrEmpty(body?.Wsl))
+            {
+                home = wsl.RunningHomes().FirstOrDefault(item =>
+                    string.Equals(item.Distribution, body.Wsl, StringComparison.OrdinalIgnoreCase));
+                if (home is null) return Error("That WSL distribution is not running.", StatusCodes.Status404NotFound);
+            }
             try
             {
-                var root = AgentSkillCatalog.DefaultSkillsRoot(target);
+                var root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
                 var result = SkillInstaller.Install(target.DisplayName, root, WebUiSkill.Files(target), body?.Force == true, dryRun: false);
-                return Results.Json(new { success = result.Success, changed = result.Changed, message = result.Message, skill = SkillJson(target) },
+                return Results.Json(new { success = result.Success, changed = result.Changed, message = result.Message, skill = SkillJson(target, home) },
                     statusCode: result.Success ? StatusCodes.Status200OK : StatusCodes.Status409Conflict, options: JsonOptions);
             }
             catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
@@ -759,13 +781,13 @@ public static class WebUiEndpoints
         return dto;
     }
 
-    private static object SkillJson(AgentSkillTarget target)
+    private static object SkillJson(AgentSkillTarget target, WslHome? home)
     {
         string? root = null;
         var state = "unavailable";
         try
         {
-            root = AgentSkillCatalog.DefaultSkillsRoot(target);
+            root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
             state = SkillInstaller.Inspect(root, WebUiSkill.Files(target)) switch
             {
                 SkillInstallState.UpToDate => "up_to_date",
@@ -782,6 +804,8 @@ public static class WebUiEndpoints
             id = target.Id,
             display_name = target.DisplayName,
             note = target.Note,
+            wsl = home?.Distribution,
+            environment = home is null ? null : "WSL · " + home.Distribution,
             destination = root is null ? null : SkillInstaller.SkillDirectory(root),
             state
         };
@@ -987,7 +1011,7 @@ public static class WebUiEndpoints
         public bool IncludeMessage { get; set; } = true;
     }
 
-    private sealed class SkillBody { public bool Force { get; set; } }
+    private sealed class SkillBody { public bool Force { get; set; } public string? Wsl { get; set; } }
 }
 
 /// <summary>The agent skill as this build carries it, for installs started from the web UI.</summary>

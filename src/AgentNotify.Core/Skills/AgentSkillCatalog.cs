@@ -59,7 +59,8 @@ public static class AgentSkillCatalog
 
     /// <summary>
     /// Where this agent keeps its skills, either for the current user or for the
-    /// repository in <paramref name="projectDirectory"/>.
+    /// repository in <paramref name="projectDirectory"/>. <paramref name="homeDirectory"/> replaces the
+    /// current user's home, for an agent that runs under another home such as a WSL distribution's.
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// The target has no default location, or the home directory is unknown —
@@ -67,14 +68,15 @@ public static class AgentSkillCatalog
     /// </exception>
     public static string DefaultSkillsRoot(
         AgentSkillTarget target,
-        string? projectDirectory = null)
+        string? projectDirectory = null,
+        string? homeDirectory = null)
     {
         var segments = projectDirectory is null ? target.PersonalSegments : target.ProjectSegments;
         if (segments is null)
             throw new InvalidOperationException(
                 $"{target.DisplayName} has no default skills folder. Pass one explicitly.");
 
-        var root = projectDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var root = projectDirectory ?? homeDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(root))
             throw new InvalidOperationException(
                 "Could not determine the current user's home directory. Pass a path explicitly.");
