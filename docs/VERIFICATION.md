@@ -1181,8 +1181,8 @@ Environment: Intel MacBook Pro (x86_64), macOS, .NET SDK 10.0.401, headless Goog
 - `scripts/publish-cross.sh` failed its checksum step on macOS (GNU `find -printf`, `xargs -r`,
   `sha256sum`); fixed to fall back to `shasum -a 256`.
 
-Not verified: the web interface served by the Windows tray app, **Open in browser…** in the tray
-menu, sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
+Not verified: the web interface served by the Windows tray app, the tray menu's web-interface entry
+(**Open in browser…** at the time; **Web interface…** since), sound preview of built-in tones (seeded only by the Windows app), and a Relay pairing
 started from the page against a live Relay. (A person has since used it on macOS; see the next
 section.)
 
