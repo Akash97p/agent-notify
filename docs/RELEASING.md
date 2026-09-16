@@ -17,8 +17,8 @@ and stages the export in `_site`. GitHub Actions then uploads that directory usi
 actions and requests only read, Pages, and OIDC permissions.
 
 The latest tagged prerelease is
-[`v0.1.0-alpha.2`](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2),
-published 2026-09-12 with the Windows installer, portable archives, checksums, and skill.
+[`v0.1.0-alpha.3`](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.3),
+published 2026-09-16 with the Windows installer, portable archives, checksums, and skill.
 GitHub Pages follows the `dev`/`main` documentation source, so it can describe newer development
 features before another binary release is tagged. A user needs a new broker build to try those
 features.
@@ -100,7 +100,7 @@ The portable archives are produced by a second job on a Linux runner after the W
 The two checksum files are deliberately named differently: two assets sharing one name would replace
 each other rather than sit side by side.
 
-The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata is `0.1.0.0` for the current `0.1.0-alpha.2` prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.1.0-alpha.2`.
+The workflow fails rather than publishing when tests fail, packaging fails, the version is not SemVer-style, or the tag does not exactly match the product version. Numeric assembly/file metadata is `0.1.0.0` for the current `0.1.0-alpha.3` prerelease because Windows version-resource fields are numeric; API, CLI, installer, registry, package, and release display metadata use `0.1.0-alpha.3`.
 
 ## Local packaging
 

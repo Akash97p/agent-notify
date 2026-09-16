@@ -8,7 +8,7 @@
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
-> **Development status:** Pre-release `v0.1.0-alpha.2` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
+> **Development status:** Pre-release `v0.1.0-alpha.3` — AgentNotify is under active development and has not reached the mature `v1.0.0` release. Builds are for testing and evaluation; expect incomplete features, breaking changes, and unsigned binaries.
 
 <p align="center">
   <img src="assets/branding/an.png" alt="AgentNotify logo" width="180" height="180">
@@ -453,7 +453,7 @@ artifacts/AgentNotifySetup.exe
 
 The artifact is intentionally ignored by Git. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for packaging internals, signing guidance, and release checks.
 
-The latest tagged [v0.1.0-alpha.2 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2) includes the installer, portable archives, checksums, and distributable skill. Newer development features are on `main`/`dev` until the next tagged release; use a fresh build to try them. Exact `v`-prefixed tags publish through the release workflow; hyphenated tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
+The latest tagged [v0.1.0-alpha.3 GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.3) includes the installer, portable archives, checksums, and distributable skill. Newer development features are on `main`/`dev` until the next tagged release; use a fresh build to try them. Exact `v`-prefixed tags publish through the release workflow; hyphenated tags are marked as prereleases automatically. Building locally does not require GitHub access. See [Releases and GitHub Pages](docs/RELEASING.md).
 
 ## API
 

@@ -9,7 +9,7 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
-## [Unreleased]
+## [0.1.0-alpha.3] - 2026-09-16
 
 ### Added
 
@@ -390,6 +390,8 @@ First published prerelease.
 - A single self-contained `AgentNotifySetup.exe` per-user installer with an offline getting-started
   page.
 
+[0.1.0-alpha.3]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.3
+[0.1.0-alpha.2]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.1
 [0.0.3-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.3-alpha.1
 [0.0.2-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.0.2-alpha.1
