@@ -243,11 +243,16 @@ See [Agent setup and skills](docs/AGENT_SKILLS.md) for Agent Skills-compatible t
 
 ## Attention Request Contract
 
-AgentNotify defines ARC 0.1, an open transport-neutral contract for creating, updating, and resolving
-bounded requests for human attention. ARC producers post `request.created`, `request.updated`, and
-`request.resolved` events to the authenticated loopback `/v1/events` endpoint. Sender identity,
-session and project context, immutable event identity, unresolved conditions, and deduplication
-survive projection into local history.
+AgentNotify defines ARC 0.2, an open transport-neutral contract for creating, updating, answering,
+and resolving bounded requests for human attention. ARC producers post `request.created`,
+`request.updated`, `response.submitted`, and `request.resolved` events to the authenticated loopback
+`/v1/events` endpoint. Sender identity, session and project context, immutable event identity,
+unresolved conditions, and deduplication survive projection into local history.
+
+A request that carries a `response` specification says the producer is waiting, and for what: a
+permission, one of a bounded list of choices, or a short text. It opens a durable question alongside
+the notification, and the first valid answer — from the web interface, the CLI, a desktop toast, or a
+paired phone — wins and closes it.
 
 See the [Attention Request Contract](docs/ARC.md) for the lifecycle, field rules, published JSON
 Schema, security boundary, and future stdout/ACP/A2A adapter direction.

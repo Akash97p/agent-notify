@@ -120,7 +120,7 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ### A04 — SDKs and protocols
 
-- Status: protocol assembly and ARC 0.1 create/update/resolve ingestion implemented;
+- Status: protocol assembly and ARC 0.2 create/update/respond/resolve ingestion implemented;
   agent-host research is complete; auto-notify harnesses for all eleven hosts (OpenCode,
   Codex, Claude, Gemini, Copilot, Cursor, Muse, Kilo, OpenClaw, Hermes, Pi) implemented with
   `install-harness`, embedded payloads, JSON-preserving merges, and ask mode for Codex/Claude —

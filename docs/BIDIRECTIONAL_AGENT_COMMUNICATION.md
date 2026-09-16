@@ -211,10 +211,10 @@ rejection, timeout, and simultaneous local/mobile responses.
 
 ### ARC — keep as AgentNotify's semantic contract
 
-ARC 0.1 models durable attention request create/update/resolve state and intentionally excludes
-structured answers. The broker's separate interaction contract is already live; a future ARC
-interaction/response profile should follow its stabilized semantics, including host-acceptance
-receipts when available. ARC should stay transport-neutral.
+ARC 0.2 folded the broker's interaction model into the contract: an answerable request states the
+shape of the answer it waits for, and `response.submitted` carries one answer back, bound by digest
+and nonce and settled first-valid-wins. Host-acceptance receipts are still not modelled — a consumer
+knows an answer was accepted, not that the host applied it. ARC should stay transport-neutral.
 
 ### Agent Client Protocol — adopt as the common managed-session adapter
 

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akash97p.github.io/agent-notify/schemas/arc-0.2.schema.json",
+  "title": "Attention Request Contract 0.2",
+  "description": "A transport-neutral event contract for creating, updating, answering, and resolving bounded requests for human attention.",
+  "type": "object",
+  "required": ["arc_version", "event_id", "event_type", "occurred_at", "sender", "request"],
+  "$defs": {
+    "choice": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "detail": { "type": "string", "minLength": 1, "maxLength": 500 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "arc_version": { "const": "0.2" },
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "event_type": { "enum": ["request.created", "request.updated", "request.resolved", "response.submitted"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "sender": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "version": { "type": "string", "maxLength": 100 },
+        "instance_id": { "type": "string", "maxLength": 100 }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "maxLength": 100 },
+        "correlation_id": { "type": "string", "maxLength": 200 },
+        "project": { "type": "string", "maxLength": 200 },
+        "cwd": { "type": "string", "maxLength": 1024 },
+        "pid": { "type": "integer", "minimum": 0 },
+        "turn_id": { "type": "string", "maxLength": 200 },
+        "native_request_id": { "type": "string", "maxLength": 200 }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": ".*\\S.*" },
+        "kind": { "enum": ["information", "question", "permission", "blocked", "failure", "completion"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "priority": { "enum": ["low", "normal", "high", "critical"] },
+        "outcome": { "enum": ["answered", "expired", "cancelled", "superseded", "not_needed"] },
+        "response": {
+          "type": "object",
+          "description": "Declares that the producer is waiting for a human answer to this request.",
+          "required": ["kind", "expires_at"],
+          "properties": {
+            "kind": { "enum": ["permission", "single_choice", "text"] },
+            "choices": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 12,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/choice" }
+            },
+            "text_max_length": { "type": "integer", "minimum": 1, "maximum": 2000 },
+            "expires_at": { "type": "string", "format": "date-time" }
+          },
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "text" } }, "required": ["kind"] },
+              "then": { "not": { "required": ["choices"] } },
+              "else": { "required": ["choices"] }
+            },
+            {
+              "if": { "properties": { "kind": { "enum": ["permission", "single_choice"] } }, "required": ["kind"] },
+              "then": { "not": { "required": ["text_max_length"] } }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "description": "A human answer to an answerable request. Present only on response.submitted.",
+      "required": ["response_id", "digest"],
+      "properties": {
+        "response_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "nonce": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "choice_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "source": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "device_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["choice_id"], "not": { "required": ["text"] } },
+        { "required": ["text"], "not": { "required": ["choice_id"] } }
+      ]
+    },
+    "extensions": {
+      "type": "object",
+      "properties": {
+        "x-agentnotify": {
+          "type": "object",
+          "properties": {
+            "notification_type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "patternProperties": { "^x-[a-z0-9][a-z0-9.-]{0,63}$": true },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "enum": ["request.created", "request.updated"] } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "required": ["kind", "message"],
+            "not": { "required": ["outcome"] }
+          }
+        },
+        "not": { "required": ["response"] }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "enum": ["request.updated", "request.resolved", "response.submitted"] } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "request": { "required": ["key"] } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "request.resolved" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "required": ["key"],
+            "maxProperties": 2,
+            "not": {
+              "anyOf": [
+                { "required": ["kind"] },
+                { "required": ["title"] },
+                { "required": ["message"] },
+                { "required": ["priority"] },
+                { "required": ["response"] }
+              ]
+            }
+          }
+        },
+        "not": { "required": ["response"] }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "response.submitted" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["response"],
+        "properties": {
+          "request": {
+            "required": ["key"],
+            "maxProperties": 1
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

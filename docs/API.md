@@ -59,20 +59,35 @@ Validation failures return `400` with `{ "error": "<message>" }`.
 
 ### `POST /v1/events`
 
-Accepts ARC 0.1 `request.created`, `request.updated`, and `request.resolved` events. The sender,
-execution context, semantic request kind, title, message, priority, and stable condition key project
-into the native notification lifecycle. `extensions.x-agentnotify.notification_type` may select a
-configured local type ID; other correctly namespaced vendor extensions are ignored.
+Accepts ARC 0.2 `request.created`, `request.updated`, `response.submitted`, and `request.resolved`
+events. The sender, execution context, semantic request kind, title, message, priority, and stable
+condition key project into the native notification lifecycle.
+`extensions.x-agentnotify.notification_type` may select a configured local type ID; other correctly
+namespaced vendor extensions are ignored. `arc_version` must be exactly `"0.2"`; 0.1 is rejected.
 
 An unkeyed created event derives a stable key from `sender.id` and `event_id`, so a delivery retry
 returns the original notification even after resolution. An explicit `request.key` opts into the
 condition lifecycle. Updates require an existing active condition and never create a missing one;
 resolutions are idempotent.
 
-A newly persisted request returns `201 NotificationDto`. An update, resolution, keyed in-place
-refresh, or immutable replay returns `200 NotificationDto`. A missing update/resolution target
-returns `404`; invalid or unsupported envelopes return `400`. The endpoint uses the same validation,
-persistence, callbacks, routing, and durable outbox boundary as native creation.
+Every accepted event returns the same envelope:
+
+```json
+{ "notification": { }, "interaction": { } }
+```
+
+`notification` is the local record; `interaction` is the durable question the producer waits on, and
+is `null` unless the event was answerable. A request carrying `request.response` opens both under one
+key — see [Interactions](INTERACTIONS.md) for the model and its own routes. `response.submitted`
+delivers one answer and resolves the notification half with it; a resolution withdraws any question
+still open under the key.
+
+A newly persisted request returns `201`. An update, answer, resolution, keyed in-place refresh, or
+immutable replay returns `200`. A missing update/answer/resolution target returns `404`, a second
+answer to an already answered condition returns `409`, and invalid or unsupported envelopes return
+`400`. An answerable event whose question is invalid is rejected before anything is stored. The
+endpoint uses the same validation, persistence, callbacks, routing, and durable outbox boundary as
+native creation.
 
 See [ARC.md](ARC.md) for the complete contract, lifecycle, schema, security rules, and examples.
 
@@ -214,7 +229,7 @@ curl --fail-with-body -sS -X POST http://127.0.0.1:47821/v1/events \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "arc_version":"0.1",
+    "arc_version":"0.2",
     "event_id":"evt_build_42",
     "event_type":"request.created",
     "occurred_at":"2026-08-26T01:15:00Z",

@@ -15,7 +15,7 @@
 - [x] SQLite history behind `INotificationRepository`
 - [x] Concurrent-safe keyed deduplication inside the single broker
 - [x] Request/body validation, rate limiting, and malformed JSON handling
-- [x] ARC 0.1 request creation, update, and resolution lifecycle
+- [x] ARC 0.2 request creation, update, response, and resolution lifecycle
 - [x] Local daily logs without token logging
 - [x] History retention pruning
 
