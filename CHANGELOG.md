@@ -9,6 +9,20 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
+## [Unreleased]
+
+### Added
+
+- **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
+  now include every running WSL distribution: Claude Code, Codex, and OpenCode history from its home,
+  a quota card for each `~/.codex` and `~/.claude` found there (Codex is asked from inside the
+  distribution), and skill installs labelled `WSL · <distribution>` in the web interface and the
+  tray's Settings. A WSL profile such as `\\wsl.localhost\Ubuntu\home\you\.codex` can also be added
+  by hand. `agentnotify.exe install-skill <agent> --wsl <distribution>` installs from the command
+  line, and the WSL wrapper picks the calling distribution automatically. Stopped distributions are
+  not read, so opening the dashboard never starts one. The Usage response is now
+  `contract_version: "3"`.
+
 ## [0.1.0-alpha.3] - 2026-09-16
 
 ### Added

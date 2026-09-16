@@ -1,5 +1,6 @@
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Usage;
+using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.Core.Quota;
 
@@ -8,9 +9,11 @@ public sealed class LiveQuotaService
 {
     private readonly IReadOnlyList<ILiveQuotaProbe>? _fixedProbes;
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
-    private readonly Func<string, string> _defaultAccountLabel;
+    /// <summary>The owner's name for a built-in or discovered account, keyed by provider or WSL account ID.</summary>
+    private readonly Func<string, string?> _defaultAccountLabel;
     private readonly Func<QuotaAccountDefinition, ILiveQuotaProbe> _probeFactory;
     private readonly LocalUsageService? _usage;
+    private readonly IWslEnvironment? _wsl;
     private readonly CodexQuotaProbe _defaultCodex = new();
     private readonly ClaudeQuotaProbe _defaultClaude = new();
     private readonly ILiveQuotaProbe _openCode = new UnavailableQuotaProbe("opencode",
@@ -23,11 +26,12 @@ public sealed class LiveQuotaService
     public LiveQuotaService(IEnumerable<ILiveQuotaProbe>? probes = null, TimeProvider? clock = null,
         Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, LocalUsageService? usage = null,
         Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null,
-        Func<string, string>? defaultAccountLabel = null)
+        Func<string, string?>? defaultAccountLabel = null, IWslEnvironment? wsl = null)
     {
         _fixedProbes = probes?.ToArray();
+        _wsl = wsl;
         _accounts = accounts;
-        _defaultAccountLabel = defaultAccountLabel ?? (_ => "Current account");
+        _defaultAccountLabel = defaultAccountLabel ?? (_ => null);
         _usage = usage;
         _probeFactory = probeFactory ?? (account => account.Provider == "codex"
             ? new CodexQuotaProbe(codexHome: account.Directory)
@@ -90,25 +94,28 @@ public sealed class LiveQuotaService
         var result = _fixedProbes is null
             ? new List<(ILiveQuotaProbe, string, string)>
               {
-                  (_defaultCodex, "codex:default", _defaultAccountLabel("codex")),
-                  (_defaultClaude, "claude_code:default", _defaultAccountLabel("claude_code"))
+                  (_defaultCodex, "codex:default", _defaultAccountLabel("codex") ?? "Current account"),
+                  (_defaultClaude, "claude_code:default", _defaultAccountLabel("claude_code") ?? "Current account")
               }
-            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", _defaultAccountLabel(probe.Provider))).ToList();
+            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", _defaultAccountLabel(probe.Provider) ?? "Current account")).ToList();
         var configured = (_accounts?.Invoke() ?? []).Take(16).ToArray();
         var active = new HashSet<string>(StringComparer.Ordinal);
+        // Profiles inside running WSL distributions come next, unless the owner already added the
+        // same directory by hand. They leave the list, and the cache, when the distribution stops.
+        var discovered = _wsl is null ? [] : QuotaAccountDefinition.WslDefaults(_wsl, _defaultAccountLabel)
+            .Where(account => !configured.Any(item => item is not null && item.Provider == account.Provider &&
+                string.Equals(item.Directory, account.Directory, StringComparison.OrdinalIgnoreCase)));
+        foreach (var account in discovered)
+        {
+            if (active.Add(account.Id)) result.Add((ProbeFor(account), account.Id, account.Label));
+        }
         foreach (var account in configured)
         {
             if (account is null || account.Provider is not ("codex" or "claude_code") ||
                 account.Id is not { Length: 34 } || !account.Id.StartsWith("q_", StringComparison.Ordinal) ||
                 string.IsNullOrWhiteSpace(account.Directory) ||
                 !Path.IsPathFullyQualified(account.Directory) || !active.Add(account.Id)) continue;
-            if (!_extraProbes.TryGetValue(account.Id, out var stored) || stored.Definition != account)
-            {
-                ILiveQuotaProbe probe = _probeFactory(account);
-                stored = (account, probe);
-                _extraProbes[account.Id] = stored;
-            }
-            result.Add((stored.Probe, account.Id, account.Label));
+            result.Add((ProbeFor(account), account.Id, account.Label));
         }
         foreach (var id in _extraProbes.Keys.Where(id => !active.Contains(id)).ToArray())
         {
@@ -117,6 +124,16 @@ public sealed class LiveQuotaService
         }
         if (_fixedProbes is null) result.Add((_openCode, "opencode:default", "OpenCode"));
         return result;
+    }
+
+    private ILiveQuotaProbe ProbeFor(QuotaAccountDefinition account)
+    {
+        if (!_extraProbes.TryGetValue(account.Id, out var stored) || stored.Definition != account)
+        {
+            stored = (account, _probeFactory(account));
+            _extraProbes[account.Id] = stored;
+        }
+        return stored.Probe;
     }
 
     private sealed record CacheEntry(string Scope, DateTimeOffset AttemptedAt, LiveQuotaSnapshot Snapshot);

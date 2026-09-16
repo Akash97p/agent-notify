@@ -114,11 +114,12 @@ export default {
     refresh.addEventListener("click", load);
 
     function draw(data) {
-      if (data.contract_version !== "2") throw new Error("The Usage page and broker need to be updated together.");
+      if (data.contract_version !== "3") throw new Error("The Usage page and broker need to be updated together.");
       const counts = data.totals;
       mount(page,
         pageHead("Usage", "Local activity with API-equivalent token cost.",
           h("div", { class: "row" }, periodControl, refresh)),
+        data.wsl_distributions.length ? h("p", { class: "muted small", text: `Includes WSL: ${data.wsl_distributions.join(", ")}` }) : null,
         data.files_skipped ? notice(`${data.files_skipped} local usage store(s) could not be read, so totals may be incomplete.`, "warn") : null,
         data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code, Codex, or OpenCode on this computer, then refresh.", "pulse") }) : [
           h("div", { class: "stats usage-stats compact-stats" },

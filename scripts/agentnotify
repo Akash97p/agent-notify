@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Tell the Windows CLI which distribution called it, so install-skill targets this Linux home.
+export WSLENV="${WSLENV:+$WSLENV:}WSL_DISTRO_NAME"
+
 if command -v agentnotify.exe >/dev/null 2>&1; then
   exec agentnotify.exe "$@"
 fi

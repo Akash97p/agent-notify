@@ -6,6 +6,7 @@ using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
+using AgentNotify.Core.Wsl;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AgentNotify.App;
@@ -63,15 +64,26 @@ public partial class SettingsWindow : Window
     /// </remarks>
     public void ShowInstallTab()
     {
+        LoadSkillTargets();
         foreach (var row in _skillTargets) row.Refresh();
         InstallTab.IsSelected = true;
     }
 
+    /// <summary>
+    /// This user's agents, then the agents inside each running WSL distribution. The WSL rows are
+    /// rebuilt whenever the tab is shown, since distributions start and stop; this user's rows are
+    /// kept so a folder chosen for "Another agent" survives.
+    /// </summary>
     private void LoadSkillTargets()
     {
-        _skillTargets = AgentSkillCatalog.All
-            .Select(target => new SkillInstallRow(target, AgentResources.SkillFiles))
-            .ToList();
+        if (_skillTargets.Count == 0)
+            _skillTargets = AgentSkillCatalog.All
+                .Select(target => new SkillInstallRow(target, AgentResources.SkillFiles))
+                .ToList();
+        var native = _skillTargets.Where(row => row.Wsl is null);
+        var wsl = WslDiscovery.Default.RunningHomes().SelectMany(home => AgentSkillCatalog.WithKnownLocations
+            .Select(target => new SkillInstallRow(target, AgentResources.SkillFiles, home)));
+        _skillTargets = native.Concat(wsl).ToList();
         SkillTargetList.ItemsSource = _skillTargets;
     }
 

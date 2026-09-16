@@ -317,6 +317,7 @@ separate download.
 | --- | --- | --- | --- |
 | `--scope` | `user` or `project` | `user` | Select personal or current-repository discovery |
 | `--path` | directory | agent-specific skills root | Overrides `--scope`; the `agentnotify` folder is created beneath it |
+| `--wsl` | distribution | the calling distribution, via the WSL wrapper | Windows only. Installs into the default user's home in that running WSL distribution; cannot be combined with `--path` or `--scope project` |
 | `--force` | — | false | Replaces changed AgentNotify-owned files after explicit review |
 | `--dry-run` | — | false | Reports the destination without writing |
 
@@ -340,7 +341,12 @@ agentnotify install-skill codex
 agentnotify install-skill claude --scope project
 agentnotify install-skill codex --dry-run
 agentnotify install-skill codex --path /custom/skills/root
+agentnotify.exe install-skill claude --wsl Ubuntu-20.04
 ```
+
+A Windows CLI started through `scripts/agentnotify` inside WSL receives `WSL_DISTRO_NAME` and uses
+that distribution's home unless `--path` or `--scope project` is given. `install-harness` has no WSL
+target and warns when started from WSL.
 
 ### `install-harness` — install the auto-notify harness
 

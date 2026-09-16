@@ -16,7 +16,7 @@ export default {
         const action = button(skill.state === "up_to_date" ? "Up to date" : skill.state === "outdated" ? "Update" : "Install",
           { variant: skill.state === "up_to_date" ? null : "primary", size: "sm", disabled: skill.state === "unavailable" || skill.state === "up_to_date" });
         action.addEventListener("click", () => busy(action, async () => {
-          const install = (force) => api.post(`agents/skills/${encodeURIComponent(skill.id)}`, { force });
+          const install = (force) => api.post(`agents/skills/${encodeURIComponent(skill.id)}`, { force, wsl: skill.wsl });
           try {
             const result = await install(false);
             toast(result.message || `${skill.display_name} skill installed.`);
@@ -30,7 +30,7 @@ export default {
             });
             if (!replace) return;
             try {
-              const result = await api.post(`agents/skills/${encodeURIComponent(skill.id)}`, { force: true });
+              const result = await install(true);
               toast(result.message || "Skill replaced.");
             } catch (e) {
               toast(e.message, "error");
@@ -41,7 +41,8 @@ export default {
         }));
         return h("div", { class: "list-item", role: "listitem" },
           h("div", { class: "list-main" },
-            h("div", { class: "row" }, h("strong", { text: skill.display_name }), badge(label, tone)),
+            h("div", { class: "row" }, h("strong", { text: skill.display_name }),
+              skill.environment ? badge(skill.environment, "info") : null, badge(label, tone)),
             h("div", { class: "small muted", text: skill.note }),
             skill.destination ? h("div", { class: "small mono truncate", title: skill.destination, text: skill.destination }) : null),
           action);
@@ -57,7 +58,7 @@ export default {
         pageHead("Agents", "Connect coding agents to AgentNotify. The skill teaches an agent when to notify you; a harness makes the host itself report and, for some hosts, wait for your approval."),
         card({
           title: "Skill",
-          description: "Installs a Markdown skill into each agent's personal skills folder. Restart the agent to load it.",
+          description: "Installs a Markdown skill into each agent's personal skills folder, including agents inside running WSL distributions. Restart the agent to load it.",
           actions: button("Refresh", { size: "sm", iconName: "refresh", onClick: async () => draw(await api.get("agents")) }),
           body: h("div", { class: "list", role: "list" }, skills),
         }),

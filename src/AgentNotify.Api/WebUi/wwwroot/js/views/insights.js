@@ -132,7 +132,7 @@ export default {
         const [overview, usage, quota] = await Promise.all([
           api.get("overview"), api.get("usage?days=30"), api.get("quota")]);
         if (!ctx.isCurrent()) return;
-        if (usage.contract_version !== "2" || quota.contract_version !== "2")
+        if (usage.contract_version !== "3" || quota.contract_version !== "2")
           throw new Error("The dashboard and broker need to be updated together.");
 
         const accounts = quota.providers.filter(provider => provider.provider !== "opencode");

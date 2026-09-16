@@ -149,6 +149,9 @@ Track live agent instances, projects, working directories, last activity, and wa
   has a separate local, per-model published-cap estimate for 20 exact fixed-rate IDs, never a live
   remaining balance. Add a stable Claude source or statusline bridge, broader account providers,
   Go models with context/time-dependent rates, and Windows smoke.
+- WSL on Windows: running distributions are discovered for Usage, Live quota, and skill installs
+  (web interface, Settings, `install-skill --wsl`). Remaining: a WSL-aware harness installer, and a
+  Windows/WSL smoke test of discovery and the Codex-in-WSL probe.
 - Insights dashboard: implemented as a responsive, animated browser composition of live account
   balances, 30-day usage/cost, agent mix, daily trend, top projects, Go estimates, and broker health.
   It preserves quota-versus-local-history provenance and reduced-motion behavior.

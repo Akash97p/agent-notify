@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using AgentNotify.Core.Wsl;
 using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Core.Usage;
@@ -11,17 +12,49 @@ public sealed class LocalUsageService
     private readonly IReadOnlyList<string> _claudeRoots;
     private readonly IReadOnlyList<string> _codexRoots;
     private readonly string _openCodeDatabase;
+    private readonly IWslEnvironment? _wsl;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private Dictionary<string, CachedFile> _files = new(StringComparer.Ordinal);
 
+    /// <param name="wsl">
+    /// Running WSL distributions whose agent logs are read too. Defaults to <see cref="WslDiscovery.Default"/>
+    /// only when no explicit roots are given, so a caller that names its roots gets exactly those.
+    /// </param>
     public LocalUsageService(IEnumerable<string>? claudeRoots = null, IEnumerable<string>? codexRoots = null,
-        string? openCodeDatabase = null)
+        string? openCodeDatabase = null, IWslEnvironment? wsl = null)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        _wsl = wsl ?? (claudeRoots is null && codexRoots is null && openCodeDatabase is null ? WslDiscovery.Default : null);
         _claudeRoots = (claudeRoots ?? ClaudeRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
         _codexRoots = (codexRoots ?? CodexRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
         _openCodeDatabase = openCodeDatabase ?? OpenCodeDatabase(home);
     }
+
+    /// <summary>
+    /// The ledgers to read now. WSL homes are resolved on every scan because distributions start
+    /// and stop; inside WSL the agents' own environment variables are not visible, so their
+    /// default locations are used.
+    /// </summary>
+    private Sources CurrentSources()
+    {
+        var homes = _wsl?.RunningHomes() ?? [];
+        return new Sources(
+            [.. _claudeRoots, .. homes.SelectMany(home => new[]
+            {
+                Path.Combine(home.WindowsHome, ".claude", "projects"),
+                Path.Combine(home.WindowsHome, ".config", "claude", "projects")
+            })],
+            [.. _codexRoots, .. homes.SelectMany(home => new[]
+            {
+                Path.Combine(home.WindowsHome, ".codex", "sessions"),
+                Path.Combine(home.WindowsHome, ".codex", "archived_sessions")
+            })],
+            [_openCodeDatabase, .. homes.Select(home => Path.Combine(home.WindowsHome, ".local", "share", "opencode", "opencode.db"))],
+            homes.Select(home => home.Distribution).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private sealed record Sources(string[] ClaudeRoots, string[] CodexRoots, string[] OpenCodeDatabases,
+        string[] WslDistributions);
 
     private static string OpenCodeDatabase(string home)
     {
@@ -82,10 +115,10 @@ public sealed class LocalUsageService
     private OpenCodeGoEstimate EstimateOpenCodeGo(DateTimeOffset now, CancellationToken ct)
     {
         var skipped = 0;
-        var rows = ReadOpenCode(ref skipped, ct)
+        var rows = ReadOpenCode(CurrentSources().OpenCodeDatabases, ref skipped, ct)
             .Where(row => row.Provider == "opencode-go" && row.Timestamp <= now &&
                           row.Timestamp >= now.AddDays(-30)).ToArray();
-        if (skipped > 0)
+        if (skipped > 0 && rows.Length == 0)
             return new OpenCodeGoEstimate("unavailable", [], "The local OpenCode usage database could not be read.");
         if (rows.Length == 0)
             return new OpenCodeGoEstimate("no_data", [], "No OpenCode Go requests were found in the last 30 days on this machine.");
@@ -118,17 +151,19 @@ public sealed class LocalUsageService
                 return new OpenCodeGoModelEstimate(group.Key, windows);
             }).ToArray();
         return new OpenCodeGoEstimate("estimated", models,
-            "Local OpenCode requests only. Other clients, billing-cycle boundaries, and provider-side adjustments are unknown; these are not live remaining quotas.");
+            "Local OpenCode requests only. Other clients, billing-cycle boundaries, and provider-side adjustments are unknown; these are not live remaining quotas." +
+            (skipped > 0 ? " Some local OpenCode databases could not be read." : ""));
     }
 
     private UsageReport Scan(int days, CancellationToken ct)
     {
         var next = new Dictionary<string, CachedFile>(StringComparer.Ordinal);
         var skipped = 0;
-        AddFiles("claude_code", _claudeRoots, next, ref skipped, ct);
-        AddFiles("codex", _codexRoots, next, ref skipped, ct);
+        var sources = CurrentSources();
+        AddFiles("claude_code", sources.ClaudeRoots, next, ref skipped, ct);
+        AddFiles("codex", sources.CodexRoots, next, ref skipped, ct);
         _files = next;
-        var openCode = ReadOpenCode(ref skipped, ct);
+        var openCode = ReadOpenCode(sources.OpenCodeDatabases, ref skipped, ct);
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var cutoff = days == 0 ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddDays(-days);
@@ -137,7 +172,7 @@ public sealed class LocalUsageService
             .Where(row => row.Identity is null || seen.Add(row.Source + ":" + row.Identity))
             .Where(row => row.Timestamp >= cutoff)
             .ToArray();
-        var sources = rows.GroupBy(row => row.Source).OrderBy(group => group.Key)
+        var groups = rows.GroupBy(row => row.Source).OrderBy(group => group.Key)
             .Select(group => new UsageGroup(group.Key, Sum(group), Estimate(group))).ToArray();
         var models = rows.GroupBy(row => (row.Source, row.Provider, row.Model)).OrderByDescending(group => Sum(group).Total)
             .Take(30).Select(group => Model(group)).ToArray();
@@ -157,9 +192,9 @@ public sealed class LocalUsageService
                 group.GroupBy(row => (row.Source, row.Provider, row.Model)).Select(Model)
                     .OrderByDescending(model => model.Counts.Total).ToArray()))
             .OrderByDescending(session => session.EndedAt).ToArray();
-        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count + (File.Exists(_openCodeDatabase) ? 1 : 0), skipped, rows.Length,
-            Sum(rows), Estimate(rows), sources, models, projects, daily, ApiPriceCatalog.AsOf,
-            sessionGroups.Length, sessionGroups.Take(50).ToArray());
+        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count + sources.OpenCodeDatabases.Count(File.Exists), skipped, rows.Length,
+            Sum(rows), Estimate(rows), groups, models, projects, daily, ApiPriceCatalog.AsOf,
+            sessionGroups.Length, sessionGroups.Take(50).ToArray(), sources.WslDistributions);
     }
 
     private static string SessionId(string source, string session, string projectId)
@@ -168,14 +203,22 @@ public sealed class LocalUsageService
         return "s_" + Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
     }
 
-    private UsageEvent[] ReadOpenCode(ref int skipped, CancellationToken ct)
+    private static UsageEvent[] ReadOpenCode(IEnumerable<string> databases, ref int skipped, CancellationToken ct)
     {
-        if (!File.Exists(_openCodeDatabase)) return [];
+        var events = new List<UsageEvent>();
+        foreach (var database in databases.Distinct(StringComparer.Ordinal))
+            events.AddRange(ReadOpenCode(database, ref skipped, ct));
+        return events.ToArray();
+    }
+
+    private static UsageEvent[] ReadOpenCode(string database, ref int skipped, CancellationToken ct)
+    {
+        if (!File.Exists(database)) return [];
         try
         {
             var builder = new SqliteConnectionStringBuilder
             {
-                DataSource = _openCodeDatabase,
+                DataSource = database,
                 Mode = SqliteOpenMode.ReadOnly,
                 Pooling = false
             };
@@ -418,8 +461,10 @@ public sealed class LocalUsageService
 
         internal static ProjectInfo FromDirectory(string? directory, ProjectInfo? fallback = null)
         {
-            if (string.IsNullOrWhiteSpace(directory) || directory.Length > 4096 || !Path.IsPathFullyQualified(directory))
-                return fallback ?? Unknown;
+            if (string.IsNullOrWhiteSpace(directory) || directory.Length > 4096) return fallback ?? Unknown;
+            // WSL agents record Linux paths, which are not fully qualified to a Windows broker.
+            if (directory[0] == '/' && OperatingSystem.IsWindows()) return FromPosix(directory, fallback);
+            if (!Path.IsPathFullyQualified(directory)) return fallback ?? Unknown;
             try
             {
                 var path = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
@@ -433,6 +478,16 @@ public sealed class LocalUsageService
             {
                 return fallback ?? Unknown;
             }
+        }
+
+        private static ProjectInfo FromPosix(string directory, ProjectInfo? fallback)
+        {
+            if (directory.Any(char.IsControl)) return fallback ?? Unknown;
+            var path = directory.TrimEnd('/');
+            var name = path[(path.LastIndexOf('/') + 1)..];
+            if (string.IsNullOrWhiteSpace(name)) return fallback ?? Unknown;
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(path));
+            return new ProjectInfo("p_" + Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant(), name[..Math.Min(name.Length, 120)]);
         }
     }
 
@@ -462,7 +517,8 @@ public sealed record UsageSession(string Id, string Source, string ProjectId, st
 public sealed record UsageReport(DateTimeOffset ScannedAt, int Days, int FilesScanned, int FilesSkipped,
     int Events, TokenCounts Totals, ApiCostEstimate Cost, IReadOnlyList<UsageGroup> Sources,
     IReadOnlyList<UsageModel> Models, IReadOnlyList<UsageProject> Projects, IReadOnlyList<UsageDay> Daily,
-    string PricingAsOf, int SessionCount, IReadOnlyList<UsageSession> Sessions)
+    string PricingAsOf, int SessionCount, IReadOnlyList<UsageSession> Sessions,
+    IReadOnlyList<string> WslDistributions)
 {
-    public string ContractVersion => "2";
+    public string ContractVersion => "3";
 }

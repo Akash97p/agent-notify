@@ -73,9 +73,10 @@ function accountManager(accounts, reload) {
   const help = h("p", { class: "muted small" });
   const updateHelp = () => {
     directory.placeholder = provider.value === "codex" ? "~/.codex-second" : "~/.claude-second";
-    help.textContent = provider.value === "codex"
+    help.textContent = (provider.value === "codex"
       ? "Use this directory as CODEX_HOME when signing in."
-      : "Use this directory as CLAUDE_CONFIG_DIR when signing in.";
+      : "Use this directory as CLAUDE_CONFIG_DIR when signing in.") +
+      " On Windows, a profile inside WSL can be entered as \\\\wsl.localhost\\<distribution>\\home\\<you>\\… — the default one in each running distribution is listed automatically.";
   };
   provider.addEventListener("change", updateHelp);
   updateHelp();
@@ -115,7 +116,7 @@ function accountManager(accounts, reload) {
     }));
     return h("div", { class: "account-manage-row" },
       h("div", { class: "account-manage-title" },
-        h("strong", { text: names[account.provider] }),
+        h("strong", { text: account.wsl ? `${names[account.provider]} · WSL ${account.wsl}` : names[account.provider] }),
         h("span", { class: "muted small mono truncate", text: account.directory })),
       h("div", { class: "account-manage-actions" }, name, rename, remove));
   });

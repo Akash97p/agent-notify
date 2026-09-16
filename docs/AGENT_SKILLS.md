@@ -56,9 +56,24 @@ somewhere that agent never reads — which looks exactly like a successful insta
 moves, correct `AgentSkillCatalog` rather than adding a second list; the CLI and the tray app share
 it. Any agent not listed is installed with `--path`, or from the Install tab's **Another agent** row.
 
-When a Windows `agentnotify.exe` is invoked from WSL, its user home is the Windows profile. To install
-for a Linux-native Codex/Claude process, run the Linux CLI or pass the WSL skills root explicitly with
-`--path`.
+### Agents inside WSL
+
+A Windows `agentnotify.exe` resolves `~` to the Windows profile, where an agent running inside WSL
+never looks. On Windows the web interface's **Agents** page and the tray's Settings → Install tab
+therefore also list every agent for each *running* WSL distribution, labelled `WSL · <distribution>`,
+and install into that distribution's home through `\\wsl.localhost\<distribution>`. Start the
+distribution (open a WSL shell) if it is missing.
+
+From the command line, name the distribution:
+
+```bash
+agentnotify.exe install-skill claude --wsl Ubuntu-20.04
+```
+
+When the command runs inside WSL through the repository's `scripts/agentnotify` wrapper, the wrapper
+forwards `WSL_DISTRO_NAME` and `install-skill` targets that distribution automatically. `--path`
+still overrides everything. Harnesses are not WSL-aware yet: `install-harness` writes Windows paths
+into hook commands, so it prints a warning when started from WSL.
 
 ## Agents without skill discovery
 

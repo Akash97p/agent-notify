@@ -132,7 +132,7 @@ public sealed class AgentNotifyConfig
         QuotaAccounts ??= [];
         DefaultQuotaAccountLabels ??= new(StringComparer.Ordinal);
         DefaultQuotaAccountLabels = DefaultQuotaAccountLabels
-            .Where(item => item.Key is "codex" or "claude_code")
+            .Where(item => item.Key is "codex" or "claude_code" || QuotaAccountDefinition.IsWslAccountId(item.Key))
             .Select(item => new KeyValuePair<string, string?>(item.Key, QuotaAccountDefinition.TryNormalizeLabel(item.Value)))
             .Where(item => item.Value is not null)
             .ToDictionary(item => item.Key, item => item.Value!, StringComparer.Ordinal);

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
+using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.Core.Quota;
 
@@ -22,32 +23,64 @@ public sealed class CodexQuotaProbe : ILiveQuotaProbe
     public string Provider => "codex";
     public string ScopeKey() => QuotaFileScope.Of(_authPath);
 
-    public async Task<LiveQuotaSnapshot> FetchAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    /// <summary>
+    /// How to start Codex's app server for <paramref name="codexHome"/>. A profile on the WSL share
+    /// is served by the Codex installed inside that distribution, started through <c>wsl.exe</c>:
+    /// a Windows Codex would not share its sign-in, and may not exist at all.
+    /// </summary>
+    internal static ProcessStartInfo CreateStartInfo(string executable, string codexHome, bool windows,
+        string systemDirectory, string? inheritedWslEnv)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        using var process = new Process
+        var info = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo(_executable)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
-        process.StartInfo.ArgumentList.Add("app-server");
-        process.StartInfo.ArgumentList.Add("--stdio");
-        process.StartInfo.Environment["CODEX_HOME"] = _codexHome;
+        if (windows && WslPath.TryParse(codexHome, out var distribution, out var linuxHome))
+        {
+            info.FileName = Path.Combine(systemDirectory, "wsl.exe");
+            foreach (var argument in new[] { "--distribution", distribution, "--exec", "/bin/sh", "-c", WslLaunchScript })
+                info.ArgumentList.Add(argument);
+            // WSLENV carries CODEX_HOME into Linux unchanged; it is already a Linux path.
+            info.Environment["CODEX_HOME"] = linuxHome;
+            info.Environment["WSLENV"] = string.IsNullOrEmpty(inheritedWslEnv) ? "CODEX_HOME" : inheritedWslEnv + ":CODEX_HOME";
+            return info;
+        }
+
+        info.FileName = executable;
+        info.ArgumentList.Add("app-server");
+        info.ArgumentList.Add("--stdio");
+        info.Environment["CODEX_HOME"] = codexHome;
         // npm's Codex launcher uses `#!/usr/bin/env node`. Launchd often has a minimal PATH,
         // so include the launcher's directory where its paired Node binary is installed.
-        if (Path.IsPathFullyQualified(_executable))
+        if (Path.IsPathFullyQualified(executable))
         {
-            var directory = Path.GetDirectoryName(_executable)!;
-            process.StartInfo.Environment.TryGetValue("PATH", out var inheritedPath);
-            process.StartInfo.Environment["PATH"] = directory + Path.PathSeparator + inheritedPath;
+            var directory = Path.GetDirectoryName(executable)!;
+            info.Environment.TryGetValue("PATH", out var inheritedPath);
+            info.Environment["PATH"] = directory + Path.PathSeparator + inheritedPath;
         }
+        return info;
+    }
+
+    /// <summary>
+    /// Runs Codex through the user's login, interactive shell, because version managers such as nvm
+    /// put node and codex on PATH only from an interactive rc file.
+    /// </summary>
+    internal const string WslLaunchScript =
+        "shell=$(getent passwd \"$(id -u)\" | cut -d: -f7); exec \"${shell:-/bin/sh}\" -lic 'exec codex app-server --stdio'";
+
+    public async Task<LiveQuotaSnapshot> FetchAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var info = CreateStartInfo(_executable, _codexHome, OperatingSystem.IsWindows(), Environment.SystemDirectory,
+            Environment.GetEnvironmentVariable("WSLENV"));
+        var viaWsl = info.ArgumentList.Contains("--distribution");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // Starting a login shell inside WSL, then node, takes longer than a native launch.
+        timeout.CancelAfter(TimeSpan.FromSeconds(viaWsl ? 30 : 15));
+        using var process = new Process { StartInfo = info };
         var started = false;
         try
         {
@@ -65,10 +98,13 @@ public sealed class CodexQuotaProbe : ILiveQuotaProbe
 
             string? plan = null;
             string? accountType = null;
-            for (var lineCount = 0; lineCount < 80; lineCount++)
+            for (int lineCount = 0, jsonLines = 0; lineCount < 200 && jsonLines < 80; lineCount++)
             {
                 var line = await process.StandardOutput.ReadLineAsync(timeout.Token);
                 if (line is null || line.Length > 128 * 1024) break;
+                // A shell rc file can print to stdout before Codex starts; only JSON-RPC lines count.
+                if (!line.AsSpan().TrimStart().StartsWith("{", StringComparison.Ordinal)) continue;
+                jsonLines++;
                 using var json = JsonDocument.Parse(line);
                 var root = json.RootElement;
                 var id = QuotaJson.Int(root, "id");
