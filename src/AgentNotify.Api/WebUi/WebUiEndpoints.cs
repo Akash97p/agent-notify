@@ -399,6 +399,7 @@ public static class WebUiEndpoints
             return Results.Json(new { restored = id }, JsonOptions);
         });
         BillingEndpoints.Map(app, options);
+        AgentNotify.Api.Router.RouterEndpoints.Map(app, options, config, port);
 
         // ---- settings ----------------------------------------------------------------------
 

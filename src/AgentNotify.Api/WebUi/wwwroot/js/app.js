@@ -12,6 +12,7 @@ import about from "./views/about.js";
 import usage from "./views/usage.js";
 import quota from "./views/quota.js";
 import insights from "./views/insights.js";
+import router from "./views/router.js";
 
 // Navigation is grouped so new areas slot in as another group or entry without reshaping the shell.
 const NAV = [
@@ -23,6 +24,7 @@ const NAV = [
   { label: "Delivery", items: [
     { path: "channels", title: "Channels", icon: "send", view: channels },
     { path: "routes", title: "Routes", icon: "route", view: routes },
+    { path: "router", title: "Router", icon: "router", view: router },
   ] },
   { label: "Insights", items: [
     { path: "insights", title: "Dashboard", icon: "chart", view: insights },

@@ -25,7 +25,7 @@ agentnotify --version
 ```
 
 When no command is given the usage text is printed and the process exits `0`. Known commands include
-`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `ui`, `interactions`,
+`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `router`, `ui`, `interactions`,
 `install-skill`, `install-harness`, `install`, `help`, and `--version`. An unknown first argument is
 treated as a positional `send` invocation.
 
@@ -301,6 +301,28 @@ Examples:
 agentnotify relay pair --url https://relay.example.com --name "Home relay"
 agentnotify relay pair --url http://localhost:4000 --allow-private --json
 agentnotify relay status
+```
+
+### `router` — router status and key
+
+```text
+agentnotify router key
+agentnotify router status
+```
+
+Both commands read the local configuration file directly, like `token`, and make no network call.
+
+`router key` prints the key an agent authenticates to the router with, as
+`Authorization: Bearer <key>` or `x-api-key: <key>`. When the router has never been turned on there
+is no key: the command writes an explanation to stderr and exits non-zero.
+
+`router status` prints whether the router is on and the two base URLs to configure an agent with —
+`/router/v1` for Codex and other OpenAI-compatible clients, and `/router` for Claude Code, which
+appends `/v1/messages` itself.
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:47821/router
+export ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"
 ```
 
 ### `install-skill` — install the bundled agent skill

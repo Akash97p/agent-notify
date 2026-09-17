@@ -1,6 +1,7 @@
 using AgentNotify.Core.Billing;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
+using AgentNotify.Core.Router;
 using AgentNotify.Core.Usage;
 using AgentNotify.Core.Quota;
 using AgentNotify.Core.Wsl;
@@ -50,6 +51,10 @@ public sealed class WebUiOptions
 
     /// <summary>True where notification sounds are played (the Windows app).</summary>
     public bool SupportsSounds { get; init; }
+
+    public RouterProxy? Router { get; init; }
+
+    public RouterConfigService? RouterConfig { get; init; }
 
     /// <summary>
     /// Raised after the web UI saved configuration, on a thread-pool thread. The host applies
