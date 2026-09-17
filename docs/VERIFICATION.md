@@ -1737,6 +1737,36 @@ API including validation and the cross-origin refusal. `node --check` passed for
 Not verified: the renewal control has not been looked at in a browser, and no real OpenCode Go
 console figure has been compared with the estimate. OpenCode's documentation does not state whether
 its 5-hour and weekly limits roll or reset at fixed times, or the exact renewal time of day.
+## API accounts (`feature/api-billing-accounts`, 2026-09-17)
+
+Automated verification only:
+
+- `./scripts/build.sh` — 0 warnings, 0 errors.
+- `./scripts/test.sh` (worker run) — 1035 passed, 0 failed, 0 skipped, including new per-provider parsing
+  (DeepSeek, Moonshot, SiliconFlow, OpenRouter, OpenAI/Anthropic pagination and cents
+  conversion), error mapping (401, 404, 429 with `Retry-After`, 500, oversize body, invalid
+  JSON, timeout), redirect handling, key-absence in endpoint JSON/snapshots/database bytes,
+  acknowledgement, validation, rename/key-replacement, delete, cache/refresh throttling, and
+  WebUI endpoint coverage.
+- No live provider was called: every provider response in tests comes from a fake
+  `HttpMessageHandler`.
+
+Not verified: a human visual check of the API accounts cards and the Manage form in a browser,
+including a narrow window; a real key against any provider; and whether Anthropic's cost report
+amounts are cents as its guide states. Endpoint shapes come from the providers' official
+documentation (DeepSeek, Moonshot/Kimi, SiliconFlow, OpenRouter, OpenAI Costs API, Anthropic Usage
+and Cost API) read on 2026-09-17; OpenAI's pagination fields were not shown there and are treated
+as optional.
+
+The implementation was written by a delegated worker and reviewed before merging. Review fixes:
+negative balances (Moonshot documents a non-positive available balance) were rejected as unreadable
+and are now reported; a stored key that cannot be decrypted produced "could not be reached" and now
+asks for the key to be replaced, without any request being sent; OpenAI and Anthropic date ranges
+used the system clock instead of the injected one; the default service silently fell back to a
+throwaway in-memory encryption key when the secret protector could not be created, which would have
+stored keys no later start could decrypt, and now fails instead; and the API accounts section
+blocked the whole Live quota page until every provider answered, and now loads on its own. After
+the fixes `scripts/test.sh` passed **1,037 of 1,037** on the branch.
 
 ## Owner verification still outstanding
 
