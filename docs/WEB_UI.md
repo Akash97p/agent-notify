@@ -60,7 +60,9 @@ raw provider session IDs remain on the broker. Records without a usable session 
 overall and project totals but do not appear in that list.
 Counts are historical token records, not provider billing or live quota. Cached input is separate
 from uncached input. Codex reasoning is included within output; OpenCode reasoning is a separate
-counter added to output once. OpenCode's current `message` table is queried on every refresh.
+counter added to output once. OpenCode's `message` table is queried again only when its database or
+write-ahead log has changed; a database on the WSL share is read from a private local copy, deleted
+straight after, because SQLite's page-by-page reads over the share are very slow.
 `OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
 `~/.local/share/opencode/opencode.db` is used. Codex and Claude Code profiles added by hand on Live
 quota are read too (`sessions`/`archived_sessions` and `projects` under each profile directory), so a

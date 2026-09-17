@@ -29,6 +29,10 @@ build.
   and profile directory and a **Remove** button. Removed built-in or discovered accounts stay listed
   under **Removed accounts** with **Restore**. Usage now also counts the history of profiles added by
   hand, so a second account's sessions appear.
+- **Usage and Live quota no longer take half a minute on every visit when OpenCode runs in WSL.**
+  OpenCode's database is read again only when it has changed, and one inside WSL is read from a
+  quick local copy instead of over the WSL share, where the query was slow enough to time out and
+  leave OpenCode out of Usage entirely.
 
 ### Changed
 

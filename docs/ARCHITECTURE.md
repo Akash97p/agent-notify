@@ -107,7 +107,14 @@ opening the share of a stopped distribution boots its VM, which a dashboard visi
 agents' default locations inside the distribution are used, because their environment variables are
 not visible to the broker. Discovery is cached for 30 seconds and re-resolved on every scan, so
 history from a distribution appears while it runs; the report lists the included distributions and
-uses `contract_version: "3"`. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
+uses `contract_version: "3"`. Reading through the share is slow for page-level I/O: SQLite querying a
+260 MB OpenCode database over `\\wsl.localhost` took about 30 seconds per request and could fail,
+while copying the file sequentially took under two. OpenCode rows are therefore cached per database
+keyed by the length and modification time of the file and its `-wal`, and a database on a UNC path
+is copied (with its WAL, retaken if either changes during the copy) into a random directory under
+the user's temp folder, queried there, and deleted; leftovers older than an hour are removed on the
+next read. JSONL ledgers were already cached per file, but only in memory, so the first scan after
+the broker starts still parses every file. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 

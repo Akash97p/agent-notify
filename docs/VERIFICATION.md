@@ -1657,6 +1657,39 @@ Not verified: the Manage accounts layout (desktop and narrow widths) has not bee
 browser, and the installed build has not yet shown discovered WSL cards or WSL usage. Packaging
 produced a new `artifacts/AgentNotifySetup.exe` for the owner to test.
 
+## OpenCode usage over the WSL share (`fix/opencode-usage-over-wsl`, 2026-09-17)
+
+Environment: the same Windows 11 host; `Ubuntu-20.04` holds ~1 GB of Codex JSONL (331 files, the
+largest 256 MB), 72 MB of Claude Code JSONL, and a 261 MB OpenCode database with a 10 MB WAL.
+
+The owner reported that every Insights tab loaded for minutes after the WSL discovery fix. Measured
+against the installed build with `curl.exe`: the first `/ui/api/usage?days=30` took **123 s**, and
+every later `/usage` and `/quota` call still took **~30 s**, while `/overview` and `/quota/accounts`
+answered in milliseconds. Reading the whole database sequentially through `\\wsl.localhost` took
+1.8 s and listing the JSONL files 0.6 s, so the time was SQLite's page-level reads over the share,
+repeated on every request (JSONL results were already cached). That installed build also reported
+`files_skipped: 1` and no OpenCode source at all: the query was failing.
+
+The fixed `agentnotifyd` was run from the build output on port 47899 with a throwaway
+`--config-dir`, next to the installed tray:
+
+- `/usage?days=30`: **62 s** cold (JSONL parsing), then **0.45 s** and **0.40 s**. `/quota`: 2.2 s
+  (live account probes), then 0.008 s.
+- Claude Code and Codex totals were identical to the installed broker's. OpenCode now appeared with
+  **1,866 events and 228,606,112 tokens**, exactly what a native Python read of the same database
+  in WSL counted for the last 30 days. `files_skipped` was 0, and no snapshot directory remained in
+  `%TEMP%`.
+- `scripts/build.sh` **0 warnings, 0 errors**. One `scripts/test.sh` run failed a single test whose
+  name was not captured; four reruns passed. Two same-sized writes within one clock tick would leave
+  size and modification time unchanged, so the cache stamp now also includes the SQLite header's
+  change counter and the WAL header. After that, `scripts/test.sh` passed **945 of 945 in five
+  consecutive runs**, and the broker was measured again: 60 s cold, then 0.48 s and 0.43 s, 7,571
+  events, nothing skipped.
+
+Not verified: a cold load is still about a minute after each broker start, because parsed JSONL is
+held only in memory; the installed tray with this build; and a snapshot taken during an OpenCode
+checkpoint.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
