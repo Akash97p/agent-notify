@@ -66,7 +66,7 @@ function goCard(model) {
     })));
 }
 
-function accountManager(accounts, reload) {
+function accountManager(accounts, removed, reload) {
   const provider = select([["codex", "Codex / OpenAI"], ["claude_code", "Claude Code / Anthropic"]], "codex");
   const label = input({ placeholder: "Personal, work, second account…", required: true, maxlength: 60 });
   const directory = input({ placeholder: "~/.codex-second", required: true, maxlength: 1024 });
@@ -96,37 +96,65 @@ function accountManager(accounts, reload) {
     });
   });
 
+  const title = (account) => account.wsl ? `${names[account.provider]} · WSL ${account.wsl}` : names[account.provider];
   const accountRows = accounts.map(account => {
-    const name = input({ value: account.label, maxlength: 60, "aria-label": `Name for ${names[account.provider]} account` });
-    const rename = button("Save name", { size: "sm" });
-    rename.addEventListener("click", () => busy(rename, async () => {
+    const name = input({ value: account.label, maxlength: 60, "aria-label": `Name for ${title(account)} account` });
+    const folder = input({ value: account.directory, maxlength: 1024, class: "input mono",
+      "aria-label": `Agent profile directory for ${title(account)} account` });
+    const save = button("Save", { size: "sm" });
+    save.addEventListener("click", () => busy(save, async () => {
       try {
-        await api.put(`quota/accounts/${encodeURIComponent(account.id)}`, { label: name.value });
-        toast("Account name saved.");
+        await api.put(`quota/accounts/${encodeURIComponent(account.id)}`,
+          { label: name.value, directory: folder.value.trim() === account.directory ? null : folder.value });
+        toast("Account saved.");
         await reload();
       } catch (error) { toast(error.message, "error"); }
     }));
-    const remove = account.is_default ? null : button("Remove", { variant: "ghost", size: "sm" });
-    remove?.addEventListener("click", () => busy(remove, async () => {
+    const remove = button("Remove", { variant: "ghost", size: "sm" });
+    remove.addEventListener("click", () => busy(remove, async () => {
       const confirmed = await confirmDialog({ title: `Stop monitoring ${account.label}?`,
-        message: "The agent profile and sign-in stay untouched.", confirmLabel: "Remove", danger: true });
+        message: account.is_default
+          ? "The agent profile and sign-in stay untouched. This detected account can be restored from Manage accounts."
+          : "The agent profile and sign-in stay untouched.",
+        confirmLabel: "Remove", danger: true });
       if (!confirmed) return;
       try { await api.del(`quota/accounts/${encodeURIComponent(account.id)}`); await reload(); }
       catch (error) { toast(error.message, "error"); }
     }));
     return h("div", { class: "account-manage-row" },
       h("div", { class: "account-manage-title" },
-        h("strong", { text: account.wsl ? `${names[account.provider]} · WSL ${account.wsl}` : names[account.provider] }),
-        h("span", { class: "muted small mono truncate", text: account.directory })),
-      h("div", { class: "account-manage-actions" }, name, rename, remove));
+        h("strong", { text: title(account) }),
+        h("span", { class: "muted small", text: account.is_default ? "Detected automatically" : "Added by you" })),
+      h("div", { class: "account-manage-fields" }, name, folder),
+      h("div", { class: "account-manage-actions" }, save, remove));
+  });
+
+  const removedRows = removed.map(account => {
+    const restore = button("Restore", { size: "sm" });
+    restore.addEventListener("click", () => busy(restore, async () => {
+      try {
+        await api.post(`quota/accounts/${encodeURIComponent(account.id)}/restore`, {});
+        toast("Account restored.");
+        await reload();
+      } catch (error) { toast(error.message, "error"); }
+    }));
+    return h("div", { class: "account-manage-row account-removed-row" },
+      h("div", { class: "account-manage-title" },
+        h("strong", { text: `${title(account)} · ${account.label}` }),
+        h("span", { class: "muted small mono truncate", text: account.directory || "Distribution not running" })),
+      h("div", { class: "account-manage-actions" }, restore));
   });
 
   return h("details", { class: "card account-manager" },
     h("summary", null,
       h("div", null, h("strong", { text: "Manage accounts" }),
-        h("span", { class: "muted small", text: `Rename ${accounts.length} monitored accounts or add another` }))),
+        h("span", { class: "muted small", text: `Rename, move, or remove ${accounts.length} monitored accounts, or add another` }))),
     h("div", { class: "account-manager-body" },
       h("div", { class: "account-manage-list" }, accountRows),
+      removed.length ? [
+        h("h3", { class: "card-title", text: "Removed accounts" }),
+        h("div", { class: "account-manage-list" }, removedRows)
+      ] : null,
       h("hr", { class: "divider" }),
       h("h3", { class: "card-title", text: "Add another account" }), form));
 }
@@ -155,7 +183,7 @@ export default {
               h("summary", { text: "About the OpenCode estimate" }),
               h("p", { class: "muted small", text: `${report.open_code_go.message} Windows roll backward from now; billing-cycle reset times are unavailable. Rates checked ${report.open_code_go.pricing_as_of}.` }))
           ] : null,
-          accountManager(configured.accounts, load),
+          accountManager(configured.accounts, configured.removed ?? [], load),
           h("p", { class: "muted small page-footnote", text: "Live checks are cached for five minutes. Check now is limited to once every 30 seconds." }));
       } catch (error) {
         if (ctx.isCurrent()) mount(page, pageHead("Live quota", "Remaining account balances.", refresh), notice(error.message, "danger"));

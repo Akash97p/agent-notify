@@ -128,6 +128,63 @@ public sealed class WslTests : IDisposable
     }
 
     [Fact]
+    public async Task LiveQuotaLeavesOutRemovedBuiltInAndDiscoveredAccounts()
+    {
+        var home = Home();
+        Directory.CreateDirectory(Path.Combine(home.WindowsHome, ".claude"));
+        var removed = new List<string>();
+        var service = new LiveQuotaService([new StaticProbe()], probeFactory: _ => new StaticProbe(),
+            wsl: new FakeWsl(home), removedAccounts: () => removed);
+
+        Assert.Equal(["codex:default", "claude_code:wsl:Ubuntu-Test"], (await service.GetReportAsync()).Providers.Select(p => p.AccountId));
+        removed.AddRange(["codex:default", "claude_code:wsl:Ubuntu-Test"]);
+        Assert.Empty((await service.GetReportAsync()).Providers);
+        removed.Clear();
+        Assert.Equal(2, (await service.GetReportAsync()).Providers.Count);
+    }
+
+    [Fact]
+    public async Task UsageReadsProfilesAddedByHandOnceEvenWhenDiscoveredToo()
+    {
+        var home = Home();
+        var session = JsonSerializer.Serialize(new
+        {
+            type = "assistant", timestamp = DateTimeOffset.UtcNow, sessionId = "s1", cwd = "/home/tester/myproj",
+            requestId = "r1", message = new { id = "m1", model = "claude-opus-5", usage = new { input_tokens = 10 } }
+        }) + "\n";
+        var discovered = Path.Combine(home.WindowsHome, ".claude", "projects", "-home-tester-myproj");
+        Directory.CreateDirectory(discovered);
+        File.WriteAllText(Path.Combine(discovered, "session.jsonl"), session);
+        var second = Path.Combine(_root, "claude-second");
+        Directory.CreateDirectory(Path.Combine(second, "projects", "p"));
+        File.WriteAllText(Path.Combine(second, "projects", "p", "other.jsonl"), session.Replace("\"r1\"", "\"r2\"").Replace("\"m1\"", "\"m2\""));
+        var accounts = new List<QuotaAccountDefinition>
+        {
+            new("q_" + Guid.NewGuid().ToString("N"), "claude_code", "Same as discovered", Path.Combine(home.WindowsHome, ".claude")),
+            new("q_" + Guid.NewGuid().ToString("N"), "claude_code", "Second", second)
+        };
+        var usage = new LocalUsageService([], [], Path.Combine(_root, "missing.db"), new FakeWsl(home), () => accounts);
+
+        Assert.Equal(2, (await usage.GetReportAsync(7)).Events);
+        accounts.RemoveAt(1);
+        Assert.Equal(1, (await usage.GetReportAsync(7)).Events);
+    }
+
+    [Fact]
+    public void ConfigKeepsOnlyValidRemovedAccountIds()
+    {
+        var config = new AgentNotifyConfig
+        {
+            RemovedQuotaAccounts = ["codex:default", "codex:default", "claude_code:wsl:Ubuntu", "q_" + new string('a', 32),
+                "opencode:default", "codex:wsl:bad name"]
+        };
+
+        config.ApplyDefaults();
+
+        Assert.Equal(["codex:default", "claude_code:wsl:Ubuntu"], config.RemovedQuotaAccounts);
+    }
+
+    [Fact]
     public void ConfigKeepsLabelsForDiscoveredWslAccountsOnly()
     {
         var config = new AgentNotifyConfig

@@ -38,7 +38,24 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
         return accounts;
     }
 
+    /// <summary>
+    /// The discovered WSL profiles to monitor: those the owner has neither removed nor added by hand
+    /// under the same directory.
+    /// </summary>
+    public static IReadOnlyList<QuotaAccountDefinition> MonitoredWslDefaults(IWslEnvironment wsl,
+        Func<string, string?> labelFor, IEnumerable<QuotaAccountDefinition?> configured, ICollection<string> removed)
+    {
+        var added = configured.OfType<QuotaAccountDefinition>().ToArray();
+        return WslDefaults(wsl, labelFor)
+            .Where(account => !removed.Contains(account.Id) && !added.Any(item => item.Provider == account.Provider &&
+                string.Equals(item.Directory, account.Directory, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+    }
+
     public static string WslAccountId(string provider, string distribution) => provider + ":wsl:" + distribution;
+
+    /// <summary>Whether <paramref name="id"/> names a built-in or discovered account rather than one added by hand.</summary>
+    public static bool IsDetectedAccountId(string? id) => id is "codex:default" or "claude_code:default" || IsWslAccountId(id);
 
     /// <summary>Whether <paramref name="id"/> names a discovered WSL profile, such as <c>codex:wsl:Ubuntu</c>.</summary>
     public static bool IsWslAccountId(string? id)
@@ -56,19 +73,31 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
         if (provider is not ("codex" or "claude_code"))
             throw new ArgumentException("Choose Codex or Claude Code.");
         label = NormalizeLabel(label);
+        var path = NormalizeDirectory(directory);
+        if (existing.Any(item => item.Provider == provider && SameDirectory(item.Directory, path)))
+            throw new ArgumentException("That profile directory is already listed for this provider.");
+        return new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), provider, label, path);
+    }
+
+    public static bool SameDirectory(string? left, string? right) => string.Equals(left, right,
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    /// <summary>
+    /// The absolute form of a profile directory an owner entered: a <c>\\wsl.localhost</c> share path,
+    /// or a directory under the home directory, where <c>~/</c> is expanded.
+    /// </summary>
+    public static string NormalizeDirectory(string? directory)
+    {
         if (string.IsNullOrWhiteSpace(directory) || directory.Length > 1024 || directory.Any(char.IsControl))
             throw new ArgumentException("Enter the agent's absolute profile directory.");
+        directory = directory.Trim();
 
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         // A profile inside WSL lives on the \\wsl.localhost share, outside the Windows home.
         if (OperatingSystem.IsWindows() && WslPath.TryParse(directory, out var distribution, out var linuxPath))
         {
-            var share = WslPath.ToWindows(@"\\wsl.localhost\" + distribution, linuxPath);
             if (linuxPath == "/")
                 throw new ArgumentException("Enter the agent's profile directory inside the WSL distribution.");
-            if (existing.Any(item => item.Provider == provider && string.Equals(item.Directory, share, comparison)))
-                throw new ArgumentException("That profile directory is already listed for this provider.");
-            return new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), provider, label, share);
+            return WslPath.ToWindows(@"\\wsl.localhost\" + distribution, linuxPath);
         }
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -84,11 +113,7 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
         if (relative is "." or ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
             Path.IsPathRooted(relative))
             throw new ArgumentException("The profile directory must be under your home directory.");
-
-        if (existing.Any(item => item.Provider == provider &&
-            string.Equals(item.Directory, path, comparison)))
-            throw new ArgumentException("That profile directory is already listed for this provider.");
-        return new QuotaAccountDefinition("q_" + Guid.NewGuid().ToString("N"), provider, label, path);
+        return path;
     }
 
     public static string NormalizeLabel(string? label) => TryNormalizeLabel(label)

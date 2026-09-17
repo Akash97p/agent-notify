@@ -24,6 +24,11 @@ build.
   named by `[user] default=` in the distribution's `/etc/wsl.conf` when it sets one, otherwise the
   registered default user. The Usage response is now
   `contract_version: "3"`.
+- **Every Live quota account can be edited or removed.** **Manage accounts** now gives each account
+  — including the built-in Codex and Claude Code ones and those discovered in WSL — an editable name
+  and profile directory and a **Remove** button. Removed built-in or discovered accounts stay listed
+  under **Removed accounts** with **Restore**. Usage now also counts the history of profiles added by
+  hand, so a second account's sessions appear.
 
 ### Changed
 
