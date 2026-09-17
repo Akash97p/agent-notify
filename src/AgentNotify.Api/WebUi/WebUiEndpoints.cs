@@ -379,6 +379,7 @@ public static class WebUiEndpoints
             Notify(options, config, false, logger);
             return Results.Json(new { restored = id }, JsonOptions);
         });
+        BillingEndpoints.Map(app, options);
 
         // ---- settings ----------------------------------------------------------------------
 

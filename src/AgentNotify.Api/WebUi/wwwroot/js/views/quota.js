@@ -1,4 +1,5 @@
 import { api } from "../api.js";
+import renderBilling from "./billing.js";
 import { h, mount, pageHead, button, notice, field, input, select, busy, toast, confirmDialog, badge } from "../dom.js";
 
 const names = { codex: "Codex", claude_code: "Claude Code" };
@@ -184,6 +185,7 @@ export default {
               h("p", { class: "muted small", text: `${report.open_code_go.message} Windows roll backward from now; billing-cycle reset times are unavailable. Rates checked ${report.open_code_go.pricing_as_of}.` }))
           ] : null,
           accountManager(configured.accounts, configured.removed ?? [], load),
+          renderBilling(),
           h("p", { class: "muted small page-footnote", text: "Live checks are cached for five minutes. Check now is limited to once every 30 seconds." }));
       } catch (error) {
         if (ctx.isCurrent()) mount(page, pageHead("Live quota", "Remaining account balances.", refresh), notice(error.message, "danger"));

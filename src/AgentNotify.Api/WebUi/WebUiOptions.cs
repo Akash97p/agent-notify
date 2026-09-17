@@ -1,3 +1,4 @@
+using AgentNotify.Core.Billing;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Usage;
@@ -22,6 +23,9 @@ public sealed class WebUiOptions
 
     /// <summary>Optional live account-quota reader; the default uses local agent credentials/CLI.</summary>
     public LiveQuotaService? Quota { get; init; }
+
+    /// <summary>Optional stored provider-key balance reader; the default uses the config database.</summary>
+    public BillingService? Billing { get; init; }
 
     /// <summary>
     /// Running WSL distributions whose agents' usage, quota, and skill folders are included. The

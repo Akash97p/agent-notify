@@ -174,6 +174,31 @@ remaining quota: usage in other clients or on other machines, multiple Go keys i
 database, the actual monthly billing boundary, and provider-side adjustments are unavailable from
 the local records. It displays no invented provider reset time or subscription charge.
 
+### API accounts
+
+Live quota reads the agents' own sign-ins. **API accounts** is the separate section below it for
+a key you paste in yourself: the broker calls that provider's official balance or spend endpoint
+and shows what it returns. Up to 16 accounts are stored.
+
+| Provider | Key type | What it shows |
+| --- | --- | --- |
+| DeepSeek (`api.deepseek.com`) | API key | Balance per currency (total, granted, topped-up) and availability. No usage history exists. |
+| Moonshot AI Kimi, international platform (`api.moonshot.ai`) | API key | Balance in USD (available, voucher, cash). |
+| SiliconFlow (`api.siliconflow.com`) | API key | Balance amounts with no currency (the provider does not document one). |
+| OpenRouter (`openrouter.ai`) | API key | Spend today, this week, this month, all-time, and remaining limit, in USD credits. |
+| OpenAI (`api.openai.com`) | Admin key | Daily spend for 30 days, month-to-date and 30-day totals. |
+| Anthropic (`api.anthropic.com`) | Admin key | Daily spend for 30 days, month-to-date and 30-day totals. |
+
+The add form warns before the key field: the key is stored encrypted for this user (the page
+shows the broker's secret protection), is sent only to that provider's host, anyone who can run
+programs as this user could decrypt it, prefer a dedicated key with the least access, and for
+OpenAI and Anthropic an Admin key can manage the whole organization. Adding requires ticking
+**I understand**. Keys are write-only: they are never displayed, listed, or logged.
+
+Meta (Muse Spark), Z.ai, Xiaomi MiMo, Google Gemini, and xAI are not listed: none of them
+offers a usable official balance or spend endpoint for a normal key, so there is nothing honest
+to show.
+
 ## How it stays local
 
 The interface is served on the same loopback listener as the API. It asks for no password, so the

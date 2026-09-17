@@ -601,4 +601,38 @@ public sealed class WebUiTests : IAsyncLifetime
         Assert.Equal("audio/wav", played.Content.Headers.ContentType!.MediaType);
         Assert.Equal(HttpStatusCode.NotFound, (await browser.GetAsync("/ui/api/sounds/..%2Fconfig.json")).StatusCode);
     }
+
+    [Fact]
+    public async Task BillingAccountsStoreEncryptedKeysAndNeverReturnThem()
+    {
+        using var browser = Page();
+        var empty = await browser.GetFromJsonAsync<JsonElement>("/ui/api/billing");
+        Assert.Equal("1", empty.GetProperty("contract_version").GetString());
+
+        var catalog = await browser.GetFromJsonAsync<JsonElement>("/ui/api/billing/accounts");
+        Assert.Equal(6, catalog.GetProperty("providers").EnumerateArray().Count());
+        Assert.Contains(catalog.GetProperty("providers").EnumerateArray(),
+            p => p.GetProperty("id").GetString() == "siliconflow" &&
+                 p.GetProperty("host").GetString() == "api.siliconflow.com" &&
+                 p.GetProperty("key_type").GetString() == "API key");
+
+        const string secret = "webui-billing-secret-abcdef1234567890";
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PostAsJsonAsync("/ui/api/billing/accounts",
+            new { provider = "deepseek", label = "Main", api_key = secret, acknowledge_risk = false })).StatusCode);
+        var created = await browser.PostAsJsonAsync("/ui/api/billing/accounts",
+            new { provider = "deepseek", label = "Main", api_key = secret, acknowledge_risk = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var createdText = await created.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(secret, createdText);
+        var id = JsonDocument.Parse(createdText).RootElement.GetProperty("id").GetString()!;
+
+        Assert.DoesNotContain(secret, await browser.GetStringAsync("/ui/api/billing/accounts"));
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync($"/ui/api/billing/accounts/{id}",
+            new { label = "Renamed", api_key = "webui-replacement-key-1234567890ab" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync($"/ui/api/billing/accounts/{id}")).StatusCode);
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(_dir, "agentnotify.db"));
+        Assert.DoesNotContain(secret, Encoding.UTF8.GetString(bytes));
+    }
 }

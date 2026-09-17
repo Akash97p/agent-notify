@@ -1725,6 +1725,23 @@ scan is still over two minutes on this machine because parsed history is kept on
 `CrossPlatformTests.ConfigStore_WritesTheTokenFileOwnerOnlyOnUnix` failed once in a full run on the
 profiles worktree and passed alone and in two further full runs; it is unrelated to these changes.
 
+## API accounts (`feature/api-billing-accounts`)
+
+Automated verification only:
+
+- `./scripts/build.sh` — 0 warnings, 0 errors.
+- `./scripts/test.sh` — 1035 passed, 0 failed, 0 skipped, including new per-provider parsing
+  (DeepSeek, Moonshot, SiliconFlow, OpenRouter, OpenAI/Anthropic pagination and cents
+  conversion), error mapping (401, 404, 429 with `Retry-After`, 500, oversize body, invalid
+  JSON, timeout), redirect handling, key-absence in endpoint JSON/snapshots/database bytes,
+  acknowledgement, validation, rename/key-replacement, delete, cache/refresh throttling, and
+  WebUI endpoint coverage.
+- No live provider was called: every provider response in tests comes from a fake
+  `HttpMessageHandler`.
+
+Not verified: a human visual check of the API accounts cards and the Manage form in a browser,
+including a narrow window.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

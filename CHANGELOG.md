@@ -46,6 +46,11 @@ build.
   distribution's home appears as its own Live quota card once it holds that agent's sign-in, with
   its history counted in Usage. It can be renamed, removed, restored, or moved like any other
   discovered account.
+- **API accounts show provider balances and spend from official APIs.** Paste a DeepSeek, Moonshot
+  Kimi, SiliconFlow, OpenRouter, OpenAI Admin, or Anthropic Admin key under Live quota and the
+  broker shows that account's balance and/or spend from the provider's official endpoint. Keys are
+  stored encrypted for this user, are write-only, and need an explicit risk acknowledgement; other
+  providers have no usable official endpoint and are not listed.
 
 ### Changed
 
