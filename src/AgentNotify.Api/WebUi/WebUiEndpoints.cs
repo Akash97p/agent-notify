@@ -14,6 +14,7 @@ using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
 using AgentNotify.Core.Usage;
+using AgentNotify.Core.Wsl;
 using AgentNotify.Protocol;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -155,10 +156,40 @@ public static class WebUiEndpoints
         var pairings = new RelayPairingSessions();
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
-        var usage = options.Usage ?? new LocalUsageService();
+        var wsl = options.Wsl ?? WslDiscovery.Default;
+        var nativeHome = options.NativeHome ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string? DetectedLabel(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
+        // Built-in and discovered accounts, including removed ones; the owner's list is filtered from these.
+        IReadOnlyList<QuotaAccountDefinition> DetectedAccounts() =>
+        [
+            QuotaAccountDefinition.Default("codex", DetectedLabel("codex")),
+            QuotaAccountDefinition.Default("claude_code", DetectedLabel("claude_code")),
+            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+                Array.Empty<string>(), nativeHome)
+        ];
+        // Secondary profiles whose session logs Usage counts alongside the hand-added accounts.
+        IReadOnlyList<QuotaAccountDefinition> UsageAccounts() =>
+        [
+            .. config.QuotaAccounts.ToArray(),
+            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+                config.RemovedQuotaAccounts, nativeHome)
+                .Where(account => QuotaAccountDefinition.IsSecondaryAccountId(account.Id))
+        ];
+        var usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: UsageAccounts);
         var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
             accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
-            defaultAccountLabel: provider => config.DefaultQuotaAccountLabels.GetValueOrDefault(provider, "Current account"));
+            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
+            removedAccounts: () => config.RemovedQuotaAccounts, nativeHome: nativeHome,
+            openCodeGoRenewalDay: () => config.OpenCodeGoRenewalDay);
+        IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
+            DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
+        void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
+        {
+            var (previousAccounts, previousRemoved) = (config.QuotaAccounts, config.RemovedQuotaAccounts);
+            (config.QuotaAccounts, config.RemovedQuotaAccounts) = (accounts, removed);
+            try { options.ConfigStore.Save(config); }
+            catch { (config.QuotaAccounts, config.RemovedQuotaAccounts) = (previousAccounts, previousRemoved); throw; }
+        }
         var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
@@ -213,17 +244,26 @@ public static class WebUiEndpoints
         app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
             Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
 
-        app.MapGet($"{BasePath}/api/quota/accounts", () => Results.Json(new
+        static string? WslName(QuotaAccountDefinition account) =>
+            QuotaAccountDefinition.DetectedWslDistribution(account.Id);
+
+        app.MapGet($"{BasePath}/api/quota/accounts", () =>
         {
-            accounts = new[]
-                {
-                    QuotaAccountDefinition.Default("codex", config.DefaultQuotaAccountLabels.GetValueOrDefault("codex")),
-                    QuotaAccountDefinition.Default("claude_code", config.DefaultQuotaAccountLabels.GetValueOrDefault("claude_code"))
-                }
-                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true })
-                .Concat(config.QuotaAccounts.Select(account => new
-                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false })).ToArray()
-        }, JsonOptions));
+            var detected = DetectedAccounts();
+            return Results.Json(new
+            {
+                accounts = detected.Where(account => !config.RemovedQuotaAccounts.Contains(account.Id))
+                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = WslName(account) })
+                    .Concat(config.QuotaAccounts.Select(account => new
+                        { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray(),
+                // A removed account keeps its row while its profile is missing, without a directory.
+                removed = config.RemovedQuotaAccounts.Select(id => detected.FirstOrDefault(account => account.Id == id) ??
+                        new QuotaAccountDefinition(id, id[..id.IndexOf(':')],
+                            DetectedLabel(id) ?? QuotaAccountDefinition.FallbackLabel(id), ""))
+                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, Wsl = WslName(account) })
+                    .ToArray()
+            }, JsonOptions);
+        });
 
         app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
         {
@@ -236,12 +276,8 @@ public static class WebUiEndpoints
                 {
                     if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
                     account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
-                        config.QuotaAccounts.Concat([QuotaAccountDefinition.Default("codex"),
-                            QuotaAccountDefinition.Default("claude_code")]));
-                    var previous = config.QuotaAccounts;
-                    config.QuotaAccounts = [.. previous, account];
-                    try { options.ConfigStore.Save(config); }
-                    catch { config.QuotaAccounts = previous; throw; }
+                        config.QuotaAccounts.Concat(MonitoredDetectedAccounts()));
+                    SaveQuotaAccounts([.. config.QuotaAccounts, account], config.RemovedQuotaAccounts);
                 }
                 Notify(options, config, false, logger);
                 return Results.Json(account, JsonOptions, statusCode: StatusCodes.Status201Created);
@@ -249,6 +285,9 @@ public static class WebUiEndpoints
             catch (ArgumentException error) { return Error(error.Message); }
         }));
 
+        // Renames an account and, when a directory is given, points it at that profile. A built-in or
+        // discovered account moved to another directory becomes an added account and leaves its
+        // detected entry removed, so the move survives restarts and rediscovery.
         app.MapPut($"{BasePath}/api/quota/accounts/{{id}}", async (string id, HttpContext http) =>
         {
             var body = await ReadAsync<QuotaAccountBody>(http);
@@ -256,53 +295,110 @@ public static class WebUiEndpoints
             try
             {
                 var label = QuotaAccountDefinition.NormalizeLabel(body.Label);
-                QuotaAccountDefinition renamed;
+                QuotaAccountDefinition saved;
                 lock (quotaAccountsGate)
                 {
-                    if (id is "codex:default" or "claude_code:default")
+                    if (QuotaAccountDefinition.IsDetectedAccountId(id))
                     {
+                        if (config.RemovedQuotaAccounts.Contains(id))
+                            return Error("That account was removed. Restore it first.", StatusCodes.Status404NotFound);
                         var provider = id[..id.IndexOf(':')];
-                        var previous = new Dictionary<string, string>(config.DefaultQuotaAccountLabels, StringComparer.Ordinal);
-                        var updated = new Dictionary<string, string>(previous, StringComparer.Ordinal)
-                            { [provider] = label };
-                        config.DefaultQuotaAccountLabels = updated;
-                        try { options.ConfigStore.Save(config); }
-                        catch { config.DefaultQuotaAccountLabels = previous; throw; }
-                        renamed = QuotaAccountDefinition.Default(provider, label);
+                        var current = DetectedAccounts().FirstOrDefault(account => account.Id == id);
+                        var moved = !string.IsNullOrWhiteSpace(body.Directory) && current is not null &&
+                            !QuotaAccountDefinition.SameDirectory(body.Directory.Trim(), current.Directory) &&
+                            !QuotaAccountDefinition.SameDirectory(QuotaAccountDefinition.NormalizeDirectory(body.Directory), current.Directory);
+                        if (moved)
+                        {
+                            if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
+                            saved = QuotaAccountDefinition.Create(provider, label, body.Directory,
+                                config.QuotaAccounts.Concat(MonitoredDetectedAccounts().Where(account => account.Id != id)));
+                            SaveQuotaAccounts([.. config.QuotaAccounts, saved], [.. config.RemovedQuotaAccounts, id]);
+                        }
+                        else
+                        {
+                            // Built-in accounts are keyed by provider; discovered WSL accounts by their full ID.
+                            var key = id.EndsWith(":default", StringComparison.Ordinal) ? provider : id;
+                            var previous = config.DefaultQuotaAccountLabels;
+                            config.DefaultQuotaAccountLabels = new Dictionary<string, string>(previous, StringComparer.Ordinal)
+                                { [key] = label };
+                            try { options.ConfigStore.Save(config); }
+                            catch { config.DefaultQuotaAccountLabels = previous; throw; }
+                            saved = (current ?? new QuotaAccountDefinition(id, provider, label, "")) with { Label = label };
+                        }
                     }
                     else
                     {
                         var index = config.QuotaAccounts.FindIndex(account => account.Id == id);
                         if (index < 0) return Error("That account was not found.", StatusCodes.Status404NotFound);
-                        var previous = config.QuotaAccounts;
-                        var updated = previous.ToList();
-                        renamed = updated[index] with { Label = label };
-                        updated[index] = renamed;
-                        config.QuotaAccounts = updated;
-                        try { options.ConfigStore.Save(config); }
-                        catch { config.QuotaAccounts = previous; throw; }
+                        var updated = config.QuotaAccounts.ToList();
+                        saved = string.IsNullOrWhiteSpace(body.Directory)
+                            ? updated[index] with { Label = label }
+                            : QuotaAccountDefinition.Create(updated[index].Provider, label, body.Directory,
+                                updated.Where(account => account.Id != id).Concat(MonitoredDetectedAccounts())) with { Id = id };
+                        updated[index] = saved;
+                        SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
                     }
                 }
                 Notify(options, config, false, logger);
-                return Results.Json(renamed, JsonOptions);
+                return Results.Json(saved, JsonOptions);
             }
             catch (ArgumentException error) { return Error(error.Message); }
         });
 
+        // Added accounts are deleted. Built-in and discovered ones are only hidden, because they would
+        // otherwise reappear on the next discovery; the agent profile and its sign-in stay untouched.
         app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
         {
             lock (quotaAccountsGate)
             {
-                var previous = config.QuotaAccounts;
-                var updated = previous.Where(account => account.Id != id).ToList();
-                if (updated.Count == previous.Count) return Error("That additional account was not found.", StatusCodes.Status404NotFound);
-                config.QuotaAccounts = updated;
-                try { options.ConfigStore.Save(config); }
-                catch { config.QuotaAccounts = previous; throw; }
+                if (QuotaAccountDefinition.IsDetectedAccountId(id))
+                {
+                    if (config.RemovedQuotaAccounts.Contains(id))
+                        return Error("That account was already removed.", StatusCodes.Status404NotFound);
+                    SaveQuotaAccounts(config.QuotaAccounts, [.. config.RemovedQuotaAccounts, id]);
+                }
+                else
+                {
+                    var updated = config.QuotaAccounts.Where(account => account.Id != id).ToList();
+                    if (updated.Count == config.QuotaAccounts.Count)
+                        return Error("That account was not found.", StatusCodes.Status404NotFound);
+                    SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
+                }
             }
             Notify(options, config, false, logger);
             return Results.Json(new { deleted = id }, JsonOptions);
         });
+
+        // The OpenCode Go plan's renewal day anchors the monthly estimate to the billing cycle.
+        app.MapPut($"{BasePath}/api/quota/opencode-go", async (HttpContext http) =>
+        {
+            var body = await ReadAsync<OpenCodeGoBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            if (body.RenewalDay is not null && !AgentNotify.Core.Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(body.RenewalDay))
+                return Error("Choose a renewal day from 1 to 31, or clear it.");
+            lock (quotaAccountsGate)
+            {
+                var previous = config.OpenCodeGoRenewalDay;
+                config.OpenCodeGoRenewalDay = body.RenewalDay;
+                try { options.ConfigStore.Save(config); }
+                catch { config.OpenCodeGoRenewalDay = previous; throw; }
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { renewal_day = config.OpenCodeGoRenewalDay }, JsonOptions);
+        });
+
+        app.MapPost($"{BasePath}/api/quota/accounts/{{id}}/restore", (string id) =>
+        {
+            lock (quotaAccountsGate)
+            {
+                if (!config.RemovedQuotaAccounts.Contains(id))
+                    return Error("That account is not removed.", StatusCodes.Status404NotFound);
+                SaveQuotaAccounts(config.QuotaAccounts, config.RemovedQuotaAccounts.Where(item => item != id).ToList());
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { restored = id }, JsonOptions);
+        });
+        BillingEndpoints.Map(app, options);
 
         // ---- settings ----------------------------------------------------------------------
 
@@ -641,7 +737,10 @@ public static class WebUiEndpoints
 
         app.MapGet($"{BasePath}/api/agents", () => Results.Json(new
         {
-            skills = AgentSkillCatalog.WithKnownLocations.Select(SkillJson),
+            // Skills for this user's own agents, then for agents inside each running WSL distribution.
+            skills = AgentSkillCatalog.WithKnownLocations.Select(target => SkillJson(target, null))
+                .Concat(wsl.RunningHomes().SelectMany(home =>
+                    AgentSkillCatalog.WithKnownLocations.Select(target => SkillJson(target, home)))),
             harnesses = HarnessCatalog.All.Select(target => new
             {
                 id = target.Id,
@@ -658,11 +757,19 @@ public static class WebUiEndpoints
             if (target is null || !target.HasDefaultLocation)
                 return Error("Unknown agent.", StatusCodes.Status404NotFound);
             var body = await ReadAsync<SkillBody>(http);
+            // A WSL install names the distribution, never a path; the home comes from discovery.
+            WslHome? home = null;
+            if (!string.IsNullOrEmpty(body?.Wsl))
+            {
+                home = wsl.RunningHomes().FirstOrDefault(item =>
+                    string.Equals(item.Distribution, body.Wsl, StringComparison.OrdinalIgnoreCase));
+                if (home is null) return Error("That WSL distribution is not running.", StatusCodes.Status404NotFound);
+            }
             try
             {
-                var root = AgentSkillCatalog.DefaultSkillsRoot(target);
+                var root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
                 var result = SkillInstaller.Install(target.DisplayName, root, WebUiSkill.Files(target), body?.Force == true, dryRun: false);
-                return Results.Json(new { success = result.Success, changed = result.Changed, message = result.Message, skill = SkillJson(target) },
+                return Results.Json(new { success = result.Success, changed = result.Changed, message = result.Message, skill = SkillJson(target, home) },
                     statusCode: result.Success ? StatusCodes.Status200OK : StatusCodes.Status409Conflict, options: JsonOptions);
             }
             catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
@@ -759,13 +866,13 @@ public static class WebUiEndpoints
         return dto;
     }
 
-    private static object SkillJson(AgentSkillTarget target)
+    private static object SkillJson(AgentSkillTarget target, WslHome? home)
     {
         string? root = null;
         var state = "unavailable";
         try
         {
-            root = AgentSkillCatalog.DefaultSkillsRoot(target);
+            root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
             state = SkillInstaller.Inspect(root, WebUiSkill.Files(target)) switch
             {
                 SkillInstallState.UpToDate => "up_to_date",
@@ -782,6 +889,8 @@ public static class WebUiEndpoints
             id = target.Id,
             display_name = target.DisplayName,
             note = target.Note,
+            wsl = home?.Distribution,
+            environment = home is null ? null : "WSL · " + home.Distribution,
             destination = root is null ? null : SkillInstaller.SkillDirectory(root),
             state
         };
@@ -916,6 +1025,11 @@ public static class WebUiEndpoints
 
     // ---- request bodies --------------------------------------------------------------------
 
+    private sealed class OpenCodeGoBody
+    {
+        public int? RenewalDay { get; set; }
+    }
+
     private sealed class QuotaAccountBody
     {
         public string? Provider { get; set; }
@@ -987,7 +1101,7 @@ public static class WebUiEndpoints
         public bool IncludeMessage { get; set; } = true;
     }
 
-    private sealed class SkillBody { public bool Force { get; set; } }
+    private sealed class SkillBody { public bool Force { get; set; } public string? Wsl { get; set; } }
 }
 
 /// <summary>The agent skill as this build carries it, for installs started from the web UI.</summary>

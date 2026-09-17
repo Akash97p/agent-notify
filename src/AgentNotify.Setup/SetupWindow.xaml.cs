@@ -12,6 +12,7 @@ public partial class SetupWindow : Window
     private bool _installed;
     private bool _finishActionsRun;
     private string? _installedDirectory;
+    private readonly ExistingInstallation? _existing = InstallerService.FindExisting();
 
     public SetupWindow()
     {
@@ -22,6 +23,39 @@ public partial class SetupWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Programs",
             "AgentNotify");
+        if (_existing is not null)
+            ShowAsUpdate(_existing);
+    }
+
+    /// <summary>
+    /// An update keeps the existing location and choices, and does not ask for the licence again:
+    /// it was accepted when AgentNotify was installed.
+    /// </summary>
+    private void ShowAsUpdate(ExistingInstallation existing)
+    {
+        var version = InstallerService.ProductVersion;
+        Title = "Update AgentNotify";
+        TitleSuffix.Text = "/ Update";
+        VersionText.Text = existing.Version is null
+            ? $"Version {version} · Kabani Tech Private Limited"
+            : string.Equals(existing.Version, version, StringComparison.OrdinalIgnoreCase)
+                ? $"Reinstall {version} · Kabani Tech Private Limited"
+                : $"Installed {existing.Version} → {version} · Kabani Tech Private Limited";
+
+        InstallPath.Text = existing.Directory;
+        InstallPath.IsReadOnly = true;
+        BrowseButton.Visibility = Visibility.Collapsed;
+        StartWithWindows.IsChecked = existing.StartWithWindows;
+        DesktopShortcut.IsChecked = existing.DesktopShortcut;
+        LaunchAfterInstall.IsChecked = true;
+        OpenGuide.IsChecked = false;
+
+        LicensePanel.Visibility = Visibility.Collapsed;
+        AcceptTerms.Visibility = Visibility.Collapsed;
+        LicenseLink.Visibility = Visibility.Visible;
+        StatusText.Text = "Ready to update";
+        InstallButton.Content = "Update AgentNotify";
+        InstallButton.IsEnabled = true;
     }
 
     private static System.Windows.Media.ImageSource BitmapFrameFromResource()
@@ -49,7 +83,7 @@ public partial class SetupWindow : Window
     }
 
     private void OnAcceptanceChanged(object sender, RoutedEventArgs e) =>
-        InstallButton.IsEnabled = AcceptTerms.IsChecked == true && !_installing;
+        InstallButton.IsEnabled = (_existing is not null || AcceptTerms.IsChecked == true) && !_installing;
 
     private void OnBrowse(object sender, RoutedEventArgs e)
     {
@@ -89,7 +123,7 @@ public partial class SetupWindow : Window
             Close();
             return;
         }
-        if (AcceptTerms.IsChecked != true)
+        if (_existing is null && AcceptTerms.IsChecked != true)
             return;
 
         string installDirectory;
@@ -100,22 +134,16 @@ public partial class SetupWindow : Window
             return;
         }
 
-        var running = Process.GetProcessesByName("AgentNotify.Tray")
-            .Concat(Process.GetProcessesByName("AgentNotify"))
-            .ToArray();
-        if (running.Length > 0)
+        // Updating is expected to replace a running AgentNotify, so it does not ask. A fresh
+        // install finding one running is unusual enough to confirm first.
+        var running = RunningAgentNotify.Detect();
+        if (running.WasRunning && _existing is null)
         {
             var answer = MessageBox.Show(this,
                 "AgentNotify is currently running. Setup must close it before continuing. Continue?",
                 "AgentNotify is running", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (answer != MessageBoxResult.Yes)
                 return;
-            foreach (var process in running)
-            {
-                try { process.Kill(); process.WaitForExit(5000); }
-                catch { }
-                finally { process.Dispose(); }
-            }
         }
 
         _installing = true;
@@ -132,6 +160,11 @@ public partial class SetupWindow : Window
 
         try
         {
+            if (running.WasRunning)
+            {
+                StatusText.Text = "Stopping AgentNotify…";
+                await running.StopAsync();
+            }
             var options = new InstallOptions(
                 installDirectory,
                 StartWithWindows.IsChecked == true,
@@ -140,7 +173,9 @@ public partial class SetupWindow : Window
             _installedDirectory = installDirectory;
             _installed = true;
             Progress.Value = 100;
-            StatusText.Text = "AgentNotify installed successfully.";
+            StatusText.Text = _existing is null
+                ? "AgentNotify installed successfully."
+                : $"AgentNotify updated to {InstallerService.ProductVersion}.";
             InstallButton.Content = "Finish";
             InstallButton.IsEnabled = true;
             AcceptTerms.IsEnabled = false;

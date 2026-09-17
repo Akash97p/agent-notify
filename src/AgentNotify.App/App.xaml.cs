@@ -30,6 +30,7 @@ public partial class App : System.Windows.Application
     private NotificationSoundService? _sounds;
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
+    private AgentNotify.Core.Billing.BillingService? _billingService;
     private DeliveryDispatcher? _deliveryDispatcher;
     private AgentNotify.Api.WebUi.WebUiOptions? _webUi;
     private InteractionResponsePoller? _interactionResponsePoller;
@@ -76,6 +77,24 @@ public partial class App : System.Windows.Application
         { IsBackground = true, Name = "AgentNotify SingleInstance waiter" };
         waiter.Start();
 
+        // Setup signals this before an update replaces the executable. Exit the same way the tray
+        // menu does, so the API, dispatcher, and SQLite shut down cleanly instead of being killed.
+        var exitWaiter = new Thread(() =>
+        {
+            if (!_singleInstance.WaitForExitRequest()) return;
+            try
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _center?.CloseForExit();
+                    Shutdown(0);
+                });
+            }
+            catch (TaskCanceledException) { }
+        })
+        { IsBackground = true, Name = "AgentNotify exit-request waiter" };
+        exitWaiter.Start();
+
         InitializeInBackground(chosen);
     }
 
@@ -118,6 +137,9 @@ public partial class App : System.Windows.Application
         // On Windows the factory always returns the DPAPI protector; going through it keeps the
         // tray app and the portable host on one code path.
         var secretProtector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var secretProtection);
+        var billingRepository = new AgentNotify.Core.Billing.BillingAccountRepository(_configStore.DbPath);
+        await billingRepository.InitializeAsync();
+        _billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, secretProtector);
         _providerProfiles = new ProviderProfileService(_deliveryRepository, secretProtector);
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _channelAdapters = ChannelAdapterFactory.CreateAll();
@@ -171,6 +193,7 @@ public partial class App : System.Windows.Application
             Providers = _providerProfiles,
             Routes = _deliveryRoutes,
             Dispatcher = _deliveryDispatcher,
+            Billing = _billingService,
             SecretProtection = secretProtection.Description,
             DesktopSurface = "the AgentNotify tray app",
             SupportsToastPlacement = true,
@@ -363,6 +386,7 @@ public partial class App : System.Windows.Application
         if (_channelAdapters is not null)
             foreach (var adapter in _channelAdapters)
                 try { (adapter as IDisposable)?.Dispose(); } catch { }
+        try { _billingService?.Dispose(); } catch { }
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);

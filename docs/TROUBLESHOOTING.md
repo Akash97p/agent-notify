@@ -110,6 +110,32 @@ The config file is created lazily: `ConfigStore.EnsureAuthToken` generates 32 ra
 
 ---
 
+## Agents in WSL: no usage, quota, or skill rows
+
+**Symptom**
+
+Claude Code, Codex, or OpenCode run inside WSL, but the web interface shows no usage for them, no
+`WSL · <distribution>` quota card, or no WSL rows on the Agents page.
+
+**Cause**
+
+The Windows broker reads WSL only while a distribution is running; reading a stopped one would boot
+it. Discovery is cached for 30 seconds. A quota card appears only when `~/.codex` or `~/.claude`
+exists for the distribution's default user (the `[user] default=` in `/etc/wsl.conf`, or else the
+registered default user), and usage is read from the agents' default locations
+(`CODEX_HOME` or `CLAUDE_CONFIG_DIR` set inside WSL is not visible to Windows).
+
+**Fix**
+
+1. Open a WSL shell, wait half a minute, and refresh the page.
+2. For a non-default profile directory, add it on Live quota as
+   `\\wsl.localhost\<distribution>\home\<you>\<dir>`.
+3. If the Codex card says the app server could not be queried or timed out, open a new WSL shell and
+   run `command -v codex`. AgentNotify starts Codex through your login, interactive shell, so it must
+   be found there.
+
+---
+
 ## `agentnotify` is not found after installation
 
 **Symptom**

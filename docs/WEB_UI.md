@@ -37,8 +37,8 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
-| Usage | Read compact local Claude Code, Codex, and OpenCode activity summaries; expand sessions, projects, models, token buckets, and pricing when needed |
-| Live quota | Check remaining balances for multiple named Codex and Claude Code profiles; compare a separately labeled local OpenCode Go per-model estimate |
+| Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
+| Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
@@ -50,7 +50,8 @@ stored, and the page says so, but the platform decides how a notification looks.
 An answer given here is the same as one given from a toast, the CLI, or a paired phone: the first
 valid answer wins and later ones are refused.
 
-Usage reads the broker user's local Claude Code/Codex session logs and OpenCode SQLite database.
+Usage reads the broker user's local Claude Code/Codex session logs, the OpenCode and Kilo CLI SQLite
+databases, Muse Code sessions, and Gemini CLI chats.
 It needs no account key or network connection,
 and does not return prompt text, full project paths, or log paths to the browser. Projects are
 grouped by working directory and shown by folder name; same-named folders get distinct opaque IDs.
@@ -60,9 +61,24 @@ raw provider session IDs remain on the broker. Records without a usable session 
 overall and project totals but do not appear in that list.
 Counts are historical token records, not provider billing or live quota. Cached input is separate
 from uncached input. Codex reasoning is included within output; OpenCode reasoning is a separate
-counter added to output once. OpenCode's current `message` table is queried on every refresh.
+counter added to output once. OpenCode's `message` table is queried again only when its database or
+write-ahead log has changed; a database on the WSL share is read from a private local copy, deleted
+straight after, because SQLite's page-by-page reads over the share are very slow.
 `OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
-`~/.local/share/opencode/opencode.db` is used.
+`~/.local/share/opencode/opencode.db` is used. Codex and Claude Code profiles added by hand on Live
+quota are read too (`sessions`/`archived_sessions` and `projects` under each profile directory), so a
+second account's history counts; a directory that is also discovered is read once.
+Muse Code sessions are read from `$XDG_DATA_HOME/muse/sessions` (default `~/.local/share/muse/sessions`),
+one `model_completed` event per model call, with subagent calls grouped under their parent session and
+project. The Kilo CLI's `~/.local/share/kilo/kilo.db` uses OpenCode's schema and is read the same way.
+Gemini CLI chats come from `~/.gemini/tmp/<project>/chats/session-*.json`; the project folder is
+resolved through `~/.gemini/projects.json` when it lists it. Antigravity, Cursor, Windsurf, Kiro,
+GitHub Copilot, and the Kilo and Cline IDE extensions keep no readable per-request token history on
+disk, so they do not appear in Usage.
+On Windows, Usage, Live quota, and Agents also include each running WSL distribution: its agents'
+default log locations, a Codex/Claude Code account for each profile directory that exists, and skill
+rows labelled `WSL · <distribution>`. Stopped distributions are not read, because opening their
+files would start them.
 
 The Insights **Dashboard** combines the existing 30-day Usage, Live quota, and broker Overview
 responses in the browser. It does not add account percentages to local token totals: local logs do
@@ -72,20 +88,30 @@ local CSS only, respects the operating system's reduced-motion preference, and l
 script or telemetry service.
 
 The cost number answers **what these tokens would cost at published token rates**, using
-the dated rate snapshot shown on the page. OpenAI and Claude use standard API rates; OpenCode Go
-uses its published quota-equivalent token rates. It is not a subscription charge or invoice. Claude
-5-minute and 1-hour cache writes use different rates. The estimate excludes plan allowances,
-Fast/Batch pricing, long-context premiums, server-side tool fees, taxes, and discounts. A model
-without an exact verified rate is marked *unpriced*; its tokens remain in usage totals but no zero
-cost is implied. Current rates are applied to old records, not historical price schedules.
-The dated catalog uses published [OpenAI model prices](https://developers.openai.com/api/docs/models)
-and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing), plus
-[OpenCode Go token rates](https://opencode.ai/docs/go/); changing rates
-requires a new catalog snapshot.
-The Go catalog currently covers 20 exact fixed-rate model IDs. Published cache-write rates are
-included for MiniMax M2.7/M2.5 and Qwen3.8 Max/Flash and Qwen3.7 Max. Models with context-length
-or time-of-day prices remain unpriced because local records cannot select a verified tier; a
-cache-write record is also unpriced when Go publishes no cache-write rate for that model.
+the dated rate snapshot shown on the page. Each record is priced at its provider's standard API rate:
+[OpenAI](https://developers.openai.com/api/docs/pricing),
+[Anthropic](https://platform.claude.com/docs/en/about-claude/pricing),
+[Meta](https://developer.meta.com/ai/products/meta-model-api/) (Muse Spark, including Contributor),
+[Google Gemini](https://ai.google.dev/gemini-api/docs/pricing), [Z.ai](https://docs.z.ai/guides/overview/pricing),
+and [Xiaomi MiMo](https://mimo.mi.com/docs/en-US/price/pay-as-you-go). OpenCode Go uses its
+[published quota-equivalent token rates](https://opencode.ai/docs/go/), and the free models of
+[OpenCode Zen](https://opencode.ai/docs/zen/) (`-free`) and Kilo (`:free`) cost nothing. It is not a
+subscription charge or invoice. The provider comes from the agent (Codex → OpenAI, Claude Code →
+Anthropic) or, for OpenCode, from each message's provider ID.
+
+Rates vary per record where the provider says so: a GPT-5.5/GPT-5.4 request over 272K input tokens
+and a Gemini Pro request over 200K prompt tokens use the long-context rate; Codex turns run in fast
+mode (`service_tier: priority`) and OpenCode's `-fast` models use OpenAI's fast-tier rates; DeepSeek
+V4 on OpenCode Go uses its peak rate for requests made 01:00–04:00 or 06:00–10:00 UTC on weekdays.
+Claude 5-minute and 1-hour cache writes use different rates. The estimate excludes plan allowances,
+Batch pricing, server-side tool fees, taxes, and discounts. A model without an exact verified rate,
+or a record whose tier has no published rate (fast-mode long context, Gemini 3 Flash Preview with
+cached input), is marked *unpriced*; its tokens remain in usage totals but no zero cost is implied.
+Models with no official rate at all — for example Poolside Laguna, Gemini 3 Pro Preview (no longer
+listed), custom OpenCode providers, and Codex records before a model is known — stay unpriced.
+Current rates are applied to old records, not historical price schedules; changing rates requires a
+new catalog snapshot. Published Go cache-write rates are included for MiniMax M2.7/M2.5 and Qwen3.8
+Max/Flash and Qwen3.7 Max; a Go cache-write record is unpriced when Go publishes no cache-write rate.
 
 Live quota is fetched when its page is opened or **Check now** is pressed. Codex uses its own
 documented app-server RPC, so AgentNotify does not read Codex credentials. Claude Code uses its
@@ -103,7 +129,12 @@ The local Usage page continues to work without internet or signed-in agent accou
 
 ### Monitor several Codex or Claude Code accounts
 
-The current Codex and Claude Code profiles appear automatically. To add another, open **Live quota
+The current Codex and Claude Code profiles appear automatically, as do secondary profiles:
+a `.codex-<name>` or `.claude-<name>` folder (also with `_`) directly under your home folder or a
+running WSL distribution's home counts when it holds that agent's sign-in (`auth.json` or a
+`sessions` folder for Codex, `.credentials.json` or a `projects` folder for Claude Code). For
+example, with `CODEX_HOME="$HOME/.codex-work" codex login` already done, a **Profile · work**
+card appears with no further setup. To add another, open **Live quota
 → Manage accounts**, choose the agent, enter a name and the *agent profile directory*, then
 press **Add account**. The directory must be under your home folder. Create it before signing in;
 current Codex versions reject a missing `CODEX_HOME`. For macOS/Linux, for example:
@@ -122,22 +153,59 @@ copy a login or offer a password field. Codex is queried with that profile's `CO
 Code is queried only when that profile has a readable `.credentials.json`. Claude Code may store
 credentials in the macOS Keychain instead, so an extra macOS Claude profile can show unavailable
 until its agent-owned credential file is present. Removing a monitored account removes only its
-AgentNotify entry, not its agent profile or sign-in. Any current or additional Codex/Claude account
-can be renamed in **Manage accounts**; the owner-only config stores the display name and the agent
-login is unchanged. Up to 16 additional profiles can be listed.
+AgentNotify entry, not its agent profile or sign-in. Every account in **Manage accounts** — the
+current Codex and Claude Code profiles, the ones discovered in WSL, and those you added — has an
+editable name and profile directory and can be removed. A current or discovered account that is
+removed is listed under **Removed accounts** with **Restore**, since it would otherwise be found
+again; giving one a different directory turns it into an added account for that directory and moves
+the detected entry to **Removed accounts**. The owner-only config stores the names, directories, and
+removed IDs; the agent login is unchanged. Up to 16 additional profiles can be listed.
 
 ### OpenCode Go local estimate
 
 OpenCode Go publishes [per-model dollar caps and token rates](https://opencode.ai/docs/go/):
 the five-hour cap is 20% and the weekly cap is 50% of that model's monthly cap. The page compares
 only usage-bearing OpenCode Go records in this machine's SQLite database against those caps for
-rolling last-five-hour, last-seven-day, and last-30-day periods. It currently has exact verified
-rates and caps for 20 fixed-rate model IDs, including Muse Spark 1.2/1.3 Contributor and GLM-5.3.
-Context-tiered, peak/off-peak, and other unverified models stay unknown. A window with an unpriced
+rolling last-five-hour and last-seven-day periods and a monthly period. Set **Plan renews on day** in
+the OpenCode Go section to the day of the month your Go plan renews: the monthly bar then counts
+this billing cycle (from local midnight on the latest renewal, with a day past the end of a short
+month falling on its last day) and shows when it resets. Without it the monthly bar counts the last
+30 days, which does not match the cycle the cap applies to. OpenCode's documentation does not say
+whether the 5-hour and weekly limits roll or reset at fixed times, so those stay rolling. It currently has exact verified
+rates and caps for 22 model IDs, including Muse Spark 1.2/1.3 Contributor, GLM-5.3, and DeepSeek V4
+Pro/Flash (priced at peak or off-peak by request time). Context-tiered and unverified models stay unknown. A window with an unpriced
 record has no percentage. This is **not** the Go account's live
 remaining quota: usage in other clients or on other machines, multiple Go keys in the same local
 database, the actual monthly billing boundary, and provider-side adjustments are unavailable from
 the local records. It displays no invented provider reset time or subscription charge.
+
+### API accounts
+
+Live quota reads the agents' own sign-ins. **API accounts** is for a key you paste in yourself: the
+broker calls that provider's official balance or spend endpoint and shows what it returns. Their
+cards appear at the top of Live quota once an account exists; **Manage API accounts** stays at the
+bottom. Each card leads with one balance — DeepSeek's total, Kimi's available balance, SiliconFlow's
+total, OpenRouter's remaining limit — formatted in its currency (`$0.56`); the breakdown (granted,
+topped-up, voucher, cash) is under **Account details**. Up to 16 accounts are stored.
+
+| Provider | Key type | What it shows |
+| --- | --- | --- |
+| DeepSeek (`api.deepseek.com`) | API key | Balance per currency (total, granted, topped-up) and availability. No usage history exists. |
+| Moonshot AI Kimi, international platform (`api.moonshot.ai`) | API key | Balance in USD (available, voucher, cash). |
+| SiliconFlow (`api.siliconflow.com`) | API key | Balance amounts with no currency (the provider does not document one). |
+| OpenRouter (`openrouter.ai`) | API key | Spend today, this week, this month, all-time, and remaining limit, in USD credits. |
+| OpenAI (`api.openai.com`) | Admin key | Daily spend for 30 days, month-to-date and 30-day totals. |
+| Anthropic (`api.anthropic.com`) | Admin key | Daily spend for 30 days, month-to-date and 30-day totals. |
+
+The add form warns before the key field: the key is stored encrypted for this user (the page
+shows the broker's secret protection), is sent only to that provider's host, anyone who can run
+programs as this user could decrypt it, prefer a dedicated key with the least access, and for
+OpenAI and Anthropic an Admin key can manage the whole organization. Adding requires ticking
+**I understand**. Keys are write-only: they are never displayed, listed, or logged.
+
+Meta (Muse Spark), Z.ai, Xiaomi MiMo, Google Gemini, and xAI are not listed: none of them
+offers a usable official balance or spend endpoint for a normal key, so there is nothing honest
+to show.
 
 ## How it stays local
 

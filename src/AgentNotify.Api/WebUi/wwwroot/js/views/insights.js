@@ -5,9 +5,9 @@ const number = new Intl.NumberFormat(undefined, { notation: "compact", maximumFr
 const precise = new Intl.NumberFormat();
 const usd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 const pct = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
-const sourceNames = { claude_code: "Claude Code", codex: "Codex", opencode: "OpenCode" };
+const sourceNames = { claude_code: "Claude Code", codex: "Codex", opencode: "OpenCode", kilo: "Kilo", muse: "Muse Code", gemini_cli: "Gemini CLI" };
 const providerNames = { codex: "Codex", claude_code: "Claude Code" };
-const sourceColors = { claude_code: "#8b5cf6", codex: "#3b82f6", opencode: "#14b8a6" };
+const sourceColors = { claude_code: "#8b5cf6", codex: "#3b82f6", opencode: "#14b8a6", kilo: "#f59e0b", muse: "#ec4899", gemini_cli: "#22c55e" };
 const compact = (value) => number.format(value || 0);
 const money = (value) => usd.format(value || 0);
 const clamp = (value) => Math.max(0, Math.min(100, Number(value) || 0));
@@ -132,7 +132,7 @@ export default {
         const [overview, usage, quota] = await Promise.all([
           api.get("overview"), api.get("usage?days=30"), api.get("quota")]);
         if (!ctx.isCurrent()) return;
-        if (usage.contract_version !== "2" || quota.contract_version !== "2")
+        if (usage.contract_version !== "4" || quota.contract_version !== "3")
           throw new Error("The dashboard and broker need to be updated together.");
 
         const accounts = quota.providers.filter(provider => provider.provider !== "opencode");

@@ -83,19 +83,53 @@ message/request identities and differences Codex cumulative counters per rollout
 reasoning counter is separate from output and is added once; Codex reasoning is already included
 in output. The `/ui/api/usage` route returns aggregated counts only;
 it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
-or assert subscription quota. A dated, exact-model price catalog estimates what those token
-records would cost at published standard API rates or OpenCode Go's published quota-equivalent
-token rates, with separate Claude 5-minute and 1-hour cache-write prices. Unknown models and
-OpenCode Go records with cache writes remain unpriced unless Go publishes that model's exact
-cache-write rate. Only exact, single-rate Go model IDs are priced; context-tiered and peak/off-peak
-models remain unknown until the local ledger can select the applicable rate. Project grouping uses
-each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
-directory; the page receives
+or assert subscription quota. A dated, exact-model price catalog keyed by provider and model
+estimates what those token records would cost at published standard API rates or OpenCode Go's
+published quota-equivalent token rates, with separate Claude 5-minute and 1-hour cache-write prices.
+The rate is chosen per record (`ApiPriceCatalog.RateFor`), because each record is one request: its
+prompt size selects a long-context tier, its service tier (Codex `thread_settings_applied`, OpenCode
+`-fast` model IDs) selects OpenAI's fast rates, and its timestamp selects OpenCode Go's peak rate.
+A record is unpriced when no published rate covers that combination. Unknown models and OpenCode Go
+records with cache writes remain unpriced unless the provider publishes that exact rate;
+context-tiered Go models remain unknown. Project grouping uses
+each row's working directory (Claude), active turn/session directory (Codex), OpenCode or Kilo session
+directory, Muse `route_facts` working directory (a subagent inherits its parent session's), or the
+Gemini CLI project folder resolved through `projects.json` (names or SHA-256 hashes of the path); the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
 the Usage view also groups deduplicated rows by source, session, and project, exposing only a
 hashed session ID, time span, token/model aggregates, and estimated cost for the 50 most recent
-sessions. Its response uses `contract_version: "2"`; raw provider session IDs stay on the broker.
-the current cache is in memory and is rebuilt after restart. More complete fork/replay attribution,
+sessions. Its response uses `contract_version: "4"`; raw provider session IDs stay on the broker.
+the current cache is in memory and is rebuilt after restart.
+On Windows the same sources are also read inside WSL. `WslDiscovery` in Core lists distributions
+from `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`, asks `wsl.exe --list --running` which
+of them are running, resolves each default user's home from that distribution's `/etc/passwd`, and
+reaches it through `\\wsl.localhost\<distribution>`. The default user is the one named by `[user]
+default=` in the distribution's `/etc/wsl.conf` when present, because WSL applies it over the
+registry's `DefaultUid`, which stays `0` for distributions configured that way; otherwise it is
+`DefaultUid`. Only running distributions are touched:
+opening the share of a stopped distribution boots its VM, which a dashboard visit must not do. The
+agents' default locations inside the distribution are used, because their environment variables are
+not visible to the broker. Discovery is cached for 30 seconds and re-resolved on every scan, so
+history from a distribution appears while it runs; the report lists the included distributions and
+uses `contract_version: "4"`. Reading through the share is slow for page-level I/O: SQLite querying a
+260 MB OpenCode database over `\\wsl.localhost` took about 30 seconds per request and could fail,
+while copying the file sequentially took under two. OpenCode rows are therefore cached per database
+keyed by the length and modification time of the file and its `-wal`, and a database on a UNC path
+is copied (with its WAL, retaken if either changes during the copy) into a random directory under
+the user's temp folder, queried there, and deleted; leftovers older than an hour are removed on the
+next read. JSONL ledgers were already cached per file, but only in memory, so the first scan after
+the broker starts still parses every file. Walking directories through the share also costs a round
+trip per directory, which took over ten seconds for Muse Code's per-subagent session folders, so a
+ledger root inside WSL is listed by one `wsl.exe --distribution <name> --exec find <root> -type f
+-name <pattern> -printf …` (no shell; paths with control characters or `..` are dropped), falling back
+to walking the share if that fails; only files whose size or modification time changed are then read,
+with 1 MB sequential buffers. To keep the cold scan affordable, a line is JSON-parsed only
+when it contains the marker of a record that carries usage (`"assistant"` for Claude Code;
+`token_count`, `turn_context`, `session_meta`, or `thread_settings_applied` for Codex;
+`model_completed` or `route_facts` for Muse Code). Muse Code and Gemini CLI usage follow OpenAI's
+convention where input includes cached input: Muse output includes reasoning, while Gemini reports
+`thoughts` and `tool` tokens separately and they are added to output and input. The Usage report uses
+`contract_version: "4"`, whose `source` values add `kilo`, `muse`, and `gemini_cli`. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 
@@ -120,11 +154,43 @@ is a first-party implementation dependency without a stable public API guarantee
 explicitly unavailable because it routes to multiple independent provider accounts. The quota
 endpoint returns only normalized percentages, reset times, optional plan/credit values, source,
 account ID/label, and freshness; it never returns access tokens or account email. Its quota report
-uses `contract_version: "2"`. A separate OpenCode Go estimate sums only local SQLite token rows for
+uses `contract_version: "3"`. A separate OpenCode Go estimate sums only local SQLite token rows for
 exactly priced models against OpenCode's published per-model dollar caps over rolling 5-hour,
-7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
+7-day periods and a monthly period: the last 30 days, or the current billing cycle when the owner sets
+`openCodeGoRenewalDay` (`OpenCodeGoBillingCycle`, local midnight on the renewal day, clamped to short
+months). Each window reports `starts_at`, and a fixed window its `resets_at`; the quota report uses
+`contract_version: "3"`. It is explicitly estimated and has no provider reset or remaining
 balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
+API accounts are the opt-in exception: pasted provider keys are sealed with the same injected
+protector (DPAPI current user on Windows) before SQLite storage, decrypted only transiently to
+call one fixed `https` URL per provider, and never logged, returned, or embedded in errors or
+snapshots. Outbound calls use a redirect-free, cookie-free client with a 15-second timeout, a
+1 MiB body cap, generic error messages, `Retry-After` honoring (capped at one hour), a
+five-minute per-account snapshot cache with manual refresh limited to once per 60 seconds, a
+per-service gate against stampedes, and no background polling. The billing report uses
+`contract_version: "1"`.
+Each running WSL distribution with a `~/.codex` or `~/.claude` directory adds a discovered account
+(`codex:wsl:<distribution>`, renamable through the same label map as the built-in accounts); an
+account the owner added by hand for the same directory takes its place. Secondary profiles —
+`.codex-<name>` or `.claude-<name>` directories (also with `_`) directly under the native home or
+a running distribution's home that hold that agent's sign-in markers (`auth.json` or `sessions`
+for Codex, `.credentials.json` or `projects` for Claude Code) — are discovered the same way
+(`codex:home:<name>`, `claude_code:wsl:<distribution>:<name>`), listed after the built-ins and
+before hand-added accounts, and counted by Usage. A discovered profile whose directory matches a
+hand-added or built-in profile is listed once, and removing any discovered account records its ID
+until it is restored. Built-in and discovered
+accounts cannot be deleted from config because they are derived, so removing one records its ID in
+`removedQuotaAccounts`, which both Live quota and the account list filter out until it is restored.
+Pointing one at a different directory creates an added account and records the detected ID as
+removed, so there is one representation of an account's directory rather than per-ID overrides.
+Usage reads the ledgers of added accounts as well as the default locations, deduplicating roots by
+path and events by identity, so a profile that is both added and discovered is counted once. A profile on the WSL share
+can also be added by hand, as the one exception to the under-home rule. Codex for such a profile is
+run inside that distribution — `wsl.exe --distribution <name> --exec /bin/sh`, then the user's login,
+interactive shell so version-manager PATH setup applies — with `CODEX_HOME` passed through
+`WSLENV`; the probe ignores non-JSON stdout lines a shell rc file may print. Claude's credential file
+is read through the share like any other.
 
 The Insights Dashboard is a browser-side composition of the existing Overview, Usage, and Live
 quota projections. It keeps their provenance separate: account quota cannot be attributed to
@@ -161,6 +227,15 @@ The portable Core layer validates and imports WAV/MP3 files into a managed per-u
 
 `AgentNotify.Setup` is a WPF per-user installer. `scripts/package.sh` first publishes the tray app and CLI as self-contained single files, then embeds them, the MIT License, the skill, and the offline guide into the self-contained setup executable.
 
+Setup treats a run as an update when this user's uninstall registration names a folder that still
+contains `AgentNotify.Tray.exe`. An update keeps that folder and the startup/shortcut choices and
+does not ask for the licence again. It stops the tray by setting `Local\AgentNotify.Exit.v1`, an
+auto-reset event the single-instance owner creates next to its show-center event; the tray answers
+with the same shutdown as its Exit menu item, and setup kills a tray that has not exited after ten
+seconds. `agentnotify.exe` is never stopped, since an agent may be blocked in it: when a payload
+file is in use, setup renames it to `<name>.<id>.old` (Windows permits renaming a running image),
+moves the new file into place, and deletes those leftovers on the next install or uninstall.
+
 Installed filenames deliberately differ on case-insensitive Windows filesystems:
 
 - `AgentNotify.Tray.exe` — background UI/API process;
@@ -174,7 +249,7 @@ Active attention rows survive restart. Resolved/dismissed rows older than `histo
 
 Custom type definitions live in typed configuration and control label, accent, default priority, enabled state, and lifetime. SQLite rows keep the stable type ID, so removing or disabling presentation policy never makes historical data unreadable. Legacy PascalCase type/duration values are normalized during load.
 
-Delivery schema changes are tracked in `schema_migrations` and applied transactionally. The current schema contains provider profiles, routes, outbox items, and per-attempt diagnostics with foreign keys and due-work indexes. Provider secret dictionaries are encrypted before repository calls with a versioned DPAPI current-user envelope; public profile models contain only secret key names. A portable injected-key AES-GCM implementation exists for tests and future platform keychain adapters, never as an automatic production fallback.
+Delivery schema changes are tracked in `schema_migrations` and applied transactionally. The current schema contains provider profiles, routes, outbox items, and per-attempt diagnostics with foreign keys and due-work indexes. Provider secret dictionaries are encrypted before repository calls with a versioned DPAPI current-user envelope; public profile models contain only secret key names. A portable injected-key AES-GCM implementation exists for tests and future platform keychain adapters, never as an automatic production fallback. Stored API-account keys live in a separate `billing_accounts` table in the same database file (`id`, `provider`, `label`, sealed `encrypted_key`, timestamps), created idempotently; list and snapshot responses carry only the id, provider, label, timestamps, and `has_key`, never the key or any part of it.
 
 After a notification is committed locally, matching enabled routes are idempotently materialized into the SQLite outbox before the API response. This hook performs no network I/O and is failure-isolated from local success. A single background dispatcher atomically claims due work, decrypts credentials only at the adapter boundary, enforces a timeout, records sanitized attempts, applies bounded jittered retry, dead-letters permanent/exhausted failures, and recovers interrupted claims on the next start. Adapter exceptions and response bodies are never written to diagnostics or logs.
 

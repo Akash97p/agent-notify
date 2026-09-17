@@ -9,6 +9,7 @@ using System.Text.Json;
 using AgentNotify.Protocol;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Skills;
+using AgentNotify.Core.Wsl;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Delivery.Channels;
 using AgentNotify.Core.Harness;
@@ -787,6 +788,7 @@ internal static class Program
         var force = false;
         var dryRun = false;
         string? path = null;
+        string? wslName = null;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i].ToLowerInvariant())
@@ -801,6 +803,10 @@ internal static class Program
                     if (i + 1 >= args.Length) return Fail("--path requires a skills directory.");
                     path = args[++i];
                     break;
+                case "--wsl":
+                    if (i + 1 >= args.Length) return Fail("--wsl requires a WSL distribution name.");
+                    wslName = args[++i];
+                    break;
                 case "--force": force = true; break;
                 case "--dry-run": dryRun = true; break;
                 case "--help": case "-h": PrintInstallSkillHelp(); return 0;
@@ -808,11 +814,32 @@ internal static class Program
             }
         }
 
+        // A Windows agentnotify.exe started from WSL would otherwise install into the Windows profile,
+        // where the Linux agent never looks. The WSL wrapper forwards WSL_DISTRO_NAME through WSLENV.
+        var explicitWsl = wslName is not null;
+        var callerDistribution = Environment.GetEnvironmentVariable("WSL_DISTRO_NAME");
+        if (!explicitWsl && path is null && !projectScope && OperatingSystem.IsWindows() &&
+            WslPath.IsValidDistributionName(callerDistribution))
+            wslName = callerDistribution;
+        WslHome? wslHome = null;
+        if (wslName is not null)
+        {
+            if (!OperatingSystem.IsWindows()) return Fail("--wsl is only available on Windows.");
+            if (path is not null || projectScope) return Fail("--wsl cannot be combined with --path or --scope project.");
+            wslHome = WslDiscovery.Default.RunningHomes().FirstOrDefault(home =>
+                string.Equals(home.Distribution, wslName, StringComparison.OrdinalIgnoreCase));
+            if (wslHome is null)
+                return Fail($"WSL distribution '{wslName}' is not running, or its home directory could not be read.");
+            if (!explicitWsl)
+                Console.WriteLine($"Started from WSL ({wslHome.Distribution}): installing under {wslHome.LinuxHome}. Pass --path to choose another folder.");
+        }
+
         try
         {
             var skillsRoot = path ?? AgentSkillCatalog.DefaultSkillsRoot(
                 agent,
-                projectScope ? Directory.GetCurrentDirectory() : null);
+                projectScope ? Directory.GetCurrentDirectory() : null,
+                wslHome?.WindowsHome);
             var result = SkillInstaller.Install(
                 agent.DisplayName, skillsRoot, SkillPayload.For(agent), force, dryRun);
             if (result.Success)
@@ -882,6 +909,11 @@ internal static class Program
 
         if (askMode && target.Id != HarnessCatalog.Codex.Id && target.Id != HarnessCatalog.ClaudeCode.Id)
             return Fail("--ask is only supported for codex and claude: only their permission-request decision schemas are verified.");
+
+        if (path is null && OperatingSystem.IsWindows() &&
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WSL_DISTRO_NAME")))
+            Console.Error.WriteLine(
+                "warning: install-harness installs into the Windows profile. Agents running inside WSL will not load it.");
 
         try
         {
@@ -1788,6 +1820,7 @@ internal static class Program
             Options:
               --scope user|project   Install for the current user (default) or current project
               --path DIRECTORY      Override the agent's skills root directory
+              --wsl DISTRIBUTION    Install for the agent inside a running WSL distribution (Windows)
               --force               Replace changed AgentNotify skill files
               --dry-run             Print the destination without writing files
 
@@ -1797,6 +1830,9 @@ internal static class Program
               OpenCode     ~/.config/opencode/skill/agentnotify
 
             Any other agent: pass --path with the folder it loads skills from.
+
+            Run from WSL through the agentnotify wrapper, the skill goes into that distribution's
+            home instead of the Windows profile.
             """);
     }
 

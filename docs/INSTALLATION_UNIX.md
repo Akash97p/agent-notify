@@ -29,7 +29,7 @@ published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an e
 To install elsewhere or pin a version:
 
 ```sh
-AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.1.0-alpha.3 sh install.sh
+AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.1.0-alpha.4 sh install.sh
 ```
 
 ### Manual install

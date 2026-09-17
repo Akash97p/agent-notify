@@ -1,7 +1,9 @@
+using AgentNotify.Core.Billing;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Usage;
 using AgentNotify.Core.Quota;
+using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.Api.WebUi;
 
@@ -21,6 +23,21 @@ public sealed class WebUiOptions
 
     /// <summary>Optional live account-quota reader; the default uses local agent credentials/CLI.</summary>
     public LiveQuotaService? Quota { get; init; }
+
+    /// <summary>Optional stored provider-key balance reader; the default uses the config database.</summary>
+    public BillingService? Billing { get; init; }
+
+    /// <summary>
+    /// Running WSL distributions whose agents' usage, quota, and skill folders are included. The
+    /// default discovers them on Windows and finds none elsewhere.
+    /// </summary>
+    public IWslEnvironment? Wsl { get; init; }
+
+    /// <summary>
+    /// Native home scanned for secondary Codex/Claude Code profiles. The real user profile is
+    /// used when null; tests pass an isolated directory.
+    /// </summary>
+    public string? NativeHome { get; init; }
 
     /// <summary>How provider secrets are protected on this machine, as shown to the user.</summary>
     public string SecretProtection { get; init; } = "";

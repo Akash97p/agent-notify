@@ -33,6 +33,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private DeliveryDispatcher? _dispatcher;
     private InteractionResponsePoller? _interactionResponsePoller;
     private IReadOnlyList<IOutboundChannelAdapter>? _adapters;
+    private AgentNotify.Core.Billing.BillingService? _billingService;
     private WebApplication? _api;
 
     private BrokerRuntime(
@@ -106,6 +107,11 @@ public sealed class BrokerRuntime : IAsyncDisposable
         var protector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var protection);
         Protection = protection;
 
+        var billingRepository = new AgentNotify.Core.Billing.BillingAccountRepository(_configStore.DbPath);
+        await billingRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, protector);
+        _billingService = billingService;
+
         var profiles = new ProviderProfileService(_deliveryRepository, protector);
         _adapters = ChannelAdapterFactory.CreateAll();
         _dispatcher = new DeliveryDispatcher(_deliveryRepository, profiles, _adapters, _logger);
@@ -141,6 +147,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
             Providers = profiles,
             Routes = new DeliveryRouteService(_deliveryRepository),
             Dispatcher = _dispatcher,
+            Billing = billingService,
             SecretProtection = protection.Description,
             DesktopSurface = DesktopSurfaceName(_notifier.Name),
             // Toast placement and sounds belong to the Windows tray app; the portable broker hands
@@ -259,6 +266,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
             foreach (var adapter in _adapters)
                 try { (adapter as IDisposable)?.Dispose(); } catch { }
         }
+
+        try { _billingService?.Dispose(); } catch { }
 
         _logger.Info("agentnotifyd stopped");
         _logger.Dispose();

@@ -593,15 +593,19 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .account-manager > summary > div { display: grid; gap: 2px; }
 .account-manager-body { display: grid; gap: 17px; padding: 0 17px 18px; border-top: 1px solid var(--border); }
 .account-manage-list { display: grid; }
-.account-manage-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(280px, 1.35fr); align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.account-manage-row { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(260px, 2fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.account-removed-row { grid-template-columns: minmax(0, 1fr) auto; }
 .account-manage-title { min-width: 0; display: grid; gap: 2px; }
-.account-manage-actions { display: grid; grid-template-columns: minmax(100px, 1fr) auto auto; gap: 6px; align-items: center; }
+.account-manage-fields { min-width: 0; display: grid; grid-template-columns: minmax(100px, 0.6fr) minmax(140px, 1.4fr); gap: 6px; }
+.account-manage-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 .account-add { padding-top: 2px; }
+.go-renewal { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.go-renewal label { display: inline-flex; align-items: center; gap: 6px; }
+.go-renewal .go-renewal-day { width: 5.5em; }
 .account-add > .btn { justify-self: start; }
 @media (max-width: 720px) {
-  .account-manage-row { grid-template-columns: minmax(0, 1fr); }
-  .account-manage-actions { grid-template-columns: minmax(0, 1fr) auto; }
-  .account-manage-actions .btn-ghost { grid-column: 2; }
+  .account-manage-row, .account-manage-fields { grid-template-columns: minmax(0, 1fr); }
+  .account-manage-actions { justify-content: flex-start; }
 }
 
 .compact-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }

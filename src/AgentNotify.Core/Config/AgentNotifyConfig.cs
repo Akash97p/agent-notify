@@ -63,6 +63,12 @@ public sealed class AgentNotifyConfig
     /// <summary>Owner-chosen labels for the built-in Codex and Claude profiles.</summary>
     public Dictionary<string, string> DefaultQuotaAccountLabels { get; set; } = new(StringComparer.Ordinal);
 
+    /// <summary>The day of the month (1–31) the owner's OpenCode Go plan renews, when they set it.</summary>
+    public int? OpenCodeGoRenewalDay { get; set; }
+
+    /// <summary>Built-in and discovered WSL account IDs the owner removed from Live quota.</summary>
+    public List<string> RemovedQuotaAccounts { get; set; } = [];
+
     public int ToastDurationSeconds(NotificationType type)
         => ToastDurationSeconds(NotificationTypes.FromBuiltIn(type));
 
@@ -132,10 +138,14 @@ public sealed class AgentNotifyConfig
         QuotaAccounts ??= [];
         DefaultQuotaAccountLabels ??= new(StringComparer.Ordinal);
         DefaultQuotaAccountLabels = DefaultQuotaAccountLabels
-            .Where(item => item.Key is "codex" or "claude_code")
+            .Where(item => item.Key is "codex" or "claude_code" || QuotaAccountDefinition.IsWslAccountId(item.Key) ||
+                QuotaAccountDefinition.IsHomeAccountId(item.Key))
             .Select(item => new KeyValuePair<string, string?>(item.Key, QuotaAccountDefinition.TryNormalizeLabel(item.Value)))
             .Where(item => item.Value is not null)
             .ToDictionary(item => item.Key, item => item.Value!, StringComparer.Ordinal);
+        if (!Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(OpenCodeGoRenewalDay)) OpenCodeGoRenewalDay = null;
+        RemovedQuotaAccounts = (RemovedQuotaAccounts ?? []).Where(QuotaAccountDefinition.IsDetectedAccountId)
+            .Distinct(StringComparer.Ordinal).Take(64).ToList();
         var normalizedQuotaAccounts = new List<QuotaAccountDefinition>();
         foreach (var account in QuotaAccounts.Take(16))
             if (QuotaAccountDefinition.TryNormalizeExisting(account, normalizedQuotaAccounts, out var normalized))

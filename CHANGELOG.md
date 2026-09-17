@@ -9,6 +9,69 @@ The release workflow reads the section for the tagged version out of this file a
 release description, so each entry should be written for someone deciding whether to install the
 build.
 
+## [Unreleased]
+
+## [0.1.0-alpha.4] - 2026-09-17
+
+This release is mostly about seeing where coding-agent time and money go on a Windows machine whose
+agents run inside WSL, and across more agents and providers.
+
+### Added
+
+- **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
+  include every running WSL distribution: agent history from its home, a quota card for each
+  `~/.codex` and `~/.claude` found there (Codex is asked from inside the distribution), and skill
+  installs labelled `WSL · <distribution>` in the web interface and the tray's Settings. The home is
+  the default user's — the one named by `[user] default=` in `/etc/wsl.conf` when set, otherwise the
+  registered default user. A WSL profile such as `\\wsl.localhost\Ubuntu\home\you\.codex` can also be
+  added by hand, and `agentnotify.exe install-skill <agent> --wsl <distribution>` installs from the
+  command line (the WSL wrapper picks the calling distribution). Stopped distributions are not read,
+  so opening the dashboard never starts one.
+- **Usage now includes Muse Code, the Kilo CLI, and the Gemini CLI**, natively and inside WSL,
+  grouped by project.
+- **Cost estimates cover far more models, priced per request.** Official rates were added for
+  GPT-5.5, GPT-5.4 (and Mini/Nano), GPT-5.3/5.2/5.1 Codex, GPT-5.1 Codex Max, GPT-5 Codex, Meta Muse
+  Spark 1.1–1.3 (standard and Contributor), Gemini 2.5 Pro/Flash and 3.x, Z.ai GLM-5.x/4.7, Xiaomi
+  MiMo V2.5, OpenCode Zen and Kilo free models, and DeepSeek V4 on OpenCode Go. Long-context requests,
+  Codex fast mode, and OpenCode Go peak hours use the rate that actually applied.
+- **API accounts show provider balances and spend.** Store a DeepSeek, Kimi, SiliconFlow, or
+  OpenRouter API key, or an OpenAI or Anthropic Admin key, and Live quota shows that account's balance
+  or spend from the provider's official endpoint, leading with one balance per card at the top of the
+  page. Keys are encrypted for this user, never shown again, and need an explicit risk
+  acknowledgement. Meta, Z.ai, Xiaomi, Google, and xAI offer no usable official endpoint and are not
+  listed.
+- **Secondary Codex and Claude Code profiles are found automatically.** A `.codex-<name>` or
+  `.claude-<name>` folder (also with `_`) directly under your home or a running WSL distribution's
+  home appears as its own Live quota card once it holds that agent's sign-in, with its history in
+  Usage.
+- **The OpenCode Go monthly estimate can follow your billing cycle.** Set the day your plan renews
+  and the monthly bar counts from the latest renewal and shows when it resets.
+
+### Changed
+
+- **Every Live quota account can be edited or removed.** Each account — including the built-in and
+  discovered ones — has an editable name and profile directory and a **Remove** button; removed
+  detected accounts can be restored. Usage also counts the history of profiles added by hand.
+- **Updating no longer starts from scratch.** Running a newer `AgentNotifySetup.exe` finds the
+  existing installation and offers **Update AgentNotify**: it keeps the install folder and
+  startup/shortcut choices, does not ask for the licence again, and stops and restarts AgentNotify
+  cleanly. An `agentnotify.exe` an agent is still waiting on is replaced without being killed.
+  `AgentNotifySetup.exe --silent` updates without `--accept-license`; `--no-launch` leaves the tray
+  stopped.
+- **Scanning agent history inside WSL is much faster.** Files are listed from inside the
+  distribution and read in large chunks, and only lines that can carry usage are parsed. On a machine
+  with about 4.8 billion tokens of WSL history a first scan fell from over six minutes to about two,
+  and later visits take about a second. Parsed history is still kept only in memory, so the first
+  visit after AgentNotify starts pays that scan.
+- The Usage response is now `contract_version: "4"` and the Live quota response
+  `contract_version: "3"`; the web interface and broker must be updated together.
+
+### Fixed
+
+- **Usage and Live quota no longer take half a minute on every visit when OpenCode runs in WSL**, and
+  OpenCode usage there is no longer silently missing: its database was queried page by page over the
+  WSL share and could time out. It is now re-read only when it changes, from a quick local copy.
+
 ## [0.1.0-alpha.3] - 2026-09-16
 
 ### Added
@@ -390,6 +453,7 @@ First published prerelease.
 - A single self-contained `AgentNotifySetup.exe` per-user installer with an offline getting-started
   page.
 
+[0.1.0-alpha.4]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.4
 [0.1.0-alpha.3]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.3
 [0.1.0-alpha.2]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.1

@@ -1557,6 +1557,217 @@ by CI, not executed. Everything listed as unverified in the section above still 
 surface has been looked at, no live Relay has been contacted with the hosted-only client, and no
 phone has answered an ARC 0.2 request end to end. The binaries remain unsigned.
 
+## WSL agent discovery (`feature/wsl-agent-discovery`, 2026-09-16)
+
+Environment: macOS (Darwin 25.6), .NET SDK 10.0.401 at `~/.dotnet`. There is no Windows machine or
+WSL in this session, so the repository scripts were not used and `WslDiscovery` itself returns
+nothing here.
+
+Ran:
+
+- `dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj -c Release` — **933 passed, 0 failed,
+  0 skipped**, up from 915 on `dev` on the same machine. New coverage: share-path parsing, UTF-8 and
+  UTF-16 `wsl --list` output, `/etc/passwd` home lookup, usage from a fake WSL home including a Linux
+  project path and a distribution that stops, discovered/hand-added/renamed WSL quota accounts,
+  label normalization, the skills-root home override, the Codex-in-WSL start arguments and
+  `WSLENV`, and web interface skill installs by distribution name (including a stopped one).
+- Release builds of `AgentNotify.Tests`, `AgentNotify.Host`, `AgentNotify.Cli`, and
+  `AgentNotify.App` (`-p:EnableWindowsTargeting=true`) — **0 warnings, 0 errors**.
+- `node --check` on the four edited web interface modules and `bash -n scripts/agentnotify`.
+
+Not verified — none of this has run on Windows or WSL:
+
+- Registry enumeration, `wsl.exe --list --running` on a real machine, and reading `/etc/passwd` and
+  agent logs through `\\wsl.localhost`.
+- That a stopped distribution is left stopped when the pages load.
+- The Codex app server started through `wsl.exe` and a login, interactive shell (including nvm), and
+  Claude quota read through the share.
+- SQLite reading OpenCode's database over the WSL share.
+- The Agents page, Live quota account list, Usage "Includes WSL" line, and the WPF Install tab's WSL
+  rows were not rendered.
+- `install-skill --wsl` and the wrapper's `WSL_DISTRO_NAME` forwarding.
+
+## In-place installer update (`feature/installer-in-place-update`, 2026-09-16)
+
+Environment: macOS (Darwin 25.6), .NET SDK 10.0.401 at `~/.dotnet`. There is no Windows machine or
+WSL in this session, so the repository scripts were not used.
+
+Ran:
+
+- `dotnet build src/AgentNotify.Setup/AgentNotify.Setup.csproj -c Release -p:EnableWindowsTargeting=true`
+  — **0 warnings, 0 errors**, including XAML markup compilation of the renamed/new `x:Name` elements.
+- `dotnet build src/AgentNotify.App/AgentNotify.App.csproj -c Release -p:EnableWindowsTargeting=true`
+  — **0 warnings, 0 errors**.
+
+Not verified — none of this has run on Windows:
+
+- Update detection from the uninstall registration, the update-mode window layout (collapsed licence
+  panel, read-only folder, version line), and the finish/relaunch actions.
+- That the tray receives `Local\AgentNotify.Exit.v1` and exits cleanly, and the kill fallback
+  against an alpha.3 tray that has no such event.
+- Renaming an in-use `agentnotify.exe` during an update, and deleting the `.old` leftover on the next
+  install and in `uninstall.ps1`.
+- Silent update, relaunch, and `--no-launch`.
+- Packaging was not run, so no installer containing this change exists yet.
+
+## WSL discovery on a real Windows machine (`fix/wsl-default-user`, 2026-09-17)
+
+Environment: Windows 11 host with WSL 2.7.11 running `Ubuntu-20.04`, WSL workspace, Windows .NET SDK
+at `/mnt/d/dev/dotnet/dotnet.exe`. The distribution sets its user through `/etc/wsl.conf`
+(`[user] default=akash`); its `Lxss` registry entry has `DefaultUid` `0`.
+
+At `a19304e` (`dev`) the repository scripts ran: `scripts/build.sh` **0 warnings, 0 errors**,
+`scripts/test.sh` **933 passed, 0 failed, 0 skipped**, and `scripts/package.sh` produced
+`artifacts/AgentNotifySetup.exe`. The owner installed that build and reported:
+
+- Adding `\\wsl.localhost\Ubuntu-20.04\home\akash\.codex` and `...\.claude` by hand on Live quota
+  worked; both cards showed **Live** with real 5-hour and 7-day balances, so Codex's app server ran
+  inside the distribution and the Claude credentials were read through the share.
+- No WSL account was discovered automatically, and the dashboard showed no usage (0 tokens,
+  0 sessions) although agents run in that distribution.
+
+Cause, confirmed on this machine: `wsl.exe --list --running --quiet` does list `Ubuntu-20.04` (as
+UTF-16LE without a byte-order mark, which the parser handles), but discovery took the home of
+`DefaultUid` `0`, `/root`. The installed `agentnotify.exe install-skill claude --wsl Ubuntu-20.04
+--dry-run` reported `\\wsl.localhost\Ubuntu-20.04\root\.claude\skills\agentnotify`.
+
+After the fix (default user read from `/etc/wsl.conf`, falling back to `DefaultUid`) the same
+dry run from the fixed CLI build reported
+`\\wsl.localhost\Ubuntu-20.04\home\akash\.claude\skills\agentnotify`. `WslTests` pass, including
+new `wsl.conf` parsing and passwd lookup by name.
+
+Not verified yet: discovered quota cards and WSL usage in an installed build with this fix, and a
+distribution without `wsl.conf`. Linux and macOS are unaffected (discovery is Windows-only).
+
+## Editable and removable Live quota accounts (`feature/editable-quota-accounts`, 2026-09-17)
+
+Environment: the same Windows 11 host and WSL workspace, repository scripts.
+
+Ran:
+
+- `scripts/build.sh` — **0 warnings, 0 errors**. `scripts/test.sh` — **945 passed, 0 failed,
+  0 skipped**. New coverage: removing, restoring, renaming, and moving built-in and discovered WSL
+  accounts through the web API (including refusing a directory another account already monitors and
+  a relative path), removed IDs filtered from the live quota report, config normalization of
+  `removedQuotaAccounts`, and Usage reading a hand-added profile's ledger while counting a
+  directory that is both added and discovered once.
+- `node --check` on `quota.js`.
+
+Not verified: the Manage accounts layout (desktop and narrow widths) has not been looked at in a
+browser, and the installed build has not yet shown discovered WSL cards or WSL usage. Packaging
+produced a new `artifacts/AgentNotifySetup.exe` for the owner to test.
+
+## OpenCode usage over the WSL share (`fix/opencode-usage-over-wsl`, 2026-09-17)
+
+Environment: the same Windows 11 host; `Ubuntu-20.04` holds ~1 GB of Codex JSONL (331 files, the
+largest 256 MB), 72 MB of Claude Code JSONL, and a 261 MB OpenCode database with a 10 MB WAL.
+
+The owner reported that every Insights tab loaded for minutes after the WSL discovery fix. Measured
+against the installed build with `curl.exe`: the first `/ui/api/usage?days=30` took **123 s**, and
+every later `/usage` and `/quota` call still took **~30 s**, while `/overview` and `/quota/accounts`
+answered in milliseconds. Reading the whole database sequentially through `\\wsl.localhost` took
+1.8 s and listing the JSONL files 0.6 s, so the time was SQLite's page-level reads over the share,
+repeated on every request (JSONL results were already cached). That installed build also reported
+`files_skipped: 1` and no OpenCode source at all: the query was failing.
+
+The fixed `agentnotifyd` was run from the build output on port 47899 with a throwaway
+`--config-dir`, next to the installed tray:
+
+- `/usage?days=30`: **62 s** cold (JSONL parsing), then **0.45 s** and **0.40 s**. `/quota`: 2.2 s
+  (live account probes), then 0.008 s.
+- Claude Code and Codex totals were identical to the installed broker's. OpenCode now appeared with
+  **1,866 events and 228,606,112 tokens**, exactly what a native Python read of the same database
+  in WSL counted for the last 30 days. `files_skipped` was 0, and no snapshot directory remained in
+  `%TEMP%`.
+- `scripts/build.sh` **0 warnings, 0 errors**. One `scripts/test.sh` run failed a single test whose
+  name was not captured; four reruns passed. Two same-sized writes within one clock tick would leave
+  size and modification time unchanged, so the cache stamp now also includes the SQLite header's
+  change counter and the WAL header. After that, `scripts/test.sh` passed **945 of 945 in five
+  consecutive runs**, and the broker was measured again: 60 s cold, then 0.48 s and 0.43 s, 7,571
+  events, nothing skipped.
+
+Not verified: a cold load is still about a minute after each broker start, because parsed JSONL is
+held only in memory; the installed tray with this build; and a snapshot taken during an OpenCode
+checkpoint.
+
+## Model pricing, Muse Code / Kilo CLI / Gemini CLI usage (`feature/model-pricing`, `feature/more-agent-usage`, 2026-09-17)
+
+Environment: the same Windows 11 host and `Ubuntu-20.04`. Rates were read on 2026-09-17 from the
+official pages linked in `docs/WEB_UI.md` (OpenAI pricing and model pages, Meta Model API, Gemini API
+pricing and Gemini 3 guide, Z.ai, Xiaomi MiMo pay-as-you-go, OpenCode Zen and Go). Gemini 3 Pro
+Preview and Poolside Laguna have no official rate page and stay unpriced.
+
+Ran:
+
+- `scripts/build.sh` **0 warnings, 0 errors**; `scripts/test.sh` **978 passed, 0 failed, 0 skipped**
+  (new: per-provider rates, free models, long-context and fast tiers, Go peak hours, Muse sessions
+  with a subagent, Gemini chats with `projects.json`, a Kilo database, and the native `find` listing
+  parser).
+- Local data found on this machine: Muse Code (5,673 session files, 5,639 of them subagents), Kilo CLI
+  (`kilo.db`, 279 MB), Gemini CLI (22 chat files in WSL, 6 on Windows). Antigravity and Windsurf
+  conversation stores are opaque binary; Cursor, Kiro, Copilot, and the Kilo VS Code extension hold
+  no per-request token counts; Cline's CLI data held no tasks.
+- An independent Python recount inside WSL matched the fixed broker exactly for Muse Code
+  (9,571 calls, 1,037,211,966 tokens) and Gemini CLI (325 messages, 17,524,462 tokens); Kilo differed
+  by 143,839 tokens from a recount taken minutes earlier while Kilo was in use.
+- `agentnotifyd` from the build output on port 47899, `/ui/api/usage?days=all`: before the listing
+  and buffer changes, **401 s** cold and **9.9 s** warm (walking 6,699 Muse files through the share
+  alone took 10.4 s). After them, **132 s** cold, then **1.06 s** and **0.82 s**, with identical
+  totals: 48,660 events, 7,064 files, nothing skipped, **$2,535.94** API-equivalent (was $1,441.76
+  with the old catalog), 56.9M of 4.8B tokens unpriced (Codex records before a model is known, Gemini
+  3 Pro Preview, Poolside Laguna, a custom OpenCode provider).
+- A 30-day Codex check found 4 turns in fast mode (`service_tier: priority`) and no GPT-5.5/5.4
+  request above 272K input tokens.
+
+Not verified: the installed tray with these builds; macOS and Linux locations for Muse Code (only the
+XDG default is read); Gemini CLI projects whose folder is a hash not listed in `projects.json`; a cold
+scan is still over two minutes on this machine because parsed history is kept only in memory.
+`CrossPlatformTests.ConfigStore_WritesTheTokenFileOwnerOnlyOnUnix` failed once in a full run on the
+profiles worktree and passed alone and in two further full runs; it is unrelated to these changes.
+
+## OpenCode Go billing cycle (`feature/opencode-go-renewal`, 2026-09-17)
+
+Environment: the same Windows 11 host and WSL workspace. `scripts/build.sh` **0 warnings, 0 errors**;
+`scripts/test.sh` **1,019 passed, 0 failed, 0 skipped**. New coverage: the cycle calculation around the
+renewal day, month ends, leap years, and a year boundary in a fixed +05:30 zone; config normalization;
+the monthly window counting only the current cycle with `starts_at`/`resets_at`; and the renewal-day
+API including validation and the cross-origin refusal. `node --check` passed for `quota.js` and
+`insights.js`.
+
+Not verified: the renewal control has not been looked at in a browser, and no real OpenCode Go
+console figure has been compared with the estimate. OpenCode's documentation does not state whether
+its 5-hour and weekly limits roll or reset at fixed times, or the exact renewal time of day.
+## API accounts (`feature/api-billing-accounts`, 2026-09-17)
+
+Automated verification only:
+
+- `./scripts/build.sh` — 0 warnings, 0 errors.
+- `./scripts/test.sh` (worker run) — 1035 passed, 0 failed, 0 skipped, including new per-provider parsing
+  (DeepSeek, Moonshot, SiliconFlow, OpenRouter, OpenAI/Anthropic pagination and cents
+  conversion), error mapping (401, 404, 429 with `Retry-After`, 500, oversize body, invalid
+  JSON, timeout), redirect handling, key-absence in endpoint JSON/snapshots/database bytes,
+  acknowledgement, validation, rename/key-replacement, delete, cache/refresh throttling, and
+  WebUI endpoint coverage.
+- No live provider was called: every provider response in tests comes from a fake
+  `HttpMessageHandler`.
+
+Not verified: a human visual check of the API accounts cards and the Manage form in a browser,
+including a narrow window; a real key against any provider; and whether Anthropic's cost report
+amounts are cents as its guide states. Endpoint shapes come from the providers' official
+documentation (DeepSeek, Moonshot/Kimi, SiliconFlow, OpenRouter, OpenAI Costs API, Anthropic Usage
+and Cost API) read on 2026-09-17; OpenAI's pagination fields were not shown there and are treated
+as optional.
+
+The implementation was written by a delegated worker and reviewed before merging. Review fixes:
+negative balances (Moonshot documents a non-positive available balance) were rejected as unreadable
+and are now reported; a stored key that cannot be decrypted produced "could not be reached" and now
+asks for the key to be replaced, without any request being sent; OpenAI and Anthropic date ranges
+used the system clock instead of the injected one; the default service silently fell back to a
+throwaway in-memory encryption key when the secret protector could not be created, which would have
+stored keys no later start could decrypt, and now fails instead; and the API accounts section
+blocked the whole Live quota page until every provider answered, and now loads on its own. After
+the fixes `scripts/test.sh` passed **1,037 of 1,037** on the branch.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
@@ -1564,6 +1775,11 @@ These need the repository owner and a real machine; nothing in CI can close them
 - The human WPF checks listed earlier in this file, for the settings theme and the
   built-in tones. No visual surface has been confirmed by a person.
 - A human visual check of the new Usage page, including a narrow browser window.
+- A human visual check of Live quota's Manage accounts, API accounts, and the OpenCode Go renewal
+  control on Windows, including a narrow window. The owner has used these on the tray-hosted
+  interface and reported them working.
+- API accounts against real OpenAI and Anthropic Admin keys, Kimi, SiliconFlow, and OpenRouter; only
+  DeepSeek has been checked with a real key.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,

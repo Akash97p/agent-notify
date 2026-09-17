@@ -5,8 +5,10 @@ const fmt = new Intl.NumberFormat();
 const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 const usd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const smallUsd = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 });
-const sourceName = (source) => source === "claude_code" ? "Claude Code" : source === "codex" ? "Codex" : source === "opencode" ? "OpenCode" : source;
-const providerName = (provider) => provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : provider === "opencode-go" ? "OpenCode Go" : provider;
+const sourceNames = { claude_code: "Claude Code", codex: "Codex", opencode: "OpenCode", kilo: "Kilo", muse: "Muse Code", gemini_cli: "Gemini CLI" };
+const providerNames = { openai: "OpenAI", anthropic: "Anthropic", "opencode-go": "OpenCode Go", opencode: "OpenCode Zen", meta: "Meta", google: "Google", zai: "Z.ai", xiaomi: "Xiaomi", kilo: "Kilo" };
+const sourceName = (source) => sourceNames[source] ?? source;
+const providerName = (provider) => providerNames[provider] ?? provider;
 const n = (value) => fmt.format(value || 0);
 const short = (value) => compact.format(value || 0);
 const money = (value) => value > 0 && value < 0.0001 ? "<$0.0001" : value > 0 && value < 0.01 ? smallUsd.format(value) : usd.format(value || 0);
@@ -114,13 +116,14 @@ export default {
     refresh.addEventListener("click", load);
 
     function draw(data) {
-      if (data.contract_version !== "2") throw new Error("The Usage page and broker need to be updated together.");
+      if (data.contract_version !== "4") throw new Error("The Usage page and broker need to be updated together.");
       const counts = data.totals;
       mount(page,
         pageHead("Usage", "Local activity with API-equivalent token cost.",
           h("div", { class: "row" }, periodControl, refresh)),
+        data.wsl_distributions.length ? h("p", { class: "muted small", text: `Includes WSL: ${data.wsl_distributions.join(", ")}` }) : null,
         data.files_skipped ? notice(`${data.files_skipped} local usage store(s) could not be read, so totals may be incomplete.`, "warn") : null,
-        data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code, Codex, or OpenCode on this computer, then refresh.", "pulse") }) : [
+        data.events === 0 ? card({ body: empty("No usage records found", "Use Claude Code, Codex, OpenCode, Kilo, Muse Code, or the Gemini CLI on this computer, then refresh.", "pulse") }) : [
           h("div", { class: "stats usage-stats compact-stats" },
             metric("Tokens", short(counts.total), `${n(data.events)} usage records`),
             metric("API-equivalent cost", money(data.cost.priced_usd), data.cost.complete ? "All local records priced" : "Priced local records"),
@@ -142,10 +145,12 @@ export default {
                 h("dt", { text: "Cache write" }), h("dd", { text: n(counts.cache_write) }),
                 h("dt", { text: "Output" }), h("dd", { text: n(counts.output) }),
                 h("dt", { text: "Reasoning" }), h("dd", { text: `${n(counts.reasoning)} · included in output where the provider reports it that way` })),
-              h("p", { class: "muted small", text: "OpenAI and Claude use standard API rates. OpenCode Go uses published quota-equivalent token rates. Estimates exclude plan allowances, Fast/Batch, long-context premiums, tools, taxes, and discounts." }),
+              h("p", { class: "muted small", text: "Each record uses its provider's standard API rate, including long-context and fast-mode rates where they applied. OpenCode Go uses published quota-equivalent token rates; OpenCode Zen and Kilo free models cost nothing. Estimates exclude plan allowances, Batch, tools, taxes, and discounts." }),
               h("div", { class: "row" },
-                h("a", { href: "https://developers.openai.com/api/docs/models", target: "_blank", rel: "noopener noreferrer", text: "OpenAI prices ↗" }),
+                h("a", { href: "https://developers.openai.com/api/docs/pricing", target: "_blank", rel: "noopener noreferrer", text: "OpenAI prices ↗" }),
                 h("a", { href: "https://platform.claude.com/docs/en/about-claude/pricing", target: "_blank", rel: "noopener noreferrer", text: "Claude prices ↗" }),
+                h("a", { href: "https://developer.meta.com/ai/products/meta-model-api/", target: "_blank", rel: "noopener noreferrer", text: "Meta prices ↗" }),
+                h("a", { href: "https://ai.google.dev/gemini-api/docs/pricing", target: "_blank", rel: "noopener noreferrer", text: "Gemini prices ↗" }),
                 h("a", { href: "https://opencode.ai/docs/go/", target: "_blank", rel: "noopener noreferrer", text: "OpenCode Go prices ↗" }))))
         ],
         h("p", { class: "muted small page-footnote", text: `${n(data.files_scanned)} local usage stores checked · refreshed ${new Date(data.scanned_at).toLocaleString()}. Prompt and response text never leaves the broker.` }));

@@ -13,6 +13,7 @@ using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Usage;
 using AgentNotify.Core.Quota;
+using AgentNotify.Core.Wsl;
 using Microsoft.AspNetCore.Builder;
 
 namespace AgentNotify.Tests;
@@ -54,10 +55,15 @@ public sealed class WebUiTests : IAsyncLifetime
             Usage = new LocalUsageService([Path.Combine(_dir, "usage-claude")], [Path.Combine(_dir, "usage-codex")],
                 Path.Combine(_dir, "usage-opencode.db")),
             Quota = new LiveQuotaService([new WebQuotaProbe()]),
+            // Never the real discovery: a Windows test machine may have WSL distributions running.
+            Wsl = new FakeWsl(new WslHome("Ubuntu-Test", "/home/tester", Path.Combine(_dir, "wsl-home"))),
+            // Never the real home either: it may hold secondary profiles on a developer machine.
+            NativeHome = Path.Combine(_dir, "native-home"),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
         };
+        Directory.CreateDirectory(Path.Combine(_dir, "native-home"));
         _app = ApiHost.Build(_config, repository, new NotificationService(repository, _config), url: Base,
             interactions: new InteractionService(interactionRepository), webUi: options);
         await _app.StartAsync();
@@ -127,8 +133,8 @@ public sealed class WebUiTests : IAsyncLifetime
         var body = JsonDocument.Parse(text).RootElement;
         Assert.Equal(15, body.GetProperty("totals").GetProperty("total").GetInt64());
         Assert.Equal(0.000135m, body.GetProperty("cost").GetProperty("priced_usd").GetDecimal());
-        Assert.Equal("2026-09-14", body.GetProperty("pricing_as_of").GetString());
-        Assert.Equal("2", body.GetProperty("contract_version").GetString());
+        Assert.Equal("2026-09-17", body.GetProperty("pricing_as_of").GetString());
+        Assert.Equal("4", body.GetProperty("contract_version").GetString());
         Assert.Single(body.GetProperty("projects").EnumerateArray());
         Assert.Equal("claude_code", body.GetProperty("sources")[0].GetProperty("source").GetString());
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.GetAsync("/ui/api/usage?days=1")).StatusCode);
@@ -187,6 +193,21 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OpenCodeGoRenewalDayCanBeSetAndCleared()
+    {
+        using var browser = Page();
+        var saved = await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 5 });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal(5, new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 32 })).StatusCode);
+        Assert.Equal(5, new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = (int?)null })).StatusCode);
+        Assert.Null(new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        using var otherPage = Browser().Client;
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 1 })).StatusCode);
+    }
+
+    [Fact]
     public async Task AdditionalQuotaAccountCanBeAddedListedAndRemovedWithoutCredentials()
     {
         using var browser = Page();
@@ -219,6 +240,127 @@ public sealed class WebUiTests : IAsyncLifetime
             new { provider = "codex", label = "Duplicate", directory })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/" + id)).StatusCode);
         Assert.Empty(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+    }
+
+    [Fact]
+    public async Task DetectedQuotaAccountsCanBeRemovedRestoredAndMoved()
+    {
+        using var browser = Page();
+        Directory.CreateDirectory(Path.Combine(_dir, "wsl-home", ".claude"));
+        static string[] Ids(JsonElement list, string property) =>
+            list.GetProperty(property).EnumerateArray().Select(item => item.GetProperty("id").GetString()!).ToArray();
+
+        var listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "claude_code:wsl:Ubuntu-Test"], Ids(listed, "accounts"));
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/claude_code:wsl:Ubuntu-Test")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.DeleteAsync("/ui/api/quota/accounts/claude_code:wsl:Ubuntu-Test")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/claude_code:wsl:Ubuntu-Test",
+            new { label = "Hidden" })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default"], Ids(listed, "accounts"));
+        var removed = Assert.Single(listed.GetProperty("removed").EnumerateArray());
+        Assert.Equal("Ubuntu-Test", removed.GetProperty("wsl").GetString());
+        Assert.Equal(["claude_code:wsl:Ubuntu-Test"], new ConfigStore(_dir, applyEnvOverrides: false).Load().RemovedQuotaAccounts);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync("/ui/api/quota/accounts/claude_code:wsl:Ubuntu-Test/restore", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.PostAsJsonAsync("/ui/api/quota/accounts/claude_code:wsl:Ubuntu-Test/restore", new { })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(3, listed.GetProperty("accounts").GetArrayLength());
+        Assert.Empty(listed.GetProperty("removed").EnumerateArray());
+
+        // Saving an unchanged directory only renames; a new directory turns the built-in account into an added one.
+        var current = listed.GetProperty("accounts")[0].GetProperty("directory").GetString();
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/codex:default",
+            new { label = "Windows Codex", directory = current })).StatusCode);
+        Assert.Empty(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts);
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".codex-agentnotify-test-" + Guid.NewGuid().ToString("N"));
+        var moved = await browser.PutAsJsonAsync("/ui/api/quota/accounts/codex:default",
+            new { label = "Moved Codex", directory });
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        var movedId = (await moved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        Assert.StartsWith("q_", movedId);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["claude_code:default", "claude_code:wsl:Ubuntu-Test", movedId], Ids(listed, "accounts"));
+        Assert.Equal(["codex:default"], Ids(listed, "removed"));
+        var saved = new ConfigStore(_dir, applyEnvOverrides: false).Load();
+        Assert.Equal(directory, Assert.Single(saved.QuotaAccounts).Directory);
+
+        // An added account can be moved in place, but not onto a directory another account monitors.
+        var other = directory + "-other";
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/" + movedId,
+            new { label = "Moved Codex", directory = other })).StatusCode);
+        Assert.Equal(other, Assert.Single(new ConfigStore(_dir, applyEnvOverrides: false).Load().QuotaAccounts).Directory);
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/claude_code:default",
+            new { label = "Clash", directory = Path.Combine(_dir, "wsl-home", ".claude") })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/" + movedId,
+            new { label = "Moved Codex", directory = "relative/path" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task DetectedSecondaryProfilesListRenameRemoveAndRestore()
+    {
+        var work = Directory.CreateDirectory(Path.Combine(_dir, "native-home", ".codex-work"));
+        File.WriteAllText(Path.Combine(work.FullName, "auth.json"), "{}");
+        var lab = Directory.CreateDirectory(Path.Combine(_dir, "wsl-home", ".claude-lab"));
+        Directory.CreateDirectory(Path.Combine(lab.FullName, "projects"));
+        using var browser = Page();
+        static string[] Ids(JsonElement list, string property) =>
+            list.GetProperty(property).EnumerateArray().Select(item => item.GetProperty("id").GetString()!).ToArray();
+
+        var listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "codex:home:work", "claude_code:wsl:Ubuntu-Test:lab"],
+            Ids(listed, "accounts"));
+        var accounts = listed.GetProperty("accounts").EnumerateArray().ToArray();
+        Assert.Null(accounts[2].GetProperty("wsl").GetString());
+        Assert.Equal("Profile · work", accounts[2].GetProperty("label").GetString());
+        Assert.Equal("Ubuntu-Test", accounts[3].GetProperty("wsl").GetString());
+        Assert.Equal("WSL · Ubuntu-Test · lab", accounts[3].GetProperty("label").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/codex:home:work",
+            new { label = "Work Codex" })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal("Work Codex", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
+        Assert.Equal("Work Codex", new ConfigStore(_dir, applyEnvOverrides: false).Load().DefaultQuotaAccountLabels["codex:home:work"]);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/codex:home:work")).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "claude_code:wsl:Ubuntu-Test:lab"], Ids(listed, "accounts"));
+        var removed = Assert.Single(listed.GetProperty("removed").EnumerateArray());
+        Assert.Equal("codex:home:work", removed.GetProperty("id").GetString());
+        Assert.Equal("Work Codex", removed.GetProperty("label").GetString());
+        Assert.Equal(JsonValueKind.Null, removed.GetProperty("wsl").ValueKind);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync("/ui/api/quota/accounts/codex:home:work/restore", new { })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "codex:home:work", "claude_code:wsl:Ubuntu-Test:lab"],
+            Ids(listed, "accounts"));
+        Assert.Empty(listed.GetProperty("removed").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task SkillsCanBeInstalledIntoARunningWslHomeByDistributionName()
+    {
+        using var browser = Page();
+        var agents = await browser.GetFromJsonAsync<JsonElement>("/ui/api/agents");
+        var wslClaude = agents.GetProperty("skills").EnumerateArray()
+            .Single(skill => skill.GetProperty("id").GetString() == "claude" &&
+                             skill.GetProperty("wsl").ValueKind == JsonValueKind.String);
+        Assert.Equal("Ubuntu-Test", wslClaude.GetProperty("wsl").GetString());
+        Assert.Equal("WSL · Ubuntu-Test", wslClaude.GetProperty("environment").GetString());
+        var expected = Path.Combine(_dir, "wsl-home", ".claude", "skills", "agentnotify");
+        Assert.Equal(expected, wslClaude.GetProperty("destination").GetString());
+
+        var installed = await browser.PostAsJsonAsync("/ui/api/agents/skills/claude", new { force = false, wsl = "Ubuntu-Test" });
+        Assert.Equal(HttpStatusCode.OK, installed.StatusCode);
+        Assert.True(File.Exists(Path.Combine(expected, "SKILL.md")));
+        var skill = (await installed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("skill");
+        Assert.Equal("up_to_date", skill.GetProperty("state").GetString());
+        Assert.Equal("Ubuntu-Test", skill.GetProperty("wsl").GetString());
+
+        Assert.Equal(HttpStatusCode.NotFound, (await browser.PostAsJsonAsync("/ui/api/agents/skills/claude",
+            new { force = false, wsl = "Stopped-Distro" })).StatusCode);
     }
 
     private sealed class WebQuotaProbe : ILiveQuotaProbe
@@ -473,5 +615,39 @@ public sealed class WebUiTests : IAsyncLifetime
         var played = await browser.GetAsync($"/ui/api/sounds/{name}");
         Assert.Equal("audio/wav", played.Content.Headers.ContentType!.MediaType);
         Assert.Equal(HttpStatusCode.NotFound, (await browser.GetAsync("/ui/api/sounds/..%2Fconfig.json")).StatusCode);
+    }
+
+    [Fact]
+    public async Task BillingAccountsStoreEncryptedKeysAndNeverReturnThem()
+    {
+        using var browser = Page();
+        var empty = await browser.GetFromJsonAsync<JsonElement>("/ui/api/billing");
+        Assert.Equal("1", empty.GetProperty("contract_version").GetString());
+
+        var catalog = await browser.GetFromJsonAsync<JsonElement>("/ui/api/billing/accounts");
+        Assert.Equal(6, catalog.GetProperty("providers").EnumerateArray().Count());
+        Assert.Contains(catalog.GetProperty("providers").EnumerateArray(),
+            p => p.GetProperty("id").GetString() == "siliconflow" &&
+                 p.GetProperty("host").GetString() == "api.siliconflow.com" &&
+                 p.GetProperty("key_type").GetString() == "API key");
+
+        const string secret = "webui-billing-secret-abcdef1234567890";
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PostAsJsonAsync("/ui/api/billing/accounts",
+            new { provider = "deepseek", label = "Main", api_key = secret, acknowledge_risk = false })).StatusCode);
+        var created = await browser.PostAsJsonAsync("/ui/api/billing/accounts",
+            new { provider = "deepseek", label = "Main", api_key = secret, acknowledge_risk = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var createdText = await created.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(secret, createdText);
+        var id = JsonDocument.Parse(createdText).RootElement.GetProperty("id").GetString()!;
+
+        Assert.DoesNotContain(secret, await browser.GetStringAsync("/ui/api/billing/accounts"));
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync($"/ui/api/billing/accounts/{id}",
+            new { label = "Renamed", api_key = "webui-replacement-key-1234567890ab" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync($"/ui/api/billing/accounts/{id}")).StatusCode);
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(_dir, "agentnotify.db"));
+        Assert.DoesNotContain(secret, Encoding.UTF8.GetString(bytes));
     }
 }
