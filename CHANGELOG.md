@@ -20,7 +20,9 @@ build.
   tray's Settings. A WSL profile such as `\\wsl.localhost\Ubuntu\home\you\.codex` can also be added
   by hand. `agentnotify.exe install-skill <agent> --wsl <distribution>` installs from the command
   line, and the WSL wrapper picks the calling distribution automatically. Stopped distributions are
-  not read, so opening the dashboard never starts one. The Usage response is now
+  not read, so opening the dashboard never starts one. The home is the default user's: the one
+  named by `[user] default=` in the distribution's `/etc/wsl.conf` when it sets one, otherwise the
+  registered default user. The Usage response is now
   `contract_version: "3"`.
 
 ### Changed

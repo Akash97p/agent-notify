@@ -121,7 +121,8 @@ Claude Code, Codex, or OpenCode run inside WSL, but the web interface shows no u
 
 The Windows broker reads WSL only while a distribution is running; reading a stopped one would boot
 it. Discovery is cached for 30 seconds. A quota card appears only when `~/.codex` or `~/.claude`
-exists for the distribution's default user, and usage is read from the agents' default locations
+exists for the distribution's default user (the `[user] default=` in `/etc/wsl.conf`, or else the
+registered default user), and usage is read from the agents' default locations
 (`CODEX_HOME` or `CLAUDE_CONFIG_DIR` set inside WSL is not visible to Windows).
 
 **Fix**
