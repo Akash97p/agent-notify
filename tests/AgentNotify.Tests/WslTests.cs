@@ -72,6 +72,26 @@ public sealed class WslTests : IDisposable
         Assert.Equal(user, WslDiscovery.DefaultUser(wslConf));
 
     [Fact]
+    public void NativeFindListingBecomesSharePathsWithSizesAndTimes()
+    {
+        var output = Encoding.UTF8.GetBytes(
+            "120\t1786382251.5000000000\t/home/tester/.codex/sessions/a b.jsonl\0" +
+            "7\t0.0000000000\t/home/tester/tab\tname.jsonl\0" +
+            "x\t1.0\t/home/tester/bad-size.jsonl\0" +
+            "9\t1.0\t/home/tester/../etc/passwd\0" +
+            "9\t1.0\trelative.jsonl\0");
+
+        var files = WslFileListing.Parse(output, @"\\wsl.localhost\Ubuntu-Test");
+
+        // Paths with control characters, unparsable sizes, ".." segments, or no leading slash are dropped.
+        var file = Assert.Single(files);
+        Assert.Equal(@"\\wsl.localhost\Ubuntu-Test\home\tester\.codex\sessions\a b.jsonl", file.WindowsPath);
+        Assert.Equal(120, file.Length);
+        Assert.Equal(DateTime.UnixEpoch.AddSeconds(1786382251.5), file.ModifiedUtc);
+        Assert.Null(WslFileListing.TryList(@"C:\Users\tester\.codex", "*.jsonl", TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public async Task UsageIncludesRunningDistributionsAndTheirLinuxProjectNames()
     {
         var home = Home();

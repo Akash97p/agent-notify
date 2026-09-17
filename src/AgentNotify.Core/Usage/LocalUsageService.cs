@@ -427,40 +427,49 @@ public sealed class LocalUsageService
     private void AddFiles(string source, IReadOnlyList<string> roots, Dictionary<string, CachedFile> next, ref int skipped, CancellationToken ct)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+        // A Muse subagent file inherits its parent session's project; each parent is read once per scan.
+        var museProjects = new Dictionary<string, ProjectInfo>(StringComparer.Ordinal);
         foreach (var root in roots)
         {
             if (!Directory.Exists(root)) continue;
-            IEnumerable<string> paths;
             // The Gemini CLI keeps each session as one JSON document under <project>/chats.
             var gemini = source == "gemini_cli";
+            var pattern = gemini ? "session-*.json" : "*.jsonl";
             var projects = gemini ? GeminiProjects(root) : null;
-            try
+            // Inside WSL the listing comes from the distribution itself: walking the share costs a
+            // round trip per directory. Only files that changed are then read through the share.
+            var files = WslFileListing.TryList(root, pattern, TimeSpan.FromSeconds(30))?
+                .Select(file => (Path: file.WindowsPath, file.Length, Modified: file.ModifiedUtc)).ToArray();
+            if (files is null)
             {
-                paths = Directory.EnumerateFiles(root, gemini ? "session-*.json" : "*.jsonl", new EnumerationOptions
+                try
                 {
-                    RecurseSubdirectories = true,
-                    IgnoreInaccessible = true,
-                    AttributesToSkip = FileAttributes.ReparsePoint
-                }).Where(path => !gemini || Path.GetFileName(Path.GetDirectoryName(path)) == "chats").ToArray();
+                    files = new DirectoryInfo(root).EnumerateFiles(pattern, new EnumerationOptions
+                    {
+                        RecurseSubdirectories = true,
+                        IgnoreInaccessible = true,
+                        AttributesToSkip = FileAttributes.ReparsePoint
+                    }).Select(file => (Path: file.FullName, file.Length, Modified: file.LastWriteTimeUtc)).ToArray();
+                }
+                catch (IOException) { skipped++; continue; }
+                catch (UnauthorizedAccessException) { skipped++; continue; }
             }
-            catch (IOException) { skipped++; continue; }
-            catch (UnauthorizedAccessException) { skipped++; continue; }
 
-            foreach (var path in paths.Order(StringComparer.Ordinal))
+            foreach (var (path, length, modified) in files.Where(file => !gemini ||
+                         Path.GetFileName(Path.GetDirectoryName(file.Path)) == "chats").OrderBy(file => file.Path, StringComparer.Ordinal))
             {
                 ct.ThrowIfCancellationRequested();
                 // Codex can retain the same rollout in both active and archived directories.
                 if (source == "codex" && !names.Add(Path.GetFileName(path))) continue;
                 try
                 {
-                    var info = new FileInfo(path);
-                    if (_files.TryGetValue(path, out var previous) && previous.Length == info.Length && previous.Modified == info.LastWriteTimeUtc)
+                    if (_files.TryGetValue(path, out var previous) && previous.Length == length && previous.Modified == modified)
                     {
                         next[path] = previous;
                         continue;
                     }
-                    next[path] = new CachedFile(info.Length, info.LastWriteTimeUtc,
-                        gemini ? ParseGemini(path, info.Length, projects!, ct) : ParseFile(source, path, ct));
+                    next[path] = new CachedFile(length, modified,
+                        gemini ? ParseGemini(path, length, projects!, ct) : ParseFile(source, path, museProjects, ct));
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
                 {
@@ -470,7 +479,8 @@ public sealed class LocalUsageService
         }
     }
 
-    private static UsageEvent[] ParseFile(string source, string path, CancellationToken ct)
+    private static UsageEvent[] ParseFile(string source, string path, Dictionary<string, ProjectInfo> museProjects,
+        CancellationToken ct)
     {
         var events = new List<UsageEvent>();
         var model = "Unknown model";
@@ -479,8 +489,8 @@ public sealed class LocalUsageService
         TokenCounts? previousTotal = null;
         string? serviceTier = null;
         var mirrored = false;
-        if (source == "muse") return ParseMuse(path, ct);
-        using var reader = new StreamReader(path);
+        if (source == "muse") return ParseMuse(path, museProjects, ct);
+        using var reader = OpenSequential(path);
         while (reader.ReadLine() is { } line)
         {
             ct.ThrowIfCancellationRequested();
@@ -558,7 +568,7 @@ public sealed class LocalUsageService
     /// <c>input_tokens</c> includes <c>cached_tokens</c>, and <c>output_tokens</c> includes
     /// <c>reasoning_tokens</c>. Subagent calls are grouped under the parent session and its project.
     /// </summary>
-    private static UsageEvent[] ParseMuse(string path, CancellationToken ct)
+    private static UsageEvent[] ParseMuse(string path, Dictionary<string, ProjectInfo> parentProjects, CancellationToken ct)
     {
         var directory = Path.GetDirectoryName(path) ?? "";
         var parentDirectory = Path.GetDirectoryName(directory) ?? "";
@@ -567,7 +577,11 @@ public sealed class LocalUsageService
         var session = Path.GetFileName(sessionDirectory);
         var project = MuseProject(path, ct, out var calls);
         if (project == ProjectInfo.Unknown && isSubagent)
-            project = MuseProject(Path.Combine(sessionDirectory, "session.jsonl"), ct, out _, projectOnly: true);
+        {
+            var parent = Path.Combine(sessionDirectory, "session.jsonl");
+            if (!parentProjects.TryGetValue(parent, out project!))
+                parentProjects[parent] = project = MuseProject(parent, ct, out _, projectOnly: true);
+        }
         return calls.Select(call => call with { Session = session, Project = project }).ToArray();
     }
 
@@ -577,7 +591,7 @@ public sealed class LocalUsageService
         calls = [];
         var project = ProjectInfo.Unknown;
         if (!File.Exists(path)) return project;
-        using var reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+        using var reader = OpenSequential(path);
         var lines = 0;
         while (reader.ReadLine() is { } line)
         {
@@ -623,6 +637,14 @@ public sealed class LocalUsageService
     }
 
     /// <summary>
+    /// Opens a ledger for one forward read with a large buffer. Small reads each cost a round trip
+    /// through the WSL share, which made a cold scan several times slower than the bytes justify.
+    /// </summary>
+    private static StreamReader OpenSequential(string path) =>
+        new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            1024 * 1024, FileOptions.SequentialScan), Encoding.UTF8, detectEncodingFromByteOrderMarks: true, 1024 * 1024);
+
+    /// <summary>
     /// Gemini CLI chats: <c>tmp/&lt;project&gt;/chats/session-*.json</c>, one JSON document per
     /// session whose <c>gemini</c> messages carry <c>tokens</c>. <c>input</c> includes <c>cached</c>;
     /// <c>thoughts</c> and <c>tool</c> are counted separately from <c>output</c> and <c>input</c>.
@@ -633,7 +655,8 @@ public sealed class LocalUsageService
         if (length > 64 * 1024 * 1024) return [];
         var folder = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path))) ?? "";
         var project = projects.TryGetValue(folder, out var directory) ? ProjectInfo.FromDirectory(directory) : ProjectInfo.Unknown;
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            1024 * 1024, FileOptions.SequentialScan);
         using var json = JsonDocument.Parse(stream);
         var root = json.RootElement;
         var session = String(root, "sessionId") ?? Path.GetFileNameWithoutExtension(path);

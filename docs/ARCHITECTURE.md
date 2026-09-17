@@ -118,7 +118,12 @@ keyed by the length and modification time of the file and its `-wal`, and a data
 is copied (with its WAL, retaken if either changes during the copy) into a random directory under
 the user's temp folder, queried there, and deleted; leftovers older than an hour are removed on the
 next read. JSONL ledgers were already cached per file, but only in memory, so the first scan after
-the broker starts still parses every file. To keep that scan affordable, a line is JSON-parsed only
+the broker starts still parses every file. Walking directories through the share also costs a round
+trip per directory, which took over ten seconds for Muse Code's per-subagent session folders, so a
+ledger root inside WSL is listed by one `wsl.exe --distribution <name> --exec find <root> -type f
+-name <pattern> -printf …` (no shell; paths with control characters or `..` are dropped), falling back
+to walking the share if that fails; only files whose size or modification time changed are then read,
+with 1 MB sequential buffers. To keep the cold scan affordable, a line is JSON-parsed only
 when it contains the marker of a record that carries usage (`"assistant"` for Claude Code;
 `token_count`, `turn_context`, `session_meta`, or `thread_settings_applied` for Codex;
 `model_completed` or `route_facts` for Muse Code). Muse Code and Gemini CLI usage follow OpenAI's
