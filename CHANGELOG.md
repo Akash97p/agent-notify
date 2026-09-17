@@ -13,6 +13,13 @@ build.
 
 ### Added
 
+- **Cost estimates now cover far more models.** Prices were added from the providers' official pages
+  for GPT-5.5, GPT-5.4 (and Mini/Nano), GPT-5.3/5.2/5.1 Codex, GPT-5.1 Codex Max, GPT-5 Codex, Meta
+  Muse Spark 1.1–1.3 (standard and Contributor), Gemini 2.5 Pro/Flash and 3.x, Z.ai GLM-5.x/4.7,
+  Xiaomi MiMo V2.5, OpenCode Zen and Kilo free models, and DeepSeek V4 on OpenCode Go. Records are
+  priced individually, so long-context requests, Codex fast mode, and OpenCode Go peak hours use the
+  rate that actually applied.
+
 - **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
   now include every running WSL distribution: Claude Code, Codex, and OpenCode history from its home,
   a quota card for each `~/.codex` and `~/.claude` found there (Codex is asked from inside the

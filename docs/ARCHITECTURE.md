@@ -83,12 +83,15 @@ message/request identities and differences Codex cumulative counters per rollout
 reasoning counter is separate from output and is added once; Codex reasoning is already included
 in output. The `/ui/api/usage` route returns aggregated counts only;
 it never returns log paths, prompt text, response text, or credentials. It does not probe providers,
-or assert subscription quota. A dated, exact-model price catalog estimates what those token
-records would cost at published standard API rates or OpenCode Go's published quota-equivalent
-token rates, with separate Claude 5-minute and 1-hour cache-write prices. Unknown models and
-OpenCode Go records with cache writes remain unpriced unless Go publishes that model's exact
-cache-write rate. Only exact, single-rate Go model IDs are priced; context-tiered and peak/off-peak
-models remain unknown until the local ledger can select the applicable rate. Project grouping uses
+or assert subscription quota. A dated, exact-model price catalog keyed by provider and model
+estimates what those token records would cost at published standard API rates or OpenCode Go's
+published quota-equivalent token rates, with separate Claude 5-minute and 1-hour cache-write prices.
+The rate is chosen per record (`ApiPriceCatalog.RateFor`), because each record is one request: its
+prompt size selects a long-context tier, its service tier (Codex `thread_settings_applied`, OpenCode
+`-fast` model IDs) selects OpenAI's fast rates, and its timestamp selects OpenCode Go's peak rate.
+A record is unpriced when no published rate covers that combination. Unknown models and OpenCode Go
+records with cache writes remain unpriced unless the provider publishes that exact rate;
+context-tiered Go models remain unknown. Project grouping uses
 each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
 directory; the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;

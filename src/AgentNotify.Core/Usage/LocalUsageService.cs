@@ -159,14 +159,15 @@ public sealed class LocalUsageService
             .Take(30)
             .Select(group =>
             {
-                var rates = ApiPriceCatalog.Find("opencode", "opencode-go", group.Key);
                 var monthlyLimit = ApiPriceCatalog.OpenCodeGoMonthlyLimit(group.Key);
                 var windows = periods.Select(period =>
                 {
-                    var selected = group.Where(row => row.Timestamp >= now - period.Length).ToArray();
-                    var unpriced = selected.Count(row => !ApiPriceCatalog.CanPriceOpenCodeGo(group.Key, row.Counts));
-                    var observed = rates is null ? 0m : selected.Where(row => ApiPriceCatalog.CanPriceOpenCodeGo(group.Key, row.Counts))
-                        .Sum(row => rates.EstimateUsd(row.Counts, row.CacheWrite1h));
+                    var selected = group.Where(row => row.Timestamp >= now - period.Length)
+                        .Select(row => (Row: row, Rate: ApiPriceCatalog.OpenCodeGoRate(group.Key, row.Timestamp, row.Counts)))
+                        .ToArray();
+                    var unpriced = selected.Count(item => item.Rate is null);
+                    var observed = selected.Where(item => item.Rate is not null)
+                        .Sum(item => item.Rate!.EstimateUsd(item.Row.Counts, item.Row.CacheWrite1h));
                     var limit = monthlyLimit * period.Fraction;
                     double? percent = unpriced == 0 && limit is > 0
                         ? (double)(observed / limit.Value * 100m) : null;
@@ -441,6 +442,7 @@ public sealed class LocalUsageService
         var session = Path.GetFileNameWithoutExtension(path);
         var project = ProjectInfo.Unknown;
         TokenCounts? previousTotal = null;
+        string? serviceTier = null;
         var mirrored = false;
         using var reader = new StreamReader(path);
         while (reader.ReadLine() is { } line)
@@ -469,7 +471,13 @@ public sealed class LocalUsageService
                 else if (type == "turn_context")
                 {
                     model = String(payload, "model") ?? model;
+                    serviceTier = String(payload, "service_tier") ?? serviceTier;
                     project = ProjectInfo.FromDirectory(String(payload, "cwd"), project);
+                }
+                else if (type == "event_msg" && String(payload, "type") == "thread_settings_applied")
+                {
+                    // Fast mode is recorded as the "priority" service tier and is billed at its own rates.
+                    serviceTier = String(Child(payload, "thread_settings"), "service_tier") ?? serviceTier;
                 }
                 else if (type == "event_msg" && String(payload, "type") == "token_count" && !mirrored)
                 {
@@ -491,7 +499,7 @@ public sealed class LocalUsageService
                     }
                     if (delta.Total == 0) continue;
                     if (!DateTimeOffset.TryParse(String(row, "timestamp"), out var timestamp)) continue;
-                    events.Add(new UsageEvent("codex", timestamp, model, "openai", session, project, null, delta, 0));
+                    events.Add(new UsageEvent("codex", timestamp, model, "openai", session, project, null, delta, 0, serviceTier));
                 }
             }
             catch (JsonException) { /* One malformed line must not discard the rest of a session. */ }
@@ -561,9 +569,8 @@ public sealed class LocalUsageService
         long unpricedTokens = 0;
         foreach (var row in rows)
         {
-            var rate = ApiPriceCatalog.Find(row.Source, row.Provider, row.Model);
-            if (rate is null || row.Source == "opencode" && row.Provider == "opencode-go" &&
-                !ApiPriceCatalog.CanPriceOpenCodeGo(row.Model, row.Counts))
+            var rate = ApiPriceCatalog.RateFor(row.Source, row.Provider, row.Model, row.Timestamp, row.Counts, row.ServiceTier);
+            if (rate is null)
             {
                 unpricedEvents++;
                 unpricedTokens += row.Counts.Total;
@@ -611,7 +618,7 @@ public sealed class LocalUsageService
 
     private sealed record CachedFile(long Length, DateTime Modified, UsageEvent[] Events);
     private sealed record UsageEvent(string Source, DateTimeOffset Timestamp, string Model, string Provider, string Session,
-        ProjectInfo Project, string? Identity, TokenCounts Counts, long CacheWrite1h);
+        ProjectInfo Project, string? Identity, TokenCounts Counts, long CacheWrite1h, string? ServiceTier = null);
 }
 
 public readonly record struct TokenCounts(long Input, long Output, long CacheRead, long CacheWrite, long Reasoning)
