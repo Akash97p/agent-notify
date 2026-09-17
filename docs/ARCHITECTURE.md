@@ -199,6 +199,46 @@ quota gauges visualize remaining balance, and Usage keeps dense session/project/
 disclosures. Motion is implemented with embedded CSS, includes no external runtime, and obeys
 `prefers-reduced-motion`.
 
+### Provider router
+
+`AgentNotify.Core/Router` is an opt-in local proxy: an agent points its API base URL at the broker,
+and the router chooses an upstream provider and model per request, translates between the OpenAI
+Responses, OpenAI Chat Completions, and Anthropic Messages wire formats, fails over across an ordered
+list of targets, and records what it did. It is off until the owner turns it on, and a broker with it
+off contacts no provider. See [ROUTER.md](ROUTER.md).
+
+It deliberately breaks one habit of the rest of the broker: the router's request path *is* network
+work, because proxying is what it does. It stays outside the notification path — it never writes
+notification history, never enqueues delivery, and never touches the WPF dispatcher — so a hung
+upstream cannot delay a toast or an API response.
+
+`RouterProxy` is mounted on the existing loopback listener under `/router/v1`, before the `/v1`
+branch, and authenticates with its own key rather than the broker's bearer token: an agent's
+configuration file then holds a credential that can spend money but cannot read notifications. The
+same loopback `Host` check as the web interface applies, and a request carrying an `Origin` header is
+refused, so no web page can reach it. Router routes raise the request-body limit from the API's
+64 KiB to `routerMaxRequestBodyBytes`, because a single agent turn carries a whole conversation.
+
+Upstream definitions, routes, and the ledger live in SQLite beside everything else. An upstream key is
+sealed with the same `ISecretProtector` as channel credentials, decrypted only while a request is
+being built, and never returned by an endpoint, written to a log, or stored in the ledger; an envelope
+that cannot be opened fails that attempt (`provider_key_unreadable`) rather than sending the request
+without a credential. A key may only travel to its own validated base URL: `https` anywhere, plain
+`http` only for a loopback literal, no redirects, no cookies, no system proxy.
+
+`RouteResolver` is a pure function of one configuration snapshot and the requested model, so a ledger
+row can be explained after the fact. Translation runs through one intermediate request and one stream
+event model, which is what makes every wire pair work from three decoders and three encoders; when the
+inbound and upstream wires match, the body is passed through untouched except for the model name, so
+fields the intermediate model does not carry — Responses reasoning items with `encrypted_content`,
+Anthropic thinking signatures — survive that hop. Failover is ordered and stops being possible the
+moment a byte reaches the client: a partially delivered stream cannot be retried as though nothing was
+sent, so a later failure ends the stream with the client wire's own error event.
+
+The ledger is proxy-observed usage and is kept separate from the log-derived Usage view and from Live
+quota. The same physical call appears in both the router ledger and the agent's own log, so the two
+are never added together.
+
 ### Desktop app
 
 `AgentNotify.App` owns the application lifetime. Startup order is:
@@ -300,6 +340,11 @@ them changes the product rather than the implementation.
     single-use nonce, expiry, and first-wins state and rejects stale/replayed responses. Relay
     acceptance, broker answer acceptance, and native-host acceptance are distinct facts; the last
     is not yet persisted as a receipt. End-to-end sealing to the installation remains required work.
+
+11. The provider router is off by default and authenticated with its own key. It is the one
+    component whose request path performs network I/O, it never writes notification history or
+    delivery work, and its proxy-observed ledger is a separate record from log-derived Usage and
+    from account Live quota — the three are never summed.
 
 ## Adding a new outbound adapter
 

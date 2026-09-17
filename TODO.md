@@ -92,6 +92,13 @@
 - [x] Per-record model pricing from official rate pages (OpenAI incl. long-context and fast tiers, Meta, Google, Z.ai, Xiaomi, OpenCode Zen/Go incl. peak hours)
 - [x] OpenCode Go monthly estimate anchored to the owner's renewal day
 - [x] API accounts: encrypted, write-only provider keys for DeepSeek, Kimi, SiliconFlow, OpenRouter, OpenAI Admin, and Anthropic Admin balance/spend; DeepSeek owner-checked on Windows
+- [x] Provider router (opt-in): `/router/v1` responses/chat/messages endpoints with its own key,
+      upstream definitions with sealed keys, aliases and ordered failover combos, Responses/Chat/
+      Anthropic translation with same-wire passthrough, cooldowns, and a proxy-observed SQLite ledger
+      — automated tests only; no request has been sent to a real provider yet
+- [ ] Router: policy routing scored on quota/health/cost, weighted and least-used combo strategies,
+      Codex account pools, cost estimates on ledger rows, and quota thresholds raised as attention
+      requests
 - [ ] WSL-aware `install-harness` (hook commands need Linux paths and `python3`)
 - [ ] Durable usage index with scan progress: parsed history is held in memory, so the first scan after a broker start takes about two minutes on a ~4.8B-token WSL history
 - [ ] Complete local usage indexing: fork replay handling and historical/versioned pricing; recent-session grouping is implemented
@@ -141,7 +148,8 @@
 
 External delivery must remain disabled by default and complete the security/privacy design in `SECURITY.md` and `docs/ROADMAP.md` first.
 
-The first local usage and live quota views are implemented; remaining usage/quota work and provider
-routing are recorded in [docs/future-scope](docs/future-scope/README.md).
+The first local usage and live quota views are implemented, and the first provider router ships behind
+its own switch ([docs/ROUTER.md](docs/ROUTER.md)); remaining usage, quota, and routing work is recorded
+in [docs/future-scope](docs/future-scope/README.md).
 
 The complete task breakdown and provider-by-provider implementation order lives in `docs/FEATURE_BACKLOG.md`. The constraints the implementation is held to live in `docs/ARCHITECTURE.md`, and what has actually been verified lives in `docs/VERIFICATION.md`.

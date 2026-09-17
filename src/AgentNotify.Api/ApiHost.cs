@@ -13,6 +13,7 @@ using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
+using AgentNotify.Core.Router.Translation;
 using AgentNotify.Core.Services;
 
 namespace AgentNotify.Api;
@@ -94,8 +95,20 @@ public static class ApiHost
 
         var listenPort = new Uri(baseUrl).Port;
 
+        var routerTranslator = new RouterTranslator();
+
         app.Use(async (context, next) =>
         {
+            if (context.Request.Path.StartsWithSegments("/router"))
+            {
+                if (await Router.RouterEndpoints.TryHandleAsync(context, config, webUi, routerTranslator))
+                    return;
+                // Not handled (should not happen) – fall through to 404
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                await context.Response.WriteAsJsonAsync(new { error = "not found" }, cancellationToken: context.RequestAborted);
+                return;
+            }
+
             if (webUi is not null && context.Request.Path.StartsWithSegments(WebUi.WebUiEndpoints.BasePath))
             {
                 if (await WebUi.WebUiEndpoints.Guard(context))
@@ -602,4 +615,5 @@ public static class ApiHost
             }
         }
     }
+
 }

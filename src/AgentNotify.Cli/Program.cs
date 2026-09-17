@@ -20,7 +20,7 @@ namespace AgentNotify.Cli;
 /// Every command talks to the local broker via HTTP; the broker is source of truth.</summary>
 internal static class Program
 {
-    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "interactions", "ui", "help", "--help", "-h", "--version"];
+    private static readonly string[] KnownCommands = ["send", "list", "get", "resolve", "dismiss", "health", "relay", "token", "install-skill", "install-harness", "install", "interactions", "ui", "router", "help", "--help", "-h", "--version"];
 
     internal static async Task<int> Main(string[] args)
     {
@@ -57,6 +57,7 @@ internal static class Program
                 "install" when args.Length > 1 && args[1].Equals("harness", StringComparison.OrdinalIgnoreCase) => RunInstallHarness(args[2..]),
                 "install" => Fail("Usage: agentnotify install <skill|harness> <agent> [options]"),
                 "interactions" => await RunInteractions(args[1..]),
+                "router" => await RunRouter(args[1..]),
                 "ui" => await RunUi(args[1..]),
                 "help" or "--help" or "h" => RunHelp(args.Length > 1 ? args[1] : null),
                 "version" => RunVersion(),
@@ -424,6 +425,62 @@ internal static class Program
                 return 1;
             }
             Console.WriteLine(config.AuthToken);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+    private static async Task<int> RunRouter(string[] args)
+    {
+        if (args.Length == 0 || args[0] is "--help" or "-h")
+        {
+            PrintRouterHelp();
+            return args.Length == 0 ? 1 : 0;
+        }
+        return args[0].ToLowerInvariant() switch
+        {
+            "key" => RunRouterKey(args[1..]),
+            "status" => RunRouterStatus(args[1..]),
+            _ => Fail("Usage: agentnotify router <key|status> [options]")
+        };
+    }
+
+    private static int RunRouterKey(string[] args)
+    {
+        if (args.Any(a => a is "--help" or "-h")) { PrintRouterHelp(); return 0; }
+        try
+        {
+            var store = new ConfigStore();
+            var config = store.Load();
+            if (string.IsNullOrWhiteSpace(config.RouterKey))
+            {
+                Console.Error.WriteLine("The router has no key yet. Turn the router on in the web interface (agentnotify ui → Router).");
+                return 1;
+            }
+            Console.WriteLine(config.RouterKey);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+    }
+
+    private static int RunRouterStatus(string[] args)
+    {
+        if (args.Any(a => a is "--help" or "-h")) { PrintRouterHelp(); return 0; }
+        try
+        {
+            var store = new ConfigStore();
+            var config = store.Load();
+            Console.WriteLine($"enabled: {(config.RouterEnabled ? "yes" : "no")}");
+            Console.WriteLine($"base_url: http://127.0.0.1:{config.Port}/router/v1");
+            Console.WriteLine($"anthropic_base_url: http://127.0.0.1:{config.Port}/router");
             return 0;
         }
         catch (Exception ex)
@@ -1557,6 +1614,7 @@ internal static class Program
                 case "resolve": Console.WriteLine("Usage: agentnotify resolve <id> [--port N] [--token T]"); return 0;
                 case "dismiss": Console.WriteLine("Usage: agentnotify dismiss <id> [--port N] [--token T]"); return 0;
                 case "relay": PrintRelayHelp(); return 0;
+                case "router": PrintRouterHelp(); return 0;
                 case "install-skill": case "install": PrintInstallSkillHelp(); return 0;
                 case "install-harness": case "harness": PrintInstallHarnessHelp(); return 0;
                 case "interactions": PrintInteractionsHelp(); return 0;
@@ -1649,6 +1707,7 @@ internal static class Program
               health     Check broker health
               relay      Pair with a Relay or verify configured Relay providers
               token      Print the local bearer token
+              router     Manage the provider router (router key, router status)
               install-skill  Install the bundled skill for Codex, Claude Code, or OpenCode
               install-harness  Install the auto-notify harness for OpenCode, Codex, or Claude Code
               interactions  Ask a waiting question/permission and collect the answer
@@ -1856,6 +1915,25 @@ internal static class Program
 
             Pairing prints a verification URL and short code, then stores the one-time
             installation credential in AgentNotify's protected provider secret store.
+            """);
+    }
+
+    private static void PrintRouterHelp()
+    {
+        Console.WriteLine("""
+            agentnotify router — provider router status and key
+
+            Usage:
+              agentnotify router key
+              agentnotify router status
+
+            key    Print the router key from local config. If the router has no key yet,
+                   prints an error: "The router has no key yet. Turn the router on in the web interface (agentnotify ui → Router)."
+            status Print whether the router is enabled and its base URLs. No network call.
+
+            Examples:
+              agentnotify router key
+              agentnotify router status
             """);
     }
 }

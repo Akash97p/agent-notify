@@ -34,6 +34,10 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private InteractionResponsePoller? _interactionResponsePoller;
     private IReadOnlyList<IOutboundChannelAdapter>? _adapters;
     private AgentNotify.Core.Billing.BillingService? _billingService;
+    private AgentNotify.Core.Router.RouterRepository? _routerRepository;
+    private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
+    private AgentNotify.Core.Router.RouterProxy? _routerProxy;
+    private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
     private WebApplication? _api;
 
     private BrokerRuntime(
@@ -112,6 +116,17 @@ public sealed class BrokerRuntime : IAsyncDisposable
         var billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, protector);
         _billingService = billingService;
 
+        var routerRepository = new AgentNotify.Core.Router.RouterRepository(_configStore.DbPath);
+        await routerRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var routerConfigService = new AgentNotify.Core.Router.RouterConfigService(routerRepository, protector, _configStore, _config);
+        var routerProxy = new AgentNotify.Core.Router.RouterProxy(routerConfigService, routerRepository, _logger);
+        var routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(routerRepository, _config, TimeProvider.System, _logger);
+        routerPruner.Start();
+        _routerRepository = routerRepository;
+        _routerConfigService = routerConfigService;
+        _routerProxy = routerProxy;
+        _routerPruner = routerPruner;
+
         var profiles = new ProviderProfileService(_deliveryRepository, protector);
         _adapters = ChannelAdapterFactory.CreateAll();
         _dispatcher = new DeliveryDispatcher(_deliveryRepository, profiles, _adapters, _logger);
@@ -148,6 +163,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
             Routes = new DeliveryRouteService(_deliveryRepository),
             Dispatcher = _dispatcher,
             Billing = billingService,
+            Router = routerProxy,
+            RouterConfig = routerConfigService,
             SecretProtection = protection.Description,
             DesktopSurface = DesktopSurfaceName(_notifier.Name),
             // Toast placement and sounds belong to the Windows tray app; the portable broker hands
@@ -268,6 +285,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
         }
 
         try { _billingService?.Dispose(); } catch { }
+        try { _routerPruner?.Dispose(); } catch { }
+        try { _routerProxy?.Dispose(); } catch { }
 
         _logger.Info("agentnotifyd stopped");
         _logger.Dispose();

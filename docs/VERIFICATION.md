@@ -1792,6 +1792,64 @@ pushed with `dev`; `main` was then fast-forwarded to `dev` at `8d405bd`. GitHub 
 Not verified: the published installer has not been downloaded and installed, and the hosted build's
 checksum was not compared with the local one (hosted and local builds are not byte-identical).
 
+## Provider router (`feature/provider-router`, 2026-09-17)
+
+Automated: the full suite passes on this MacBook (macOS 26.6.2, .NET SDK 10.0.401, run through
+`scripts/test.sh` with `AGENTNOTIFY_DOTNET_EXE` pointing at `~/.dotnet/dotnet`) — **1,185 passed, 0
+failed, 0 skipped**, up from 1,050 before the branch. The new tests cover the repository and
+configuration service, route resolution precedence, base-URL destination rules, all three request
+decoders and encoders, the three SSE parsers fed byte-by-byte and whole, the three stream writers
+round-tripped through their own parsers, non-streaming translation for every wire, failover,
+cooldowns, `Retry-After`, mid-stream failures, and the loopback/auth/CSRF guards on `/router/v1`.
+
+Live end-to-end on this machine, with `agentnotifyd` on port 47822 and a scripted fake
+chat-completions upstream:
+
+- A Codex-shaped streaming `POST /router/v1/responses` against `combo/coding`, whose first target was
+  a port with nothing listening. The router recorded `connection_error` for attempt 0, failed over to
+  attempt 1, and returned a well-formed Responses stream: `response.created`, `in_progress`, a message
+  item with two `output_text.delta`s, then a `function_call` item with streamed arguments, then
+  `response.completed`. The upstream received translated Chat Completions: `system` from
+  `instructions`, the prior `function_call`/`function_call_output` pair as an assistant `tool_calls`
+  message plus a `tool` message, the Codex `custom` `apply_patch` tool rewritten as a function with a
+  single `input` string property, the `web_search` built-in dropped, `stream_options.include_usage`
+  set, and `Authorization: Bearer` carrying the stored upstream key.
+- A Claude-Code-shaped streaming `POST /router/v1/messages` over the same chat upstream produced
+  `message_start`, two content blocks (text, then tool use), `message_delta` with
+  `stop_reason: tool_use` and `usage.output_tokens`, and `message_stop`.
+- A non-streaming Anthropic request returned a `message` with `usage.input_tokens` converted back to
+  Anthropic's exclusive convention.
+- `POST /router/v1/messages/count_tokens` against a chat upstream returned `404 not_supported`.
+- Guards: no key `401`, wrong key `401`, a browser `Origin` header `403`, a foreign `Host` header
+  `421`, an unknown model `404 unknown_model`. The management API's `GET /ui/api/router` response
+  contained neither the router key nor the stored upstream key.
+- The ledger row for the failover request recorded `combo` → `coding`, final upstream `fake`, status
+  200, `ok`, 42 input / 8 cached / 7 output tokens, `reported`, with both attempts and their
+  durations.
+
+**That live run found a real defect**: OpenAI-compatible providers send the `finish_reason` chunk
+before the final usage-only chunk, and the stream writers were emitting their terminal frame on the
+finish event, so `response.completed` went out with no `usage` at all — Codex would have shown no
+token counts, even though the ledger had them. Terminal frames are now emitted from a separate
+`Complete()` call after the parser drains, and four tests pin the late-usage ordering for all three
+wires. The captured `response.completed` after the fix carries
+`{input_tokens: 42, input_tokens_details.cached_tokens: 8, output_tokens: 7, total_tokens: 49}`.
+
+Not verified:
+
+- **No request has been sent to a real provider.** Every upstream in these runs was a local script.
+  DeepSeek, OpenRouter, Kimi, Z.ai, Groq, Ollama, and the OpenAI/Anthropic passthrough paths are
+  unproven against the real services, as are their rate-limit and error shapes.
+- **No real agent has been pointed at the router.** Codex and Claude Code were imitated by scripted
+  requests; neither has run a session through it.
+- **The Router web page has not been seen by anyone.** Its module and the whole front end parse, the
+  asset is served, the page calls only the endpoints that exist, and it uses no `innerHTML` — but the
+  browser extension was unavailable in this session, so nothing was rendered or clicked.
+- **The Windows tray build has not been compiled with the router.** `App.xaml.cs` was edited but WPF
+  cannot be built on macOS; only the portable host and CLI were built here.
+- Cancellation, the 300-second idle timeout, and the 32 MiB body limit were exercised only by unit
+  tests, not against a real slow provider.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
@@ -1805,6 +1863,8 @@ These need the repository owner and a real machine; nothing in CI can close them
 - API accounts against real OpenAI and Anthropic Admin keys, Kimi, SiliconFlow, and OpenRouter; only
   DeepSeek has been checked with a real key.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
+- The provider router against a real provider, driven by a real Codex or Claude Code session, and its
+  web page seen in a browser; also a Windows build of the tray app including it.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,
   and record their provenance in `THIRD_PARTY_NOTICES.md`.

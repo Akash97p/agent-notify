@@ -11,6 +11,31 @@ build.
 
 ## [Unreleased]
 
+### Added
+
+- **Provider router (opt-in, off by default).** The broker can act as a local proxy for coding
+  agents: point Codex, Claude Code, or any OpenAI-compatible client at `http://127.0.0.1:<port>/router`
+  and the router picks the upstream provider and model for each request. It speaks OpenAI Responses,
+  OpenAI Chat Completions, and Anthropic Messages on both sides and translates between them, so Codex
+  can run on DeepSeek, OpenRouter, Kimi, Z.ai, or a local Ollama model, and Claude Code can run on an
+  OpenAI-compatible provider. A same-wire request is passed through untouched apart from the model
+  name. Model selectors are `provider/model`, an alias, `combo/<name>`, a bare model declared by one
+  upstream, or the default route. A combo tries its targets in order and fails over on a connection
+  error, timeout, 408, 429, 5xx, or 529 — but never once a byte has reached the client, because a
+  half-delivered stream cannot be resent. Failed targets cool down, honoring `Retry-After`.
+  Upstream keys are encrypted with the same protector as channel secrets, only travel to their own
+  validated `https` destination (plain `http` only for a model server on this computer), and never
+  appear in any response, log, or ledger row. The router has its own key, separate from the `/v1`
+  bearer token, so an agent's config file holds a credential that can spend money but cannot read
+  notifications; requests carrying a browser `Origin` are refused. Every request and every physical
+  attempt is recorded in SQLite with token counts and outcome, pruned after 30 days. See
+  [docs/ROUTER.md](docs/ROUTER.md).
+- **Router page** in the web interface: the on/off switch, a one-time key reveal, copyable Codex and
+  Claude Code setup snippets, upstream and route management, the default route, and the request
+  ledger with per-attempt detail. The router ledger is kept visibly separate from the Usage page:
+  they observe the same calls from different sides and must not be added together.
+- `agentnotify router key` and `agentnotify router status`.
+
 ## [0.1.0-alpha.4] - 2026-09-17
 
 This release is mostly about seeing where coding-agent time and money go on a Windows machine whose
