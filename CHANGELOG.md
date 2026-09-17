@@ -22,7 +22,6 @@ build.
 - **Usage now includes Muse Code, the Kilo CLI, and the Gemini CLI.** Their local history is read
   natively and inside running WSL distributions, grouped by project, and priced at Meta, Z.ai, Xiaomi,
   Google, or free-model rates. The Usage response is now `contract_version: "4"`.
-
 - **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
   now include every running WSL distribution: Claude Code, Codex, and OpenCode history from its home,
   a quota card for each `~/.codex` and `~/.claude` found there (Codex is asked from inside the
@@ -32,8 +31,7 @@ build.
   line, and the WSL wrapper picks the calling distribution automatically. Stopped distributions are
   not read, so opening the dashboard never starts one. The home is the default user's: the one
   named by `[user] default=` in the distribution's `/etc/wsl.conf` when it sets one, otherwise the
-  registered default user. The Usage response is now
-  `contract_version: "3"`.
+  registered default user.
 - **Every Live quota account can be edited or removed.** **Manage accounts** now gives each account
   — including the built-in Codex and Claude Code ones and those discovered in WSL — an editable name
   and profile directory and a **Remove** button. Removed built-in or discovered accounts stay listed
