@@ -85,19 +85,27 @@
 - [x] Live quota page: Codex app-server and Claude Code account-usage probes with cached five-hour/weekly windows, reset times, stale state, and OpenCode unavailable state; live broker/browser check on macOS
 - [x] Named additional Codex/Claude profile monitoring and local OpenCode Go per-model published-cap estimates; profile and estimate tests, macOS broker check
 - [x] Compact remaining-balance quota UI, editable names for current/additional agent profiles, simplified Usage disclosures, and animated Insights dashboard
-- [x] WSL on Windows: usage, live quota, and skill installs include running WSL distributions; WSL profile directories can be added by hand; `install-skill --wsl` (tests on macOS; not yet run on Windows/WSL)
+- [x] WSL on Windows: usage, live quota, and skill installs include running WSL distributions (default user from `/etc/wsl.conf`); WSL profile directories can be added by hand; `install-skill --wsl`; discovery, quota, and usage owner-checked on Windows 11 with Ubuntu-20.04
+- [x] Editable, movable, and removable Live quota accounts, including built-in and discovered ones, with restore
+- [x] Automatic detection of secondary `.codex-*`/`.claude-*` profiles in the native and WSL homes (automated tests only; the owner's machine has none)
+- [x] Muse Code, Kilo CLI, and Gemini CLI usage sources; counts matched an independent recount on the owner's machine
+- [x] Per-record model pricing from official rate pages (OpenAI incl. long-context and fast tiers, Meta, Google, Z.ai, Xiaomi, OpenCode Zen/Go incl. peak hours)
+- [x] OpenCode Go monthly estimate anchored to the owner's renewal day
+- [x] API accounts: encrypted, write-only provider keys for DeepSeek, Kimi, SiliconFlow, OpenRouter, OpenAI Admin, and Anthropic Admin balance/spend; DeepSeek owner-checked on Windows
 - [ ] WSL-aware `install-harness` (hook commands need Linux paths and `python3`)
-- [ ] Complete local usage indexing: durable cache, fork replay handling, and historical/versioned pricing; recent-session grouping is implemented
-- [ ] Expand live quota: a stable public Claude API or documented statusline bridge, context/time-dependent Go model rates, additional provider-account sources, and Windows tray-hosted verification
+- [ ] Durable usage index with scan progress: parsed history is held in memory, so the first scan after a broker start takes about two minutes on a ~4.8B-token WSL history
+- [ ] Complete local usage indexing: fork replay handling and historical/versioned pricing; recent-session grouping is implemented
+- [ ] Expand live quota: a stable public Claude API or documented statusline bridge, context-tiered Go model rates, and opt-in, clearly labelled unofficial sources (Gemini CLI/Antigravity, Cursor, Copilot, Kilo) — Muse Code exposes quota only by spending a request
+- [ ] API accounts: DeepSeek spend derived from balance changes; verify Anthropic cost-report units and OpenAI pagination with real Admin keys; xAI management-key billing
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
-- [ ] Human visual verification of the web interface on Windows, served by the tray app
+- [ ] Human visual verification of the web interface on Windows, served by the tray app (the owner has used Dashboard, Live quota, and API accounts there; no systematic page-by-page or narrow-window check yet)
 - [ ] Native macOS menu-bar and Linux tray clients
 - [ ] Automatic updates and schema/config migration framework
 
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 903 passed, 0 failed, 0 skipped
+- [x] Automated tests: 1,050 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

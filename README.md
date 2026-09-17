@@ -71,12 +71,16 @@ Everywhere:
   [AgentNotify Relay](docs/RELAY.md) — a hosted transport that can carry a question to a
   paired device and the answer back.
 - **A web interface on every platform.** `agentnotify ui` opens the broker's own settings,
-  channels, routes, questions, and history in your browser. Insights adds an animated dashboard,
-  local Claude Code/Codex/OpenCode usage by project, model, day, and recent session, plus
-  published-rate token-cost estimates. Live quota shows the remaining balance and reset times for
-  several named Codex and Claude Code profiles; OpenCode Go has a separate local per-model estimate.
-  The interface has no sign-in, is served only to the local machine, and never receives stored
-  credentials. See [Web interface](docs/WEB_UI.md) for the source and estimate limits.
+  channels, routes, questions, and history in your browser. Insights adds an animated dashboard and
+  local usage from Claude Code, Codex, OpenCode, the Kilo CLI, Muse Code, and the Gemini CLI by
+  project, model, day, and recent session, priced per request at each provider's published rates.
+  On Windows it also reads agents running inside WSL. Live quota shows the remaining balance and
+  reset times for every Codex and Claude Code profile — current, secondary (`~/.codex-work`), WSL,
+  or added by hand — plus an OpenCode Go estimate that can follow your billing cycle, and optional
+  **API accounts** that show DeepSeek, Kimi, SiliconFlow, OpenRouter, OpenAI, or Anthropic balance
+  and spend from a key stored encrypted on the broker. The interface has no sign-in, is served only
+  to the local machine, and never receives stored credentials. See [Web interface](docs/WEB_UI.md)
+  for the sources and estimate limits.
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On Windows, additionally:

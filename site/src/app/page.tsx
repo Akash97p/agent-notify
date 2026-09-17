@@ -38,7 +38,7 @@ export default function Home() {
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
               <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface with usage and quota insights. The current source includes Insights; tagged v0.1.0-alpha.2 binaries predate it.</p>
+            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface with usage and quota insights.</p>
           </div>
 
           <Card className="min-w-0 overflow-hidden bg-card/90 shadow-2xl shadow-black">
@@ -93,16 +93,16 @@ export default function Home() {
           <div className="max-w-3xl">
             <Badge variant="secondary">Web interface · Insights</Badge>
             <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">See the work and the runway.</h2>
-            <p className="mt-5 text-lg leading-8 text-muted-foreground">Run <code className="rounded border bg-card px-1.5 py-0.5 font-mono text-base text-foreground">agentnotify ui</code> to open your local dashboard. Review what Claude Code, Codex, and OpenCode used, what those tokens would cost at published rates, and how much quota your signed-in accounts have left.</p>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">Run <code className="rounded border bg-card px-1.5 py-0.5 font-mono text-base text-foreground">agentnotify ui</code> to open your local dashboard. Review what Claude Code, Codex, OpenCode, Kilo, Muse Code, and the Gemini CLI used — on Windows, inside WSL too — what those tokens would cost at published rates, and how much quota and API balance your accounts have left.</p>
           </div>
           <Button asChild variant="outline"><Link href="/docs/web-ui/">Explore the web interface <ArrowRight /></Link></Button>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Published-rate costs are estimates; records without a verified model rate stay unpriced.</Feature>
-          <Feature icon={Gauge} title="Live quota, every account">Name and monitor several Codex and Claude Code profiles together. Remaining-balance gauges show available quota and reset times; OpenCode Go has a separate local estimate.</Feature>
+          <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Each request is priced at its provider's published rate, including long-context and fast tiers; records without a verified rate stay unpriced.</Feature>
+          <Feature icon={Gauge} title="Live quota, every account">Codex and Claude Code profiles are found automatically — secondary folders and WSL included — and can be renamed, moved, or removed. Optional API accounts add DeepSeek, Kimi, SiliconFlow, OpenRouter, OpenAI, and Anthropic balances and spend.</Feature>
           <Feature icon={FolderKanban} title="One Insights dashboard">See 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health in one view. Account quota and local usage retain their separate sources.</Feature>
         </div>
-        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live Codex and Claude Code quota is checked on demand; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota and API accounts are checked on demand, and API keys are stored encrypted and never shown again; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
       </section>
 
       <Separator />

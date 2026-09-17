@@ -1775,6 +1775,11 @@ These need the repository owner and a real machine; nothing in CI can close them
 - The human WPF checks listed earlier in this file, for the settings theme and the
   built-in tones. No visual surface has been confirmed by a person.
 - A human visual check of the new Usage page, including a narrow browser window.
+- A human visual check of Live quota's Manage accounts, API accounts, and the OpenCode Go renewal
+  control on Windows, including a narrow window. The owner has used these on the tray-hosted
+  interface and reported them working.
+- API accounts against real OpenAI and Anthropic Admin keys, Kimi, SiliconFlow, and OpenRouter; only
+  DeepSeek has been checked with a real key.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,

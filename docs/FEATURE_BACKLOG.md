@@ -140,18 +140,25 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ## Product and platform tasks
 
-- Local usage: read-only Claude Code, Codex, and OpenCode token, project, provider, recent-session,
-  and estimated token-cost summaries are in the WebUI. Add a durable/versioned file index, fork
-  replay attribution, and historical rate schedules before treating the numbers as a spend ledger.
+- Local usage: read-only Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI token,
+  project, provider, recent-session, and per-request priced summaries are in the WebUI, natively and
+  inside WSL. Add a durable/versioned file index with scan progress (a cold scan re-parses every
+  ledger after each broker start), fork replay attribution, and historical rate schedules before
+  treating the numbers as a spend ledger.
 - Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
-  endpoint feed separately cached windows for the current and up to 16 named extra agent profiles
-  in the WebUI. All profiles can be renamed, and compact gauges show remaining balance. OpenCode Go
-  has a separate local, per-model published-cap estimate for 20 exact fixed-rate IDs, never a live
-  remaining balance. Add a stable Claude source or statusline bridge, broader account providers,
-  Go models with context/time-dependent rates, and Windows smoke.
+  endpoint feed separately cached windows for the current, secondary (`.codex-*`/`.claude-*`), WSL,
+  and up to 16 hand-added profiles. Every account can be renamed, moved, removed, and restored.
+  OpenCode Go has a per-model published-cap estimate whose monthly window can follow the renewal
+  day. Add a stable Claude source or statusline bridge, context-tiered Go rates, and opt-in,
+  labelled unofficial sources for tools without a public quota API (Gemini CLI/Antigravity, Cursor,
+  Copilot, Kilo; Muse Code only reports quota on a billed request).
+- API accounts: encrypted, write-only keys show DeepSeek, Kimi, SiliconFlow, and OpenRouter balance
+  or spend and OpenAI/Anthropic Admin cost history from official endpoints. Remaining: spend history
+  derived from balance changes for balance-only providers, real-key verification of the OpenAI and
+  Anthropic cost reports, and xAI's management-key billing.
 - WSL on Windows: running distributions are discovered for Usage, Live quota, and skill installs
-  (web interface, Settings, `install-skill --wsl`). Remaining: a WSL-aware harness installer, and a
-  Windows/WSL smoke test of discovery and the Codex-in-WSL probe.
+  (web interface, Settings, `install-skill --wsl`) and were checked on the owner's Windows machine.
+  Remaining: a WSL-aware harness installer.
 - Insights dashboard: implemented as a responsive, animated browser composition of live account
   balances, 30-day usage/cost, agent mix, daily trend, top projects, Go estimates, and broker health.
   It preserves quota-versus-local-history provenance and reduced-motion behavior.
