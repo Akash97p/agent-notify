@@ -1639,6 +1639,24 @@ new `wsl.conf` parsing and passwd lookup by name.
 Not verified yet: discovered quota cards and WSL usage in an installed build with this fix, and a
 distribution without `wsl.conf`. Linux and macOS are unaffected (discovery is Windows-only).
 
+## Editable and removable Live quota accounts (`feature/editable-quota-accounts`, 2026-09-17)
+
+Environment: the same Windows 11 host and WSL workspace, repository scripts.
+
+Ran:
+
+- `scripts/build.sh` — **0 warnings, 0 errors**. `scripts/test.sh` — **945 passed, 0 failed,
+  0 skipped**. New coverage: removing, restoring, renaming, and moving built-in and discovered WSL
+  accounts through the web API (including refusing a directory another account already monitors and
+  a relative path), removed IDs filtered from the live quota report, config normalization of
+  `removedQuotaAccounts`, and Usage reading a hand-added profile's ledger while counting a
+  directory that is both added and discovered once.
+- `node --check` on `quota.js`.
+
+Not verified: the Manage accounts layout (desktop and narrow widths) has not been looked at in a
+browser, and the installed build has not yet shown discovered WSL cards or WSL usage. Packaging
+produced a new `artifacts/AgentNotifySetup.exe` for the owner to test.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

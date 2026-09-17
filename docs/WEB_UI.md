@@ -62,7 +62,9 @@ Counts are historical token records, not provider billing or live quota. Cached 
 from uncached input. Codex reasoning is included within output; OpenCode reasoning is a separate
 counter added to output once. OpenCode's current `message` table is queried on every refresh.
 `OPENCODE_DATA_DIR` can point to a custom data directory; otherwise XDG's data home or
-`~/.local/share/opencode/opencode.db` is used.
+`~/.local/share/opencode/opencode.db` is used. Codex and Claude Code profiles added by hand on Live
+quota are read too (`sessions`/`archived_sessions` and `projects` under each profile directory), so a
+second account's history counts; a directory that is also discovered is read once.
 On Windows, Usage, Live quota, and Agents also include each running WSL distribution: its agents'
 default log locations, a Codex/Claude Code account for each profile directory that exists, and skill
 rows labelled `WSL · <distribution>`. Stopped distributions are not read, because opening their
@@ -126,9 +128,13 @@ copy a login or offer a password field. Codex is queried with that profile's `CO
 Code is queried only when that profile has a readable `.credentials.json`. Claude Code may store
 credentials in the macOS Keychain instead, so an extra macOS Claude profile can show unavailable
 until its agent-owned credential file is present. Removing a monitored account removes only its
-AgentNotify entry, not its agent profile or sign-in. Any current or additional Codex/Claude account
-can be renamed in **Manage accounts**; the owner-only config stores the display name and the agent
-login is unchanged. Up to 16 additional profiles can be listed.
+AgentNotify entry, not its agent profile or sign-in. Every account in **Manage accounts** — the
+current Codex and Claude Code profiles, the ones discovered in WSL, and those you added — has an
+editable name and profile directory and can be removed. A current or discovered account that is
+removed is listed under **Removed accounts** with **Restore**, since it would otherwise be found
+again; giving one a different directory turns it into an added account for that directory and moves
+the detected entry to **Removed accounts**. The owner-only config stores the names, directories, and
+removed IDs; the agent login is unchanged. Up to 16 additional profiles can be listed.
 
 ### OpenCode Go local estimate
 

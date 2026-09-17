@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using AgentNotify.Core.Config;
 using AgentNotify.Core.Wsl;
 using Microsoft.Data.Sqlite;
 
@@ -13,6 +14,7 @@ public sealed class LocalUsageService
     private readonly IReadOnlyList<string> _codexRoots;
     private readonly string _openCodeDatabase;
     private readonly IWslEnvironment? _wsl;
+    private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private Dictionary<string, CachedFile> _files = new(StringComparer.Ordinal);
 
@@ -20,9 +22,12 @@ public sealed class LocalUsageService
     /// Running WSL distributions whose agent logs are read too. Defaults to <see cref="WslDiscovery.Default"/>
     /// only when no explicit roots are given, so a caller that names its roots gets exactly those.
     /// </param>
+    /// <param name="accounts">Profiles added by hand on Live quota, whose ledgers are read as well.</param>
     public LocalUsageService(IEnumerable<string>? claudeRoots = null, IEnumerable<string>? codexRoots = null,
-        string? openCodeDatabase = null, IWslEnvironment? wsl = null)
+        string? openCodeDatabase = null, IWslEnvironment? wsl = null,
+        Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null)
     {
+        _accounts = accounts;
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _wsl = wsl ?? (claudeRoots is null && codexRoots is null && openCodeDatabase is null ? WslDiscovery.Default : null);
         _claudeRoots = (claudeRoots ?? ClaudeRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
@@ -38,20 +43,39 @@ public sealed class LocalUsageService
     private Sources CurrentSources()
     {
         var homes = _wsl?.RunningHomes() ?? [];
+        var accounts = (_accounts?.Invoke() ?? []).Where(account => Path.IsPathFullyQualified(account.Directory)).ToArray();
         return new Sources(
-            [.. _claudeRoots, .. homes.SelectMany(home => new[]
+            [.. new[]
             {
-                Path.Combine(home.WindowsHome, ".claude", "projects"),
-                Path.Combine(home.WindowsHome, ".config", "claude", "projects")
-            })],
-            [.. _codexRoots, .. homes.SelectMany(home => new[]
+                _claudeRoots,
+                homes.SelectMany(home => new[]
+                {
+                    Path.Combine(home.WindowsHome, ".claude", "projects"),
+                    Path.Combine(home.WindowsHome, ".config", "claude", "projects")
+                }),
+                accounts.Where(account => account.Provider == "claude_code")
+                    .Select(account => Path.Combine(account.Directory, "projects"))
+            }.SelectMany(roots => roots).Distinct(PathComparer)],
+            [.. new[]
             {
-                Path.Combine(home.WindowsHome, ".codex", "sessions"),
-                Path.Combine(home.WindowsHome, ".codex", "archived_sessions")
-            })],
+                _codexRoots,
+                homes.SelectMany(home => new[]
+                {
+                    Path.Combine(home.WindowsHome, ".codex", "sessions"),
+                    Path.Combine(home.WindowsHome, ".codex", "archived_sessions")
+                }),
+                accounts.Where(account => account.Provider == "codex").SelectMany(account => new[]
+                {
+                    Path.Combine(account.Directory, "sessions"),
+                    Path.Combine(account.Directory, "archived_sessions")
+                })
+            }.SelectMany(roots => roots).Distinct(PathComparer)],
             [_openCodeDatabase, .. homes.Select(home => Path.Combine(home.WindowsHome, ".local", "share", "opencode", "opencode.db"))],
             homes.Select(home => home.Distribution).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
     }
+
+    private static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     private sealed record Sources(string[] ClaudeRoots, string[] CodexRoots, string[] OpenCodeDatabases,
         string[] WslDistributions);

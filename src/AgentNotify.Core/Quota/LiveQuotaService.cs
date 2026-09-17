@@ -9,6 +9,8 @@ public sealed class LiveQuotaService
 {
     private readonly IReadOnlyList<ILiveQuotaProbe>? _fixedProbes;
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
+    /// <summary>Built-in and discovered account IDs the owner removed.</summary>
+    private readonly Func<ICollection<string>> _removedAccounts;
     /// <summary>The owner's name for a built-in or discovered account, keyed by provider or WSL account ID.</summary>
     private readonly Func<string, string?> _defaultAccountLabel;
     private readonly Func<QuotaAccountDefinition, ILiveQuotaProbe> _probeFactory;
@@ -26,9 +28,11 @@ public sealed class LiveQuotaService
     public LiveQuotaService(IEnumerable<ILiveQuotaProbe>? probes = null, TimeProvider? clock = null,
         Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, LocalUsageService? usage = null,
         Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null,
-        Func<string, string?>? defaultAccountLabel = null, IWslEnvironment? wsl = null)
+        Func<string, string?>? defaultAccountLabel = null, IWslEnvironment? wsl = null,
+        Func<ICollection<string>>? removedAccounts = null)
     {
         _fixedProbes = probes?.ToArray();
+        _removedAccounts = removedAccounts ?? (() => Array.Empty<string>());
         _wsl = wsl;
         _accounts = accounts;
         _defaultAccountLabel = defaultAccountLabel ?? (_ => null);
@@ -91,20 +95,20 @@ public sealed class LiveQuotaService
 
     private IReadOnlyList<(ILiveQuotaProbe Probe, string AccountId, string AccountLabel)> GetProbes()
     {
-        var result = _fixedProbes is null
+        var removed = _removedAccounts();
+        var result = (_fixedProbes is null
             ? new List<(ILiveQuotaProbe, string, string)>
               {
                   (_defaultCodex, "codex:default", _defaultAccountLabel("codex") ?? "Current account"),
                   (_defaultClaude, "claude_code:default", _defaultAccountLabel("claude_code") ?? "Current account")
               }
-            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", _defaultAccountLabel(probe.Provider) ?? "Current account")).ToList();
+            : _fixedProbes.Select(probe => (probe, probe.Provider + ":default", _defaultAccountLabel(probe.Provider) ?? "Current account")).ToList())
+            .Where(item => !removed.Contains(item.Item2)).ToList();
         var configured = (_accounts?.Invoke() ?? []).Take(16).ToArray();
         var active = new HashSet<string>(StringComparer.Ordinal);
-        // Profiles inside running WSL distributions come next, unless the owner already added the
-        // same directory by hand. They leave the list, and the cache, when the distribution stops.
-        var discovered = _wsl is null ? [] : QuotaAccountDefinition.WslDefaults(_wsl, _defaultAccountLabel)
-            .Where(account => !configured.Any(item => item is not null && item.Provider == account.Provider &&
-                string.Equals(item.Directory, account.Directory, StringComparison.OrdinalIgnoreCase)));
+        // Profiles inside running WSL distributions come next, unless the owner removed them or added
+        // the same directory by hand. They leave the list, and the cache, when the distribution stops.
+        var discovered = _wsl is null ? [] : QuotaAccountDefinition.MonitoredWslDefaults(_wsl, _defaultAccountLabel, configured, removed);
         foreach (var account in discovered)
         {
             if (active.Add(account.Id)) result.Add((ProbeFor(account), account.Id, account.Label));

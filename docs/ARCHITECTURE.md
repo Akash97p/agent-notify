@@ -139,7 +139,13 @@ balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
 Each running WSL distribution with a `~/.codex` or `~/.claude` directory adds a discovered account
 (`codex:wsl:<distribution>`, renamable through the same label map as the built-in accounts); an
-account the owner added by hand for the same directory takes its place. A profile on the WSL share
+account the owner added by hand for the same directory takes its place. Built-in and discovered
+accounts cannot be deleted from config because they are derived, so removing one records its ID in
+`removedQuotaAccounts`, which both Live quota and the account list filter out until it is restored.
+Pointing one at a different directory creates an added account and records the detected ID as
+removed, so there is one representation of an account's directory rather than per-ID overrides.
+Usage reads the ledgers of added accounts as well as the default locations, deduplicating roots by
+path and events by identity, so a profile that is both added and discovered is counted once. A profile on the WSL share
 can also be added by hand, as the one exception to the under-home rule. Codex for such a profile is
 run inside that distribution — `wsl.exe --distribution <name> --exec /bin/sh`, then the user's login,
 interactive shell so version-manager PATH setup applies — with `CODEX_HOME` passed through

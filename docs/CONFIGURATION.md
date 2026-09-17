@@ -59,8 +59,9 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `maxMetadataBytes` | `int` | `8192` | Serialized metadata map size cap. When `<= 0` reset to `8192`. Not editable in Settings. Validation uses `JsonSerializer.SerializeToUtf8Bytes(metadata, Json.Options)`. |
 | `toastDurations` | `object` | see below | Map of type ID → auto-dismiss seconds. `0` means sticky until dismissed/resolved. Backfilled from defaults and normalized. Editable in Settings → Toasts per built-in type (0–86400). |
 | `customNotificationTypes` | `array` | `[]` | User-defined type definitions. See Custom types. Editable in Settings → Custom types. |
-| `quotaAccounts` | `array` | `[]` | Additional named Codex/Claude Code profile directories shown in Live quota. Each entry has an AgentNotify-generated `id`, `provider`, `label`, and absolute `directory` under the user's home folder; no credentials are stored. Add/remove through Live quota, up to 16 extras. |
-| `defaultQuotaAccountLabels` | `object` | `{}` | Optional owner-chosen display labels for the built-in `codex` and `claude_code` profiles. Values are trimmed to 1–60 printable characters; unknown keys and invalid labels are removed. Editable through Live quota → Manage accounts. |
+| `quotaAccounts` | `array` | `[]` | Additional named Codex/Claude Code profile directories shown in Live quota. Each entry has an AgentNotify-generated `id`, `provider`, `label`, and absolute `directory` under the user's home folder; no credentials are stored. Their session logs are also read by Usage. Add, edit, and remove through Live quota, up to 16 extras. |
+| `defaultQuotaAccountLabels` | `object` | `{}` | Optional owner-chosen display labels for the built-in `codex` and `claude_code` profiles and discovered WSL profiles (`codex:wsl:<distribution>`). Values are trimmed to 1–60 printable characters; unknown keys and invalid labels are removed. Editable through Live quota → Manage accounts. |
+| `removedQuotaAccounts` | `array` | `[]` | IDs of built-in (`codex:default`, `claude_code:default`) or discovered WSL accounts removed from Live quota. Other values and duplicates are dropped. Removed and restored through Live quota → Manage accounts. |
 
 ### Toast duration defaults
 

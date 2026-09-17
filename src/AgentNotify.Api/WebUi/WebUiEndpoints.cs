@@ -157,12 +157,28 @@ public static class WebUiEndpoints
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
         var wsl = options.Wsl ?? WslDiscovery.Default;
-        var usage = options.Usage ?? new LocalUsageService(wsl: wsl);
+        var usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: () => config.QuotaAccounts.ToArray());
         var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
             accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
-            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl);
-        IReadOnlyList<QuotaAccountDefinition> WslAccounts() =>
-            QuotaAccountDefinition.WslDefaults(wsl, key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key));
+            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
+            removedAccounts: () => config.RemovedQuotaAccounts);
+        string? DetectedLabel(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
+        // Built-in and discovered accounts, including removed ones; the owner's list is filtered from these.
+        IReadOnlyList<QuotaAccountDefinition> DetectedAccounts() =>
+        [
+            QuotaAccountDefinition.Default("codex", DetectedLabel("codex")),
+            QuotaAccountDefinition.Default("claude_code", DetectedLabel("claude_code")),
+            .. QuotaAccountDefinition.MonitoredWslDefaults(wsl, DetectedLabel, config.QuotaAccounts, Array.Empty<string>())
+        ];
+        IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
+            DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
+        void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
+        {
+            var (previousAccounts, previousRemoved) = (config.QuotaAccounts, config.RemovedQuotaAccounts);
+            (config.QuotaAccounts, config.RemovedQuotaAccounts) = (accounts, removed);
+            try { options.ConfigStore.Save(config); }
+            catch { (config.QuotaAccounts, config.RemovedQuotaAccounts) = (previousAccounts, previousRemoved); throw; }
+        }
         var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
 
@@ -217,19 +233,26 @@ public static class WebUiEndpoints
         app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
             Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
 
-        app.MapGet($"{BasePath}/api/quota/accounts", () => Results.Json(new
+        static string? WslName(QuotaAccountDefinition account) =>
+            QuotaAccountDefinition.IsWslAccountId(account.Id) ? account.Id[(account.Id.LastIndexOf(':') + 1)..] : null;
+
+        app.MapGet($"{BasePath}/api/quota/accounts", () =>
         {
-            accounts = new[]
-                {
-                    QuotaAccountDefinition.Default("codex", config.DefaultQuotaAccountLabels.GetValueOrDefault("codex")),
-                    QuotaAccountDefinition.Default("claude_code", config.DefaultQuotaAccountLabels.GetValueOrDefault("claude_code"))
-                }
-                .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = (string?)null })
-                .Concat(WslAccounts().Select(account => new
-                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = (string?)account.Id[(account.Id.LastIndexOf(':') + 1)..] }))
-                .Concat(config.QuotaAccounts.Select(account => new
-                    { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray()
-        }, JsonOptions));
+            var detected = DetectedAccounts();
+            return Results.Json(new
+            {
+                accounts = detected.Where(account => !config.RemovedQuotaAccounts.Contains(account.Id))
+                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = WslName(account) })
+                    .Concat(config.QuotaAccounts.Select(account => new
+                        { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray(),
+                // A removed WSL account keeps its row while its distribution is stopped, without a directory.
+                removed = config.RemovedQuotaAccounts.Select(id => detected.FirstOrDefault(account => account.Id == id) ??
+                        new QuotaAccountDefinition(id, id[..id.IndexOf(':')],
+                            DetectedLabel(id) ?? "WSL · " + id[(id.LastIndexOf(':') + 1)..], ""))
+                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, Wsl = WslName(account) })
+                    .ToArray()
+            }, JsonOptions);
+        });
 
         app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
         {
@@ -242,12 +265,8 @@ public static class WebUiEndpoints
                 {
                     if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
                     account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
-                        config.QuotaAccounts.Concat([QuotaAccountDefinition.Default("codex"),
-                            QuotaAccountDefinition.Default("claude_code")]).Concat(WslAccounts()));
-                    var previous = config.QuotaAccounts;
-                    config.QuotaAccounts = [.. previous, account];
-                    try { options.ConfigStore.Save(config); }
-                    catch { config.QuotaAccounts = previous; throw; }
+                        config.QuotaAccounts.Concat(MonitoredDetectedAccounts()));
+                    SaveQuotaAccounts([.. config.QuotaAccounts, account], config.RemovedQuotaAccounts);
                 }
                 Notify(options, config, false, logger);
                 return Results.Json(account, JsonOptions, statusCode: StatusCodes.Status201Created);
@@ -255,6 +274,9 @@ public static class WebUiEndpoints
             catch (ArgumentException error) { return Error(error.Message); }
         }));
 
+        // Renames an account and, when a directory is given, points it at that profile. A built-in or
+        // discovered account moved to another directory becomes an added account and leaves its
+        // detected entry removed, so the move survives restarts and rediscovery.
         app.MapPut($"{BasePath}/api/quota/accounts/{{id}}", async (string id, HttpContext http) =>
         {
             var body = await ReadAsync<QuotaAccountBody>(http);
@@ -262,57 +284,90 @@ public static class WebUiEndpoints
             try
             {
                 var label = QuotaAccountDefinition.NormalizeLabel(body.Label);
-                QuotaAccountDefinition renamed;
+                QuotaAccountDefinition saved;
                 lock (quotaAccountsGate)
                 {
-                    if (id is "codex:default" or "claude_code:default" || QuotaAccountDefinition.IsWslAccountId(id))
+                    if (QuotaAccountDefinition.IsDetectedAccountId(id))
                     {
-                        // Built-in accounts are keyed by provider; discovered WSL accounts by their full ID.
+                        if (config.RemovedQuotaAccounts.Contains(id))
+                            return Error("That account was removed. Restore it first.", StatusCodes.Status404NotFound);
                         var provider = id[..id.IndexOf(':')];
-                        var key = id.EndsWith(":default", StringComparison.Ordinal) ? provider : id;
-                        var previous = new Dictionary<string, string>(config.DefaultQuotaAccountLabels, StringComparer.Ordinal);
-                        var updated = new Dictionary<string, string>(previous, StringComparer.Ordinal)
-                            { [key] = label };
-                        config.DefaultQuotaAccountLabels = updated;
-                        try { options.ConfigStore.Save(config); }
-                        catch { config.DefaultQuotaAccountLabels = previous; throw; }
-                        renamed = key == provider
-                            ? QuotaAccountDefinition.Default(provider, label)
-                            : WslAccounts().FirstOrDefault(account => account.Id == id)
-                              ?? new QuotaAccountDefinition(id, provider, label, "");
+                        var current = DetectedAccounts().FirstOrDefault(account => account.Id == id);
+                        var moved = !string.IsNullOrWhiteSpace(body.Directory) && current is not null &&
+                            !QuotaAccountDefinition.SameDirectory(body.Directory.Trim(), current.Directory) &&
+                            !QuotaAccountDefinition.SameDirectory(QuotaAccountDefinition.NormalizeDirectory(body.Directory), current.Directory);
+                        if (moved)
+                        {
+                            if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
+                            saved = QuotaAccountDefinition.Create(provider, label, body.Directory,
+                                config.QuotaAccounts.Concat(MonitoredDetectedAccounts().Where(account => account.Id != id)));
+                            SaveQuotaAccounts([.. config.QuotaAccounts, saved], [.. config.RemovedQuotaAccounts, id]);
+                        }
+                        else
+                        {
+                            // Built-in accounts are keyed by provider; discovered WSL accounts by their full ID.
+                            var key = id.EndsWith(":default", StringComparison.Ordinal) ? provider : id;
+                            var previous = config.DefaultQuotaAccountLabels;
+                            config.DefaultQuotaAccountLabels = new Dictionary<string, string>(previous, StringComparer.Ordinal)
+                                { [key] = label };
+                            try { options.ConfigStore.Save(config); }
+                            catch { config.DefaultQuotaAccountLabels = previous; throw; }
+                            saved = (current ?? new QuotaAccountDefinition(id, provider, label, "")) with { Label = label };
+                        }
                     }
                     else
                     {
                         var index = config.QuotaAccounts.FindIndex(account => account.Id == id);
                         if (index < 0) return Error("That account was not found.", StatusCodes.Status404NotFound);
-                        var previous = config.QuotaAccounts;
-                        var updated = previous.ToList();
-                        renamed = updated[index] with { Label = label };
-                        updated[index] = renamed;
-                        config.QuotaAccounts = updated;
-                        try { options.ConfigStore.Save(config); }
-                        catch { config.QuotaAccounts = previous; throw; }
+                        var updated = config.QuotaAccounts.ToList();
+                        saved = string.IsNullOrWhiteSpace(body.Directory)
+                            ? updated[index] with { Label = label }
+                            : QuotaAccountDefinition.Create(updated[index].Provider, label, body.Directory,
+                                updated.Where(account => account.Id != id).Concat(MonitoredDetectedAccounts())) with { Id = id };
+                        updated[index] = saved;
+                        SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
                     }
                 }
                 Notify(options, config, false, logger);
-                return Results.Json(renamed, JsonOptions);
+                return Results.Json(saved, JsonOptions);
             }
             catch (ArgumentException error) { return Error(error.Message); }
         });
 
+        // Added accounts are deleted. Built-in and discovered ones are only hidden, because they would
+        // otherwise reappear on the next discovery; the agent profile and its sign-in stay untouched.
         app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
         {
             lock (quotaAccountsGate)
             {
-                var previous = config.QuotaAccounts;
-                var updated = previous.Where(account => account.Id != id).ToList();
-                if (updated.Count == previous.Count) return Error("That additional account was not found.", StatusCodes.Status404NotFound);
-                config.QuotaAccounts = updated;
-                try { options.ConfigStore.Save(config); }
-                catch { config.QuotaAccounts = previous; throw; }
+                if (QuotaAccountDefinition.IsDetectedAccountId(id))
+                {
+                    if (config.RemovedQuotaAccounts.Contains(id))
+                        return Error("That account was already removed.", StatusCodes.Status404NotFound);
+                    SaveQuotaAccounts(config.QuotaAccounts, [.. config.RemovedQuotaAccounts, id]);
+                }
+                else
+                {
+                    var updated = config.QuotaAccounts.Where(account => account.Id != id).ToList();
+                    if (updated.Count == config.QuotaAccounts.Count)
+                        return Error("That account was not found.", StatusCodes.Status404NotFound);
+                    SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
+                }
             }
             Notify(options, config, false, logger);
             return Results.Json(new { deleted = id }, JsonOptions);
+        });
+
+        app.MapPost($"{BasePath}/api/quota/accounts/{{id}}/restore", (string id) =>
+        {
+            lock (quotaAccountsGate)
+            {
+                if (!config.RemovedQuotaAccounts.Contains(id))
+                    return Error("That account is not removed.", StatusCodes.Status404NotFound);
+                SaveQuotaAccounts(config.QuotaAccounts, config.RemovedQuotaAccounts.Where(item => item != id).ToList());
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { restored = id }, JsonOptions);
         });
 
         // ---- settings ----------------------------------------------------------------------
