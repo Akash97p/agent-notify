@@ -181,9 +181,12 @@ the local records. It displays no invented provider reset time or subscription c
 
 ### API accounts
 
-Live quota reads the agents' own sign-ins. **API accounts** is the separate section below it for
-a key you paste in yourself: the broker calls that provider's official balance or spend endpoint
-and shows what it returns. Up to 16 accounts are stored.
+Live quota reads the agents' own sign-ins. **API accounts** is for a key you paste in yourself: the
+broker calls that provider's official balance or spend endpoint and shows what it returns. Their
+cards appear at the top of Live quota once an account exists; **Manage API accounts** stays at the
+bottom. Each card leads with one balance — DeepSeek's total, Kimi's available balance, SiliconFlow's
+total, OpenRouter's remaining limit — formatted in its currency (`$0.56`); the breakdown (granted,
+topped-up, voucher, cash) is under **Account details**. Up to 16 accounts are stored.
 
 | Provider | Key type | What it shows |
 | --- | --- | --- |

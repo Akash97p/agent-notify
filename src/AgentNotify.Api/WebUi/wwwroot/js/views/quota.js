@@ -193,8 +193,10 @@ export default {
         if (!ctx.isCurrent()) return;
         if (report.contract_version !== "3") throw new Error("The broker and page use different quota contracts. Reload the page.");
         const providers = report.providers.filter(item => item.provider !== "opencode");
+        const billing = renderBilling();
         mount(page,
           pageHead("Live quota", "Remaining account balances at a glance.", refresh),
+          billing.cards,
           h("div", { class: "quota-grid" }, providers.map(providerCard)),
           report.open_code_go?.models?.length ? [
             h("div", { class: "section-heading" },
@@ -208,7 +210,7 @@ export default {
               h("p", { class: "muted small", text: `${report.open_code_go.message} The 5-hour and weekly windows roll backward from now; ${report.open_code_go.renewal_day ? "the monthly window follows your renewal day" : "set your renewal day to anchor the monthly window to your billing cycle"}. Rates checked ${report.open_code_go.pricing_as_of}.` }))
           ] : null,
           accountManager(configured.accounts, configured.removed ?? [], load),
-          renderBilling(),
+          billing.manager,
           h("p", { class: "muted small page-footnote", text: "Live checks are cached for five minutes. Check now is limited to once every 30 seconds." }));
       } catch (error) {
         if (ctx.isCurrent()) mount(page, pageHead("Live quota", "Remaining account balances.", refresh), notice(error.message, "danger"));
