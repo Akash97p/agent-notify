@@ -1610,6 +1610,35 @@ Not verified — none of this has run on Windows:
 - Silent update, relaunch, and `--no-launch`.
 - Packaging was not run, so no installer containing this change exists yet.
 
+## WSL discovery on a real Windows machine (`fix/wsl-default-user`, 2026-09-17)
+
+Environment: Windows 11 host with WSL 2.7.11 running `Ubuntu-20.04`, WSL workspace, Windows .NET SDK
+at `/mnt/d/dev/dotnet/dotnet.exe`. The distribution sets its user through `/etc/wsl.conf`
+(`[user] default=akash`); its `Lxss` registry entry has `DefaultUid` `0`.
+
+At `a19304e` (`dev`) the repository scripts ran: `scripts/build.sh` **0 warnings, 0 errors**,
+`scripts/test.sh` **933 passed, 0 failed, 0 skipped**, and `scripts/package.sh` produced
+`artifacts/AgentNotifySetup.exe`. The owner installed that build and reported:
+
+- Adding `\\wsl.localhost\Ubuntu-20.04\home\akash\.codex` and `...\.claude` by hand on Live quota
+  worked; both cards showed **Live** with real 5-hour and 7-day balances, so Codex's app server ran
+  inside the distribution and the Claude credentials were read through the share.
+- No WSL account was discovered automatically, and the dashboard showed no usage (0 tokens,
+  0 sessions) although agents run in that distribution.
+
+Cause, confirmed on this machine: `wsl.exe --list --running --quiet` does list `Ubuntu-20.04` (as
+UTF-16LE without a byte-order mark, which the parser handles), but discovery took the home of
+`DefaultUid` `0`, `/root`. The installed `agentnotify.exe install-skill claude --wsl Ubuntu-20.04
+--dry-run` reported `\\wsl.localhost\Ubuntu-20.04\root\.claude\skills\agentnotify`.
+
+After the fix (default user read from `/etc/wsl.conf`, falling back to `DefaultUid`) the same
+dry run from the fixed CLI build reported
+`\\wsl.localhost\Ubuntu-20.04\home\akash\.claude\skills\agentnotify`. `WslTests` pass, including
+new `wsl.conf` parsing and passwd lookup by name.
+
+Not verified yet: discovered quota cards and WSL usage in an installed build with this fix, and a
+distribution without `wsl.conf`. Linux and macOS are unaffected (discovery is Windows-only).
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

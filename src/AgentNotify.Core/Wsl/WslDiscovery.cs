@@ -144,7 +144,12 @@ public sealed class WslDiscovery : IWslEnvironment
         }
         var passwd = new FileInfo(Path.Combine(root, "etc", "passwd"));
         if (!passwd.Exists || passwd.Length > 1024 * 1024) return null;
-        var linuxHome = FindHome(File.ReadAllText(passwd.FullName), uid);
+        // Distributions set up with "[user] default=" in /etc/wsl.conf keep DefaultUid at 0 in the
+        // registry, and wsl.conf wins, so it names the user agents actually run as.
+        var wslConf = new FileInfo(Path.Combine(root, "etc", "wsl.conf"));
+        var user = wslConf.Exists && wslConf.Length <= 64 * 1024 ? DefaultUser(File.ReadAllText(wslConf.FullName)) : null;
+        var passwdText = File.ReadAllText(passwd.FullName);
+        var linuxHome = (user is null ? null : FindHome(passwdText, user)) ?? FindHome(passwdText, uid);
         if (linuxHome is null) return null;
         var windowsHome = WslPath.ToWindows(root, linuxHome);
         return Directory.Exists(windowsHome) ? new WslHome(name, linuxHome, windowsHome) : null;
@@ -170,14 +175,47 @@ public sealed class WslDiscovery : IWslEnvironment
             .ToArray();
     }
 
-    /// <summary>The home directory of <paramref name="uid"/> in an <c>/etc/passwd</c> file.</summary>
-    internal static string? FindHome(string passwd, int uid)
+    /// <summary>The user named by <c>default=</c> in the <c>[user]</c> section of <c>/etc/wsl.conf</c>.</summary>
+    internal static string? DefaultUser(string wslConf)
     {
-        var wanted = uid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var inUser = false;
+        string? user = null;
+        foreach (var raw in wslConf.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line[0] is '#' or ';') continue;
+            if (line[0] == '[')
+            {
+                inUser = line.TrimEnd(']', ' ', '\t')[1..].Trim().Equals("user", StringComparison.OrdinalIgnoreCase);
+                continue;
+            }
+            var equals = line.IndexOf('=');
+            if (!inUser || equals < 0 || !line[..equals].Trim().Equals("default", StringComparison.OrdinalIgnoreCase)) continue;
+            var value = line[(equals + 1)..];
+            var comment = value.IndexOf('#');
+            if (comment >= 0) value = value[..comment];
+            user = value.Trim().Trim('"', '\'').Trim();
+        }
+        return IsValidUserName(user) ? user : null;
+    }
+
+    private static bool IsValidUserName(string? name) =>
+        name is { Length: > 0 and <= 32 } && name[0] != '-' &&
+        name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' or '$');
+
+    /// <summary>The home directory of <paramref name="uid"/> in an <c>/etc/passwd</c> file.</summary>
+    internal static string? FindHome(string passwd, int uid) =>
+        FindHome(passwd, 2, uid.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    /// <summary>The home directory of the user called <paramref name="user"/> in an <c>/etc/passwd</c> file.</summary>
+    internal static string? FindHome(string passwd, string user) => FindHome(passwd, 0, user);
+
+    private static string? FindHome(string passwd, int field, string wanted)
+    {
         foreach (var line in passwd.Split('\n'))
         {
             var fields = line.TrimEnd('\r').Split(':');
-            if (fields.Length < 7 || fields[2] != wanted) continue;
+            if (fields.Length < 7 || fields[field] != wanted) continue;
             var home = fields[5].TrimEnd('/');
             if (home.Length == 0) home = "/";
             return WslPath.IsSafeLinuxPath(home) ? home : null;

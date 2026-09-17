@@ -54,7 +54,22 @@ public sealed class WslTests : IDisposable
         Assert.Equal("/home/akash", WslDiscovery.FindHome(passwd, 1000));
         Assert.Null(WslDiscovery.FindHome(passwd, 1001));
         Assert.Null(WslDiscovery.FindHome(passwd, 4242));
+        Assert.Equal("/home/akash", WslDiscovery.FindHome(passwd, "akash"));
+        Assert.Null(WslDiscovery.FindHome(passwd, "evil"));
+        Assert.Null(WslDiscovery.FindHome(passwd, "nobody"));
     }
+
+    [Theory]
+    [InlineData("[user]\ndefault=akash\n", "akash")]
+    [InlineData("[boot]\nsystemd=true\n\n[user]\r\ndefault = \"akash\"  # login user\r\n", "akash")]
+    [InlineData("[User]\n  Default=dev_1\n[network]\ndefault=ignored\n", "dev_1")]
+    [InlineData("[boot]\ndefault=akash\n", null)]
+    [InlineData("# [user]\n# default=akash\n", null)]
+    [InlineData("[user]\ndefault=../etc\n", null)]
+    [InlineData("[user]\ndefault=\n", null)]
+    [InlineData("", null)]
+    public void WslConfNamesTheDefaultUser(string wslConf, string? user) =>
+        Assert.Equal(user, WslDiscovery.DefaultUser(wslConf));
 
     [Fact]
     public async Task UsageIncludesRunningDistributionsAndTheirLinuxProjectNames()

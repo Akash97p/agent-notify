@@ -99,7 +99,10 @@ the current cache is in memory and is rebuilt after restart.
 On Windows the same sources are also read inside WSL. `WslDiscovery` in Core lists distributions
 from `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`, asks `wsl.exe --list --running` which
 of them are running, resolves each default user's home from that distribution's `/etc/passwd`, and
-reaches it through `\\wsl.localhost\<distribution>`. Only running distributions are touched:
+reaches it through `\\wsl.localhost\<distribution>`. The default user is the one named by `[user]
+default=` in the distribution's `/etc/wsl.conf` when present, because WSL applies it over the
+registry's `DefaultUid`, which stays `0` for distributions configured that way; otherwise it is
+`DefaultUid`. Only running distributions are touched:
 opening the share of a stopped distribution boots its VM, which a dashboard visit must not do. The
 agents' default locations inside the distribution are used, because their environment variables are
 not visible to the broker. Discovery is cached for 30 seconds and re-resolved on every scan, so
