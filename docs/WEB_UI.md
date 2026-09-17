@@ -80,20 +80,30 @@ local CSS only, respects the operating system's reduced-motion preference, and l
 script or telemetry service.
 
 The cost number answers **what these tokens would cost at published token rates**, using
-the dated rate snapshot shown on the page. OpenAI and Claude use standard API rates; OpenCode Go
-uses its published quota-equivalent token rates. It is not a subscription charge or invoice. Claude
-5-minute and 1-hour cache writes use different rates. The estimate excludes plan allowances,
-Fast/Batch pricing, long-context premiums, server-side tool fees, taxes, and discounts. A model
-without an exact verified rate is marked *unpriced*; its tokens remain in usage totals but no zero
-cost is implied. Current rates are applied to old records, not historical price schedules.
-The dated catalog uses published [OpenAI model prices](https://developers.openai.com/api/docs/models)
-and [Claude API prices](https://platform.claude.com/docs/en/about-claude/pricing), plus
-[OpenCode Go token rates](https://opencode.ai/docs/go/); changing rates
-requires a new catalog snapshot.
-The Go catalog currently covers 20 exact fixed-rate model IDs. Published cache-write rates are
-included for MiniMax M2.7/M2.5 and Qwen3.8 Max/Flash and Qwen3.7 Max. Models with context-length
-or time-of-day prices remain unpriced because local records cannot select a verified tier; a
-cache-write record is also unpriced when Go publishes no cache-write rate for that model.
+the dated rate snapshot shown on the page. Each record is priced at its provider's standard API rate:
+[OpenAI](https://developers.openai.com/api/docs/pricing),
+[Anthropic](https://platform.claude.com/docs/en/about-claude/pricing),
+[Meta](https://developer.meta.com/ai/products/meta-model-api/) (Muse Spark, including Contributor),
+[Google Gemini](https://ai.google.dev/gemini-api/docs/pricing), [Z.ai](https://docs.z.ai/guides/overview/pricing),
+and [Xiaomi MiMo](https://mimo.mi.com/docs/en-US/price/pay-as-you-go). OpenCode Go uses its
+[published quota-equivalent token rates](https://opencode.ai/docs/go/), and the free models of
+[OpenCode Zen](https://opencode.ai/docs/zen/) (`-free`) and Kilo (`:free`) cost nothing. It is not a
+subscription charge or invoice. The provider comes from the agent (Codex → OpenAI, Claude Code →
+Anthropic) or, for OpenCode, from each message's provider ID.
+
+Rates vary per record where the provider says so: a GPT-5.5/GPT-5.4 request over 272K input tokens
+and a Gemini Pro request over 200K prompt tokens use the long-context rate; Codex turns run in fast
+mode (`service_tier: priority`) and OpenCode's `-fast` models use OpenAI's fast-tier rates; DeepSeek
+V4 on OpenCode Go uses its peak rate for requests made 01:00–04:00 or 06:00–10:00 UTC on weekdays.
+Claude 5-minute and 1-hour cache writes use different rates. The estimate excludes plan allowances,
+Batch pricing, server-side tool fees, taxes, and discounts. A model without an exact verified rate,
+or a record whose tier has no published rate (fast-mode long context, Gemini 3 Flash Preview with
+cached input), is marked *unpriced*; its tokens remain in usage totals but no zero cost is implied.
+Models with no official rate at all — for example Poolside Laguna, Gemini 3 Pro Preview (no longer
+listed), custom OpenCode providers, and Codex records before a model is known — stay unpriced.
+Current rates are applied to old records, not historical price schedules; changing rates requires a
+new catalog snapshot. Published Go cache-write rates are included for MiniMax M2.7/M2.5 and Qwen3.8
+Max/Flash and Qwen3.7 Max; a Go cache-write record is unpriced when Go publishes no cache-write rate.
 
 Live quota is fetched when its page is opened or **Check now** is pressed. Codex uses its own
 documented app-server RPC, so AgentNotify does not read Codex credentials. Claude Code uses its
@@ -144,8 +154,8 @@ OpenCode Go publishes [per-model dollar caps and token rates](https://opencode.a
 the five-hour cap is 20% and the weekly cap is 50% of that model's monthly cap. The page compares
 only usage-bearing OpenCode Go records in this machine's SQLite database against those caps for
 rolling last-five-hour, last-seven-day, and last-30-day periods. It currently has exact verified
-rates and caps for 20 fixed-rate model IDs, including Muse Spark 1.2/1.3 Contributor and GLM-5.3.
-Context-tiered, peak/off-peak, and other unverified models stay unknown. A window with an unpriced
+rates and caps for 22 model IDs, including Muse Spark 1.2/1.3 Contributor, GLM-5.3, and DeepSeek V4
+Pro/Flash (priced at peak or off-peak by request time). Context-tiered and unverified models stay unknown. A window with an unpriced
 record has no percentage. This is **not** the Go account's live
 remaining quota: usage in other clients or on other machines, multiple Go keys in the same local
 database, the actual monthly billing boundary, and provider-side adjustments are unavailable from

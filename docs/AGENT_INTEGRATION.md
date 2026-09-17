@@ -73,9 +73,7 @@ agentnotify.exe resolve NOTIFICATION_ID
 agentnotify.exe send --agent codex --project payments \
   --type completed --title "Task complete" --message "Implementation is complete and the test suite passes."
 
-agentnotify.exe send --agent codex --project payments \
-  --type blocked --priority high --key payments-blocker \
-  --title "Blocked" --message "The required signing certificate is unavailable."
+
 
 agentnotify.exe send --agent codex --project payments \
   --type permission_required --priority high --key payments-production-approval \
