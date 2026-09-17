@@ -1725,6 +1725,19 @@ scan is still over two minutes on this machine because parsed history is kept on
 `CrossPlatformTests.ConfigStore_WritesTheTokenFileOwnerOnlyOnUnix` failed once in a full run on the
 profiles worktree and passed alone and in two further full runs; it is unrelated to these changes.
 
+## OpenCode Go billing cycle (`feature/opencode-go-renewal`, 2026-09-17)
+
+Environment: the same Windows 11 host and WSL workspace. `scripts/build.sh` **0 warnings, 0 errors**;
+`scripts/test.sh` **1,019 passed, 0 failed, 0 skipped**. New coverage: the cycle calculation around the
+renewal day, month ends, leap years, and a year boundary in a fixed +05:30 zone; config normalization;
+the monthly window counting only the current cycle with `starts_at`/`resets_at`; and the renewal-day
+API including validation and the cross-origin refusal. `node --check` passed for `quota.js` and
+`insights.js`.
+
+Not verified: the renewal control has not been looked at in a browser, and no real OpenCode Go
+console figure has been compared with the estimate. OpenCode's documentation does not state whether
+its 5-hour and weekly limits roll or reset at fixed times, or the exact renewal time of day.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

@@ -11,6 +11,7 @@ public sealed class LiveQuotaService
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
     /// <summary>Built-in and discovered account IDs the owner removed.</summary>
     private readonly Func<ICollection<string>> _removedAccounts;
+    private readonly Func<int?> _openCodeGoRenewalDay;
     /// <summary>The owner's name for a built-in or discovered account, keyed by provider or WSL account ID.</summary>
     private readonly Func<string, string?> _defaultAccountLabel;
     private readonly Func<QuotaAccountDefinition, ILiveQuotaProbe> _probeFactory;
@@ -31,8 +32,10 @@ public sealed class LiveQuotaService
         Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, LocalUsageService? usage = null,
         Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null,
         Func<string, string?>? defaultAccountLabel = null, IWslEnvironment? wsl = null,
-        Func<ICollection<string>>? removedAccounts = null, string? nativeHome = null)
+        Func<ICollection<string>>? removedAccounts = null, string? nativeHome = null,
+        Func<int?>? openCodeGoRenewalDay = null)
     {
+        _openCodeGoRenewalDay = openCodeGoRenewalDay ?? (() => null);
         _fixedProbes = probes?.ToArray();
         _removedAccounts = removedAccounts ?? (() => Array.Empty<string>());
         _wsl = wsl;
@@ -87,7 +90,7 @@ public sealed class LiveQuotaService
             OpenCodeGoEstimate? go = null;
             if (_usage is not null)
             {
-                try { go = await _usage.GetOpenCodeGoEstimateAsync(_clock.GetUtcNow(), cancellationToken); }
+                try { go = await _usage.GetOpenCodeGoEstimateAsync(_clock.GetUtcNow(), cancellationToken, _openCodeGoRenewalDay()); }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch { go = new OpenCodeGoEstimate("unavailable", [], "Local OpenCode Go usage could not be read."); }
             }
@@ -170,7 +173,7 @@ public sealed record LiveQuotaSnapshot(string Provider, string Status, string So
 public sealed record LiveQuotaReport(DateTimeOffset CheckedAt, IReadOnlyList<LiveQuotaSnapshot> Providers,
     OpenCodeGoEstimate? OpenCodeGo)
 {
-    public string ContractVersion => "2";
+    public string ContractVersion => "3";
 }
 
 internal sealed class UnavailableQuotaProbe(string provider, string message) : ILiveQuotaProbe

@@ -166,7 +166,12 @@ removed IDs; the agent login is unchanged. Up to 16 additional profiles can be l
 OpenCode Go publishes [per-model dollar caps and token rates](https://opencode.ai/docs/go/):
 the five-hour cap is 20% and the weekly cap is 50% of that model's monthly cap. The page compares
 only usage-bearing OpenCode Go records in this machine's SQLite database against those caps for
-rolling last-five-hour, last-seven-day, and last-30-day periods. It currently has exact verified
+rolling last-five-hour and last-seven-day periods and a monthly period. Set **Plan renews on day** in
+the OpenCode Go section to the day of the month your Go plan renews: the monthly bar then counts
+this billing cycle (from local midnight on the latest renewal, with a day past the end of a short
+month falling on its last day) and shows when it resets. Without it the monthly bar counts the last
+30 days, which does not match the cycle the cap applies to. OpenCode's documentation does not say
+whether the 5-hour and weekly limits roll or reset at fixed times, so those stay rolling. It currently has exact verified
 rates and caps for 22 model IDs, including Muse Spark 1.2/1.3 Contributor, GLM-5.3, and DeepSeek V4
 Pro/Flash (priced at peak or off-peak by request time). Context-tiered and unverified models stay unknown. A window with an unpriced
 record has no percentage. This is **not** the Go account's live

@@ -98,7 +98,7 @@ Gemini CLI project folder resolved through `projects.json` (names or SHA-256 has
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
 the Usage view also groups deduplicated rows by source, session, and project, exposing only a
 hashed session ID, time span, token/model aggregates, and estimated cost for the 50 most recent
-sessions. Its response uses `contract_version: "2"`; raw provider session IDs stay on the broker.
+sessions. Its response uses `contract_version: "4"`; raw provider session IDs stay on the broker.
 the current cache is in memory and is rebuilt after restart.
 On Windows the same sources are also read inside WSL. `WslDiscovery` in Core lists distributions
 from `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`, asks `wsl.exe --list --running` which
@@ -154,9 +154,12 @@ is a first-party implementation dependency without a stable public API guarantee
 explicitly unavailable because it routes to multiple independent provider accounts. The quota
 endpoint returns only normalized percentages, reset times, optional plan/credit values, source,
 account ID/label, and freshness; it never returns access tokens or account email. Its quota report
-uses `contract_version: "2"`. A separate OpenCode Go estimate sums only local SQLite token rows for
+uses `contract_version: "3"`. A separate OpenCode Go estimate sums only local SQLite token rows for
 exactly priced models against OpenCode's published per-model dollar caps over rolling 5-hour,
-7-day, and 30-day periods. It is explicitly estimated and has no provider reset or remaining
+7-day periods and a monthly period: the last 30 days, or the current billing cycle when the owner sets
+`openCodeGoRenewalDay` (`OpenCodeGoBillingCycle`, local midnight on the renewal day, clamped to short
+months). Each window reports `starts_at`, and a fixed window its `resets_at`; the quota report uses
+`contract_version: "3"`. It is explicitly estimated and has no provider reset or remaining
 balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
 Each running WSL distribution with a `~/.codex` or `~/.claude` directory adds a discovered account

@@ -22,6 +22,9 @@ build.
 - **Usage now includes Muse Code, the Kilo CLI, and the Gemini CLI.** Their local history is read
   natively and inside running WSL distributions, grouped by project, and priced at Meta, Z.ai, Xiaomi,
   Google, or free-model rates. The Usage response is now `contract_version: "4"`.
+- **The OpenCode Go monthly estimate can follow your billing cycle.** Set the day your plan renews on
+  Live quota and the monthly bar counts from the latest renewal and shows when it resets, instead of
+  the last 30 days. The Live quota response is now `contract_version: "3"`.
 - **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
   now include every running WSL distribution: Claude Code, Codex, and OpenCode history from its home,
   a quota card for each `~/.codex` and `~/.claude` found there (Codex is asked from inside the
