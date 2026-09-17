@@ -92,8 +92,9 @@ prompt size selects a long-context tier, its service tier (Codex `thread_setting
 A record is unpriced when no published rate covers that combination. Unknown models and OpenCode Go
 records with cache writes remain unpriced unless the provider publishes that exact rate;
 context-tiered Go models remain unknown. Project grouping uses
-each row's working directory (Claude), active turn/session directory (Codex), or OpenCode session
-directory; the page receives
+each row's working directory (Claude), active turn/session directory (Codex), OpenCode or Kilo session
+directory, Muse `route_facts` working directory (a subagent inherits its parent session's), or the
+Gemini CLI project folder resolved through `projects.json` (names or SHA-256 hashes of the path); the page receives
 only a basename and stable opaque hash, never the full path. The source logs remain authoritative;
 the Usage view also groups deduplicated rows by source, session, and project, exposing only a
 hashed session ID, time span, token/model aggregates, and estimated cost for the 50 most recent
@@ -110,14 +111,25 @@ opening the share of a stopped distribution boots its VM, which a dashboard visi
 agents' default locations inside the distribution are used, because their environment variables are
 not visible to the broker. Discovery is cached for 30 seconds and re-resolved on every scan, so
 history from a distribution appears while it runs; the report lists the included distributions and
-uses `contract_version: "3"`. Reading through the share is slow for page-level I/O: SQLite querying a
+uses `contract_version: "4"`. Reading through the share is slow for page-level I/O: SQLite querying a
 260 MB OpenCode database over `\\wsl.localhost` took about 30 seconds per request and could fail,
 while copying the file sequentially took under two. OpenCode rows are therefore cached per database
 keyed by the length and modification time of the file and its `-wal`, and a database on a UNC path
 is copied (with its WAL, retaken if either changes during the copy) into a random directory under
 the user's temp folder, queried there, and deleted; leftovers older than an hour are removed on the
 next read. JSONL ledgers were already cached per file, but only in memory, so the first scan after
-the broker starts still parses every file. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
+the broker starts still parses every file. Walking directories through the share also costs a round
+trip per directory, which took over ten seconds for Muse Code's per-subagent session folders, so a
+ledger root inside WSL is listed by one `wsl.exe --distribution <name> --exec find <root> -type f
+-name <pattern> -printf …` (no shell; paths with control characters or `..` are dropped), falling back
+to walking the share if that fails; only files whose size or modification time changed are then read,
+with 1 MB sequential buffers. To keep the cold scan affordable, a line is JSON-parsed only
+when it contains the marker of a record that carries usage (`"assistant"` for Claude Code;
+`token_count`, `turn_context`, `session_meta`, or `thread_settings_applied` for Codex;
+`model_completed` or `route_facts` for Muse Code). Muse Code and Gemini CLI usage follow OpenAI's
+convention where input includes cached input: Muse output includes reasoning, while Gemini reports
+`thoughts` and `tool` tokens separately and they are added to output and input. The Usage report uses
+`contract_version: "4"`, whose `source` values add `kilo`, `muse`, and `gemini_cli`. Linux `cwd` values are grouped by their POSIX path on a Windows broker. More complete fork/replay attribution,
 durable indexing, historical rate schedules, and provider-specific billing modifiers
 remain separate work.
 

@@ -13,6 +13,9 @@ public sealed class LocalUsageService
     private readonly IReadOnlyList<string> _claudeRoots;
     private readonly IReadOnlyList<string> _codexRoots;
     private readonly string _openCodeDatabase;
+    private readonly IReadOnlyList<string> _museRoots;
+    private readonly IReadOnlyList<string> _kiloDatabases;
+    private readonly IReadOnlyList<string> _geminiRoots;
     private readonly IWslEnvironment? _wsl;
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
@@ -24,13 +27,21 @@ public sealed class LocalUsageService
     /// only when no explicit roots are given, so a caller that names its roots gets exactly those.
     /// </param>
     /// <param name="accounts">Profiles added by hand on Live quota, whose ledgers are read as well.</param>
+    /// <param name="museRoots">Muse Code <c>sessions</c> directories.</param>
+    /// <param name="kiloDatabases">Kilo CLI SQLite databases, which use OpenCode's schema.</param>
+    /// <param name="geminiRoots">Gemini CLI <c>tmp</c> directories holding per-project <c>chats</c>.</param>
     public LocalUsageService(IEnumerable<string>? claudeRoots = null, IEnumerable<string>? codexRoots = null,
         string? openCodeDatabase = null, IWslEnvironment? wsl = null,
-        Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null)
+        Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, IEnumerable<string>? museRoots = null,
+        IEnumerable<string>? kiloDatabases = null, IEnumerable<string>? geminiRoots = null)
     {
         _accounts = accounts;
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _wsl = wsl ?? (claudeRoots is null && codexRoots is null && openCodeDatabase is null ? WslDiscovery.Default : null);
+        var defaults = claudeRoots is null && codexRoots is null && openCodeDatabase is null;
+        _wsl = wsl ?? (defaults ? WslDiscovery.Default : null);
+        _museRoots = (museRoots ?? (defaults ? [MuseSessions(home)] : [])).ToArray();
+        _kiloDatabases = (kiloDatabases ?? (defaults ? [KiloDatabase(home)] : [])).ToArray();
+        _geminiRoots = (geminiRoots ?? (defaults ? [Path.Combine(home, ".gemini", "tmp")] : [])).ToArray();
         _claudeRoots = (claudeRoots ?? ClaudeRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
         _codexRoots = (codexRoots ?? CodexRoots(home)).Distinct(StringComparer.Ordinal).ToArray();
         _openCodeDatabase = openCodeDatabase ?? OpenCodeDatabase(home);
@@ -72,14 +83,27 @@ public sealed class LocalUsageService
                 })
             }.SelectMany(roots => roots).Distinct(PathComparer)],
             [_openCodeDatabase, .. homes.Select(home => Path.Combine(home.WindowsHome, ".local", "share", "opencode", "opencode.db"))],
-            homes.Select(home => home.Distribution).Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+            homes.Select(home => home.Distribution).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            [.. _museRoots.Concat(homes.Select(home => Path.Combine(home.WindowsHome, ".local", "share", "muse", "sessions"))).Distinct(PathComparer)],
+            [.. _kiloDatabases.Concat(homes.Select(home => Path.Combine(home.WindowsHome, ".local", "share", "kilo", "kilo.db"))).Distinct(PathComparer)],
+            [.. _geminiRoots.Concat(homes.Select(home => Path.Combine(home.WindowsHome, ".gemini", "tmp"))).Distinct(PathComparer)]);
     }
 
     private static StringComparer PathComparer =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     private sealed record Sources(string[] ClaudeRoots, string[] CodexRoots, string[] OpenCodeDatabases,
-        string[] WslDistributions);
+        string[] WslDistributions, string[] MuseRoots, string[] KiloDatabases, string[] GeminiRoots);
+
+    private static string XdgData(string home)
+    {
+        var xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        return string.IsNullOrWhiteSpace(xdg) ? Path.Combine(home, ".local", "share") : xdg;
+    }
+
+    private static string MuseSessions(string home) => Path.Combine(XdgData(home), "muse", "sessions");
+
+    private static string KiloDatabase(string home) => Path.Combine(XdgData(home), "kilo", "kilo.db");
 
     private static string OpenCodeDatabase(string home)
     {
@@ -140,7 +164,7 @@ public sealed class LocalUsageService
     private OpenCodeGoEstimate EstimateOpenCodeGo(DateTimeOffset now, CancellationToken ct)
     {
         var skipped = 0;
-        var rows = ReadOpenCode(CurrentSources().OpenCodeDatabases, ref skipped, ct)
+        var rows = ReadOpenCode("opencode", CurrentSources().OpenCodeDatabases, ref skipped, ct)
             .Where(row => row.Provider == "opencode-go" && row.Timestamp <= now &&
                           row.Timestamp >= now.AddDays(-30)).ToArray();
         if (skipped > 0 && rows.Length == 0)
@@ -188,8 +212,11 @@ public sealed class LocalUsageService
         var sources = CurrentSources();
         AddFiles("claude_code", sources.ClaudeRoots, next, ref skipped, ct);
         AddFiles("codex", sources.CodexRoots, next, ref skipped, ct);
+        AddFiles("muse", sources.MuseRoots, next, ref skipped, ct);
+        AddFiles("gemini_cli", sources.GeminiRoots, next, ref skipped, ct);
         _files = next;
-        var openCode = ReadOpenCode(sources.OpenCodeDatabases, ref skipped, ct);
+        var openCode = ReadOpenCode("opencode", sources.OpenCodeDatabases, ref skipped, ct)
+            .Concat(ReadOpenCode("kilo", sources.KiloDatabases, ref skipped, ct)).ToArray();
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var cutoff = days == 0 ? DateTimeOffset.MinValue : DateTimeOffset.UtcNow.AddDays(-days);
@@ -218,7 +245,8 @@ public sealed class LocalUsageService
                 group.GroupBy(row => (row.Source, row.Provider, row.Model)).Select(Model)
                     .OrderByDescending(model => model.Counts.Total).ToArray()))
             .OrderByDescending(session => session.EndedAt).ToArray();
-        return new UsageReport(DateTimeOffset.UtcNow, days, next.Count + sources.OpenCodeDatabases.Count(File.Exists), skipped, rows.Length,
+        return new UsageReport(DateTimeOffset.UtcNow, days,
+            next.Count + sources.OpenCodeDatabases.Concat(sources.KiloDatabases).Count(File.Exists), skipped, rows.Length,
             Sum(rows), Estimate(rows), groups, models, projects, daily, ApiPriceCatalog.AsOf,
             sessionGroups.Length, sessionGroups.Take(50).ToArray(), sources.WslDistributions);
     }
@@ -233,21 +261,24 @@ public sealed class LocalUsageService
     /// OpenCode rows from every database, reusing the previous result for a database whose file and
     /// write-ahead log are unchanged. Callers hold <see cref="_scanGate"/>.
     /// </summary>
-    private UsageEvent[] ReadOpenCode(IEnumerable<string> databases, ref int skipped, CancellationToken ct)
+    private UsageEvent[] ReadOpenCode(string source, IEnumerable<string> databases, ref int skipped, CancellationToken ct)
     {
         var events = new List<UsageEvent>();
-        var next = new Dictionary<string, CachedDatabase>(StringComparer.Ordinal);
+        // Entries of other sources are kept: the OpenCode Go estimate reads OpenCode alone.
+        var next = _databases.Where(item => !item.Key.StartsWith(source + "|", StringComparison.Ordinal))
+            .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
         foreach (var database in databases.Distinct(StringComparer.Ordinal))
         {
             if (!File.Exists(database)) continue;
+            var key = source + "|" + database;
             var stamp = DatabaseStamp(database);
-            if (!_databases.TryGetValue(database, out var cached) || cached.Stamp != stamp)
+            if (!_databases.TryGetValue(key, out var cached) || cached.Stamp != stamp)
             {
-                var read = ReadOpenCode(database, ref skipped, ct);
+                var read = ReadOpenCode(source, database, ref skipped, ct);
                 if (read is null) continue;
                 cached = new CachedDatabase(stamp, read);
             }
-            next[database] = cached;
+            next[key] = cached;
             events.AddRange(cached.Events);
         }
         _databases = next;
@@ -282,9 +313,9 @@ public sealed class LocalUsageService
     /// small read at a time, which over <c>\\wsl.localhost</c> turned a 260 MB database into a 30-second
     /// query; copying it sequentially takes a couple of seconds. The copy is deleted straight away.
     /// </summary>
-    private static UsageEvent[]? ReadOpenCode(string database, ref int skipped, CancellationToken ct)
+    private static UsageEvent[]? ReadOpenCode(string source, string database, ref int skipped, CancellationToken ct)
     {
-        if (!database.StartsWith(@"\\", StringComparison.Ordinal)) return QueryOpenCode(database, readOnly: true, ref skipped, ct);
+        if (!database.StartsWith(@"\\", StringComparison.Ordinal)) return QueryOpenCode(source, database, readOnly: true, ref skipped, ct);
         var temp = Path.GetTempPath();
         RemoveStaleSnapshots(temp);
         var directory = Path.Combine(temp, SnapshotPrefix + Guid.NewGuid().ToString("N"));
@@ -303,7 +334,7 @@ public sealed class LocalUsageService
                 if (DatabaseStamp(database) == before || attempt == 2) break;
             }
             // The copy is ours, so it opens read-write: SQLite needs to create the -shm for its WAL.
-            return QueryOpenCode(copy, readOnly: false, ref skipped, ct);
+            return QueryOpenCode(source, copy, readOnly: false, ref skipped, ct);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -331,7 +362,7 @@ public sealed class LocalUsageService
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
-    private static UsageEvent[]? QueryOpenCode(string database, bool readOnly, ref int skipped, CancellationToken ct)
+    private static UsageEvent[]? QueryOpenCode(string source, string database, bool readOnly, ref int skipped, CancellationToken ct)
     {
         try
         {
@@ -374,7 +405,7 @@ public sealed class LocalUsageService
                 if (counts.Total == 0) continue;
                 var provider = reader.IsDBNull(4) ? "unknown" : reader.GetString(4);
                 var project = ProjectInfo.FromDirectory(reader.IsDBNull(3) ? null : reader.GetString(3));
-                events.Add(new UsageEvent("opencode", timestamp, model, provider,
+                events.Add(new UsageEvent(source, timestamp, model, provider,
                     reader.IsDBNull(1) ? "" : reader.GetString(1), project,
                     reader.IsDBNull(0) ? null : reader.GetString(0), counts, 0));
             }
@@ -396,36 +427,49 @@ public sealed class LocalUsageService
     private void AddFiles(string source, IReadOnlyList<string> roots, Dictionary<string, CachedFile> next, ref int skipped, CancellationToken ct)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+        // A Muse subagent file inherits its parent session's project; each parent is read once per scan.
+        var museProjects = new Dictionary<string, ProjectInfo>(StringComparer.Ordinal);
         foreach (var root in roots)
         {
             if (!Directory.Exists(root)) continue;
-            IEnumerable<string> paths;
-            try
+            // The Gemini CLI keeps each session as one JSON document under <project>/chats.
+            var gemini = source == "gemini_cli";
+            var pattern = gemini ? "session-*.json" : "*.jsonl";
+            var projects = gemini ? GeminiProjects(root) : null;
+            // Inside WSL the listing comes from the distribution itself: walking the share costs a
+            // round trip per directory. Only files that changed are then read through the share.
+            var files = WslFileListing.TryList(root, pattern, TimeSpan.FromSeconds(30))?
+                .Select(file => (Path: file.WindowsPath, file.Length, Modified: file.ModifiedUtc)).ToArray();
+            if (files is null)
             {
-                paths = Directory.EnumerateFiles(root, "*.jsonl", new EnumerationOptions
+                try
                 {
-                    RecurseSubdirectories = true,
-                    IgnoreInaccessible = true,
-                    AttributesToSkip = FileAttributes.ReparsePoint
-                }).ToArray();
+                    files = new DirectoryInfo(root).EnumerateFiles(pattern, new EnumerationOptions
+                    {
+                        RecurseSubdirectories = true,
+                        IgnoreInaccessible = true,
+                        AttributesToSkip = FileAttributes.ReparsePoint
+                    }).Select(file => (Path: file.FullName, file.Length, Modified: file.LastWriteTimeUtc)).ToArray();
+                }
+                catch (IOException) { skipped++; continue; }
+                catch (UnauthorizedAccessException) { skipped++; continue; }
             }
-            catch (IOException) { skipped++; continue; }
-            catch (UnauthorizedAccessException) { skipped++; continue; }
 
-            foreach (var path in paths.Order(StringComparer.Ordinal))
+            foreach (var (path, length, modified) in files.Where(file => !gemini ||
+                         Path.GetFileName(Path.GetDirectoryName(file.Path)) == "chats").OrderBy(file => file.Path, StringComparer.Ordinal))
             {
                 ct.ThrowIfCancellationRequested();
                 // Codex can retain the same rollout in both active and archived directories.
                 if (source == "codex" && !names.Add(Path.GetFileName(path))) continue;
                 try
                 {
-                    var info = new FileInfo(path);
-                    if (_files.TryGetValue(path, out var previous) && previous.Length == info.Length && previous.Modified == info.LastWriteTimeUtc)
+                    if (_files.TryGetValue(path, out var previous) && previous.Length == length && previous.Modified == modified)
                     {
                         next[path] = previous;
                         continue;
                     }
-                    next[path] = new CachedFile(info.Length, info.LastWriteTimeUtc, ParseFile(source, path, ct));
+                    next[path] = new CachedFile(length, modified,
+                        gemini ? ParseGemini(path, length, projects!, ct) : ParseFile(source, path, museProjects, ct));
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
                 {
@@ -435,7 +479,8 @@ public sealed class LocalUsageService
         }
     }
 
-    private static UsageEvent[] ParseFile(string source, string path, CancellationToken ct)
+    private static UsageEvent[] ParseFile(string source, string path, Dictionary<string, ProjectInfo> museProjects,
+        CancellationToken ct)
     {
         var events = new List<UsageEvent>();
         var model = "Unknown model";
@@ -444,11 +489,19 @@ public sealed class LocalUsageService
         TokenCounts? previousTotal = null;
         string? serviceTier = null;
         var mirrored = false;
-        using var reader = new StreamReader(path);
+        if (source == "muse") return ParseMuse(path, museProjects, ct);
+        using var reader = OpenSequential(path);
         while (reader.ReadLine() is { } line)
         {
             ct.ThrowIfCancellationRequested();
             if (line.Length > 1024 * 1024 || line.Length == 0) continue;
+            // Most lines are prompts, tool output, and reasoning. Skipping those before JSON parsing
+            // is what keeps a first scan of large ledgers over the WSL share bearable.
+            if (source == "claude_code" ? !line.Contains("\"assistant\"", StringComparison.Ordinal)
+                : !(line.Contains("\"token_count\"", StringComparison.Ordinal) ||
+                    line.Contains("\"turn_context\"", StringComparison.Ordinal) ||
+                    line.Contains("\"session_meta\"", StringComparison.Ordinal) ||
+                    line.Contains("\"thread_settings_applied\"", StringComparison.Ordinal))) continue;
             try
             {
                 using var json = JsonDocument.Parse(line);
@@ -505,6 +558,155 @@ public sealed class LocalUsageService
             catch (JsonException) { /* One malformed line must not discard the rest of a session. */ }
         }
         return events.ToArray();
+    }
+
+    /// <summary>
+    /// Muse Code writes one <c>session.jsonl</c> per session and per subagent
+    /// (<c>&lt;session&gt;/subagent/&lt;child&gt;/session.jsonl</c>). Every model call is a
+    /// <c>runtime.session</c> event of kind <c>model_completed</c> in the file of the session that
+    /// made it, so a call is never repeated in its parent. Usage follows OpenAI's convention:
+    /// <c>input_tokens</c> includes <c>cached_tokens</c>, and <c>output_tokens</c> includes
+    /// <c>reasoning_tokens</c>. Subagent calls are grouped under the parent session and its project.
+    /// </summary>
+    private static UsageEvent[] ParseMuse(string path, Dictionary<string, ProjectInfo> parentProjects, CancellationToken ct)
+    {
+        var directory = Path.GetDirectoryName(path) ?? "";
+        var parentDirectory = Path.GetDirectoryName(directory) ?? "";
+        var isSubagent = Path.GetFileName(parentDirectory) == "subagent";
+        var sessionDirectory = isSubagent ? Path.GetDirectoryName(parentDirectory) ?? directory : directory;
+        var session = Path.GetFileName(sessionDirectory);
+        var project = MuseProject(path, ct, out var calls);
+        if (project == ProjectInfo.Unknown && isSubagent)
+        {
+            var parent = Path.Combine(sessionDirectory, "session.jsonl");
+            if (!parentProjects.TryGetValue(parent, out project!))
+                parentProjects[parent] = project = MuseProject(parent, ct, out _, projectOnly: true);
+        }
+        return calls.Select(call => call with { Session = session, Project = project }).ToArray();
+    }
+
+    private static ProjectInfo MuseProject(string path, CancellationToken ct, out List<UsageEvent> calls,
+        bool projectOnly = false)
+    {
+        calls = [];
+        var project = ProjectInfo.Unknown;
+        if (!File.Exists(path)) return project;
+        using var reader = OpenSequential(path);
+        var lines = 0;
+        while (reader.ReadLine() is { } line)
+        {
+            ct.ThrowIfCancellationRequested();
+            // The route facts come first; a parent file is read only until they appear.
+            if (projectOnly && ++lines > 5000) break;
+            if (line.Length > 1024 * 1024 || line.Length == 0) continue;
+            var route = project == ProjectInfo.Unknown && line.Contains("\"route_facts\"", StringComparison.Ordinal);
+            if (!route && (projectOnly || !line.Contains("\"model_completed\"", StringComparison.Ordinal))) continue;
+            try
+            {
+                using var json = JsonDocument.Parse(line);
+                var row = json.RootElement;
+                var payload = Child(row, "payload");
+                if (route && String(payload, "kind") == "route_facts")
+                {
+                    project = ProjectInfo.FromDirectory(String(Child(payload, "record"), "cwd"));
+                    if (projectOnly && project != ProjectInfo.Unknown) break;
+                    continue;
+                }
+                var call = Child(payload, "event");
+                var usage = Child(call, "usage");
+                var model = String(call, "model");
+                if (String(call, "kind") != "model_completed" || usage.ValueKind != JsonValueKind.Object ||
+                    string.IsNullOrWhiteSpace(model)) continue;
+                var micros = Child(row, "recorded_at");
+                if (micros.ValueKind != JsonValueKind.Number || !micros.TryGetInt64(out var recorded)) continue;
+                DateTimeOffset timestamp;
+                try { timestamp = DateTimeOffset.FromUnixTimeMilliseconds(recorded / 1000); }
+                catch (ArgumentOutOfRangeException) { continue; }
+                var input = Number(usage, "input_tokens");
+                var cached = Math.Min(input, Math.Max(Number(usage, "cached_tokens"), Number(usage, "cache_read_tokens")));
+                var output = Number(usage, "output_tokens");
+                var counts = new TokenCounts(input - cached, output, cached, Number(usage, "cache_write_tokens"),
+                    Math.Min(output, Number(usage, "reasoning_tokens")));
+                if (counts.Total == 0) continue;
+                calls.Add(new UsageEvent("muse", timestamp, model, "meta", "", ProjectInfo.Unknown,
+                    String(row, "id"), counts, 0));
+            }
+            catch (JsonException) { /* One malformed line must not discard the rest of a session. */ }
+        }
+        return project;
+    }
+
+    /// <summary>
+    /// Opens a ledger for one forward read with a large buffer. Small reads each cost a round trip
+    /// through the WSL share, which made a cold scan several times slower than the bytes justify.
+    /// </summary>
+    private static StreamReader OpenSequential(string path) =>
+        new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            1024 * 1024, FileOptions.SequentialScan), Encoding.UTF8, detectEncodingFromByteOrderMarks: true, 1024 * 1024);
+
+    /// <summary>
+    /// Gemini CLI chats: <c>tmp/&lt;project&gt;/chats/session-*.json</c>, one JSON document per
+    /// session whose <c>gemini</c> messages carry <c>tokens</c>. <c>input</c> includes <c>cached</c>;
+    /// <c>thoughts</c> and <c>tool</c> are counted separately from <c>output</c> and <c>input</c>.
+    /// </summary>
+    private static UsageEvent[] ParseGemini(string path, long length, IReadOnlyDictionary<string, string> projects,
+        CancellationToken ct)
+    {
+        if (length > 64 * 1024 * 1024) return [];
+        var folder = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(path))) ?? "";
+        var project = projects.TryGetValue(folder, out var directory) ? ProjectInfo.FromDirectory(directory) : ProjectInfo.Unknown;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            1024 * 1024, FileOptions.SequentialScan);
+        using var json = JsonDocument.Parse(stream);
+        var root = json.RootElement;
+        var session = String(root, "sessionId") ?? Path.GetFileNameWithoutExtension(path);
+        var messages = Child(root, "messages");
+        if (messages.ValueKind != JsonValueKind.Array) return [];
+        var events = new List<UsageEvent>();
+        foreach (var message in messages.EnumerateArray())
+        {
+            ct.ThrowIfCancellationRequested();
+            var tokens = Child(message, "tokens");
+            var model = String(message, "model");
+            if (String(message, "type") != "gemini" || tokens.ValueKind != JsonValueKind.Object ||
+                string.IsNullOrWhiteSpace(model) || !DateTimeOffset.TryParse(String(message, "timestamp"),
+                    System.Globalization.CultureInfo.InvariantCulture, out var timestamp)) continue;
+            var input = Number(tokens, "input");
+            var cached = Math.Min(input, Number(tokens, "cached"));
+            var thoughts = Number(tokens, "thoughts");
+            var counts = new TokenCounts(input - cached + Number(tokens, "tool"), Number(tokens, "output") + thoughts,
+                cached, 0, thoughts);
+            if (counts.Total == 0) continue;
+            events.Add(new UsageEvent("gemini_cli", timestamp, model, "google", session, project,
+                String(message, "id"), counts, 0));
+        }
+        return events.ToArray();
+    }
+
+    /// <summary>
+    /// Maps a Gemini CLI project folder name to its directory. Current versions name the folder after
+    /// the project (listed in <c>~/.gemini/projects.json</c>); older ones used the SHA-256 of the path.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> GeminiProjects(string tmpRoot)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var file = new FileInfo(Path.Combine(Path.GetDirectoryName(tmpRoot.TrimEnd('\\', '/')) ?? "", "projects.json"));
+            if (!file.Exists || file.Length > 4 * 1024 * 1024) return result;
+            using var stream = file.OpenRead();
+            using var json = JsonDocument.Parse(stream);
+            var projects = Child(json.RootElement, "projects");
+            if (projects.ValueKind != JsonValueKind.Object) return result;
+            foreach (var project in projects.EnumerateObject())
+            {
+                if (project.Value.ValueKind == JsonValueKind.String && project.Value.GetString() is { Length: > 0 } slug)
+                    result.TryAdd(slug, project.Name);
+                result.TryAdd(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(project.Name))), project.Name);
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { }
+        return result;
     }
 
     private static UsageEvent? ParseClaude(JsonElement row)
@@ -645,5 +847,5 @@ public sealed record UsageReport(DateTimeOffset ScannedAt, int Days, int FilesSc
     string PricingAsOf, int SessionCount, IReadOnlyList<UsageSession> Sessions,
     IReadOnlyList<string> WslDistributions)
 {
-    public string ContractVersion => "3";
+    public string ContractVersion => "4";
 }

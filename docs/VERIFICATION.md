@@ -1690,6 +1690,41 @@ Not verified: a cold load is still about a minute after each broker start, becau
 held only in memory; the installed tray with this build; and a snapshot taken during an OpenCode
 checkpoint.
 
+## Model pricing, Muse Code / Kilo CLI / Gemini CLI usage (`feature/model-pricing`, `feature/more-agent-usage`, 2026-09-17)
+
+Environment: the same Windows 11 host and `Ubuntu-20.04`. Rates were read on 2026-09-17 from the
+official pages linked in `docs/WEB_UI.md` (OpenAI pricing and model pages, Meta Model API, Gemini API
+pricing and Gemini 3 guide, Z.ai, Xiaomi MiMo pay-as-you-go, OpenCode Zen and Go). Gemini 3 Pro
+Preview and Poolside Laguna have no official rate page and stay unpriced.
+
+Ran:
+
+- `scripts/build.sh` **0 warnings, 0 errors**; `scripts/test.sh` **978 passed, 0 failed, 0 skipped**
+  (new: per-provider rates, free models, long-context and fast tiers, Go peak hours, Muse sessions
+  with a subagent, Gemini chats with `projects.json`, a Kilo database, and the native `find` listing
+  parser).
+- Local data found on this machine: Muse Code (5,673 session files, 5,639 of them subagents), Kilo CLI
+  (`kilo.db`, 279 MB), Gemini CLI (22 chat files in WSL, 6 on Windows). Antigravity and Windsurf
+  conversation stores are opaque binary; Cursor, Kiro, Copilot, and the Kilo VS Code extension hold
+  no per-request token counts; Cline's CLI data held no tasks.
+- An independent Python recount inside WSL matched the fixed broker exactly for Muse Code
+  (9,571 calls, 1,037,211,966 tokens) and Gemini CLI (325 messages, 17,524,462 tokens); Kilo differed
+  by 143,839 tokens from a recount taken minutes earlier while Kilo was in use.
+- `agentnotifyd` from the build output on port 47899, `/ui/api/usage?days=all`: before the listing
+  and buffer changes, **401 s** cold and **9.9 s** warm (walking 6,699 Muse files through the share
+  alone took 10.4 s). After them, **132 s** cold, then **1.06 s** and **0.82 s**, with identical
+  totals: 48,660 events, 7,064 files, nothing skipped, **$2,535.94** API-equivalent (was $1,441.76
+  with the old catalog), 56.9M of 4.8B tokens unpriced (Codex records before a model is known, Gemini
+  3 Pro Preview, Poolside Laguna, a custom OpenCode provider).
+- A 30-day Codex check found 4 turns in fast mode (`service_tier: priority`) and no GPT-5.5/5.4
+  request above 272K input tokens.
+
+Not verified: the installed tray with these builds; macOS and Linux locations for Muse Code (only the
+XDG default is read); Gemini CLI projects whose folder is a hash not listed in `projects.json`; a cold
+scan is still over two minutes on this machine because parsed history is kept only in memory.
+`CrossPlatformTests.ConfigStore_WritesTheTokenFileOwnerOnlyOnUnix` failed once in a full run on the
+profiles worktree and passed alone and in two further full runs; it is unrelated to these changes.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

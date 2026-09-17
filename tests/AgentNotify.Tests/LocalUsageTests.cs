@@ -29,7 +29,7 @@ public sealed class LocalUsageTests : IDisposable
 
         var report = await new LocalUsageService([root], [], "").GetReportAsync(7);
 
-        Assert.Equal("3", report.ContractVersion);
+        Assert.Equal("4", report.ContractVersion);
         Assert.Equal(3, report.Events);
         Assert.Equal(2, report.SessionCount);
         Assert.Equal(2, report.Sessions.Count);
