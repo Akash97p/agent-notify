@@ -29,6 +29,12 @@ public sealed class WebUiOptions
     /// </summary>
     public IWslEnvironment? Wsl { get; init; }
 
+    /// <summary>
+    /// Native home scanned for secondary Codex/Claude Code profiles. The real user profile is
+    /// used when null; tests pass an isolated directory.
+    /// </summary>
+    public string? NativeHome { get; init; }
+
     /// <summary>How provider secrets are protected on this machine, as shown to the user.</summary>
     public string SecretProtection { get; init; } = "";
 

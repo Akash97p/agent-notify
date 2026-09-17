@@ -146,7 +146,14 @@ balance; unpriced rows suppress a window percentage. The page triggers on-demand
 checks; there is no background network polling or dependency on internet for the rest of the app.
 Each running WSL distribution with a `~/.codex` or `~/.claude` directory adds a discovered account
 (`codex:wsl:<distribution>`, renamable through the same label map as the built-in accounts); an
-account the owner added by hand for the same directory takes its place. Built-in and discovered
+account the owner added by hand for the same directory takes its place. Secondary profiles —
+`.codex-<name>` or `.claude-<name>` directories (also with `_`) directly under the native home or
+a running distribution's home that hold that agent's sign-in markers (`auth.json` or `sessions`
+for Codex, `.credentials.json` or `projects` for Claude Code) — are discovered the same way
+(`codex:home:<name>`, `claude_code:wsl:<distribution>:<name>`), listed after the built-ins and
+before hand-added accounts, and counted by Usage. A discovered profile whose directory matches a
+hand-added or built-in profile is listed once, and removing any discovered account records its ID
+until it is restored. Built-in and discovered
 accounts cannot be deleted from config because they are derived, so removing one records its ID in
 `removedQuotaAccounts`, which both Live quota and the account list filter out until it is restored.
 Pointing one at a different directory creates an added account and records the detected ID as

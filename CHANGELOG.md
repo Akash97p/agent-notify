@@ -33,6 +33,11 @@ build.
   OpenCode's database is read again only when it has changed, and one inside WSL is read from a
   quick local copy instead of over the WSL share, where the query was slow enough to time out and
   leave OpenCode out of Usage entirely.
+- **Secondary Codex and Claude Code profiles are found automatically.** A `.codex-<name>` or
+  `.claude-<name>` folder (also with `_`) directly under the home folder or a running WSL
+  distribution's home appears as its own Live quota card once it holds that agent's sign-in, with
+  its history counted in Usage. It can be renamed, removed, restored, or moved like any other
+  discovered account.
 
 ### Changed
 

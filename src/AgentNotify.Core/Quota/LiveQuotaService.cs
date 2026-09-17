@@ -16,6 +16,8 @@ public sealed class LiveQuotaService
     private readonly Func<QuotaAccountDefinition, ILiveQuotaProbe> _probeFactory;
     private readonly LocalUsageService? _usage;
     private readonly IWslEnvironment? _wsl;
+    /// <summary>Home scanned for secondary profiles: the real profile in production, none with fixed probes.</summary>
+    private readonly string? _nativeHome;
     private readonly CodexQuotaProbe _defaultCodex = new();
     private readonly ClaudeQuotaProbe _defaultClaude = new();
     private readonly ILiveQuotaProbe _openCode = new UnavailableQuotaProbe("opencode",
@@ -29,11 +31,12 @@ public sealed class LiveQuotaService
         Func<IReadOnlyList<QuotaAccountDefinition>>? accounts = null, LocalUsageService? usage = null,
         Func<QuotaAccountDefinition, ILiveQuotaProbe>? probeFactory = null,
         Func<string, string?>? defaultAccountLabel = null, IWslEnvironment? wsl = null,
-        Func<ICollection<string>>? removedAccounts = null)
+        Func<ICollection<string>>? removedAccounts = null, string? nativeHome = null)
     {
         _fixedProbes = probes?.ToArray();
         _removedAccounts = removedAccounts ?? (() => Array.Empty<string>());
         _wsl = wsl;
+        _nativeHome = nativeHome ?? (probes is null ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) : null);
         _accounts = accounts;
         _defaultAccountLabel = defaultAccountLabel ?? (_ => null);
         _usage = usage;
@@ -106,9 +109,12 @@ public sealed class LiveQuotaService
             .Where(item => !removed.Contains(item.Item2)).ToList();
         var configured = (_accounts?.Invoke() ?? []).Take(16).ToArray();
         var active = new HashSet<string>(StringComparer.Ordinal);
-        // Profiles inside running WSL distributions come next, unless the owner removed them or added
-        // the same directory by hand. They leave the list, and the cache, when the distribution stops.
-        var discovered = _wsl is null ? [] : QuotaAccountDefinition.MonitoredWslDefaults(_wsl, _defaultAccountLabel, configured, removed);
+        // Discovered profiles come next — native secondary profiles, WSL defaults, WSL secondary
+        // profiles — unless the owner removed them or already monitors the same directory by hand
+        // or through a built-in default. They leave the list, and the cache, when the profile or
+        // distribution goes away.
+        var discovered = QuotaAccountDefinition.MonitoredDiscoveredAccounts(_wsl, _defaultAccountLabel,
+            configured, removed, _nativeHome);
         foreach (var account in discovered)
         {
             if (active.Add(account.Id)) result.Add((ProbeFor(account), account.Id, account.Label));

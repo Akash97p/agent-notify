@@ -157,19 +157,29 @@ public static class WebUiEndpoints
         var forms = new ProviderFormService(options.Providers);
         var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
         var wsl = options.Wsl ?? WslDiscovery.Default;
-        var usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: () => config.QuotaAccounts.ToArray());
-        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
-            accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
-            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
-            removedAccounts: () => config.RemovedQuotaAccounts);
+        var nativeHome = options.NativeHome ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string? DetectedLabel(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
         // Built-in and discovered accounts, including removed ones; the owner's list is filtered from these.
         IReadOnlyList<QuotaAccountDefinition> DetectedAccounts() =>
         [
             QuotaAccountDefinition.Default("codex", DetectedLabel("codex")),
             QuotaAccountDefinition.Default("claude_code", DetectedLabel("claude_code")),
-            .. QuotaAccountDefinition.MonitoredWslDefaults(wsl, DetectedLabel, config.QuotaAccounts, Array.Empty<string>())
+            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+                Array.Empty<string>(), nativeHome)
         ];
+        // Secondary profiles whose session logs Usage counts alongside the hand-added accounts.
+        IReadOnlyList<QuotaAccountDefinition> UsageAccounts() =>
+        [
+            .. config.QuotaAccounts.ToArray(),
+            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+                config.RemovedQuotaAccounts, nativeHome)
+                .Where(account => QuotaAccountDefinition.IsSecondaryAccountId(account.Id))
+        ];
+        var usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: UsageAccounts);
+        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
+            accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
+            defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
+            removedAccounts: () => config.RemovedQuotaAccounts, nativeHome: nativeHome);
         IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
             DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
         void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
@@ -234,7 +244,7 @@ public static class WebUiEndpoints
             Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
 
         static string? WslName(QuotaAccountDefinition account) =>
-            QuotaAccountDefinition.IsWslAccountId(account.Id) ? account.Id[(account.Id.LastIndexOf(':') + 1)..] : null;
+            QuotaAccountDefinition.DetectedWslDistribution(account.Id);
 
         app.MapGet($"{BasePath}/api/quota/accounts", () =>
         {
@@ -245,10 +255,10 @@ public static class WebUiEndpoints
                     .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = WslName(account) })
                     .Concat(config.QuotaAccounts.Select(account => new
                         { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray(),
-                // A removed WSL account keeps its row while its distribution is stopped, without a directory.
+                // A removed account keeps its row while its profile is missing, without a directory.
                 removed = config.RemovedQuotaAccounts.Select(id => detected.FirstOrDefault(account => account.Id == id) ??
                         new QuotaAccountDefinition(id, id[..id.IndexOf(':')],
-                            DetectedLabel(id) ?? "WSL · " + id[(id.LastIndexOf(':') + 1)..], ""))
+                            DetectedLabel(id) ?? QuotaAccountDefinition.FallbackLabel(id), ""))
                     .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, Wsl = WslName(account) })
                     .ToArray()
             }, JsonOptions);
