@@ -179,7 +179,8 @@ public static class WebUiEndpoints
         var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
             accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
             defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
-            removedAccounts: () => config.RemovedQuotaAccounts, nativeHome: nativeHome);
+            removedAccounts: () => config.RemovedQuotaAccounts, nativeHome: nativeHome,
+            openCodeGoRenewalDay: () => config.OpenCodeGoRenewalDay);
         IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
             DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
         void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
@@ -366,6 +367,24 @@ public static class WebUiEndpoints
             }
             Notify(options, config, false, logger);
             return Results.Json(new { deleted = id }, JsonOptions);
+        });
+
+        // The OpenCode Go plan's renewal day anchors the monthly estimate to the billing cycle.
+        app.MapPut($"{BasePath}/api/quota/opencode-go", async (HttpContext http) =>
+        {
+            var body = await ReadAsync<OpenCodeGoBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            if (body.RenewalDay is not null && !AgentNotify.Core.Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(body.RenewalDay))
+                return Error("Choose a renewal day from 1 to 31, or clear it.");
+            lock (quotaAccountsGate)
+            {
+                var previous = config.OpenCodeGoRenewalDay;
+                config.OpenCodeGoRenewalDay = body.RenewalDay;
+                try { options.ConfigStore.Save(config); }
+                catch { config.OpenCodeGoRenewalDay = previous; throw; }
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(new { renewal_day = config.OpenCodeGoRenewalDay }, JsonOptions);
         });
 
         app.MapPost($"{BasePath}/api/quota/accounts/{{id}}/restore", (string id) =>
@@ -1004,6 +1023,11 @@ public static class WebUiEndpoints
     }
 
     // ---- request bodies --------------------------------------------------------------------
+
+    private sealed class OpenCodeGoBody
+    {
+        public int? RenewalDay { get; set; }
+    }
 
     private sealed class QuotaAccountBody
     {

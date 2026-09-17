@@ -193,6 +193,21 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OpenCodeGoRenewalDayCanBeSetAndCleared()
+    {
+        using var browser = Page();
+        var saved = await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 5 });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal(5, new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 32 })).StatusCode);
+        Assert.Equal(5, new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = (int?)null })).StatusCode);
+        Assert.Null(new ConfigStore(_dir, applyEnvOverrides: false).Load().OpenCodeGoRenewalDay);
+        using var otherPage = Browser().Client;
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PutAsJsonAsync("/ui/api/quota/opencode-go", new { renewal_day = 1 })).StatusCode);
+    }
+
+    [Fact]
     public async Task AdditionalQuotaAccountCanBeAddedListedAndRemovedWithoutCredentials()
     {
         using var browser = Page();

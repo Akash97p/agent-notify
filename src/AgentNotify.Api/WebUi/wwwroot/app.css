@@ -599,6 +599,9 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .account-manage-fields { min-width: 0; display: grid; grid-template-columns: minmax(100px, 0.6fr) minmax(140px, 1.4fr); gap: 6px; }
 .account-manage-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 .account-add { padding-top: 2px; }
+.go-renewal { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.go-renewal label { display: inline-flex; align-items: center; gap: 6px; }
+.go-renewal .go-renewal-day { width: 5.5em; }
 .account-add > .btn { justify-self: start; }
 @media (max-width: 720px) {
   .account-manage-row, .account-manage-fields { grid-template-columns: minmax(0, 1fr); }

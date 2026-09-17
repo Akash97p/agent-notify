@@ -150,34 +150,47 @@ public sealed class LocalUsageService
         finally { _scanGate.Release(); }
     }
 
+    /// <param name="renewalDay">
+    /// The plan's renewal day of the month. When set, the monthly cap is compared with the current
+    /// billing cycle instead of the last 30 days. The five-hour and weekly windows stay rolling.
+    /// </param>
+    /// <param name="zone">The time zone renewals happen in; the machine's local zone by default.</param>
     public async Task<OpenCodeGoEstimate> GetOpenCodeGoEstimateAsync(DateTimeOffset now,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, int? renewalDay = null, TimeZoneInfo? zone = null)
     {
         await _scanGate.WaitAsync(cancellationToken);
         try
         {
-            return await Task.Run(() => EstimateOpenCodeGo(now, cancellationToken), cancellationToken);
+            return await Task.Run(() => EstimateOpenCodeGo(now, renewalDay, zone ?? TimeZoneInfo.Local, cancellationToken),
+                cancellationToken);
         }
         finally { _scanGate.Release(); }
     }
 
-    private OpenCodeGoEstimate EstimateOpenCodeGo(DateTimeOffset now, CancellationToken ct)
+    private OpenCodeGoEstimate EstimateOpenCodeGo(DateTimeOffset now, int? renewalDay, TimeZoneInfo zone, CancellationToken ct)
     {
+        if (!OpenCodeGoBillingCycle.IsValidRenewalDay(renewalDay)) renewalDay = null;
+        var cycle = renewalDay is { } day ? OpenCodeGoBillingCycle.Current(now, day, zone) : ((DateTimeOffset, DateTimeOffset)?)null;
+        var periods = new (string Key, string Label, DateTimeOffset Start, DateTimeOffset? Resets, decimal Fraction)[]
+        {
+            ("five_hour", "Last 5 hours", now.AddHours(-5), null, .20m),
+            ("seven_day", "Last 7 days", now.AddDays(-7), null, .50m),
+            cycle is { } current
+                ? ("billing_cycle", "This billing cycle", current.Item1, current.Item2, 1m)
+                : ("thirty_day", "Last 30 days", now.AddDays(-30), null, 1m)
+        };
+        var earliest = periods.Min(period => period.Start);
         var skipped = 0;
         var rows = ReadOpenCode("opencode", CurrentSources().OpenCodeDatabases, ref skipped, ct)
             .Where(row => row.Provider == "opencode-go" && row.Timestamp <= now &&
-                          row.Timestamp >= now.AddDays(-30)).ToArray();
+                          row.Timestamp >= earliest).ToArray();
         if (skipped > 0 && rows.Length == 0)
-            return new OpenCodeGoEstimate("unavailable", [], "The local OpenCode usage database could not be read.");
+            return new OpenCodeGoEstimate("unavailable", [], "The local OpenCode usage database could not be read.", renewalDay);
         if (rows.Length == 0)
-            return new OpenCodeGoEstimate("no_data", [], "No OpenCode Go requests were found in the last 30 days on this machine.");
+            return new OpenCodeGoEstimate("no_data", [], cycle is null
+                ? "No OpenCode Go requests were found in the last 30 days on this machine."
+                : "No OpenCode Go requests were found in this billing cycle on this machine.", renewalDay);
 
-        var periods = new (string Key, string Label, TimeSpan Length, decimal Fraction)[]
-        {
-            ("five_hour", "Last 5 hours", TimeSpan.FromHours(5), .20m),
-            ("seven_day", "Last 7 days", TimeSpan.FromDays(7), .50m),
-            ("thirty_day", "Last 30 days", TimeSpan.FromDays(30), 1m)
-        };
         var models = rows.GroupBy(row => row.Model, StringComparer.OrdinalIgnoreCase)
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
             .Take(30)
@@ -186,7 +199,7 @@ public sealed class LocalUsageService
                 var monthlyLimit = ApiPriceCatalog.OpenCodeGoMonthlyLimit(group.Key);
                 var windows = periods.Select(period =>
                 {
-                    var selected = group.Where(row => row.Timestamp >= now - period.Length)
+                    var selected = group.Where(row => row.Timestamp >= period.Start)
                         .Select(row => (Row: row, Rate: ApiPriceCatalog.OpenCodeGoRate(group.Key, row.Timestamp, row.Counts)))
                         .ToArray();
                     var unpriced = selected.Count(item => item.Rate is null);
@@ -196,13 +209,15 @@ public sealed class LocalUsageService
                     double? percent = unpriced == 0 && limit is > 0
                         ? (double)(observed / limit.Value * 100m) : null;
                     return new OpenCodeGoWindowEstimate(period.Key, period.Label, observed, limit,
-                        percent, selected.Length, unpriced);
+                        percent, selected.Length, unpriced, period.Start, period.Resets);
                 }).ToArray();
                 return new OpenCodeGoModelEstimate(group.Key, windows);
             }).ToArray();
         return new OpenCodeGoEstimate("estimated", models,
-            "Local OpenCode requests only. Other clients, billing-cycle boundaries, and provider-side adjustments are unknown; these are not live remaining quotas." +
-            (skipped > 0 ? " Some local OpenCode databases could not be read." : ""));
+            (cycle is null
+                ? "Local OpenCode requests only. Other clients, billing-cycle boundaries, and provider-side adjustments are unknown; these are not live remaining quotas."
+                : "Local OpenCode requests only. Other clients and provider-side adjustments are unknown; these are not live remaining quotas.") +
+            (skipped > 0 ? " Some local OpenCode databases could not be read." : ""), renewalDay);
     }
 
     private UsageReport Scan(int days, CancellationToken ct)

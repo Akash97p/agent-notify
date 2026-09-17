@@ -62,8 +62,30 @@ function goCard(model) {
         h("span", { class: "balance-meta", text: `${window.unpriced_records} unpriced local records` }));
       const remaining = Math.max(0, 100 - window.estimated_used_percent);
       return balanceBar(window.label, remaining,
-        `${money(window.observed_usd)} observed of ${money(window.limit_usd)} cap`, null);
+        `${money(window.observed_usd)} observed of ${money(window.limit_usd)} cap`, window.resets_at);
     })));
+}
+
+function goRenewal(go, reload) {
+  const day = input({ type: "number", min: "1", max: "31", step: "1", value: go.renewal_day ?? "",
+    placeholder: "Not set", "aria-label": "OpenCode Go renewal day of the month", class: "input go-renewal-day" });
+  const save = button("Save", { size: "sm" });
+  const clearDay = go.renewal_day ? button("Clear", { variant: "ghost", size: "sm" }) : null;
+  const put = (value) => async () => {
+    try {
+      await api.put("quota/opencode-go", { renewal_day: value() });
+      toast(value() == null ? "Renewal day cleared." : "Renewal day saved.");
+      await reload();
+    } catch (error) { toast(error.message, "error"); }
+  };
+  save.addEventListener("click", () => busy(save, put(() => day.value === "" ? null : Number(day.value))));
+  clearDay?.addEventListener("click", () => busy(clearDay, put(() => null)));
+  return h("div", { class: "go-renewal" },
+    h("label", { class: "small" }, h("span", { text: "Plan renews on day " }), day, h("span", { text: " of the month" })),
+    save, clearDay,
+    h("span", { class: "muted small", text: go.renewal_day
+      ? "The monthly bar counts this billing cycle, starting at local midnight on that day."
+      : "Without it, the monthly bar counts the last 30 days, which is not your billing cycle." }));
 }
 
 function accountManager(accounts, removed, reload) {
@@ -168,7 +190,7 @@ export default {
         const [report, configured] = await Promise.all([
           force ? api.post("quota/refresh") : api.get("quota"), api.get("quota/accounts")]);
         if (!ctx.isCurrent()) return;
-        if (report.contract_version !== "2") throw new Error("The broker and page use different quota contracts. Reload the page.");
+        if (report.contract_version !== "3") throw new Error("The broker and page use different quota contracts. Reload the page.");
         const providers = report.providers.filter(item => item.provider !== "opencode");
         mount(page,
           pageHead("Live quota", "Remaining account balances at a glance.", refresh),
@@ -178,10 +200,11 @@ export default {
               h("div", null, h("h2", { text: "OpenCode Go" }),
                 h("p", { class: "muted small", text: "Local estimates against published per-model caps and rates." })),
               h("a", { class: "small", href: "https://opencode.ai/docs/go/", target: "_blank", rel: "noreferrer", text: "How limits work ↗" })),
+            goRenewal(report.open_code_go, load),
             h("div", { class: "quota-grid" }, report.open_code_go.models.map(goCard)),
             h("details", { class: "meta-disclosure page-disclosure" },
               h("summary", { text: "About the OpenCode estimate" }),
-              h("p", { class: "muted small", text: `${report.open_code_go.message} Windows roll backward from now; billing-cycle reset times are unavailable. Rates checked ${report.open_code_go.pricing_as_of}.` }))
+              h("p", { class: "muted small", text: `${report.open_code_go.message} The 5-hour and weekly windows roll backward from now; ${report.open_code_go.renewal_day ? "the monthly window follows your renewal day" : "set your renewal day to anchor the monthly window to your billing cycle"}. Rates checked ${report.open_code_go.pricing_as_of}.` }))
           ] : null,
           accountManager(configured.accounts, configured.removed ?? [], load),
           h("p", { class: "muted small page-footnote", text: "Live checks are cached for five minutes. Check now is limited to once every 30 seconds." }));
