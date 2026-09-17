@@ -37,8 +37,8 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
-| Usage | Read compact local Claude Code, Codex, and OpenCode activity summaries; expand sessions, projects, models, token buckets, and pricing when needed |
-| Live quota | Check remaining balances for multiple named Codex and Claude Code profiles; compare a separately labeled local OpenCode Go per-model estimate |
+| Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
+| Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
 | Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
