@@ -2,10 +2,16 @@ import { api } from "../api.js";
 import { h, mount, button, notice, field, input, select, busy, toast, confirmDialog, badge, checkbox } from "../dom.js";
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+// "$0.56" rather than "0.56 USD"; an amount without a documented currency stays a plain number.
 const money = (value, currency) => {
-  const formatted = number.format(value);
-  return currency ? `${formatted} ${currency}` : formatted;
+  if (!currency) return number.format(value);
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: currency.toUpperCase(),
+      minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+  } catch { return `${number.format(value)} ${currency}`; }
 };
+// The one balance each provider's card leads with; the rest stay under Account details.
+const primaryBalance = { deepseek: "total", moonshot: "available", siliconflow: "total_balance", openrouter: "limit_remaining" };
 const periodName = (period) => ({
   today: "Today",
   this_week: "This week",
@@ -36,15 +42,16 @@ function snapshotCard(snapshot, displayName) {
   }
   const rows = [];
   if (stale) rows.push(h("p", { class: "compact-warning", text: snapshot.message }));
-  if (snapshot.available != null)
+  if (snapshot.available === false)
+    rows.push(h("p", { class: "compact-warning", text: "The provider reports this balance is too low for API calls." }));
+  const balances = snapshot.balances || [];
+  const lead = balances.filter(balance => balance.kind === primaryBalance[snapshot.provider]);
+  const shown = lead.length ? lead : balances;
+  const breakdown = lead.length ? balances.filter(balance => !lead.includes(balance)) : [];
+  for (const balance of shown)
     rows.push(h("div", { class: "balance-row" },
       h("div", { class: "balance-head" },
-        h("span", { class: "balance-label", text: "Account available" }),
-        h("strong", { text: snapshot.available ? "Yes" : "No" }))));
-  for (const balance of snapshot.balances || [])
-    rows.push(h("div", { class: "balance-row" },
-      h("div", { class: "balance-head" },
-        h("span", { class: "balance-label", text: kindName(balance.kind) }),
+        h("span", { class: "balance-label", text: balance.kind === "limit_remaining" ? "Limit remaining" : "Balance" }),
         h("strong", { class: "balance-value", text: money(balance.amount, balance.currency) }))));
   for (const entry of snapshot.spend || [])
     rows.push(h("div", { class: "balance-row" },
@@ -67,6 +74,7 @@ function snapshotCard(snapshot, displayName) {
   rows.push(h("details", { class: "meta-disclosure" },
     h("summary", { text: "Account details" }),
     h("div", { class: "meta-lines" },
+      breakdown.map(balance => h("span", { text: `${kindName(balance.kind)}: ${money(balance.amount, balance.currency)}` })),
       snapshot.fetched_at ? h("span", { text: `Checked: ${new Date(snapshot.fetched_at).toLocaleString()}` }) : null)));
   return h("section", { class: "card quota-account reveal" }, head,
     h("div", { class: "quota-account-body" }, rows));
@@ -167,7 +175,9 @@ function manager(accounts, providers, secretProtection, reload) {
 }
 
 // Returns at once: provider calls can take seconds and must not hold up the rest of Live quota.
+// The balance cards and the account manager are separate so the page can show balances first.
 export default function renderBilling() {
+  const cards = h("div", { class: "stack" });
   const host = h("div", { class: "stack" });
   const load = async () => {
     try {
@@ -182,22 +192,25 @@ export default function renderBilling() {
           await load();
         } catch (error) { toast(error.message, "error"); }
       }));
-      mount(host,
+      mount(cards, report.accounts?.length ? [
         h("div", { class: "section-heading" },
           h("div", null, h("h2", { text: "API accounts" }),
             h("p", { class: "muted small", text: "Provider balances and spend from official APIs. Keys stay on the broker." })),
           refresh),
-        report.accounts?.length
-          ? h("div", { class: "quota-grid" },
-            report.accounts.map((snapshot) => snapshotCard(snapshot, names.get(snapshot.provider))))
+        h("div", { class: "quota-grid" },
+          report.accounts.map((snapshot) => snapshotCard(snapshot, names.get(snapshot.provider))))
+      ] : null);
+      mount(host,
+        report.accounts?.length ? null
           : notice("No API accounts yet. Add one below to see its balance or spend.", "info"),
         manager(listed.accounts || [], listed.providers || [], overview?.secret_protection || "", load),
         h("p", { class: "muted small page-footnote", text: "Snapshots are cached for five minutes. Check now is limited to once every 60 seconds per account. Meta, Z.ai, Xiaomi MiMo, Google Gemini, and xAI have no usable official endpoint and are not listed." }));
     } catch (error) {
+      mount(cards, null);
       mount(host, notice(error.message, "danger"));
     }
   };
-  mount(host, h("div", { class: "skeleton" }));
+  mount(cards, h("div", { class: "skeleton" }));
   load();
-  return host;
+  return { cards, manager: host };
 }
