@@ -19,6 +19,9 @@ build.
   Xiaomi MiMo V2.5, OpenCode Zen and Kilo free models, and DeepSeek V4 on OpenCode Go. Records are
   priced individually, so long-context requests, Codex fast mode, and OpenCode Go peak hours use the
   rate that actually applied.
+- **Usage now includes Muse Code, the Kilo CLI, and the Gemini CLI.** Their local history is read
+  natively and inside running WSL distributions, grouped by project, and priced at Meta, Z.ai, Xiaomi,
+  Google, or free-model rates. The Usage response is now `contract_version: "4"`.
 
 - **Agents inside WSL are no longer invisible on Windows.** Usage, Live quota, and the Agents page
   now include every running WSL distribution: Claude Code, Codex, and OpenCode history from its home,

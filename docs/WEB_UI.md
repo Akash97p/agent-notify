@@ -50,7 +50,8 @@ stored, and the page says so, but the platform decides how a notification looks.
 An answer given here is the same as one given from a toast, the CLI, or a paired phone: the first
 valid answer wins and later ones are refused.
 
-Usage reads the broker user's local Claude Code/Codex session logs and OpenCode SQLite database.
+Usage reads the broker user's local Claude Code/Codex session logs, the OpenCode and Kilo CLI SQLite
+databases, Muse Code sessions, and Gemini CLI chats.
 It needs no account key or network connection,
 and does not return prompt text, full project paths, or log paths to the browser. Projects are
 grouped by working directory and shown by folder name; same-named folders get distinct opaque IDs.
@@ -67,6 +68,13 @@ straight after, because SQLite's page-by-page reads over the share are very slow
 `~/.local/share/opencode/opencode.db` is used. Codex and Claude Code profiles added by hand on Live
 quota are read too (`sessions`/`archived_sessions` and `projects` under each profile directory), so a
 second account's history counts; a directory that is also discovered is read once.
+Muse Code sessions are read from `$XDG_DATA_HOME/muse/sessions` (default `~/.local/share/muse/sessions`),
+one `model_completed` event per model call, with subagent calls grouped under their parent session and
+project. The Kilo CLI's `~/.local/share/kilo/kilo.db` uses OpenCode's schema and is read the same way.
+Gemini CLI chats come from `~/.gemini/tmp/<project>/chats/session-*.json`; the project folder is
+resolved through `~/.gemini/projects.json` when it lists it. Antigravity, Cursor, Windsurf, Kiro,
+GitHub Copilot, and the Kilo and Cline IDE extensions keep no readable per-request token history on
+disk, so they do not appear in Usage.
 On Windows, Usage, Live quota, and Agents also include each running WSL distribution: its agents'
 default log locations, a Codex/Claude Code account for each profile directory that exists, and skill
 rows labelled `WSL · <distribution>`. Stopped distributions are not read, because opening their

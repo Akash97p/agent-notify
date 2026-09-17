@@ -87,7 +87,7 @@ public sealed class WslTests : IDisposable
 
         var report = await usage.GetReportAsync(7);
 
-        Assert.Equal("3", report.ContractVersion);
+        Assert.Equal("4", report.ContractVersion);
         Assert.Equal(1, report.Events);
         Assert.Equal("myproj", Assert.Single(report.Projects).Name);
         Assert.Equal(["Ubuntu-Test"], report.WslDistributions);
