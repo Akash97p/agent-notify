@@ -126,7 +126,8 @@ public sealed class WslTests : IDisposable
         var accounts = new List<QuotaAccountDefinition>();
         var labels = new Dictionary<string, string>();
         var service = new LiveQuotaService([new StaticProbe()], accounts: () => accounts.ToArray(),
-            probeFactory: _ => new StaticProbe(), defaultAccountLabel: key => labels.GetValueOrDefault(key), wsl: wsl);
+            probeFactory: _ => new StaticProbe(), defaultAccountLabel: key => labels.GetValueOrDefault(key), wsl: wsl,
+            nativeHome: Path.Combine(_root, "native-home"));
 
         Assert.Equal(["codex:default"], (await service.GetReportAsync()).Providers.Select(p => p.AccountId));
 
@@ -154,7 +155,7 @@ public sealed class WslTests : IDisposable
         Directory.CreateDirectory(Path.Combine(home.WindowsHome, ".claude"));
         var removed = new List<string>();
         var service = new LiveQuotaService([new StaticProbe()], probeFactory: _ => new StaticProbe(),
-            wsl: new FakeWsl(home), removedAccounts: () => removed);
+            wsl: new FakeWsl(home), removedAccounts: () => removed, nativeHome: Path.Combine(_root, "native-home"));
 
         Assert.Equal(["codex:default", "claude_code:wsl:Ubuntu-Test"], (await service.GetReportAsync()).Providers.Select(p => p.AccountId));
         removed.AddRange(["codex:default", "claude_code:wsl:Ubuntu-Test"]);
@@ -222,6 +223,220 @@ public sealed class WslTests : IDisposable
         var label = Assert.Single(config.DefaultQuotaAccountLabels);
         Assert.Equal("codex:wsl:Ubuntu-20.04", label.Key);
         Assert.Equal("Linux", label.Value);
+    }
+
+    [Fact]
+    public void SecondaryProfilesNeedAMatchingDirectoryNameAndAMarker()
+    {
+        var home = Path.Combine(_root, "secondary-home");
+        Directory.CreateDirectory(home);
+        void Profile(string name, string? markerFile = null, string? markerDir = null)
+        {
+            var dir = Directory.CreateDirectory(Path.Combine(home, name));
+            if (markerFile is not null) File.WriteAllText(Path.Combine(dir.FullName, markerFile), "{}");
+            if (markerDir is not null) Directory.CreateDirectory(Path.Combine(dir.FullName, markerDir));
+        }
+        Profile(".codex-work", markerFile: "auth.json");
+        Profile(".codex_lab", markerDir: "sessions");
+        Profile(".claude-personal", markerFile: ".credentials.json");
+        Profile(".claude_personal", markerDir: "projects");
+        Profile(".codex-empty");
+        Profile(".claude-empty");
+        Profile(".codex", markerFile: "auth.json");
+        Profile(".claude", markerFile: ".credentials.json");
+        Profile(".codex-", markerFile: "auth.json");
+        Profile(".codex-bad name", markerFile: "auth.json");
+        Profile(".other-work", markerFile: "auth.json");
+        File.WriteAllText(Path.Combine(home, ".claude.json"), "{}");
+        File.WriteAllText(Path.Combine(home, ".codex-file"), "{}");
+        var nested = Directory.CreateDirectory(Path.Combine(home, "sub", ".codex-deep"));
+        File.WriteAllText(Path.Combine(nested.FullName, "auth.json"), "{}");
+
+        var found = QuotaAccountDefinition.HomeSecondaryProfiles(home, _ => null);
+
+        // `.claude-personal` and `.claude_personal` name the same account, so one entry wins.
+        Assert.Equal(["claude_code:home:personal", "codex:home:lab", "codex:home:work"],
+            found.Select(account => account.Id).Order(StringComparer.Ordinal));
+        Assert.Equal("Profile · work", found.Single(account => account.Id == "codex:home:work").Label);
+        Assert.Equal("codex", found.Single(account => account.Id == "codex:home:lab").Provider);
+        Assert.Equal(Path.Combine(home, ".codex-work"),
+            found.Single(account => account.Id == "codex:home:work").Directory);
+    }
+
+    [Fact]
+    public void SecondaryProfileSuffixIsLimitedAndEachHomeIsCapped()
+    {
+        var home = Path.Combine(_root, "capped-home");
+        Directory.CreateDirectory(home);
+        var ok = new string('a', 40);
+        var tooLong = new string('b', 41);
+        Directory.CreateDirectory(Path.Combine(home, ".codex-" + ok));
+        File.WriteAllText(Path.Combine(home, ".codex-" + ok, "auth.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(home, ".codex-" + tooLong));
+        File.WriteAllText(Path.Combine(home, ".codex-" + tooLong, "auth.json"), "{}");
+        for (var i = 0; i < 17; i++)
+        {
+            var dir = Directory.CreateDirectory(Path.Combine(home, $".codex-p{i:00}"));
+            File.WriteAllText(Path.Combine(dir.FullName, "auth.json"), "{}");
+        }
+
+        var found = QuotaAccountDefinition.HomeSecondaryProfiles(home, _ => null);
+
+        Assert.DoesNotContain(found, account => account.Id.Contains(tooLong));
+        Assert.Contains(found, account => account.Id == "codex:home:" + ok);
+        Assert.Equal(16, found.Count);
+        Assert.DoesNotContain("codex:home:p16", found.Select(account => account.Id));
+    }
+
+    [Theory]
+    [InlineData("codex:default", true)]
+    [InlineData("claude_code:default", true)]
+    [InlineData("codex:wsl:Ubuntu", true)]
+    [InlineData("claude_code:wsl:Ubuntu-20.04", true)]
+    [InlineData("codex:home:work", true)]
+    [InlineData("claude_code:home:a.b_c-d", true)]
+    [InlineData("codex:wsl:Ubuntu:work", true)]
+    [InlineData("claude_code:wsl:Debian:personal", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("codex", false)]
+    [InlineData("opencode:default", false)]
+    [InlineData("codex:wsl:bad name", false)]
+    [InlineData("codex:wsl:", false)]
+    [InlineData("codex:wsl:Ubuntu:bad name", false)]
+    [InlineData("codex:wsl:Ubuntu:work:extra", false)]
+    [InlineData("codex:home:", false)]
+    [InlineData("codex:home:bad name", false)]
+    [InlineData("codex:home:a:b", false)]
+    [InlineData("codex:other:work", false)]
+    public void DetectedAccountIdsAreValidatedStrictly(string? id, bool detected) =>
+        Assert.Equal(detected, QuotaAccountDefinition.IsDetectedAccountId(id));
+
+    [Fact]
+    public void SecondaryAccountIdHelpersParseProviderDistributionAndSuffix()
+    {
+        Assert.True(QuotaAccountDefinition.IsHomeAccountId("codex:home:work"));
+        Assert.False(QuotaAccountDefinition.IsHomeAccountId("codex:wsl:Ubuntu:work"));
+        Assert.True(QuotaAccountDefinition.IsWslSecondaryAccountId("codex:wsl:Ubuntu:work"));
+        Assert.False(QuotaAccountDefinition.IsWslSecondaryAccountId("codex:wsl:Ubuntu"));
+        Assert.True(QuotaAccountDefinition.IsSecondaryAccountId("claude_code:home:me"));
+        Assert.False(QuotaAccountDefinition.IsSecondaryAccountId("claude_code:default"));
+
+        Assert.Equal("Ubuntu", QuotaAccountDefinition.DetectedWslDistribution("codex:wsl:Ubuntu"));
+        Assert.Equal("Ubuntu", QuotaAccountDefinition.DetectedWslDistribution("codex:wsl:Ubuntu:work"));
+        Assert.Null(QuotaAccountDefinition.DetectedWslDistribution("codex:home:work"));
+        Assert.Null(QuotaAccountDefinition.DetectedWslDistribution("codex:default"));
+        Assert.Null(QuotaAccountDefinition.DetectedWslDistribution("codex:wsl:bad name:work"));
+
+        Assert.Equal("work", QuotaAccountDefinition.DetectedSuffix("codex:home:work"));
+        Assert.Equal("lab", QuotaAccountDefinition.DetectedSuffix("codex:wsl:Ubuntu:lab"));
+        Assert.Null(QuotaAccountDefinition.DetectedSuffix("codex:wsl:Ubuntu"));
+        Assert.Null(QuotaAccountDefinition.DetectedSuffix("codex:default"));
+
+        Assert.Equal("codex", QuotaAccountDefinition.DetectedProvider("codex:home:work"));
+        Assert.Equal("claude_code", QuotaAccountDefinition.DetectedProvider("claude_code:wsl:Debian:me"));
+        Assert.Null(QuotaAccountDefinition.DetectedProvider("opencode:default"));
+
+        Assert.Equal("WSL · Ubuntu · work", QuotaAccountDefinition.FallbackLabel("codex:wsl:Ubuntu:work"));
+        Assert.Equal("WSL · Ubuntu", QuotaAccountDefinition.FallbackLabel("codex:wsl:Ubuntu"));
+        Assert.Equal("Profile · me", QuotaAccountDefinition.FallbackLabel("claude_code:home:me"));
+    }
+
+    [Fact]
+    public void SecondaryProfilesUseOwnerLabelsWhenGiven()
+    {
+        var home = Path.Combine(_root, "labeled-home");
+        var work = Directory.CreateDirectory(Path.Combine(home, ".codex-work"));
+        File.WriteAllText(Path.Combine(work.FullName, "auth.json"), "{}");
+        var labels = new Dictionary<string, string> { ["codex:home:work"] = " Day job " };
+
+        var found = QuotaAccountDefinition.HomeSecondaryProfiles(home, key => labels.GetValueOrDefault(key));
+
+        Assert.Equal("Day job", Assert.Single(found).Label);
+    }
+
+    [Fact]
+    public void ConfigKeepsSecondaryAccountIds()
+    {
+        var config = new AgentNotifyConfig
+        {
+            DefaultQuotaAccountLabels = new()
+            {
+                ["codex:home:work"] = " Work ",
+                ["claude_code:wsl:Ubuntu:personal"] = "Personal",
+                ["codex:wsl:Ubuntu"] = "Kept",
+                ["codex:default"] = "Dropped",
+                ["opencode:home:work"] = "Dropped",
+                ["codex:wsl:bad name"] = "Dropped"
+            },
+            RemovedQuotaAccounts = ["codex:home:work", "claude_code:wsl:Ubuntu:personal", "codex:wsl:bad name"]
+        };
+
+        config.ApplyDefaults();
+
+        Assert.Equal(3, config.DefaultQuotaAccountLabels.Count);
+        Assert.Equal("Work", config.DefaultQuotaAccountLabels["codex:home:work"]);
+        Assert.Equal("Personal", config.DefaultQuotaAccountLabels["claude_code:wsl:Ubuntu:personal"]);
+        Assert.Equal(["claude_code:wsl:Ubuntu:personal", "codex:home:work"],
+            config.RemovedQuotaAccounts.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task LiveQuotaOrdersSecondaryProfilesAndSkipsDuplicatesAndRemoved()
+    {
+        var native = Path.Combine(_root, "order-home");
+        Directory.CreateDirectory(native);
+        var work = Directory.CreateDirectory(Path.Combine(native, ".codex-work"));
+        File.WriteAllText(Path.Combine(work.FullName, "auth.json"), "{}");
+        var me = Directory.CreateDirectory(Path.Combine(native, ".claude-me"));
+        File.WriteAllText(Path.Combine(me.FullName, ".credentials.json"), "{}");
+        var wslHome = Home();
+        Directory.CreateDirectory(Path.Combine(wslHome.WindowsHome, ".codex"));
+        Directory.CreateDirectory(Path.Combine(wslHome.WindowsHome, ".claude"));
+        var lab = Directory.CreateDirectory(Path.Combine(wslHome.WindowsHome, ".codex-lab"));
+        Directory.CreateDirectory(Path.Combine(lab.FullName, "sessions"));
+        var accounts = new List<QuotaAccountDefinition>
+        {
+            // The same directory by hand takes the place of the discovered secondary profile.
+            new("q_" + Guid.NewGuid().ToString("N"), "codex", "By hand", work.FullName),
+            new("q_" + Guid.NewGuid().ToString("N"), "codex", "Other", Path.Combine(native, ".codex-other"))
+        };
+        var removed = new List<string>();
+        var service = new LiveQuotaService([new StaticProbe()], accounts: () => accounts.ToArray(),
+            probeFactory: _ => new StaticProbe(), wsl: new FakeWsl(wslHome),
+            removedAccounts: () => removed, nativeHome: native);
+
+        var ids = (await service.GetReportAsync()).Providers.Select(p => p.AccountId).ToArray();
+        // The fixture probes only Codex, so there is no claude_code:default built-in here.
+        Assert.Equal([
+            "codex:default",
+            "claude_code:home:me",
+            "codex:wsl:Ubuntu-Test", "claude_code:wsl:Ubuntu-Test", "codex:wsl:Ubuntu-Test:lab",
+            accounts[0].Id, accounts[1].Id
+        ], ids);
+
+        removed.Add("claude_code:home:me");
+        ids = (await service.GetReportAsync()).Providers.Select(p => p.AccountId).ToArray();
+        Assert.DoesNotContain("claude_code:home:me", ids);
+        Assert.Contains("codex:wsl:Ubuntu-Test:lab", ids);
+    }
+
+    [Fact]
+    public async Task UsageCountsSecondaryProfileLedgersPassedAsAccounts()
+    {
+        var native = Path.Combine(_root, "usage-home");
+        var projects = Directory.CreateDirectory(Path.Combine(native, ".claude-personal", "projects", "-home-x-proj"));
+        File.WriteAllText(Path.Combine(projects.FullName, "session.jsonl"), JsonSerializer.Serialize(new
+        {
+            type = "assistant", timestamp = DateTimeOffset.UtcNow, sessionId = "s1", cwd = "/home/x/proj",
+            requestId = "r1", message = new { id = "m1", model = "claude-opus-5", usage = new { input_tokens = 10 } }
+        }) + "\n");
+        var detected = QuotaAccountDefinition.HomeSecondaryProfiles(native, _ => null);
+        Assert.Equal("claude_code:home:personal", Assert.Single(detected).Id);
+        var usage = new LocalUsageService([], [], Path.Combine(_root, "secondary-usage.db"),
+            new FakeWsl(), () => detected);
+
+        Assert.Equal(1, (await usage.GetReportAsync(7)).Events);
     }
 
     [Fact]

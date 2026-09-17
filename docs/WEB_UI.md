@@ -129,7 +129,12 @@ The local Usage page continues to work without internet or signed-in agent accou
 
 ### Monitor several Codex or Claude Code accounts
 
-The current Codex and Claude Code profiles appear automatically. To add another, open **Live quota
+The current Codex and Claude Code profiles appear automatically, as do secondary profiles:
+a `.codex-<name>` or `.claude-<name>` folder (also with `_`) directly under your home folder or a
+running WSL distribution's home counts when it holds that agent's sign-in (`auth.json` or a
+`sessions` folder for Codex, `.credentials.json` or a `projects` folder for Claude Code). For
+example, with `CODEX_HOME="$HOME/.codex-work" codex login` already done, a **Profile · work**
+card appears with no further setup. To add another, open **Live quota
 → Manage accounts**, choose the agent, enter a name and the *agent profile directory*, then
 press **Add account**. The directory must be under your home folder. Create it before signing in;
 current Codex versions reject a missing `CODEX_HOME`. For macOS/Linux, for example:

@@ -57,10 +57,13 @@ public sealed class WebUiTests : IAsyncLifetime
             Quota = new LiveQuotaService([new WebQuotaProbe()]),
             // Never the real discovery: a Windows test machine may have WSL distributions running.
             Wsl = new FakeWsl(new WslHome("Ubuntu-Test", "/home/tester", Path.Combine(_dir, "wsl-home"))),
+            // Never the real home either: it may hold secondary profiles on a developer machine.
+            NativeHome = Path.Combine(_dir, "native-home"),
             SecretProtection = "test protector",
             DesktopSurface = "test",
             ConfigSaved = (_, _) => Interlocked.Increment(ref _configSaves)
         };
+        Directory.CreateDirectory(Path.Combine(_dir, "native-home"));
         _app = ApiHost.Build(_config, repository, new NotificationService(repository, _config), url: Base,
             interactions: new InteractionService(interactionRepository), webUi: options);
         await _app.StartAsync();
@@ -278,6 +281,47 @@ public sealed class WebUiTests : IAsyncLifetime
             new { label = "Clash", directory = Path.Combine(_dir, "wsl-home", ".claude") })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/" + movedId,
             new { label = "Moved Codex", directory = "relative/path" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task DetectedSecondaryProfilesListRenameRemoveAndRestore()
+    {
+        var work = Directory.CreateDirectory(Path.Combine(_dir, "native-home", ".codex-work"));
+        File.WriteAllText(Path.Combine(work.FullName, "auth.json"), "{}");
+        var lab = Directory.CreateDirectory(Path.Combine(_dir, "wsl-home", ".claude-lab"));
+        Directory.CreateDirectory(Path.Combine(lab.FullName, "projects"));
+        using var browser = Page();
+        static string[] Ids(JsonElement list, string property) =>
+            list.GetProperty(property).EnumerateArray().Select(item => item.GetProperty("id").GetString()!).ToArray();
+
+        var listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "codex:home:work", "claude_code:wsl:Ubuntu-Test:lab"],
+            Ids(listed, "accounts"));
+        var accounts = listed.GetProperty("accounts").EnumerateArray().ToArray();
+        Assert.Null(accounts[2].GetProperty("wsl").GetString());
+        Assert.Equal("Profile · work", accounts[2].GetProperty("label").GetString());
+        Assert.Equal("Ubuntu-Test", accounts[3].GetProperty("wsl").GetString());
+        Assert.Equal("WSL · Ubuntu-Test · lab", accounts[3].GetProperty("label").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PutAsJsonAsync("/ui/api/quota/accounts/codex:home:work",
+            new { label = "Work Codex" })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal("Work Codex", listed.GetProperty("accounts")[2].GetProperty("label").GetString());
+        Assert.Equal("Work Codex", new ConfigStore(_dir, applyEnvOverrides: false).Load().DefaultQuotaAccountLabels["codex:home:work"]);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.DeleteAsync("/ui/api/quota/accounts/codex:home:work")).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "claude_code:wsl:Ubuntu-Test:lab"], Ids(listed, "accounts"));
+        var removed = Assert.Single(listed.GetProperty("removed").EnumerateArray());
+        Assert.Equal("codex:home:work", removed.GetProperty("id").GetString());
+        Assert.Equal("Work Codex", removed.GetProperty("label").GetString());
+        Assert.Equal(JsonValueKind.Null, removed.GetProperty("wsl").ValueKind);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsJsonAsync("/ui/api/quota/accounts/codex:home:work/restore", new { })).StatusCode);
+        listed = await browser.GetFromJsonAsync<JsonElement>("/ui/api/quota/accounts");
+        Assert.Equal(["codex:default", "claude_code:default", "codex:home:work", "claude_code:wsl:Ubuntu-Test:lab"],
+            Ids(listed, "accounts"));
+        Assert.Empty(listed.GetProperty("removed").EnumerateArray());
     }
 
     [Fact]
