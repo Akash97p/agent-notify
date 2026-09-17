@@ -17,6 +17,7 @@ public sealed class LocalUsageService
     private readonly Func<IReadOnlyList<QuotaAccountDefinition>>? _accounts;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private Dictionary<string, CachedFile> _files = new(StringComparer.Ordinal);
+    private Dictionary<string, CachedDatabase> _databases = new(StringComparer.Ordinal);
 
     /// <param name="wsl">
     /// Running WSL distributions whose agent logs are read too. Defaults to <see cref="WslDiscovery.Default"/>
@@ -227,23 +228,116 @@ public sealed class LocalUsageService
         return "s_" + Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
     }
 
-    private static UsageEvent[] ReadOpenCode(IEnumerable<string> databases, ref int skipped, CancellationToken ct)
+    /// <summary>
+    /// OpenCode rows from every database, reusing the previous result for a database whose file and
+    /// write-ahead log are unchanged. Callers hold <see cref="_scanGate"/>.
+    /// </summary>
+    private UsageEvent[] ReadOpenCode(IEnumerable<string> databases, ref int skipped, CancellationToken ct)
     {
         var events = new List<UsageEvent>();
+        var next = new Dictionary<string, CachedDatabase>(StringComparer.Ordinal);
         foreach (var database in databases.Distinct(StringComparer.Ordinal))
-            events.AddRange(ReadOpenCode(database, ref skipped, ct));
+        {
+            if (!File.Exists(database)) continue;
+            var stamp = DatabaseStamp(database);
+            if (!_databases.TryGetValue(database, out var cached) || cached.Stamp != stamp)
+            {
+                var read = ReadOpenCode(database, ref skipped, ct);
+                if (read is null) continue;
+                cached = new CachedDatabase(stamp, read);
+            }
+            next[database] = cached;
+            events.AddRange(cached.Events);
+        }
+        _databases = next;
         return events.ToArray();
     }
 
-    private static UsageEvent[] ReadOpenCode(string database, ref int skipped, CancellationToken ct)
+    private sealed record CachedDatabase(string Stamp, UsageEvent[] Events);
+
+    /// <summary>
+    /// Identifies a database's current contents without querying it. Size and modification time can
+    /// repeat for two quick same-sized writes, so the SQLite header's change counter (rollback journal)
+    /// and the WAL header's checkpoint sequence and salts (reset when the log restarts) are included;
+    /// frames appended to the log grow its size.
+    /// </summary>
+    private static string DatabaseStamp(string database)
     {
-        if (!File.Exists(database)) return [];
+        static string Of(string path, int headerBytes)
+        {
+            var file = new FileInfo(path);
+            if (!file.Exists) return "-";
+            var header = new byte[headerBytes];
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                header = header[..stream.ReadAtLeast(header, headerBytes, throwOnEndOfStream: false)];
+            return file.Length + "@" + file.LastWriteTimeUtc.Ticks + ":" + Convert.ToHexString(header);
+        }
+        try { return Of(database, 100) + "|" + Of(database + "-wal", 32); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return "unreadable"; }
+    }
+
+    /// <summary>
+    /// Reads a database on a network or WSL share from a private local copy. SQLite fetches pages one
+    /// small read at a time, which over <c>\\wsl.localhost</c> turned a 260 MB database into a 30-second
+    /// query; copying it sequentially takes a couple of seconds. The copy is deleted straight away.
+    /// </summary>
+    private static UsageEvent[]? ReadOpenCode(string database, ref int skipped, CancellationToken ct)
+    {
+        if (!database.StartsWith(@"\\", StringComparison.Ordinal)) return QueryOpenCode(database, readOnly: true, ref skipped, ct);
+        var temp = Path.GetTempPath();
+        RemoveStaleSnapshots(temp);
+        var directory = Path.Combine(temp, SnapshotPrefix + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(directory);
+            var copy = Path.Combine(directory, "opencode.db");
+            // A copy taken while OpenCode checkpoints can mix old and new pages; take it again then.
+            for (var attempt = 0; ; attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var before = DatabaseStamp(database);
+                File.Copy(database, copy, overwrite: true);
+                if (File.Exists(database + "-wal")) File.Copy(database + "-wal", copy + "-wal", overwrite: true);
+                else File.Delete(copy + "-wal");
+                if (DatabaseStamp(database) == before || attempt == 2) break;
+            }
+            // The copy is ours, so it opens read-write: SQLite needs to create the -shm for its WAL.
+            return QueryOpenCode(copy, readOnly: false, ref skipped, ct);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            skipped++;
+            return null;
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    private const string SnapshotPrefix = "agentnotify-opencode-";
+
+    /// <summary>Deletes snapshots a crashed scan left behind; a running scan's copy is minutes younger.</summary>
+    private static void RemoveStaleSnapshots(string temp)
+    {
+        try
+        {
+            foreach (var stale in new DirectoryInfo(temp).EnumerateDirectories(SnapshotPrefix + "*")
+                         .Where(item => item.CreationTimeUtc < DateTime.UtcNow.AddHours(-1)))
+                stale.Delete(recursive: true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+    }
+
+    private static UsageEvent[]? QueryOpenCode(string database, bool readOnly, ref int skipped, CancellationToken ct)
+    {
         try
         {
             var builder = new SqliteConnectionStringBuilder
             {
                 DataSource = database,
-                Mode = SqliteOpenMode.ReadOnly,
+                Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWrite,
                 Pooling = false
             };
             using var connection = new SqliteConnection(builder.ToString());
@@ -288,7 +382,7 @@ public sealed class LocalUsageService
         catch (Exception error) when (error is SqliteException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             skipped++;
-            return [];
+            return null;
         }
     }
 

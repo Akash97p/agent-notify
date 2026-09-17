@@ -314,6 +314,12 @@ public sealed class LocalUsageTests : IDisposable
             tokens = new { input = 1 } });
         Assert.Equal(4, (await usage.GetReportAsync(30)).Events);
         Assert.Equal(5, (await usage.GetReportAsync(0)).Events);
+
+        // Rows are cached per database; a database that disappears takes its rows with it.
+        connection.Close();
+        SqliteConnection.ClearAllPools();
+        File.Delete(db);
+        Assert.Equal(0, (await usage.GetReportAsync(0)).Events);
     }
 
     public void Dispose()
