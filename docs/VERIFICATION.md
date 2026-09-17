@@ -1768,6 +1768,30 @@ stored keys no later start could decrypt, and now fails instead; and the API acc
 blocked the whole Live quota page until every provider answered, and now loads on its own. After
 the fixes `scripts/test.sh` passed **1,037 of 1,037** on the branch.
 
+## v0.1.0-alpha.4 release (2026-09-17)
+
+Prepared on `dev` (`chore: prepare v0.1.0-alpha.4`) after `scripts/build.sh` (0 warnings, 0 errors),
+`scripts/test.sh` (1,050 passed), and `scripts/package.sh` on the Windows host; the local CLI reported
+`agentnotify 0.1.0-alpha.4` and the local installer SHA-256 was
+`d8b94ac5c1f1d98c4dd2cc8dfca138ff33ae508df3d3e61c9943823bfe89df46`. `scripts/release-notes.sh
+v0.1.0-alpha.4 v0.1.0-alpha.3` produced the notes. The skill validator was not run (its script path
+is not configured on this machine); the distributable skill did not change in this release.
+
+Released as merge `3887844` (`merge: release v0.1.0-alpha.4 to main`), tagged `v0.1.0-alpha.4`, and
+pushed with `dev`; `main` was then fast-forwarded to `dev` at `8d405bd`. GitHub Actions:
+
+- Release run [35237072846](https://github.com/Akash97p/agent-notify/actions/runs/35237072846) —
+  `package-and-release` and `cross-platform-assets` succeeded, publishing the
+  [prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.1.0-alpha.4) at
+  2026-09-17T15:01:18Z with `AgentNotifySetup.exe`, `SHA256SUMS.txt`, `SKILL.md`,
+  `agentnotify-win-x64.zip`, `agentnotify-{linux,osx}-{x64,arm64}.tar.gz`, and
+  `SHA256SUMS-portable.txt`.
+- CI and CI (Linux and macOS) succeeded on `dev` and `main` at `8d405bd` and on `main` at
+  `3887844`; the documentation site workflow succeeded on both branches.
+
+Not verified: the published installer has not been downloaded and installed, and the hosted build's
+checksum was not compared with the local one (hosted and local builds are not byte-identical).
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
