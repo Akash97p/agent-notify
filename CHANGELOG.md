@@ -11,6 +11,18 @@ build.
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] - 2026-09-18
+
+This release adds a local model router. AgentNotify can now sit between your coding agents and the
+model providers you pay for: Codex and Claude Code can run on DeepSeek, OpenRouter, Kimi, Z.ai, Groq,
+or a model on your own machine, pick those models from their own `/model` menus, and fail over to
+another provider when one is rate-limited or down. It is off until you turn it on, and nothing else in
+AgentNotify changes when it is off. The minor version moves to 0.2 because this is a new capability
+rather than a refinement of the notification broker.
+
+Not yet exercised against a real provider: every live check so far used a local stand-in upstream,
+with the real Codex and Claude Code clients. Treat provider-specific behaviour as unproven.
+
 ### Added
 
 - **Provider router (opt-in, off by default).** The broker can act as a local proxy for coding
