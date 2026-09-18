@@ -156,7 +156,11 @@ public sealed record RouterRoute(
     DateTimeOffset UpdatedAt);
 
 /// <summary>Router-level settings.</summary>
-public sealed record RouterSettings(string? DefaultRoute);
+/// <param name="SmartRouting">
+/// When on, a request that fails on one provider moves on to the same model at another provider, cheapest
+/// kind first: see <see cref="RouteResolver"/>.
+/// </param>
+public sealed record RouterSettings(string? DefaultRoute, bool SmartRouting = false);
 
 /// <summary>Ledger row for a logical router request.</summary>
 public sealed record RouterRequestRecord(
@@ -269,3 +273,6 @@ public static class RouterOutcome
     public const string Canceled = "canceled";
     public const string FailedOverExhausted = "failed_over_exhausted";
 }
+
+/// <summary>A Codex account a ChatGPT-plan provider can sign in with.</summary>
+public sealed record CodexPlanAccount(string Directory, string Label, bool IsDefault, bool SignedIn);

@@ -2039,6 +2039,34 @@ Not verified: a routed model on a stored API key (DeepSeek, OpenCode Go) through
 keychain reason above; `count_tokens` on the native path; an Anthropic API-key (`x-api-key`) Claude
 Code login; the Windows tray build.
 
+## Smart routing and every Codex account (`feature/smart-routing`, 2026-09-18) — v0.2.0-alpha.2
+
+macOS, same toolchain as above. `./scripts/build.sh -p:EnableWindowsTargeting=true`: 0 warnings, 0
+errors. `./scripts/test.sh -p:EnableWindowsTargeting=true`: 1,249 passed, 0 failed (12 new: smart
+routing's order after a picked model, a bare model across providers, vendor-path and case matching, a
+chain keeping its order; smart failover through a `429` and a `401` to the same model elsewhere; the
+setting surviving default-route changes; Codex accounts not added before the plan is, added per
+signed-in account, a duplicate moved to the unused account keeping its slug, a signed-out account left
+out; the page's switch and model groups; a non-streaming client on the ChatGPT plan).
+`./scripts/package.sh` was not run (WSL and PowerShell only); the release tag's workflow builds and
+packages on Windows.
+
+Live, with the dev build over a copy of the owner's database (port 47832, outbound providers disabled
+in the copy, stored API keys unreadable there because the sandboxed shell cannot reach the keychain):
+- Loading the router page repaired the owner's real `chatgpt-2` from `~/.codex` to `~/.codex-second`
+  and relabelled it; the page listed six models smart routing can switch, GPT models ordered
+  `chatgpt` → `chatgpt-2`, and Muse Spark `opencode-go-2` → `meta` (OpenCode Go before pay-per-token).
+- With smart routing on and `chatgpt` pointed at a missing account, `chatgpt/gpt-5.6-luna` failed over
+  (`subscription_signed_out`) to `chatgpt-2` and answered, both streaming and non-streaming. The
+  non-streaming case first answered `400`: the ChatGPT backend refuses `stream: false`, which is now
+  fixed by streaming to it and collecting the reply.
+- Routing page screenshots (headless Chrome, 1400 px): a four-model fallback chain wraps one model per
+  line inside its card; before the fix it ran over the form beside it.
+
+Not verified: smart failover to a provider on a stored API key (the keychain reason above); a real
+`429` from a real provider triggering it; the Providers page's ChatGPT form seen after the account
+picker was removed; the Windows tray build.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

@@ -535,4 +535,93 @@ public sealed class RouterCoreTests
         }
         finally { Cleanup(db, cfg); }
     }
+
+    [Fact]
+    public async Task SmartRouting_IsKept_WhenTheDefaultRouteChanges()
+    {
+        var (repo, service, db, cfg) = Create();
+        try
+        {
+            await service.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-test-12345678", ["deepseek-chat"]);
+            await service.SetSmartRoutingAsync(true);
+            await service.SetDefaultRouteAsync("deepseek/deepseek-chat");
+            Assert.Equal(new RouterSettings("deepseek/deepseek-chat", true), await service.GetSettingsAsync());
+            await service.SetDefaultRouteAsync(null);
+            Assert.True((await service.GetSettingsAsync()).SmartRouting);
+            await service.SetSmartRoutingAsync(false);
+            Assert.False((await service.GetSettingsAsync()).SmartRouting);
+        }
+        finally { Cleanup(db, cfg); }
+    }
+
+    private static CodexPlanAccount[] TwoCodexAccounts(bool secondSignedIn = true) =>
+    [
+        new("/home/me/.codex", "me@work", true, true),
+        new("/home/me/.codex-second", "me@home", false, secondSignedIn),
+    ];
+
+    [Fact]
+    public async Task CodexAccounts_AreNotAddedUntilTheOwnerAddsTheChatGptPlan()
+    {
+        var (repo, service, db, cfg) = Create();
+        try
+        {
+            Assert.False(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
+            Assert.Empty(await service.ListUpstreamsAsync());
+        }
+        finally { Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task CodexAccounts_EachSignedInAccountGetsItsOwnPlanProvider()
+    {
+        var (repo, service, db, cfg) = Create();
+        try
+        {
+            await service.CreateUpstreamAsync("chatgpt", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt);
+            Assert.True(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
+            var added = (await service.ListUpstreamsAsync()).Single(u => u.Slug == "chatgpt-second");
+            Assert.Equal("profile:/home/me/.codex-second", added.CredentialRef);
+            Assert.Equal("ChatGPT plan · me@home", added.Label);
+            Assert.Equal(["gpt-5.6-luna"], added.Models);
+            Assert.Equal(RouterAuth.CodexChatGpt, added.Auth);
+            // Already in step: nothing more to do.
+            Assert.False(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
+        }
+        finally { Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task CodexAccounts_AProviderDuplicatingAnAccount_MovesToTheUnusedOne_KeepingItsSlug()
+    {
+        var (repo, service, db, cfg) = Create();
+        try
+        {
+            await service.CreateUpstreamAsync("chatgpt", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:/home/me/.codex");
+            await service.CreateUpstreamAsync("chatgpt-2", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:/home/me/.codex");
+            Assert.True(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
+            var upstreams = await service.ListUpstreamsAsync();
+            Assert.Equal(2, upstreams.Count);
+            Assert.Equal("profile:/home/me/.codex-second", upstreams.Single(u => u.Slug == "chatgpt-2").CredentialRef);
+            Assert.Equal("profile:/home/me/.codex", upstreams.Single(u => u.Slug == "chatgpt").CredentialRef);
+        }
+        finally { Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task CodexAccounts_ASignedOutAccountIsNotAdded()
+    {
+        var (repo, service, db, cfg) = Create();
+        try
+        {
+            await service.CreateUpstreamAsync("chatgpt", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt);
+            Assert.False(await service.SyncCodexAccountsAsync(TwoCodexAccounts(secondSignedIn: false)));
+            Assert.Single(await service.ListUpstreamsAsync());
+        }
+        finally { Cleanup(db, cfg); }
+    }
 }

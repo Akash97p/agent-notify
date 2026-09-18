@@ -252,6 +252,8 @@ a.stat:hover { border-color: var(--border-strong); }
 .stat-sub { color: var(--muted); font-size: 12.5px; }
 
 .split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Grid items default to their content's width; a long unbroken line must wrap, not push past the column. */
+.split > *, .card-body > * { min-width: 0; }
 @media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } }
 .sticky { position: sticky; top: 20px; }
 @media (max-width: 900px) { .sticky { position: static; } }
@@ -740,3 +742,9 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .route-default > .select { flex: 1; min-width: 220px; }
 .page-stack { display: grid; gap: 16px; }
 .agent-account { display: grid; gap: 10px; padding: 14px 16px; }
+.route-chain { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.route-chain li { margin: 1px 0; }
+.smart-groups { display: grid; gap: 8px; }
+.smart-group { display: grid; gap: 2px; }
+.smart-group-model { font-weight: 560; overflow-wrap: anywhere; }
+.smart-group-chain { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }

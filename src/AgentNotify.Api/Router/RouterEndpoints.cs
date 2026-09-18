@@ -237,6 +237,7 @@ public static class RouterEndpoints
                 }, WebUiEndpoints.JsonOptions);
             }
 
+            await SyncCodexAccountsAsync(options, ct);
             var upstreams = await routerConfig.ListUpstreamsAsync(ct);
             var routes = await routerConfig.ListRoutesAsync(ct);
             var settings = await routerConfig.GetSettingsAsync(ct);
@@ -249,6 +250,8 @@ public static class RouterEndpoints
                 upstreams = upstreams.Select(ToPublic),
                 routes = routes.Select(r => new { id = r.Id, name = r.Name, kind = r.Kind, targets = r.Targets, enabled = r.Enabled, created_at = r.CreatedAt, updated_at = r.UpdatedAt }),
                 default_route = settings.DefaultRoute,
+                smart_routing = settings.SmartRouting,
+                smart_groups = SmartGroups(upstreams),
                 presets = PublicPresets(options.Router?.Credentials),
                 accounts = await AccountsAsync(options, ct),
                 limits = new { max_request_body_bytes = config.RouterMaxRequestBodyBytes, ledger_retention_days = config.RouterLedgerRetentionDays }
@@ -294,6 +297,8 @@ public static class RouterEndpoints
                 var key = ResolveKey(body, preset, options.Router?.Credentials);
                 var created = await routerConfig.CreateUpstreamAsync(body.Slug, body.Label, body.Wire, body.BaseUrl, key, body.Models, body.Enabled ?? true, http.RequestAborted,
                     body.Auth ?? preset?.Auth, ResolveModelWires(body, preset), body.CredentialRef);
+                // The ChatGPT plan covers every Codex account: the others are added beside this one.
+                if (created.Auth == RouterAuth.CodexChatGpt) await SyncCodexAccountsAsync(options, http.RequestAborted);
                 return Results.Json(ToPublic(created), WebUiEndpoints.JsonOptions, statusCode: StatusCodes.Status201Created);
             }
             catch (ArgumentException ex) { return Error(ex.Message); }
@@ -410,6 +415,15 @@ public static class RouterEndpoints
             }
             catch (KeyNotFoundException) { return Error("That route was not found.", 404); }
             catch (ArgumentException ex) { return Error(ex.Message); }
+        });
+
+        app.MapPut($"{WebUiEndpoints.BasePath}/api/router/smart", async (HttpContext http) =>
+        {
+            if (routerConfig is null) return Error("Router is not configured.", 404);
+            var body = await ReadAsync<EnableBody>(http);
+            if (body?.Enabled is null) return Error("The request body is not valid JSON.");
+            await routerConfig.SetSmartRoutingAsync(body.Enabled.Value, http.RequestAborted);
+            return Results.Json(new { smart_routing = body.Enabled.Value }, WebUiEndpoints.JsonOptions);
         });
 
         app.MapPut($"{WebUiEndpoints.BasePath}/api/router/default", async (HttpContext http) =>
@@ -631,6 +645,44 @@ public static class RouterEndpoints
             }
         }
         return new { api_accounts = apiAccounts, codex_accounts = codexAccounts };
+    }
+
+    /// <summary>
+    /// Every model more than one enabled provider serves, with the order smart routing tries them in
+    /// when nothing else decides (a bare model name), so the page shows what the switch does.
+    /// </summary>
+    private static IEnumerable<object> SmartGroups(IReadOnlyList<RouterUpstream> upstreams) =>
+        upstreams
+            .Select((upstream, order) => (upstream, order))
+            .Where(item => item.upstream.Enabled)
+            .SelectMany(item => item.upstream.Models.Select(model => (item.upstream, item.order, model)))
+            .GroupBy(item => RouteResolver.ModelKey(item.model))
+            .Where(group => group.Select(item => item.upstream.Slug).Distinct().Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new
+            {
+                model = group.Key,
+                targets = group
+                    .OrderBy(item => RouteResolver.CostTier(item.upstream.Auth, item.upstream.BaseUrl))
+                    .ThenBy(item => item.order)
+                    .Select(item => item.upstream.Slug + "/" + item.model)
+                    .ToList()
+            });
+
+    /// <summary>
+    /// The Codex accounts this computer lists (the ones Insights shows), with whether each is signed
+    /// in, handed to <see cref="RouterConfigService.SyncCodexAccountsAsync"/>.
+    /// </summary>
+    private static async Task SyncCodexAccountsAsync(WebUiOptions options, CancellationToken ct)
+    {
+        if (options.RouterConfig is null || options.RouterConnect is null || options.Router is null) return;
+        var accounts = options.RouterConnect.Profiles()
+            .Where(profile => profile.Kind == CodexRouterConnector.Id)
+            .Select(profile => new CodexPlanAccount(profile.Directory, profile.Label, profile.IsDefault,
+                options.Router.Credentials.Describe(RouterAuth.CodexChatGpt, profile.Directory).Ready))
+            .ToList();
+        try { await options.RouterConfig.SyncCodexAccountsAsync(accounts, ct); }
+        catch (Exception exception) when (exception is ArgumentException or IOException or Microsoft.Data.Sqlite.SqliteException) { }
     }
 
     /// <summary>A referenced API account must still exist before an upstream is pointed at it.</summary>

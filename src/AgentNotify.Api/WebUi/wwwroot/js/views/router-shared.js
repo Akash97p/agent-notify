@@ -7,7 +7,7 @@ import {
 // Page titles live here so every section shares one voice.
 const TITLES = {
   providers: ["Providers", "Add a provider, tick its models, and they show up in your agents' model pickers."],
-  routing: ["Routing", "Optional nicknames and fallback chains on top of your providers' models."],
+  routing: ["Routing", "Smart routing, plus optional nicknames and fallback chains on top of your providers' models."],
   agents: ["Agents", "Point an agent's own model picker at the router, and put its settings back."],
   activity: ["Activity", "What the router actually sent, per request and per attempt."],
 };
@@ -73,6 +73,7 @@ export async function renderRouter(page, ctx, section) {
     const connectHost = h("div");
     const upstreamsHost = h("div");
     const routesHost = h("div");
+    const smartHost = h("div");
     const defaultHost = h("div");
     const ledgerHost = h("div");
     const summaryHost = h("div");
@@ -83,6 +84,7 @@ export async function renderRouter(page, ctx, section) {
         drawStatus();
         drawConnect();
         drawUpstreams();
+        drawSmart();
         drawRoutes();
         drawDefault();
       } catch (error) {
@@ -329,29 +331,31 @@ export async function renderRouter(page, ctx, section) {
         ? h("div", { class: "stack-sm" }, sourceOptions.length > 1 ? field("Key", keySource) : null, keyField, keyHelp)
         : null;
 
-      // A ChatGPT plan belongs to one Codex account; each account can be its own provider.
+      // A ChatGPT plan covers every Codex account this computer lists (the ones Insights shows): adding
+      // it adds one provider per signed-in account, so the owner never picks one. Each provider still
+      // belongs to one account, shown rather than chosen.
       const codexAccounts = auth === "codex_chatgpt" ? (state.accounts?.codex_accounts || []) : [];
       const usedProfiles = new Set(state.upstreams.filter(u => u.auth === "codex_chatgpt" && u.id !== existing?.id)
         .map(u => u.credential_ref || codexAccounts.find(a => a.is_default)?.credential_ref));
       const currentProfile = existing
         ? existing.credential_ref || codexAccounts.find(a => a.is_default)?.credential_ref
         : (codexAccounts.find(a => !usedProfiles.has(a.credential_ref)) || codexAccounts[0])?.credential_ref;
-      const codexAccount = codexAccounts.length > 1 || (codexAccounts.length && !codexAccounts[0].is_default)
-        ? select(codexAccounts.map(a => [a.credential_ref, `${a.label} · ${a.display_directory || a.directory}${usedProfiles.has(a.credential_ref) ? " (already added)" : ""}`]), currentProfile)
-        : null;
-      const selectedCodex = () => codexAccounts.find(a => a.credential_ref === (codexAccount?.value || currentProfile));
+      const selectedCodex = () => codexAccounts.find(a => a.credential_ref === currentProfile);
       const signinNotice = h("div");
       const syncCodexAccount = () => {
         const account = selectedCodex();
         if (!account) return;
-        mount(signinNotice, notice(account.detail, account.signed_in ? "ok" : "danger"));
+        const others = codexAccounts.filter(a => a.credential_ref !== account.credential_ref && a.signed_in);
+        const text = isEdit
+          ? `${account.label} · ${account.display_directory || account.directory}. ${account.detail}`
+          : `${account.detail} ${others.length ? `Your other Codex account${others.length > 1 ? "s" : ""} (${others.map(a => a.display_directory || a.directory).join(", ")}) ${others.length > 1 ? "are" : "is"} added as ${others.length > 1 ? "their own providers" : "its own provider"} too, so smart routing can move a model from one plan to the next.` : ""}`;
+        mount(signinNotice, notice(text, account.signed_in ? "ok" : "danger"));
         if (!isEdit) {
           const suffix = account.is_default ? "" : "-" + (account.label || account.id).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 20);
           slug.value = freeSlug("chatgpt" + suffix);
           label.value = account.is_default ? "ChatGPT plan" : `ChatGPT plan · ${account.label}`;
         }
       };
-      codexAccount?.addEventListener("change", () => { syncCodexAccount(); known.clear(); selected.clear(); fetched = false; fetchModels(); });
 
       const credentialRef = () => {
         if (auth === "codex_chatgpt") return selectedCodex()?.credential_ref || null;
@@ -507,7 +511,7 @@ export async function renderRouter(page, ctx, section) {
       if (preset?.unofficial)
         intro.push(notice(`Unofficial. This reuses the sign-in ${auth === "codex_chatgpt" ? "Codex" : "Muse Code"} keeps on this computer; the plan does not document use from other apps, so use it at your own risk. AgentNotify stores no key for it.`, "warn"));
       if (auth === "codex_chatgpt")
-        intro.push(codexAccount ? field("Codex account", codexAccount, { help: "Your accounts from Live quota. Add a provider per account to use both plans." }) : null, signinNotice);
+        intro.push(signinNotice);
       else if (subscription)
         intro.push(notice(preset?.signin_detail || "Uses this computer's sign-in.", preset?.signin_ready === false ? "danger" : "ok"));
 
@@ -603,7 +607,9 @@ export async function renderRouter(page, ctx, section) {
       },
         h("div", { class: "list-main" },
           h("div", { class: "list-title", text: r.name }),
-          h("div", { class: "list-sub", text: `${ROUTE_KIND[r.kind]?.[0] || r.kind} · ${(r.targets || []).join(" → ")}` })),
+          h("div", { class: "list-sub", text: ROUTE_KIND[r.kind]?.[0] || r.kind }),
+          // One model per line: a chain of provider/model names never fits on one.
+          h("ol", { class: "route-chain" }, (r.targets || []).map(t => h("li", { text: t })))),
         h("div", { class: "list-side" }, r.enabled ? badge("On", "ok") : badge("Off")),
       );
     }
@@ -656,7 +662,7 @@ export async function renderRouter(page, ctx, section) {
           mvDown.addEventListener("click", () => { [targets[idx + 1], targets[idx]] = [targets[idx], targets[idx + 1]]; rebuildTargets(); });
           rem.addEventListener("click", () => { targets.splice(idx, 1); rebuildTargets(); });
           targetsHost.append(h("div", { class: "route-target" },
-            h("span", { class: "route-target-n", text: chain ? `${idx + 1}.` : "" }),
+            chain ? h("span", { class: "route-target-n", text: `${idx + 1}.` }) : null,
             picker,
             chain ? h("div", { class: "row" }, mvUp, mvDown, rem) : null));
         });
@@ -715,6 +721,47 @@ export async function renderRouter(page, ctx, section) {
       });
     }
 
+    // ---- smart routing ---------------------------------------------------------------
+
+    function drawSmart() {
+      const sw = toggle("Smart routing", !!state.smart_routing);
+      const status = h("div", { class: "stack" });
+      sw.input.addEventListener("change", async () => {
+        const enabled = sw.input.checked;
+        try {
+          await api.put("router/smart", { enabled });
+          state.smart_routing = enabled;
+          toast(enabled ? "Smart routing is on." : "Smart routing is off.");
+          clear(status);
+        } catch (error) {
+          sw.input.checked = !enabled;
+          status.replaceChildren(notice(error.message, "danger"));
+        }
+      });
+
+      const groups = state.smart_groups || [];
+      const groupList = groups.length
+        ? h("div", { class: "smart-groups" }, groups.map(g => h("div", { class: "smart-group" },
+            h("div", { class: "smart-group-model mono small", text: g.model }),
+            h("div", { class: "smart-group-chain mono", text: g.targets.join(" → ") }))))
+        : h("p", { class: "muted small", text: "No model is served by more than one provider yet, so there is nothing to switch between. Add the same model from another provider — a second Codex account is added for you — and it appears here." });
+
+      mount(smartHost,
+        card({
+          title: "Smart routing",
+          description: "When a model fails — a usage limit, an outage, a refused key — use the same model from another provider instead.",
+          body: [
+            sw,
+            h("p", { class: "muted small", text: "The provider you picked is tried first. After it, the same model elsewhere: your plans first (each ChatGPT account, then OpenCode Go), then models on this computer, and pay-per-token APIs last because they cost more with every request. A model name several providers list starts with the cheapest. Your routes still apply; smart routing only adds the fallbacks after them." }),
+            h("details", { class: "meta-disclosure", open: groups.length > 0 && groups.length <= 6 },
+              h("summary", { text: `Models it can switch (${groups.length})` }),
+              groupList),
+            status,
+          ],
+        }),
+      );
+    }
+
     // ---- default route ---------------------------------------------------------------
 
     function drawDefault() {
@@ -746,7 +793,7 @@ export async function renderRouter(page, ctx, section) {
       mount(defaultHost,
         card({
           title: "When an agent asks for a model the router doesn't know",
-          description: "For example Claude Code asking for its own claude-… model name. Optional.",
+          description: "A model name no provider lists and no route names. Optional. Claude Code's own claude-… models don't land here: they go to Anthropic with Claude Code's own sign-in.",
           body: [h("div", { class: "row route-default" }, sel, save), status],
         }),
       );
@@ -1054,7 +1101,7 @@ export async function renderRouter(page, ctx, section) {
 
     const sections = {
       providers: [statusHost, upstreamsHost],
-      routing: [routesHost, defaultHost],
+      routing: [smartHost, routesHost, defaultHost],
       agents: [agentsHost, connectHost],
       activity: [ledgerHost, summaryHost],
     };
@@ -1069,7 +1116,7 @@ export async function renderRouter(page, ctx, section) {
     );
 
     if (section === "providers") { drawStatus(); drawUpstreams(); }
-    if (section === "routing") { drawRoutes(); drawDefault(); }
+    if (section === "routing") { drawSmart(); drawRoutes(); drawDefault(); }
     if (section === "agents") { drawConnect(); await drawAgents(); }
     if (section === "activity") {
       drawLedger();

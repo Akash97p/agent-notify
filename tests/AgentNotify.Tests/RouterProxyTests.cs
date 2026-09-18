@@ -480,6 +480,34 @@ public sealed class RouterProxyTests
     }
 
     [Fact]
+    public async Task SmartRouting_ALimitOrARefusedKey_MovesToTheSameModelElsewhere()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("opencode-go", "Go", RouterWire.OpenAiChat, "https://opencode.ai/zen/go/v1", "sk-1-12345678", ["deepseek-v4-flash"]);
+            await svc.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-2-12345678", ["deepseek-v4-flash"]);
+            await svc.CreateUpstreamAsync("openrouter", "OpenRouter", RouterWire.OpenAiChat, "https://openrouter.ai/api/v1", "sk-3-12345678", ["deepseek/deepseek-v4-flash"]);
+            await svc.SetSmartRoutingAsync(true);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "opencode-go/deepseek-v4-flash", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
+            handler.Enqueue(req => new HttpResponseMessage((HttpStatusCode)429) { Content = new StringContent("{\"error\":{\"code\":\"usage_limit_reached\"}}") });
+            handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{}") });
+            handler.Enqueue(req =>
+            {
+                Assert.Contains("\"deepseek/deepseek-v4-flash\"", Encoding.UTF8.GetString(handler.RequestBodies[^1]));
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("hello"), Encoding.UTF8, "application/json") };
+            });
+            var sink = new TestSink();
+            var result = await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink, CancellationToken.None);
+            Assert.Equal(200, result.Status);
+            Assert.Equal(["opencode-go", "deepseek", "openrouter"], result.Attempts.Select(a => a.UpstreamSlug));
+            Assert.Equal(["rate_limited", "upstream_unauthorized", null], result.Attempts.Select(a => a.ErrorCode));
+            Assert.Contains("hello", sink.WrittenText);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
     public async Task NativeAnthropic_SendsTheBodyUnchanged_AndReturnsAnthropicsOwnErrorsUncooled()
     {
         var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
