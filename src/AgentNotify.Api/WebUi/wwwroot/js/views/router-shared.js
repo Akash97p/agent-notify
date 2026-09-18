@@ -207,17 +207,28 @@ export async function renderRouter(page, ctx, section) {
           h("div", { class: "list-sub", text: `${KIND_LABEL[kind]} · ${count} model${count === 1 ? "" : "s"} · ${u.slug}/…` })),
         h("div", { class: "provider-row-side" },
           count === 0 ? badge("No models", "warn") : null,
-          u.auth === "api_key" && preset?.needs_key && !u.has_key ? badge("No key", "danger") : null,
+          u.credential_ref?.startsWith("api_account:") ? badge("Key from API accounts", "info")
+            : u.auth === "api_key" && preset?.needs_key && !u.has_key ? badge("No key", "danger") : null,
           onSwitch),
       );
     }
 
     function presetTile(p) {
-      const added = state.upstreams.some(u => (u.slug === p.id || u.base_url === p.base_url) && u.auth === p.auth);
+      const added = p.auth === "codex_chatgpt"
+        ? state.upstreams.filter(u => u.auth === p.auth).length >= Math.max(1, (state.accounts?.codex_accounts || []).length)
+        : state.upstreams.some(u => (u.slug === p.id || u.base_url === p.base_url) && u.auth === p.auth);
       const chips = [];
       if (added) chips.push(badge("Added", "ok"));
-      if (p.opencode_key) chips.push(badge("Key found in OpenCode", "info"));
-      if (p.auth !== "api_key") chips.push(p.signin_ready ? badge("Signed in", "ok") : badge("Not signed in", "warn"));
+      const saved = (state.accounts?.api_accounts || []).filter(a => a.preset_id === p.id);
+      if (saved.length) chips.push(badge("Key in API accounts", "info"));
+      else if (p.opencode_key) chips.push(badge("Key found in OpenCode", "info"));
+      if (p.auth === "codex_chatgpt") {
+        const accounts = state.accounts?.codex_accounts || [];
+        const used = state.upstreams.filter(u => u.auth === "codex_chatgpt").length;
+        if (accounts.length > 1) chips.push(badge(`${accounts.length} Codex accounts${used ? ` · ${used} added` : ""}`, "info"));
+      }
+      if (p.auth === "muse_code") chips.push(p.signin_ready ? badge("Signed in", "ok") : badge("Not signed in", "warn"));
+      else if (p.auth === "codex_chatgpt") chips.push((state.accounts?.codex_accounts || []).some(a => a.signed_in) ? badge("Signed in", "ok") : badge("Not signed in", "warn"));
       if (p.unofficial) chips.push(badge("Unofficial", "warn"));
       return h("button", { type: "button", class: "provider-tile", onClick: () => { adding = { preset: p }; drawUpstreams(); } },
         h("div", { class: "provider-tile-name", text: p.display_name }),
@@ -279,24 +290,74 @@ export async function renderRouter(page, ctx, section) {
       const enabled = toggle("On", existing ? existing.enabled : true);
       const status = h("div", { class: "stack" });
 
-      // Key: typed, reused from OpenCode, or kept as stored.
-      const needsKeyUi = !subscription && (custom || preset?.needs_key || existing?.has_key);
-      const useOpenCode = needsKeyUi && preset?.opencode_key
-        ? toggle("Use the key OpenCode already has", !existing?.has_key, { help: "Copied into AgentNotify's own encrypted store. Nothing is shown." })
-        : null;
-      const apiKey = input({
-        type: "password", autocomplete: "off", spellcheck: "false",
-        placeholder: existing?.has_key ? "Leave blank to keep the stored key" : preset?.needs_key === false ? "Optional" : "Paste the key",
-      });
+      // Where the key comes from. A key already known elsewhere in AgentNotify (API accounts) is
+      // referenced, so it is entered and rotated in one place; OpenCode's is copied; one can be typed.
+      const needsKeyUi = !subscription && (custom || preset?.needs_key || existing?.has_key || existing?.credential_ref);
+      const apiAccounts = (state.accounts?.api_accounts || []).filter(a => preset && a.preset_id === preset.id);
+      const sourceOptions = [];
+      if (existing?.credential_ref?.startsWith("api_account:")) {
+        const current = (state.accounts?.api_accounts || []).find(a => a.credential_ref === existing.credential_ref);
+        sourceOptions.push(["keep", current ? `API account · ${current.label} (in use)` : "API account (removed — choose another)"]);
+      } else if (existing?.has_key) {
+        sourceOptions.push(["keep", "Keep the stored key"]);
+      }
+      for (const account of apiAccounts)
+        if (account.credential_ref !== existing?.credential_ref)
+          sourceOptions.push([account.credential_ref, `API account · ${account.label}`]);
+      if (preset?.opencode_key) sourceOptions.push(["opencode", "The key OpenCode already has"]);
+      sourceOptions.push(["paste", preset?.needs_key === false ? "Paste a key (optional)" : "Paste a key"]);
+      const keySource = select(sourceOptions, sourceOptions[0][0]);
+      const apiKey = input({ type: "password", autocomplete: "off", spellcheck: "false", placeholder: "Paste the key" });
       const clearKey = isEdit && existing.has_key ? checkbox("Remove the stored key", false) : null;
       clearKey?.input.addEventListener("change", () => { apiKey.disabled = clearKey.input.checked; if (clearKey.input.checked) apiKey.value = ""; });
+      const keyHelp = h("p", { class: "field-help" });
       const keyField = field("API key", apiKey, {
-        help: `Stored encrypted for your user and sent only to ${hostOf(baseUrl.value || preset?.base_url || "the base URL")}.`,
         extra: preset?.key_url ? h("a", { href: preset.key_url, target: "_blank", rel: "noopener noreferrer", class: "small", text: "Get a key ↗" }) : null,
       });
-      const syncKeyVisibility = () => { keyField.hidden = !!useOpenCode?.input.checked; };
-      useOpenCode?.input.addEventListener("change", () => { syncKeyVisibility(); fetchModels(); });
-      syncKeyVisibility();
+      const syncKeySource = () => {
+        const source = keySource.value;
+        keyField.hidden = source !== "paste";
+        const host = hostOf(baseUrl.value || preset?.base_url || "the base URL");
+        keyHelp.textContent = source.startsWith("api_account:") || (source === "keep" && existing?.credential_ref)
+          ? "Uses the key saved under Live quota → API accounts. Change it there and this provider follows."
+          : source === "opencode" ? `Copied from OpenCode into AgentNotify's encrypted store; sent only to ${host}.`
+          : `Stored encrypted for your user and sent only to ${host}.`;
+      };
+      keySource.addEventListener("change", () => { syncKeySource(); if (keySource.value !== "paste") fetchModels(); });
+      syncKeySource();
+      const keyBlock = needsKeyUi
+        ? h("div", { class: "stack-sm" }, sourceOptions.length > 1 ? field("Key", keySource) : null, keyField, keyHelp)
+        : null;
+
+      // A ChatGPT plan belongs to one Codex account; each account can be its own provider.
+      const codexAccounts = auth === "codex_chatgpt" ? (state.accounts?.codex_accounts || []) : [];
+      const usedProfiles = new Set(state.upstreams.filter(u => u.auth === "codex_chatgpt" && u.id !== existing?.id)
+        .map(u => u.credential_ref || codexAccounts.find(a => a.is_default)?.credential_ref));
+      const currentProfile = existing
+        ? existing.credential_ref || codexAccounts.find(a => a.is_default)?.credential_ref
+        : (codexAccounts.find(a => !usedProfiles.has(a.credential_ref)) || codexAccounts[0])?.credential_ref;
+      const codexAccount = codexAccounts.length > 1 || (codexAccounts.length && !codexAccounts[0].is_default)
+        ? select(codexAccounts.map(a => [a.credential_ref, `${a.label} · ${a.display_directory || a.directory}${usedProfiles.has(a.credential_ref) ? " (already added)" : ""}`]), currentProfile)
+        : null;
+      const selectedCodex = () => codexAccounts.find(a => a.credential_ref === (codexAccount?.value || currentProfile));
+      const signinNotice = h("div");
+      const syncCodexAccount = () => {
+        const account = selectedCodex();
+        if (!account) return;
+        mount(signinNotice, notice(account.detail, account.signed_in ? "ok" : "danger"));
+        if (!isEdit) {
+          const suffix = account.is_default ? "" : "-" + (account.label || account.id).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 20);
+          slug.value = freeSlug("chatgpt" + suffix);
+          label.value = account.is_default ? "ChatGPT plan" : `ChatGPT plan · ${account.label}`;
+        }
+      };
+      codexAccount?.addEventListener("change", () => { syncCodexAccount(); known.clear(); selected.clear(); fetched = false; fetchModels(); });
+
+      const credentialRef = () => {
+        if (auth === "codex_chatgpt") return selectedCodex()?.credential_ref || null;
+        const source = keySource.value;
+        return source.startsWith("api_account:") ? source : null;
+      };
 
       // Models: fetched from the provider and ticked, plus any typed by hand.
       const known = new Map(); // id -> wire
@@ -351,8 +412,9 @@ export async function renderRouter(page, ctx, section) {
           base_url: baseUrl.value.trim() || null,
           wire: wire.value,
           auth,
-          api_key: apiKey.value || null,
-          use_opencode_key: !!useOpenCode?.input.checked,
+          api_key: keySource.value === "paste" ? apiKey.value || null : null,
+          use_opencode_key: keySource.value === "opencode",
+          credential_ref: credentialRef(),
         };
         modelStatus.textContent = "Asking the provider for its models…";
         modelStatus.className = "muted small";
@@ -374,12 +436,13 @@ export async function renderRouter(page, ctx, section) {
       }
       refresh.addEventListener("click", () => busy(refresh, fetchModels));
       // Asking needs a key for most providers: ask as soon as one is pasted.
-      apiKey.addEventListener("change", () => { if (apiKey.value) fetchModels(); });
+      apiKey.addEventListener("change", () => { if (apiKey.value && keySource.value === "paste") fetchModels(); });
 
       // Ask straight away whenever no key has to be typed first.
+      syncCodexAccount();
       const canAskNow = subscription
-        ? preset?.signin_ready !== false
-        : isEdit || !!useOpenCode?.input.checked || (!custom && preset?.needs_key === false);
+        ? (auth === "codex_chatgpt" ? selectedCodex()?.signed_in !== false : preset?.signin_ready !== false)
+        : keySource.value !== "paste" || (!custom && preset?.needs_key === false);
       drawModels();
       if (canAskNow) queueMicrotask(fetchModels);
       else modelStatus.textContent = subscription ? "" : "Paste the key, and the model list loads by itself.";
@@ -401,8 +464,10 @@ export async function renderRouter(page, ctx, section) {
           wire: wire.value,
           base_url: baseUrl.value.trim(),
           auth,
-          api_key: useOpenCode?.input.checked ? null : (apiKey.value || null),
-          use_opencode_key: !!useOpenCode?.input.checked,
+          api_key: keySource.value === "paste" ? apiKey.value || null : null,
+          use_opencode_key: keySource.value === "opencode",
+          // Omitted when keeping what is stored; otherwise the reference, or "" to drop an old one.
+          credential_ref: keySource.value === "keep" && auth === "api_key" ? null : credentialRef() ?? "",
           // The statement next to the key field is the acknowledgement.
           ack_key_storage: true,
           clear_key: clearKey?.input.checked || false,
@@ -441,7 +506,9 @@ export async function renderRouter(page, ctx, section) {
       const intro = [];
       if (preset?.unofficial)
         intro.push(notice(`Unofficial. This reuses the sign-in ${auth === "codex_chatgpt" ? "Codex" : "Muse Code"} keeps on this computer; the plan does not document use from other apps, so use it at your own risk. AgentNotify stores no key for it.`, "warn"));
-      if (subscription)
+      if (auth === "codex_chatgpt")
+        intro.push(codexAccount ? field("Codex account", codexAccount, { help: "Your accounts from Live quota. Add a provider per account to use both plans." }) : null, signinNotice);
+      else if (subscription)
         intro.push(notice(preset?.signin_detail || "Uses this computer's sign-in.", preset?.signin_ready === false ? "danger" : "ok"));
 
       return card({
@@ -451,8 +518,7 @@ export async function renderRouter(page, ctx, section) {
           intro,
           custom ? h("div", { class: "grid-2" }, field("Name", label, { required: true }), field("Base URL", baseUrl, { required: true, help: "https, or http for a server on this computer." })) : null,
           custom ? field("API format", wire, { help: "Most providers use Chat Completions." }) : null,
-          useOpenCode,
-          needsKeyUi ? keyField : null,
+          keyBlock,
           h("div", { class: "field" },
             h("div", { class: "row-between" }, h("span", { class: "field-label", text: "Models" }), h("div", { class: "row" }, counter, refresh)),
             modelStatus,
@@ -842,7 +908,7 @@ export async function renderRouter(page, ctx, section) {
       mount(agentsHost,
         card({
           title: "Agents on this computer",
-          description: "Connecting writes that agent's own configuration so its model picker lists these models. "
+          description: "Every Codex and Claude Code account on this computer — the same list as Live quota. Connecting writes that account's own configuration so its model picker lists your providers' models. "
             + "A copy of the file is kept first, and disconnecting puts your settings back.",
           body: h("div", { class: "stack" }, cards),
         }),
@@ -858,12 +924,12 @@ export async function renderRouter(page, ctx, section) {
     function agentCard(agent, selectable) {
       const head = h("div", { class: "quota-account-head" },
         h("div", null,
-          h("span", { class: "eyebrow", text: agent.id }),
-          h("h2", { class: "quota-account-name", text: agent.display_name })),
+          h("span", { class: "eyebrow", text: agent.kind === "codex" ? "Codex" : "Claude Code" }),
+          h("h2", { class: "quota-account-name", text: agent.account_label || agent.display_name })),
         agent.connected ? badge("Connected", "ok") : badge(agent.detected ? "Not connected" : "Not installed", agent.detected ? "warn" : "danger"));
 
       const lines = [h("p", { class: "muted small", text: agent.config_path })];
-      if (agent.id === "codex") {
+      if (agent.kind === "codex") {
         const plan = state.upstreams.find(u => u.auth === "codex_chatgpt" && u.enabled);
         lines.push(notice(plan
           ? `Codex's /model menu lists exactly the models below; it has no "add to my own list" mode like Claude Code's. Your ChatGPT plan models (${plan.slug}/…) are among them and keep Codex's own prompt and settings.`
@@ -882,12 +948,12 @@ export async function renderRouter(page, ctx, section) {
       // The form doubles as the reconnect form, so it starts from whatever is configured now.
       const controls = [];
       const mainSelect = modelSelect(agent.selected_model, selectable);
-      controls.push(field(agent.id === "claude_code" ? SLOT_LABELS.default : "Model", mainSelect,
+      controls.push(field(agent.kind === "claude_code" ? SLOT_LABELS.default : "Model", mainSelect,
         { help: "What this agent asks for unless you pick something else in its own menu." }));
 
       const slotSelects = {};
       for (const slot of (agentsData.slots || [])) {
-        if (agent.id !== "claude_code" || slot === "default") continue;
+        if (agent.kind !== "claude_code" || slot === "default") continue;
         const current = (agent.model_slots || {})[slot] || "";
         const control = modelSelect(current, selectable, { allowEmpty: true, emptyLabel: "Leave this entry alone" });
         slotSelects[slot] = control;
@@ -920,7 +986,7 @@ export async function renderRouter(page, ctx, section) {
         for (const [id, control] of Object.entries(optionControls))
           if (control.value) body.options[id] = control.value;
         try {
-          const result = await api.post(`router/agents/${agent.id}/connect`, body);
+          const result = await api.post(`router/agents/${encodeURIComponent(agent.id)}/connect`, body);
           toast(result.message || "Connected.");
           await drawAgents();
         } catch (error) {
@@ -939,7 +1005,7 @@ export async function renderRouter(page, ctx, section) {
           });
           if (!ok) return;
           try {
-            const result = await api.post(`router/agents/${agent.id}/disconnect`, {});
+            const result = await api.post(`router/agents/${encodeURIComponent(agent.id)}/disconnect`, {});
             toast(result.message || "Disconnected.");
             await drawAgents();
           } catch (error) {
@@ -961,7 +1027,7 @@ export async function renderRouter(page, ctx, section) {
           });
           if (!ok) return;
           try {
-            const result = await api.post(`router/agents/${agent.id}/restore`, { backup_id: backup.id });
+            const result = await api.post(`router/agents/${encodeURIComponent(agent.id)}/restore`, { backup_id: backup.id });
             toast(result.message || "Restored.");
             await drawAgents();
           } catch (error) {

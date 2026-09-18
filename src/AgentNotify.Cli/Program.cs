@@ -523,7 +523,7 @@ internal static class Program
 
     private static async Task<int> RunRouterConnect(string[] args)
     {
-        if (args.Length == 0) return Fail("Usage: agentnotify router connect <codex|claude_code> [--model <selector>]");
+        if (args.Length == 0) return Fail("Usage: agentnotify router connect <agent> [--model <selector>]  (see 'agentnotify router agents' for IDs)");
         var agent = args[0];
         string? model = null;
         for (var i = 1; i < args.Length; i++)
@@ -537,13 +537,13 @@ internal static class Program
         }
 
         var body = model is null ? "{}" : JsonSerializer.Serialize(new { model });
-        return await RouterUiPostAsync($"agents/{agent}/connect", body);
+        return await RouterUiPostAsync($"agents/{Uri.EscapeDataString(agent)}/connect", body);
     }
 
     private static async Task<int> RunRouterDisconnect(string[] args)
     {
-        if (args.Length == 0) return Fail("Usage: agentnotify router disconnect <codex|claude_code>");
-        return await RouterUiPostAsync($"agents/{args[0]}/disconnect", "{}");
+        if (args.Length == 0) return Fail("Usage: agentnotify router disconnect <agent>  (see 'agentnotify router agents' for IDs)");
+        return await RouterUiPostAsync($"agents/{Uri.EscapeDataString(args[0])}/disconnect", "{}");
     }
 
     /// <summary>
@@ -2062,7 +2062,7 @@ internal static class Program
               agentnotify router status
               agentnotify router key
               agentnotify router agents
-              agentnotify router connect <codex|claude_code> [--model <selector>]
+              agentnotify router connect <agent> [--model <selector>]   codex, claude_code, or an account ID
               agentnotify router disconnect <codex|claude_code>
 
             status      Whether the router is on, and the base URLs to point an agent at.

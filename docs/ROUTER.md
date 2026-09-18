@@ -116,6 +116,14 @@ no public list, so Codex's own `models_cache.json` (entries whose `visibility` i
 instead. The OpenAI shape `{"data":[{"id"}]}`, a bare array, and `{"models":[{"name"}]}` are accepted,
 responses are capped at 4 MiB and 500 models, and the reply carries each model's wire.
 
+**Reusing a key AgentNotify already has.** A key saved under Live quota → API accounts for DeepSeek,
+Moonshot, SiliconFlow, or OpenRouter can be chosen as a provider's key. The upstream then stores no key
+of its own; its `credential_ref` is `api_account:<id>`, and each attempt opens that account's key, so
+the key is entered and rotated in one place. OpenAI and Anthropic accounts there hold Admin keys, which
+cannot send model requests, so they are not offered. A removed account fails the attempt with
+`provider_key_unreadable` rather than sending no key. A typed key, or removing the key, replaces the
+reference; an upstream has one credential source at a time.
+
 **Reusing a key OpenCode has.** When OpenCode's `auth.json` holds a plain API key for the preset's
 provider (OpenCode Go and Zen, OpenRouter, DeepSeek, OpenAI, Anthropic, Moonshot, Z.ai, Groq), the page
 offers to use it. The broker reads it only when asked to fetch or save, seals it like a typed key, and
@@ -128,8 +136,10 @@ Two presets use a monthly plan the owner already pays for, through a sign-in ano
 computer keeps. **Both are unofficial**: neither plan documents use from other applications. They are
 opt-in, labelled so on the page, and store no key in AgentNotify.
 
-- **ChatGPT plan (`codex_chatgpt`).** Each attempt reads Codex's `auth.json` (`$CODEX_HOME`, default
-  `~/.codex`) and sends its access token with `chatgpt-account-id`, `OpenAI-Beta: responses=experimental`,
+- **ChatGPT plan (`codex_chatgpt`).** Each attempt reads the `auth.json` of the Codex account the
+  upstream names (`credential_ref` `profile:<directory>`, one of the accounts listed above; the
+  built-in `$CODEX_HOME` or `~/.codex` when none), so each Codex account can be its own provider and a
+  fallback chain can move from one plan to the other. It sends that account's access token with `chatgpt-account-id`, `OpenAI-Beta: responses=experimental`,
   and `originator: codex_cli_rs`. When the token is within five minutes of its `exp` claim, or the
   backend answers `401`, the file is read again (Codex may have renewed it), and otherwise the router
   renews it with Codex's own OAuth client and writes the new tokens back into Codex's file, leaving
@@ -261,6 +271,14 @@ between streamed chunks. A client disconnect cancels the upstream request and re
 Typing a selector works, but the point is to pick a routed model from the menu the agent already has.
 Each host exposes that differently, so AgentNotify writes each host's own mechanism. Connecting is a
 button on the Router → Agents page, or `agentnotify router connect <agent>`.
+
+**Every account, not only the default one.** The page lists each Codex and Claude Code account from
+the list Live quota monitors (`QuotaAccountDefinition.Monitored`): the built-in `~/.codex` and
+`~/.claude` (IDs `codex` and `claude_code`, always present), discovered profiles such as
+`~/.codex-second` (ID `codex:home:second`), and accounts added by hand (`q_…`), minus WSL profiles.
+Each is connected in its own directory, and a Codex account other than the built-in one gets its own
+generated catalogue (`codex-model-catalog-<id>.json`) because its shell-tool choice is its own. The CLI
+takes the same IDs: `agentnotify router connect codex:home:second`.
 
 **Codex** reads a model catalogue from a file named by its `model_catalog_json` setting. AgentNotify
 generates that file — one entry per `provider/model`, per alias, and per `combo/<name>` — and adds a

@@ -275,7 +275,9 @@ public sealed class RouterProxy : IDisposable
             catch (SubscriptionAuthException sae)
             {
                 _logger?.Warn($"Router upstream '{target.Upstream.Slug}': {sae.Message}");
-                ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, "subscription_signed_out", (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
+                // A subscription whose sign-in is gone, or an API account that was removed.
+                var code = RouterAuth.IsSubscription(target.Upstream.Auth) ? "subscription_signed_out" : "provider_key_unreadable";
+                ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, code, (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
                 continue;
             }
 

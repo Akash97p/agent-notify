@@ -29,6 +29,11 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 
 ## What it covers
 
+The navigation runs Activity, Delivery, Configuration, Model router, Insights, System: the notification
+setup sits with the notification pages, before the optional router. Every page that lists "your
+agents" — Configuration → Agents, Model router → Agents, and Live quota — reads the same account list,
+so a profile discovered or added in one appears in all three.
+
 | Page | What you can do |
 | --- | --- |
 | Overview | Waiting notifications, open questions, delivery totals, and how the broker is running |
@@ -36,16 +41,16 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
-| Model router → Providers | Turn the router on, see its base URLs and key, and manage upstream providers |
-| Model router → Routing | Aliases, ordered failover combos, and the default route |
-| Model router → Agents | Connect Codex or Claude Code so their own `/model` menu lists routed models, set subagent and review models, disconnect, and restore a saved copy of their configuration |
+| Configuration → Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
+| Configuration → Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
+| Configuration → Agents | Every Codex and Claude Code account (the same list as Live quota, including second profiles such as `~/.claude-second`) with its skill state, an install button, and whether its hook harness is installed, with the exact command for that account; then the skill and harness for every other host |
+| Model router → Providers | Turn the router on; add a provider from a gallery, reusing a key from API accounts or OpenCode, or a Codex account's ChatGPT sign-in; tick fetched models |
+| Model router → Routing | Optional nicknames and fallback chains, and where an unknown model goes |
+| Model router → Agents | Connect any of those Codex and Claude Code accounts so its own `/model` menu lists routed models, set subagent and review models, disconnect, and restore a saved copy of its configuration |
 | Model router → Activity | The router's request ledger and per-model totals |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
 | Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
 | Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
-| Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
-| Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
-| Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
 | About | Version, data folder, and links |
 
 The **Model router** pages configure the opt-in local provider proxy described in

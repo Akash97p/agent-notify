@@ -108,6 +108,7 @@ public sealed class RouterRepository
         await command.ExecuteNonQueryAsync(ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "auth", "TEXT NOT NULL DEFAULT 'api_key'", ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "model_wires", "TEXT", ct);
+        await AddColumnIfMissingAsync(connection, "router_upstreams", "credential_ref", "TEXT", ct);
         UnixFilePermissions.RestrictFile(_dbPath);
     }
 
@@ -167,8 +168,8 @@ public sealed class RouterRepository
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO router_upstreams (id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires)
-            VALUES ($id, $slug, $label, $wire, $baseUrl, $key, $models, $enabled, $createdAt, $updatedAt, $auth, $modelWires);
+            INSERT INTO router_upstreams (id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires, credential_ref)
+            VALUES ($id, $slug, $label, $wire, $baseUrl, $key, $models, $enabled, $createdAt, $updatedAt, $auth, $modelWires, $credentialRef);
             """;
         BindUpstream(command, upstream);
         await command.ExecuteNonQueryAsync(ct);
@@ -183,7 +184,8 @@ public sealed class RouterRepository
             UPDATE router_upstreams SET
                 slug = $slug, label = $label, wire = $wire, base_url = $baseUrl,
                 encrypted_key = $key, models = $models, enabled = $enabled,
-                created_at = $createdAt, updated_at = $updatedAt, auth = $auth, model_wires = $modelWires
+                created_at = $createdAt, updated_at = $updatedAt, auth = $auth, model_wires = $modelWires,
+                credential_ref = $credentialRef
             WHERE id = $id;
             """;
         BindUpstream(command, upstream);
@@ -451,6 +453,7 @@ public sealed class RouterRepository
         command.Parameters.AddWithValue("$modelWires", u.ModelWires.Count == 0
             ? DBNull.Value
             : JsonSerializer.Serialize(u.ModelWires, Json.Options));
+        command.Parameters.AddWithValue("$credentialRef", (object?)u.CredentialRef ?? DBNull.Value);
     }
 
     private static void BindRoute(SqliteCommand command, RouterRoute r)
@@ -479,7 +482,8 @@ public sealed class RouterRepository
         Auth = reader.GetString(10),
         ModelWires = reader.IsDBNull(11)
             ? RouterUpstreamWires.None
-            : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(11), Json.Options) ?? RouterUpstreamWires.None
+            : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(11), Json.Options) ?? RouterUpstreamWires.None,
+        CredentialRef = reader.IsDBNull(12) ? null : reader.GetString(12)
     };
 
     private static RouterRoute ReadRoute(SqliteDataReader reader) => new(
@@ -524,7 +528,7 @@ public sealed class RouterRepository
         DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
 
     private const string SelectUpstreamColumns =
-        "SELECT id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires FROM router_upstreams";
+        "SELECT id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires, credential_ref FROM router_upstreams";
     private const string SelectRouteColumns =
         "SELECT id, name, kind, targets, enabled, created_at, updated_at FROM router_routes";
     private const string SelectRequestColumns =

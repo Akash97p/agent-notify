@@ -325,6 +325,83 @@ public sealed class RouterProvidersTests : IDisposable
         Assert.Single(_handler.Requests);
     }
 
+    // ---- one system: API accounts and Codex accounts -------------------------------------
+
+    [Fact]
+    public async Task ApiAccountReference_UsesThatAccountsKey_AndStoresNone()
+    {
+        var created = await _config.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1",
+            null, ["deepseek-chat"], credentialRef: "api_account:b_1");
+        Assert.False(created.HasKey);
+        Assert.Equal("api_account:b_1", created.CredentialRef);
+
+        using var proxy = Proxy();
+        proxy.Credentials.ApiAccountKey = (id, _) => Task.FromResult<string?>(id == "b_1" ? "sk-from-api-accounts" : null);
+        _handler.Enqueue(request =>
+        {
+            Assert.Equal("sk-from-api-accounts", request.Headers.Authorization!.Parameter);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"id":"c","object":"chat.completion","created":1,"model":"deepseek-chat","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}""", Encoding.UTF8, "application/json")
+            };
+        });
+        var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "deepseek/deepseek-chat", messages = new[] { new { role = "user", content = "hi" } } });
+        Assert.Equal(200, (await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new Sink(), CancellationToken.None)).Status);
+
+        // The account removed: the attempt fails rather than going out without a key.
+        proxy.Credentials.ApiAccountKey = (_, _) => Task.FromResult<string?>(null);
+        var failed = await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new Sink(), CancellationToken.None);
+        Assert.Equal("provider_key_unreadable", failed.Attempts.Single().ErrorCode);
+    }
+
+    [Fact]
+    public async Task CredentialReference_FollowsTheOneSourceRule()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _config.CreateUpstreamAsync("a", "A", RouterWire.OpenAiResponses,
+            RouterPresetCatalog.CodexChatGptBaseUrl, null, ["m"], auth: RouterAuth.CodexChatGpt, credentialRef: "api_account:b_1"));
+        await Assert.ThrowsAsync<ArgumentException>(() => _config.CreateUpstreamAsync("b", "B", RouterWire.OpenAiChat,
+            "https://api.example.com/v1", null, ["m"], credentialRef: "profile:/tmp/x"));
+        await Assert.ThrowsAsync<ArgumentException>(() => _config.CreateUpstreamAsync("c", "C", RouterWire.OpenAiChat,
+            "https://api.example.com/v1", null, ["m"], credentialRef: "file:/etc/passwd"));
+
+        var upstream = await _config.CreateUpstreamAsync("d", "D", RouterWire.OpenAiChat, "https://api.example.com/v1",
+            null, ["m"], credentialRef: "api_account:b_1");
+        // Omitted keeps it; a typed key replaces it.
+        var kept = await _config.UpdateUpstreamAsync(upstream.Id, "d", "D", RouterWire.OpenAiChat, "https://api.example.com/v1", null, ["m"]);
+        Assert.Equal("api_account:b_1", kept.CredentialRef);
+        var typed = await _config.UpdateUpstreamAsync(upstream.Id, "d", "D", RouterWire.OpenAiChat, "https://api.example.com/v1", "sk-typed-12345678", ["m"]);
+        Assert.Null(typed.CredentialRef);
+        Assert.True(typed.HasKey);
+    }
+
+    [Fact]
+    public async Task ChatGptPlan_ForASecondCodexAccount_UsesThatAccountsSignIn()
+    {
+        var second = Path.Combine(_dir, "codex-second");
+        Directory.CreateDirectory(second);
+        File.WriteAllText(Path.Combine(second, "auth.json"), JsonSerializer.Serialize(new
+        {
+            tokens = new { access_token = Jwt(_clock.GetUtcNow().AddDays(3)), refresh_token = "r2", account_id = "acct-2" }
+        }));
+        WriteCodexAuth(Jwt(_clock.GetUtcNow().AddDays(3)));
+        await _config.CreateUpstreamAsync("chatgpt-second", "ChatGPT plan · second", RouterWire.OpenAiResponses,
+            RouterPresetCatalog.CodexChatGptBaseUrl, null, ["gpt-5.5"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:" + second);
+        using var proxy = Proxy();
+        _handler.Enqueue(request =>
+        {
+            Assert.Equal("acct-2", request.Headers.GetValues("chatgpt-account-id").Single());
+            return Sse(ResponsesSse);
+        });
+        var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "chatgpt-second/gpt-5.5", stream = true, input = "hi" });
+        Assert.Equal(200, (await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiResponses, body), new Sink(), CancellationToken.None)).Status);
+
+        // An account Codex has not been started from yet borrows the default account's model list.
+        File.WriteAllText(Path.Combine(CodexHome, "models_cache.json"), """{"models":[{"slug":"gpt-5.5","visibility":"list"}]}""");
+        var models = await proxy.Discovery.FetchAsync(null, RouterWire.OpenAiResponses, RouterAuth.CodexChatGpt, null, null,
+            CancellationToken.None, second);
+        Assert.Equal(["gpt-5.5"], models);
+    }
+
     // ---- OpenCode Go ----------------------------------------------------------------------
 
     [Fact]

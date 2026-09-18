@@ -30,18 +30,18 @@ public sealed class RouterModelDiscovery
     /// <exception cref="SubscriptionAuthException">A subscription sign-in is missing.</exception>
     /// <exception cref="InvalidOperationException">The provider could not be asked, with a reason fit to show.</exception>
     public async Task<IReadOnlyList<string>> FetchAsync(string? baseUrl, string wire, string auth, string? key,
-        RouterPreset? preset, CancellationToken ct)
+        RouterPreset? preset, CancellationToken ct, string? profileDirectory = null)
     {
         IEnumerable<string> models;
         if (auth == RouterAuth.CodexChatGpt)
         {
-            models = ReadCodexModels();
+            models = ReadCodexModels(profileDirectory);
         }
         else
         {
             if (!RouterDestination.TryValidateBaseUrl(baseUrl, out _, out var normalized, out var error))
                 throw new ArgumentException(error ?? "Enter a valid base URL.");
-            var credential = await _credentials.GetForAuthAsync(auth, key, ct).ConfigureAwait(false);
+            var credential = await _credentials.GetForAuthAsync(auth, key, ct, profileDirectory).ConfigureAwait(false);
             models = await ListAsync(normalized!, wire, credential, ct).ConfigureAwait(false);
         }
 
@@ -128,9 +128,12 @@ public sealed class RouterModelDiscovery
     }
 
     /// <summary>The models Codex's backend last offered this ChatGPT account, from Codex's own cache.</summary>
-    internal IEnumerable<string> ReadCodexModels()
+    internal IEnumerable<string> ReadCodexModels(string? home = null)
     {
-        var path = Path.Combine(_credentials.CodexHome, "models_cache.json");
+        // A second account Codex has not been started from has no cache of its own yet; the default
+        // account's is the same ChatGPT catalogue.
+        var path = Path.Combine(home ?? _credentials.CodexHome, "models_cache.json");
+        if (!File.Exists(path)) path = Path.Combine(_credentials.CodexHome, "models_cache.json");
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllBytes(path));

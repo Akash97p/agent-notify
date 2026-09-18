@@ -28,6 +28,11 @@ const NAV = [
     { path: "channels", title: "Channels", icon: "send", view: channels },
     { path: "routes", title: "Routes", icon: "route", view: routes },
   ] },
+  { label: "Configuration", items: [
+    { path: "notifications", title: "Notifications", icon: "sliders", view: notifications },
+    { path: "sounds", title: "Sounds", icon: "volume", view: sounds },
+    { path: "agents", title: "Agents", icon: "bot", view: agents },
+  ] },
   { label: "Model router", items: [
     { path: "router", title: "Providers", icon: "server", view: routerProviders },
     { path: "router-routing", title: "Routing", icon: "shuffle", view: routerRouting },
@@ -38,11 +43,6 @@ const NAV = [
     { path: "insights", title: "Dashboard", icon: "chart", view: insights },
     { path: "usage", title: "Usage", icon: "pulse", view: usage },
     { path: "quota", title: "Live quota", icon: "gauge", view: quota },
-  ] },
-  { label: "Configuration", items: [
-    { path: "notifications", title: "Notifications", icon: "sliders", view: notifications },
-    { path: "sounds", title: "Sounds", icon: "volume", view: sounds },
-    { path: "agents", title: "Agents", icon: "bot", view: agents },
   ] },
   { label: "System", items: [
     { path: "about", title: "About", icon: "info", view: about },

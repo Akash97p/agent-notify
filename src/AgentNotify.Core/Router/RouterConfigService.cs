@@ -163,7 +163,8 @@ public sealed class RouterConfigService
         bool enabled = true,
         CancellationToken ct = default,
         string? auth = null,
-        IReadOnlyDictionary<string, string>? modelWires = null)
+        IReadOnlyDictionary<string, string>? modelWires = null,
+        string? credentialRef = null)
     {
         var normalizedSlug = NormalizeSlug(slug);
         var normalizedLabel = NormalizeLabel(label);
@@ -172,6 +173,8 @@ public sealed class RouterConfigService
         var normalizedModels = NormalizeModels(models);
         var normalizedAuth = RouterAuth.Normalize(auth);
         var normalizedWires = NormalizeModelWires(modelWires, normalizedModels, normalizedWire);
+        // A typed key replaces any reference; otherwise the reference, when given, is the credential.
+        var normalizedRef = string.IsNullOrEmpty(apiKey) ? RouterCredentialRef.Normalize(credentialRef, normalizedAuth) : null;
         string? encryptedKey = null;
         // A subscription upstream reuses another tool's sign-in; there is no key to keep.
         if (!string.IsNullOrEmpty(apiKey) && !RouterAuth.IsSubscription(normalizedAuth))
@@ -193,7 +196,8 @@ public sealed class RouterConfigService
             encryptedKey, normalizedModels, enabled, now, now)
         {
             Auth = normalizedAuth,
-            ModelWires = normalizedWires
+            ModelWires = normalizedWires,
+            CredentialRef = normalizedRef
         };
         await _repository.InsertUpstreamAsync(stored, ct).ConfigureAwait(false);
         Invalidate();
@@ -212,7 +216,8 @@ public sealed class RouterConfigService
         bool clearKey = false,
         CancellationToken ct = default,
         string? auth = null,
-        IReadOnlyDictionary<string, string>? modelWires = null)
+        IReadOnlyDictionary<string, string>? modelWires = null,
+        string? credentialRef = null)
     {
         if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("id is required.");
         var normalizedSlug = NormalizeSlug(slug);
@@ -235,8 +240,21 @@ public sealed class RouterConfigService
         var normalizedAuth = auth is null ? existing.Auth : RouterAuth.Normalize(auth);
         var normalizedWires = NormalizeModelWires(modelWires ?? existing.ModelWires, normalizedModels, normalizedWire);
 
+        // Omitted keeps the reference, an empty string removes it, and a typed key or clearing the key
+        // replaces it: the upstream has exactly one credential source at a time.
+        var normalizedRef = hasNewKey || clearKey ? null
+            : credentialRef is null ? existing.CredentialRef
+            : RouterCredentialRef.Normalize(credentialRef, normalizedAuth);
+        // A kept reference that no longer fits the upstream's kind (an API account on what is now a
+        // subscription) is dropped rather than left pointing at the wrong thing.
+        if (normalizedRef is not null)
+        {
+            try { RouterCredentialRef.Normalize(normalizedRef, normalizedAuth); }
+            catch (ArgumentException) { normalizedRef = null; }
+        }
+
         string? encryptedKey;
-        if (RouterAuth.IsSubscription(normalizedAuth))
+        if (RouterAuth.IsSubscription(normalizedAuth) || RouterCredentialRef.ApiAccountId(normalizedRef) is not null)
             encryptedKey = null;
         else if (clearKey)
             encryptedKey = null;
@@ -257,7 +275,8 @@ public sealed class RouterConfigService
             Enabled = enabled ?? existing.Enabled,
             UpdatedAt = now,
             Auth = normalizedAuth,
-            ModelWires = normalizedWires
+            ModelWires = normalizedWires,
+            CredentialRef = normalizedRef
         };
         await _repository.UpdateUpstreamAsync(updated, ct).ConfigureAwait(false);
         Invalidate();
@@ -568,6 +587,7 @@ public sealed class RouterConfigService
         new(s.Id, s.Slug, s.Label, s.Wire, s.BaseUrl, s.EncryptedKey is not null, s.Models, s.Enabled, s.CreatedAt, s.UpdatedAt)
         {
             Auth = s.Auth,
-            ModelWires = s.ModelWires
+            ModelWires = s.ModelWires,
+            CredentialRef = s.CredentialRef
         };
 }

@@ -739,3 +739,4 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .route-target-n { width: 20px; flex: none; color: var(--muted); font-size: 13px; }
 .route-default > .select { flex: 1; min-width: 220px; }
 .page-stack { display: grid; gap: 16px; }
+.agent-account { display: grid; gap: 10px; padding: 14px 16px; }

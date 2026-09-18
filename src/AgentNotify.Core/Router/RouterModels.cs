@@ -61,6 +61,51 @@ public sealed record RouterUpstream(
 {
     public string Auth { get; init; } = RouterAuth.ApiKey;
     public IReadOnlyDictionary<string, string> ModelWires { get; init; } = RouterUpstreamWires.None;
+    public string? CredentialRef { get; init; }
+}
+
+/// <summary>
+/// Where an upstream's credential lives when it is not a key stored with the upstream itself:
+/// <c>api_account:&lt;id&gt;</c> is a key kept under Live quota's API accounts, and
+/// <c>profile:&lt;directory&gt;</c> is the account directory whose sign-in a subscription uses (a
+/// second Codex home, say). Referencing rather than copying keeps one source of truth.
+/// </summary>
+public static class RouterCredentialRef
+{
+    public const string ApiAccountPrefix = "api_account:";
+    public const string ProfilePrefix = "profile:";
+
+    public static string? ApiAccountId(string? reference) =>
+        reference is not null && reference.StartsWith(ApiAccountPrefix, StringComparison.Ordinal) ? reference[ApiAccountPrefix.Length..] : null;
+
+    public static string? ProfileDirectory(string? reference) =>
+        reference is not null && reference.StartsWith(ProfilePrefix, StringComparison.Ordinal) ? reference[ProfilePrefix.Length..] : null;
+
+    /// <summary>A valid reference, or null for none; throws for anything else.</summary>
+    public static string? Normalize(string? reference, string auth)
+    {
+        if (string.IsNullOrWhiteSpace(reference)) return null;
+        reference = reference.Trim();
+        if (reference.Length > 1100 || reference.Any(char.IsControl))
+            throw new ArgumentException("That credential reference is not valid.");
+        if (ApiAccountId(reference) is { } id)
+        {
+            if (RouterAuth.IsSubscription(auth))
+                throw new ArgumentException("A subscription signs in with its own account, not an API key.");
+            if (id.Length is 0 or > 64 || !id.All(c => char.IsAsciiLetterOrDigit(c) || c == '_'))
+                throw new ArgumentException("That API account reference is not valid.");
+            return reference;
+        }
+        if (ProfileDirectory(reference) is { } directory)
+        {
+            if (!RouterAuth.IsSubscription(auth))
+                throw new ArgumentException("Only a subscription uses an account directory.");
+            if (!Path.IsPathFullyQualified(directory))
+                throw new ArgumentException("The account directory must be an absolute path.");
+            return reference;
+        }
+        throw new ArgumentException("A credential reference is api_account:<id> or profile:<directory>.");
+    }
 }
 
 /// <summary>Per-model wire overrides.</summary>
@@ -92,6 +137,9 @@ public sealed record StoredRouterUpstream(
     /// <c>/chat/completions</c> under a single base URL and key.
     /// </summary>
     public IReadOnlyDictionary<string, string> ModelWires { get; init; } = RouterUpstreamWires.None;
+
+    /// <summary>Where the credential comes from instead of <see cref="EncryptedKey"/>; see <see cref="RouterCredentialRef"/>.</summary>
+    public string? CredentialRef { get; init; }
 
     public string WireFor(string model) =>
         ModelWires.TryGetValue(model, out var wire) && RouterWire.IsValid(wire) ? wire : Wire;

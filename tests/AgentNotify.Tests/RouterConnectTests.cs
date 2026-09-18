@@ -53,6 +53,51 @@ public sealed class RouterConnectTests : IAsyncLifetime
     private string ClaudeSettings => Path.Combine(_home, ".claude", "settings.json");
 
     [Fact]
+    public void Profiles_AlwaysIncludeBuiltIns_AddOtherNativeAccounts_AndGroupByHost()
+    {
+        var accounts = new[]
+        {
+            new QuotaAccountDefinition("codex:default", "codex", "Work laptop", Path.Combine(_home, ".codex")),
+            new QuotaAccountDefinition("claude_code:home:second", "claude_code", "Profile · second", Path.Combine(_home, ".claude-second")),
+            new QuotaAccountDefinition("codex:home:second", "codex", "Profile · second", Path.Combine(_home, ".codex-second")),
+            // Same directory as the built-in account: not listed twice.
+            new QuotaAccountDefinition("q_" + new string('a', 32), "claude_code", "Dup", Path.Combine(_home, ".claude")),
+        };
+        var profiles = RouterAgentProfile.FromAccounts(accounts, _home);
+        Assert.Equal(["codex", "codex:home:second", "claude_code", "claude_code:home:second"], profiles.Select(p => p.Id));
+        Assert.Equal("Work laptop", profiles[0].Label);
+        Assert.True(profiles[0].IsDefault);
+        Assert.False(profiles[1].IsDefault);
+    }
+
+    [Fact]
+    public async Task SecondAccount_ConnectsIntoItsOwnFiles_LeavingTheBuiltInAlone()
+    {
+        var second = Path.Combine(_home, ".codex-second");
+        Directory.CreateDirectory(second);
+        var connect = new RouterConnectService(_config, _stateDir, () => 47821, _home, profiles: () => RouterAgentProfile.FromAccounts(
+            [new QuotaAccountDefinition("codex:home:second", "codex", "Profile · second", second)], _home));
+
+        var result = await connect.ConnectAsync("codex:home:second", new RouterConnectRequest("deepseek/deepseek-chat"));
+        Assert.True(result.Agent.Connected);
+        Assert.Equal("codex", result.Agent.Kind);
+        Assert.Equal("Codex · Profile · second", result.Agent.DisplayName);
+        var toml = File.ReadAllText(Path.Combine(second, "config.toml"));
+        Assert.Contains("model = \"deepseek/deepseek-chat\"", toml);
+        // Its own catalogue, not the built-in account's.
+        Assert.Contains("codex-model-catalog-codex-home-second.json", toml);
+        Assert.False(File.Exists(CodexConfig));
+
+        var listed = await connect.ListAsync();
+        Assert.False(listed.Single(a => a.Id == "codex").Connected);
+        Assert.True(listed.Single(a => a.Id == "codex:home:second").Connected);
+
+        await connect.DisconnectAsync("codex:home:second");
+        Assert.DoesNotContain("agentnotify", File.ReadAllText(Path.Combine(second, "config.toml")));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => connect.ConnectAsync("codex:home:nope", new RouterConnectRequest()));
+    }
+
+    [Fact]
     public async Task Listing_ReportsBothAgentsAsDetectedAndNotConnected()
     {
         var agents = await _connect.ListAsync();
