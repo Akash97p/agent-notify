@@ -11,8 +11,11 @@ import agents from "./views/agents.js";
 import about from "./views/about.js";
 import usage from "./views/usage.js";
 import quota from "./views/quota.js";
+import routerProviders from "./views/router-providers.js";
+import routerRouting from "./views/router-routing.js";
+import routerAgents from "./views/router-agents.js";
+import routerActivity from "./views/router-activity.js";
 import insights from "./views/insights.js";
-import router from "./views/router.js";
 
 // Navigation is grouped so new areas slot in as another group or entry without reshaping the shell.
 const NAV = [
@@ -24,7 +27,12 @@ const NAV = [
   { label: "Delivery", items: [
     { path: "channels", title: "Channels", icon: "send", view: channels },
     { path: "routes", title: "Routes", icon: "route", view: routes },
-    { path: "router", title: "Router", icon: "router", view: router },
+  ] },
+  { label: "Model router", items: [
+    { path: "router", title: "Providers", icon: "server", view: routerProviders },
+    { path: "router-routing", title: "Routing", icon: "shuffle", view: routerRouting },
+    { path: "router-agents", title: "Agents", icon: "bot", view: routerAgents },
+    { path: "router-activity", title: "Activity", icon: "pulse", view: routerActivity },
   ] },
   { label: "Insights", items: [
     { path: "insights", title: "Dashboard", icon: "chart", view: insights },

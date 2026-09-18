@@ -1850,6 +1850,59 @@ Not verified:
 - Cancellation, the 300-second idle timeout, and the 32 MiB body limit were exercised only by unit
   tests, not against a real slow provider.
 
+## Routed models in the agents' own pickers (`feature/router-agent-connect`, 2026-09-18)
+
+**How Codex and Claude Code expose a model list was established against the installed binaries,**
+not assumed. Codex 0.154.0 validates its `model_catalog_json` file at config load, so feeding
+`codex app-server` candidate files and reading its parse errors gave the exact required entry fields
+(`slug`, `display_name`, `supported_reasoning_levels`, `shell_type`, `visibility`, `supported_in_api`,
+`priority`, `support_verbosity`, `truncation_policy` as an object, `experimental_supported_tools`,
+`model_messages`, and `base_instructions`), the accepted `shell_type` values (`default`, `local`,
+`shell_command`, `unified_exec`, `disabled`), that `combo/…` and alias slugs are accepted, and that
+`default_subagent_model`, `default_subagent_reasoning_effort`, `review_model`, and
+`model_reasoning_effort` load. Codex's provider block accepts `experimental_bearer_token`. Claude Code
+2.1.275 reads `ANTHROPIC_DEFAULT_OPUS/SONNET/HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL`, and its
+settings schema defines `modelPicker: {options: [{model, label, description, behavesAs}],
+replaceBuiltInOptions}`.
+
+Automated: **1,203 passed, 0 failed** on this MacBook, including 17 connector tests covering managed
+regions, duplicate-key avoidance, restoring the owner's values, JSON merging, the picker rows, refusal
+of invalid JSON and unknown selectors, the catalogue refresh after router changes, and restoring kept
+copies.
+
+**Live, with the real agents** — `agentnotifyd` on port 47823 with `AGENTNOTIFY_AGENT_HOME` pointed at
+a throwaway home holding a Codex `config.toml` (own model, effort, approval policy, a project table)
+and a Claude Code `settings.json` (own model and env), and a scripted chat-completions upstream:
+
+- Connecting both through `POST /ui/api/router/agents/{id}/connect` wrote the managed regions, the
+  catalogue, the subagent/review/effort keys, the Claude `modelPicker` rows and `env` block, and kept a
+  copy of each file first.
+- `codex doctor` with that `CODEX_HOME` reported `config.toml parse ok` and `model coding · agentnotify`.
+- `codex exec` ran a whole agent turn through the router: `model: coding`, `provider: agentnotify`.
+  The routed model's streamed text reached Codex, its tool call came back through translation, and
+  **Codex executed it** (`/bin/zsh -lc 'echo routed-through-agentnotify'` — succeeded), sent the
+  result back through the router, and finished with the model's final text.
+- `claude -p … --model fake/fake-model-a` with that `CLAUDE_CONFIG_DIR` ran through the router with no
+  login: three upstream requests, and one of them used the model mapped to the background slot, which
+  shows the slot mapping takes effect. No unknown-model warning appeared once `behavesAs` was set.
+- The ledger showed both wires, `openai_responses` from Codex and `anthropic_messages` from Claude
+  Code, all `200 ok`.
+- Disconnecting both restored Codex's own `model`, `model_reasoning_effort`, and provider
+  (`codex doctor`: `gpt-5.6-luna · openai`, parse ok) and removed every managed key from Claude
+  Code's settings while keeping the owner's own `env` entry.
+
+**That live run found four defects, all fixed with tests:** the owner's own `model = …` was left
+beside the managed one, which TOML rejects, so Codex would not have started; the web API dropped the
+subagent/effort options in both directions; unmanaged keys the owner set were being commented out;
+and a Responses turn's text and tool call reached Chat providers as two consecutive assistant
+messages, which some providers reject. Claude Code also printed an unknown-model warning for routed
+selectors, which is why the `modelPicker` rows now carry `behavesAs`.
+
+Not verified: the Agents page itself has not been seen in a browser (the extension was unavailable),
+no real provider was involved, only macOS was used, and the Windows tray build was not compiled.
+Claude Code rewrote its own `model` setting to `opus[1m]` during the run — its doing, not AgentNotify's,
+but a reminder that the host edits these files too.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

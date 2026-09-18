@@ -195,13 +195,70 @@ error or `5xx`. When every target is cooling down or has failed, the client rece
 Timeouts: 30 seconds to connect, 300 seconds to the response headers, and 300 seconds of silence
 between streamed chunks. A client disconnect cancels the upstream request and records `canceled`.
 
+## Putting routed models in the agent's own picker
+
+Typing a selector works, but the point is to pick a routed model from the menu the agent already has.
+Each host exposes that differently, so AgentNotify writes each host's own mechanism. Connecting is a
+button on the Router → Agents page, or `agentnotify router connect <agent>`.
+
+**Codex** reads a model catalogue from a file named by its `model_catalog_json` setting. AgentNotify
+generates that file — one entry per `provider/model`, per alias, and per `combo/<name>` — and adds a
+`[model_providers.agentnotify]` block pointing at `/router/v1` with the router key in
+`experimental_bearer_token`, so Codex authenticates with no environment variable set. Every routed
+model then appears in `/model`. Codex also resolves several settings per model, and the same page
+writes them: reasoning effort, the subagent model and its effort (`default_subagent_model`), the
+review model, and which shell tool a routed model is offered.
+
+That last one matters. Codex's `shell_type` chooses the tool the model must call; AgentNotify defaults
+to `shell_command`, one ordinary function call that third-party models handle far more reliably than
+the stateful `unified_exec` session tool. Codex's `local` shell type is deliberately not offered: it
+is a built-in tool type rather than a function, and translation to another wire drops it, which would
+leave the model unable to run anything.
+
+Codex's catalogue entries must also carry instructions. Its own models get them from its backend, and
+a routed model has no such entry, so AgentNotify supplies its own short, plain preamble rather than
+copying anyone else's prompt.
+
+**Claude Code** has both a curated picker and per-entry environment variables, so both are written.
+Its `modelPicker` setting gains a row per routed selector, each declaring the known model it
+`behavesAs` — without that Claude Code cannot tell a routed model's context window or capabilities and
+says so on every start. Optionally those rows replace Anthropic's own lineup instead of following it.
+Separately, `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and the model each built-in entry resolves
+(`ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `…SONNET…`, `…HAIKU…`, and the background
+`ANTHROPIC_SMALL_FAST_MODEL`) are set in the `env` block of `settings.json`.
+
+### What writing those files is held to
+
+- **A copy first.** Every change copies the file into AgentNotify's own directory first. The Agents
+  page lists those copies with the reason each was taken, and restores any of them; a restore copies
+  the current file too, so it can be stepped back.
+- **Only AgentNotify's own lines.** Codex's `config.toml` is edited between marker comments, in two
+  regions because TOML is positional — bare keys must precede the first table. Nothing else in the
+  file is reordered or reformatted. A key the owner already set that the managed region is about to
+  set is commented out rather than left in place, because TOML rejects a key assigned twice and Codex
+  would refuse to start. Claude Code's `settings.json` is merged as JSON, touching only the keys
+  listed above.
+- **Their own settings come back.** Disconnecting restores the values the file held before, not merely
+  the absence of AgentNotify's lines, and un-comments what was commented out.
+- **Nothing for an agent that is not installed.** No directory is created to make a host appear
+  connected.
+- **The catalogue follows the router.** Changing upstreams, routes, or the key rewrites a connected
+  agent's generated catalogue and embedded key, and drops a subagent or review model that no longer
+  resolves — a picker offering models the router refuses is worse than no picker.
+
 ## Web interface and CLI
 
-The **Router** page (under Delivery in the navigation, beside Channels and Routes) turns the router
-on and off, shows the base URLs and a one-time key reveal on regenerate, manages upstreams (presets,
-write-only keys, declared models, enable), aliases and combos, the default route, and a recent-requests
-ledger with attempt detail and per-model token totals. It shows copyable setup snippets for Codex and
-Claude Code; AgentNotify never edits another agent's configuration.
+The **Model router** group in the navigation holds four pages:
+
+| Page | What it does |
+| --- | --- |
+| Providers | The on/off switch, the base URLs, a one-time key reveal on regenerate, and the upstreams (presets, write-only keys, declared models, enable) |
+| Routing | Aliases and ordered failover combos, and the default route |
+| Agents | Connect an agent so its own picker lists these models, choose its subagent/review/effort settings, disconnect, and restore a saved copy of its configuration |
+| Activity | The request ledger with per-attempt detail, and totals by model |
+
+The Agents page also shows copyable snippets for configuring a host by hand, for anyone who would
+rather AgentNotify did not touch their files.
 
 Codex (`~/.codex/config.toml`):
 
@@ -224,8 +281,12 @@ export ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"
 export ANTHROPIC_MODEL=combo/coding
 ```
 
-`agentnotify router key` prints the router key from the local config (like `agentnotify token`), and
-`agentnotify router status` prints whether the router is on and its base URL.
+`agentnotify router status` prints whether the router is on and its base URLs, and
+`agentnotify router key` prints the router key from the local config (like `agentnotify token`); both
+read the file directly. `agentnotify router agents` lists the agents and every selector they can be
+pointed at, while `agentnotify router connect <agent> [--model <selector>]` and
+`agentnotify router disconnect <agent>` ask the running broker to write or undo those files, since it
+owns the key and the generated catalogue.
 
 The web API under `/ui/api/router` follows the existing web-interface rules: loopback host check,
 `X-AgentNotify-UI: 1` on every change, and write-only secrets.
@@ -249,5 +310,9 @@ also written to the agent's own log. The Router page shows its own totals with t
 - Policy routing (`policy/<id>`) scored on quota, health, cost, and latency evidence.
 - Weighted, round-robin, or least-used combo strategies; only ordered failover exists.
 - Pinning a Codex account pool; Gemini and Ollama-native wires.
+- Connectors for the other hosts (OpenCode, Kilo, Cursor, Gemini CLI); only Codex and Claude Code
+  have one, and each needs that host's own model-list mechanism rather than a generic file edit.
+- Per-model context windows in the generated catalogue: every entry declares 200k, because the router
+  does not yet know each upstream model's real window.
 - Cost estimates on ledger rows and correlation with log-derived Usage records.
 - Quota and spend thresholds raised as attention requests.

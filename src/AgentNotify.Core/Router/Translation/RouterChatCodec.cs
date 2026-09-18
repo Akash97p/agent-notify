@@ -376,6 +376,31 @@ internal static class RouterChatCodec
         return (media, data);
     }
 
+    /// <summary>
+    /// Joins neighbouring assistant messages into one. A Responses client sends a turn's text and its
+    /// tool calls as separate items, which decodes to two assistant messages in a row; some
+    /// OpenAI-compatible providers reject that, and one message carrying both is what every provider
+    /// documents.
+    /// </summary>
+    internal static List<RouterMessage> MergeAdjacentAssistants(IReadOnlyList<RouterMessage> messages)
+    {
+        var merged = new List<RouterMessage>(messages.Count);
+        foreach (var message in messages)
+        {
+            if (merged.Count > 0 &&
+                message.Role == RouterMessage.Assistant &&
+                merged[^1].Role == RouterMessage.Assistant)
+            {
+                var combined = new List<RouterMessagePart>(merged[^1].Parts);
+                combined.AddRange(message.Parts);
+                merged[^1] = merged[^1] with { Parts = combined };
+                continue;
+            }
+            merged.Add(message);
+        }
+        return merged;
+    }
+
     public static byte[] Encode(RouterRequest request, string nativeModel)
     {
         using var ms = new MemoryStream();
@@ -392,7 +417,7 @@ internal static class RouterChatCodec
             writer.WriteString("content", request.SystemPrompt);
             writer.WriteEndObject();
         }
-        foreach (var msg in request.Messages)
+        foreach (var msg in MergeAdjacentAssistants(request.Messages))
         {
             if (msg.Role == RouterMessage.User)
             {

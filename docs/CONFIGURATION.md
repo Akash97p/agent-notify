@@ -110,6 +110,13 @@ Files imported through Settings → Sounds are validated by `ManagedSoundStore.I
 
 ---
 
+### Agent home override
+
+`AGENTNOTIFY_AGENT_HOME`, when set in the environment of `agentnotifyd`, is the home directory the
+router's agent connectors look under for `.codex/` and `.claude/`, instead of the broker user's own.
+It exists so a second agent profile — or a verification run — can be connected without touching the
+owner's real Codex and Claude Code configuration. It is read at broker start.
+
 ## Custom notification types
 
 Custom types are presentation and behavior policy stored in `customNotificationTypes`. Notification rows persist only the stable identifier; deleting or disabling a definition never makes historical rows unreadable — they fall back to generic info styling and a `7`-second lifetime.

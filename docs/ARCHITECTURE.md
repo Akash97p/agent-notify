@@ -235,6 +235,16 @@ Anthropic thinking signatures — survive that hop. Failover is ordered and stop
 moment a byte reaches the client: a partially delivered stream cannot be retried as though nothing was
 sent, so a later failure ends the stream with the client wire's own error event.
 
+`Router/Connect` puts routed models into an agent's own model picker by writing that agent's
+configuration: a generated model catalogue plus a provider block for Codex, a `modelPicker` list plus
+an `env` block for Claude Code. It is the only part of AgentNotify that edits another program's
+files, so it is held to a narrow contract: a copy is taken before every write and any copy can be
+restored, only marker-delimited lines or named keys are touched, a key the owner set is commented out
+rather than duplicated (TOML refuses duplicates), disconnecting restores the owner's previous values,
+and a connected agent's catalogue is rewritten whenever the router's configuration changes so it never
+lists a model the router would refuse. The router key is written into those files deliberately, so a
+connected agent needs no environment variable; that key can spend through the router and nothing more.
+
 The ledger is proxy-observed usage and is kept separate from the log-derived Usage view and from Live
 quota. The same physical call appears in both the router ledger and the agent's own log, so the two
 are never added together.
@@ -344,7 +354,9 @@ them changes the product rather than the implementation.
 11. The provider router is off by default and authenticated with its own key. It is the one
     component whose request path performs network I/O, it never writes notification history or
     delivery work, and its proxy-observed ledger is a separate record from log-derived Usage and
-    from account Live quota — the three are never summed.
+    from account Live quota — the three are never summed. Its agent connectors are the only code that
+    writes another program's configuration, and only when the owner presses a button or runs a
+    command; every such write is preceded by a restorable copy.
 
 ## Adding a new outbound adapter
 

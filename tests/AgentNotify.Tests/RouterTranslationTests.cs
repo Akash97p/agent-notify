@@ -1186,4 +1186,31 @@ public sealed class RouterTranslationTests
         Buffer.BlockCopy(b, 0, c, a.Length, b.Length);
         return c;
     }
+
+    [Fact]
+    public void ChatEncoder_MergesTheTwoAssistantMessagesAResponsesTurnDecodesTo()
+    {
+        // Codex sends a turn's text and its tool call as separate input items, which decodes to two
+        // assistant messages; a provider that requires alternating roles rejects that.
+        var body = """
+            {
+              "model": "x",
+              "input": [
+                { "type": "message", "role": "user", "content": [{ "type": "input_text", "text": "go" }] },
+                { "type": "message", "role": "assistant", "content": [{ "type": "output_text", "text": "Running a command." }] },
+                { "type": "function_call", "name": "exec_command", "call_id": "call_a", "arguments": "{\"cmd\":\"ls\"}" },
+                { "type": "function_call_output", "call_id": "call_a", "output": "a.txt" }
+              ]
+            }
+            """;
+        var decoded = RouterResponsesCodec.Decode(System.Text.Encoding.UTF8.GetBytes(body));
+        var encoded = System.Text.Json.JsonDocument.Parse(RouterChatCodec.Encode(decoded.Request, "native-model"));
+        var roles = encoded.RootElement.GetProperty("messages").EnumerateArray()
+            .Select(message => message.GetProperty("role").GetString()).ToList();
+
+        Assert.Equal(["user", "assistant", "tool"], roles);
+        var assistant = encoded.RootElement.GetProperty("messages")[1];
+        Assert.Equal("Running a command.", assistant.GetProperty("content").GetString());
+        Assert.Equal("exec_command", assistant.GetProperty("tool_calls")[0].GetProperty("function").GetProperty("name").GetString());
+    }
 }

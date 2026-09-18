@@ -35,6 +35,7 @@ public partial class App : System.Windows.Application
     private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
     private AgentNotify.Core.Router.RouterProxy? _routerProxy;
     private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
+    private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
     private DeliveryDispatcher? _deliveryDispatcher;
     private AgentNotify.Api.WebUi.WebUiOptions? _webUi;
     private InteractionResponsePoller? _interactionResponsePoller;
@@ -150,6 +151,17 @@ public partial class App : System.Windows.Application
         _routerProxy = new AgentNotify.Core.Router.RouterProxy(_routerConfigService, _routerRepository, _logger);
         _routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(_routerRepository, _config, TimeProvider.System, _logger);
         _routerPruner.Start();
+        _routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
+            _routerConfigService,
+            System.IO.Path.Combine(_configStore.ConfigDir, "router"),
+            () => _config.Port);
+        var routerConnect = _routerConnect;
+        var routerLogger = _logger;
+        _routerConfigService.Changed = () => _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try { await routerConnect.RefreshAsync(); }
+            catch (Exception exception) { routerLogger.Warn($"Refreshing connected agents failed: {exception.Message}"); }
+        });
         _providerProfiles = new ProviderProfileService(_deliveryRepository, secretProtector);
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _channelAdapters = ChannelAdapterFactory.CreateAll();
@@ -206,6 +218,7 @@ public partial class App : System.Windows.Application
             Billing = _billingService,
             Router = _routerProxy,
             RouterConfig = _routerConfigService,
+            RouterConnect = _routerConnect,
             SecretProtection = secretProtection.Description,
             DesktopSurface = "the AgentNotify tray app",
             SupportsToastPlacement = true,

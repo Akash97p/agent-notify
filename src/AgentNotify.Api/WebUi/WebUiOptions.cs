@@ -56,6 +56,9 @@ public sealed class WebUiOptions
 
     public RouterConfigService? RouterConfig { get; init; }
 
+    /// <summary>Optional connector that points the agents on this machine at the router.</summary>
+    public AgentNotify.Core.Router.Connect.RouterConnectService? RouterConnect { get; init; }
+
     /// <summary>
     /// Raised after the web UI saved configuration, on a thread-pool thread. The host applies
     /// anything it caches; values read live from the shared config object need nothing.

@@ -394,7 +394,7 @@ public sealed class RouterApiTests
         await app.RouterConfig.CreateUpstreamAsync("anthropic", "Anthropic", RouterWire.AnthropicMessages, "https://api.anthropic.com/v1", "sk-anthropic-1234567890", ["claude"]);
         app.Handler.Enqueue(req =>
         {
-            Assert.True(req.RequestUri!.ToString().EndsWith("/messages/count_tokens"));
+            Assert.EndsWith("/messages/count_tokens", req.RequestUri!.ToString());
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"type\":\"message\",\"usage\":{\"input_tokens\":5}}", Encoding.UTF8, "application/json") };
         });
         var resp2 = await client.PostAsJsonAsync("/router/v1/messages/count_tokens", new { model = "anthropic/claude", messages = new[] { new { role = "user", content = "hi" } } });
@@ -402,15 +402,25 @@ public sealed class RouterApiTests
     }
 
     [Fact]
-    public async Task RouterPageAssetIsServed()
+    public async Task ModelRouterPageAssetsAreServedAndRegistered()
     {
         await using var app = await TestApp.CreateAsync(routerEnabled: true);
         using var browser = app.Browser();
-        var asset = await browser.GetAsync("/ui/js/views/router.js");
-        Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
-        Assert.Equal("text/javascript", asset.Content.Headers.ContentType!.MediaType);
+
+        foreach (var module in new[]
+                 {
+                     "router-shared.js", "router-providers.js", "router-routing.js",
+                     "router-agents.js", "router-activity.js"
+                 })
+        {
+            var asset = await browser.GetAsync($"/ui/js/views/{module}");
+            Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+            Assert.Equal("text/javascript", asset.Content.Headers.ContentType!.MediaType);
+        }
+
         var appJs = await browser.GetStringAsync("/ui/js/app.js");
-        Assert.Contains("router", appJs);
-        Assert.Contains("views/router.js", appJs);
+        Assert.Contains("Model router", appJs);
+        foreach (var path in new[] { "router", "router-routing", "router-agents", "router-activity" })
+            Assert.Contains($"path: \"{path}\"", appJs);
     }
 }

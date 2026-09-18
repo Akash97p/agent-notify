@@ -4,6 +4,18 @@ import {
   field, input, select, checkbox, toggle, confirmDialog,
 } from "../dom.js";
 
+// Page titles live here so every section shares one voice.
+const TITLES = {
+  providers: ["Providers", "The upstream providers this machine can route model requests to."],
+  routing: ["Routing", "Which model selector goes where, and what happens when a target fails."],
+  agents: ["Agents", "Point an agent's own model picker at the router, and put its settings back."],
+  activity: ["Activity", "What the router actually sent, per request and per attempt."],
+};
+
+function offBanner() {
+  return notice("The router is off, so no request reaches any model provider. Turn it on under Providers.", "info");
+}
+
 const wireOptions = [
   ["openai_responses", "openai_responses"],
   ["openai_chat", "openai_chat"],
@@ -37,13 +49,16 @@ function outcomeBadge(outcome) {
   return outcome ? badge(outcome.replace(/_/g, " ")) : badge("pending");
 }
 
-export default {
-  async render(page, ctx) {
+/**
+ * One implementation behind the Model router pages. Each page renders the same live state and shows
+ * the section it owns, so the on/off switch and base URLs stay in view wherever you are.
+ */
+export async function renderRouter(page, ctx, section) {
     let data;
     try {
       data = await api.get("router");
     } catch (error) {
-      mount(page, pageHead("Router", "Opt-in local proxy. Turn it on to route agent requests through this broker."), notice(error.message, "danger"));
+      mount(page, pageHead(TITLES[section][0], TITLES[section][1]), notice(error.message, "danger"));
       return;
     }
 
@@ -54,6 +69,7 @@ export default {
     let summary = [];
     let summaryDays = 1;
 
+    const agentsHost = h("div");
     const statusHost = h("div");
     const connectHost = h("div");
     const upstreamsHost = h("div");
@@ -670,27 +686,185 @@ export default {
       );
     }
 
-    // initial draw
+    // ---- agents ----------------------------------------------------------------------
+
+    let agentsData = null;
+
+    const SLOT_LABELS = {
+      default: "Default model",
+      opus: "Opus menu entry",
+      sonnet: "Sonnet menu entry",
+      haiku: "Haiku menu entry",
+      small_fast: "Background / small-fast model",
+    };
+
+    async function drawAgents() {
+      try {
+        agentsData = await api.get("router/agents");
+      } catch (error) {
+        mount(agentsHost, notice(error.message, "danger"));
+        return;
+      }
+
+      const selectable = agentsData.selectable || [];
+      const cards = agentsData.agents.map(agent => agentCard(agent, selectable));
+      mount(agentsHost,
+        card({
+          title: "Agents on this computer",
+          description: "Connecting writes that agent's own configuration so its model picker lists these models. "
+            + "A copy of the file is kept first, and disconnecting puts your settings back.",
+          body: h("div", { class: "stack" }, cards),
+        }),
+      );
+    }
+
+    function modelSelect(value, selectable, { allowEmpty = false, emptyLabel = "Leave unchanged" } = {}) {
+      const options = selectable.map(model => [model, model]);
+      if (allowEmpty) options.unshift(["", emptyLabel]);
+      return select(options, value || (allowEmpty ? "" : selectable[0]));
+    }
+
+    function agentCard(agent, selectable) {
+      const head = h("div", { class: "quota-account-head" },
+        h("div", null,
+          h("span", { class: "eyebrow", text: agent.id }),
+          h("h2", { class: "quota-account-name", text: agent.display_name })),
+        agent.connected ? badge("Connected", "ok") : badge(agent.detected ? "Not connected" : "Not installed", agent.detected ? "warn" : "danger"));
+
+      const lines = [h("p", { class: "muted small", text: agent.config_path })];
+      if (agent.blocked) lines.push(notice(agent.blocked, "warn"));
+      if (agent.connected && agent.selected_model)
+        lines.push(h("p", { class: "small", text: `Sends ${agent.selected_model} by default.` }));
+      if (agent.catalog_path && agent.catalog_model_count > 0)
+        lines.push(h("p", { class: "muted small", text: `${agent.catalog_model_count} models offered through ${agent.catalog_path}` }));
+
+      if (!selectable.length || !agent.detected) {
+        return h("section", { class: "card router-agent" }, head, h("div", { class: "stack" }, lines));
+      }
+
+      // The form doubles as the reconnect form, so it starts from whatever is configured now.
+      const controls = [];
+      const mainSelect = modelSelect(agent.selected_model, selectable);
+      controls.push(field(agent.id === "claude_code" ? SLOT_LABELS.default : "Model", mainSelect,
+        { help: "What this agent asks for unless you pick something else in its own menu." }));
+
+      const slotSelects = {};
+      for (const slot of (agentsData.slots || [])) {
+        if (agent.id !== "claude_code" || slot === "default") continue;
+        const current = (agent.model_slots || {})[slot] || "";
+        const control = modelSelect(current, selectable, { allowEmpty: true, emptyLabel: "Leave this entry alone" });
+        slotSelects[slot] = control;
+        controls.push(field(SLOT_LABELS[slot] || slot, control,
+          { help: "Picking this entry in Claude Code's own model menu sends this selector." }));
+      }
+
+      const optionControls = {};
+      for (const option of (agent.options || [])) {
+        const current = (agent.option_values || {})[option.id] || "";
+        const control = option.is_model_selector
+          ? modelSelect(current, selectable, { allowEmpty: true, emptyLabel: "Leave unchanged" })
+          : select([["", "Leave unchanged"], ...option.choices.map(c => [c, c])], current);
+        optionControls[option.id] = control;
+        controls.push(field(option.display_name, control, { help: option.description }));
+      }
+
+      const connect = button(agent.connected ? "Apply" : "Connect", { variant: "primary", iconName: "check" });
+      connect.addEventListener("click", () => busy(connect, async () => {
+        const body = { model: mainSelect.value, model_slots: {}, options: {} };
+        for (const [slot, control] of Object.entries(slotSelects))
+          if (control.value) body.model_slots[slot] = control.value;
+        for (const [id, control] of Object.entries(optionControls))
+          if (control.value) body.options[id] = control.value;
+        try {
+          const result = await api.post(`router/agents/${agent.id}/connect`, body);
+          toast(result.message || "Connected.");
+          await drawAgents();
+        } catch (error) {
+          toast(error.message, "error");
+        }
+      }));
+
+      const actions = [connect];
+      if (agent.connected) {
+        const disconnect = button("Disconnect", { iconName: "x" });
+        disconnect.addEventListener("click", () => busy(disconnect, async () => {
+          const ok = await confirmDialog({
+            title: `Disconnect ${agent.display_name}?`,
+            message: "Its own model settings are put back, and it stops routing through AgentNotify.",
+            confirmLabel: "Disconnect",
+          });
+          if (!ok) return;
+          try {
+            const result = await api.post(`router/agents/${agent.id}/disconnect`, {});
+            toast(result.message || "Disconnected.");
+            await drawAgents();
+          } catch (error) {
+            toast(error.message, "error");
+          }
+        }));
+        actions.push(disconnect);
+      }
+
+      const backups = (agent.backups || []).map(backup => {
+        const restore = button("Restore", { size: "sm", iconName: "refresh" });
+        restore.addEventListener("click", () => busy(restore, async () => {
+          const ok = await confirmDialog({
+            title: "Restore this copy?",
+            message: `${agent.config_path} is replaced with the copy taken ${fmtTime(backup.created_at)}. `
+              + "The file as it is now is itself copied first, so this can be stepped back.",
+            confirmLabel: "Restore",
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            const result = await api.post(`router/agents/${agent.id}/restore`, { backup_id: backup.id });
+            toast(result.message || "Restored.");
+            await drawAgents();
+          } catch (error) {
+            toast(error.message, "error");
+          }
+        }));
+        return h("div", { class: "balance-row" },
+          h("div", { class: "balance-head" },
+            h("span", { class: "small", text: `${fmtTime(backup.created_at)} · ${backup.reason}` }),
+            restore));
+      });
+
+      const backupBlock = backups.length
+        ? h("details", { class: "meta-disclosure" },
+            h("summary", { text: `Saved copies of this file (${backups.length})` }),
+            h("div", { class: "stack" },
+              h("p", { class: "muted small", text: "AgentNotify copies the file before every change it makes. Restoring writes one of those copies back." }),
+              backups))
+        : null;
+
+      return h("section", { class: "card router-agent" }, head,
+        h("div", { class: "stack" }, lines, controls, h("div", { class: "row" }, actions), backupBlock));
+    }
+
+    const sections = {
+      providers: [statusHost, upstreamsHost],
+      routing: [routesHost, defaultHost],
+      agents: [agentsHost, connectHost],
+      activity: [ledgerHost, summaryHost],
+    };
+
     mount(page,
-      pageHead("Router", "Opt-in local proxy. Turn it on to route agent requests through this broker.", null),
-      statusHost,
-      connectHost,
-      upstreamsHost,
-      routesHost,
-      defaultHost,
-      ledgerHost,
-      summaryHost,
-      h("p", { class: "muted small page-footnote", text: "Router ledger tokens are proxy-observed. They are separate from the Usage page and must not be added together." }),
+      pageHead(TITLES[section][0], TITLES[section][1], null),
+      state.enabled ? null : offBanner(),
+      sections[section],
+      section === "activity"
+        ? h("p", { class: "muted small page-footnote", text: "Router ledger tokens are proxy-observed. They are separate from the Usage page and must not be added together." })
+        : null,
     );
 
-    drawStatus();
-    drawConnect();
-    drawUpstreams();
-    drawRoutes();
-    drawDefault();
-    drawLedger();
-    drawSummary();
-    await loadLedger();
-    await loadSummary();
-  },
-};
+    if (section === "providers") { drawStatus(); drawUpstreams(); }
+    if (section === "routing") { drawRoutes(); drawDefault(); }
+    if (section === "agents") { drawConnect(); await drawAgents(); }
+    if (section === "activity") {
+      drawLedger();
+      drawSummary();
+      await loadLedger();
+      await loadSummary();
+    }
+}
