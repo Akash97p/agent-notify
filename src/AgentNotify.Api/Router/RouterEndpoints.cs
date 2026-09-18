@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Router;
+using AgentNotify.Core.Router.Connect;
 using AgentNotify.Core.Router.Translation;
 using AgentNotify.Api.WebUi;
 using Microsoft.AspNetCore.Builder;
@@ -366,7 +367,110 @@ public static class RouterEndpoints
             var summary = await routerRepo.SummarizeAsync(since, ct);
             return Results.Json(new { summary }, WebUiEndpoints.JsonOptions);
         });
+
+        app.MapGet($"{WebUiEndpoints.BasePath}/api/router/agents", (Func<CancellationToken, Task<IResult>>)(async ct =>
+        {
+            var connect = options.RouterConnect;
+            if (connect is null) return Error("Connecting agents is not available on this host.", StatusCodes.Status404NotFound);
+            var snapshot = routerConfig is null ? null : await routerConfig.GetSnapshotAsync(ct);
+            return Results.Json(new
+            {
+                agents = (await connect.ListAsync(ct)).Select(ToPublicAgent).ToArray(),
+                selectable = snapshot is null
+                    ? Array.Empty<string>()
+                    : RouterConnectService.Selectable(snapshot).ToArray(),
+                slots = ClaudeCodeRouterConnector.Slots.Keys,
+                openai_base_url = connect.OpenAiBaseUrl,
+                anthropic_base_url = connect.AnthropicBaseUrl
+            }, WebUiEndpoints.JsonOptions);
+        }));
+
+        app.MapPost($"{WebUiEndpoints.BasePath}/api/router/agents/{{id}}/connect", (Func<string, HttpContext, Task<IResult>>)(async (id, http) =>
+        {
+            var connect = options.RouterConnect;
+            if (connect is null) return Error("Connecting agents is not available on this host.", StatusCodes.Status404NotFound);
+            var body = await ReadAsync<ConnectBody>(http) ?? new ConnectBody();
+            return await RunConnectAsync(() => connect.ConnectAsync(
+                id,
+                new RouterConnectRequest(body.Model, body.ModelSlots, body.Options),
+                http.RequestAborted));
+        }));
+
+        app.MapPost($"{WebUiEndpoints.BasePath}/api/router/agents/{{id}}/disconnect", (Func<string, HttpContext, Task<IResult>>)(async (id, http) =>
+        {
+            var connect = options.RouterConnect;
+            if (connect is null) return Error("Connecting agents is not available on this host.", StatusCodes.Status404NotFound);
+            return await RunConnectAsync(() => connect.DisconnectAsync(id, http.RequestAborted));
+        }));
+
+        app.MapPost($"{WebUiEndpoints.BasePath}/api/router/agents/{{id}}/restore", (Func<string, HttpContext, Task<IResult>>)(async (id, http) =>
+        {
+            var connect = options.RouterConnect;
+            if (connect is null) return Error("Connecting agents is not available on this host.", StatusCodes.Status404NotFound);
+            var body = await ReadAsync<RestoreBody>(http);
+            if (body?.BackupId is not { Length: > 0 }) return Error("Choose which saved copy to restore.");
+            return await RunConnectAsync(() => connect.RestoreAsync(id, body.BackupId, http.RequestAborted));
+        }));
+
     }
+
+    /// <summary>
+    /// Runs one connector action, turning its refusals into the same error shape the rest of the
+    /// interface uses. Writing another program's configuration file can fail for ordinary reasons —
+    /// the agent is not installed, the file is not valid JSON, the disk is read-only — and each of
+    /// those is the owner's to fix, not a server fault.
+    /// </summary>
+    private static async Task<IResult> RunConnectAsync(Func<Task<RouterConnectResult>> action)
+    {
+        try
+        {
+            var result = await action();
+            return Results.Json(new { agent = ToPublicAgent(result.Agent), message = result.Message }, WebUiEndpoints.JsonOptions);
+        }
+        catch (KeyNotFoundException error) { return Error(error.Message, StatusCodes.Status404NotFound); }
+        catch (FileNotFoundException error) { return Error(error.Message, StatusCodes.Status404NotFound); }
+        catch (ArgumentException error) { return Error(error.Message); }
+        catch (InvalidOperationException error) { return Error(error.Message); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return Error($"That file could not be written: {error.Message}");
+        }
+    }
+
+    private static object ToPublicAgent(RouterAgentInfo agent) => new
+    {
+        id = agent.Id,
+        display_name = agent.DisplayName,
+        config_path = agent.ConfigPath,
+        detected = agent.Detected,
+        connected = agent.Connected,
+        connected_at = agent.ConnectedAt,
+        selected_model = agent.SelectedModel,
+        model_slots = agent.ModelSlots,
+        catalog_path = agent.CatalogPath,
+        catalog_model_count = agent.CatalogModelCount,
+        options = agent.Options.Select(option => new
+        {
+            id = option.Id,
+            display_name = option.DisplayName,
+            description = option.Description,
+            is_model_selector = option.IsModelSelector,
+            choices = option.Choices
+        }).ToArray(),
+        option_values = agent.OptionValues,
+        blocked = agent.Blocked,
+        backups = agent.Backups.Select(b => new { id = b.Id, created_at = b.CreatedAt, reason = b.Reason })
+    };
+
+
+    private sealed class ConnectBody
+    {
+        public string? Model { get; set; }
+        public Dictionary<string, string>? ModelSlots { get; set; }
+        public Dictionary<string, string>? Options { get; set; }
+    }
+
+    private sealed class RestoreBody { public string? BackupId { get; set; } }
 
     private static object ToPublic(RouterUpstream u) => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt };
 

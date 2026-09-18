@@ -96,6 +96,12 @@
       upstream definitions with sealed keys, aliases and ordered failover combos, Responses/Chat/
       Anthropic translation with same-wire passthrough, cooldowns, and a proxy-observed SQLite ledger
       — automated tests only; no request has been sent to a real provider yet
+- [x] Router agent connectors: Codex (generated model catalogue, provider block, subagent/review/effort/
+      shell tool) and Claude Code (`modelPicker` rows with `behavesAs`, menu-slot env) with a copy before
+      every write, restore from the web interface, and disconnect — real Codex and Claude Code sessions
+      routed live on macOS
+- [ ] Router connectors for OpenCode, Kilo, Cursor, and Gemini CLI; per-model context windows in the
+      generated catalogue
 - [ ] Router: policy routing scored on quota/health/cost, weighted and least-used combo strategies,
       Codex account pools, cost estimates on ledger rows, and quota thresholds raised as attention
       requests

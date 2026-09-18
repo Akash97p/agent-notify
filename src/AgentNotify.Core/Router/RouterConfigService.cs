@@ -58,6 +58,14 @@ public sealed class RouterConfigService
     /// <summary>The configuration the router reads its switch and key from.</summary>
     public AgentNotifyConfig Config => _config;
 
+    /// <summary>
+    /// Raised after upstreams, routes, the default route, or the key changed. A connected agent's
+    /// generated model catalogue and embedded key are rewritten from here, so its own picker never
+    /// lists a model this router can no longer resolve. Failures are the handler's problem: a
+    /// configuration change must still succeed.
+    /// </summary>
+    public Action? Changed { get; set; }
+
     public static string NewId(string prefix) => prefix + "_" + Guid.NewGuid().ToString("N");
 
     /// <summary>
@@ -98,6 +106,13 @@ public sealed class RouterConfigService
             _generation++;
             _cached = null;
         }
+        NotifyChanged();
+    }
+
+    private void NotifyChanged()
+    {
+        try { Changed?.Invoke(); }
+        catch (Exception) { }
     }
 
 
@@ -134,6 +149,7 @@ public sealed class RouterConfigService
     {
         _config.ApplyDefaults();
         _configStore.Save(_config);
+        NotifyChanged();
     }
 
 

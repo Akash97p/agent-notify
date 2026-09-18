@@ -36,7 +36,10 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
 | Routes | Decide which notifications reach which channel, and see delivery counts |
-| Router | Turn the provider router on, manage upstream providers, aliases and failover combos, and read its request ledger |
+| Model router → Providers | Turn the router on, see its base URLs and key, and manage upstream providers |
+| Model router → Routing | Aliases, ordered failover combos, and the default route |
+| Model router → Agents | Connect Codex or Claude Code so their own `/model` menu lists routed models, set subagent and review models, disconnect, and restore a saved copy of their configuration |
+| Model router → Activity | The router's request ledger and per-model totals |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
 | Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
 | Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
@@ -45,16 +48,21 @@ On Windows, right-click the tray icon and choose **Web interface…**, which doe
 | Agents | Install or update the skill for Claude Code, Codex, and OpenCode; the harness command for every host |
 | About | Version, data folder, and links |
 
-The **Router** page configures the opt-in local provider proxy described in [ROUTER.md](ROUTER.md). It
-shows the base URLs and the setup snippets for Codex and Claude Code, but it never edits another
-agent's configuration files — you copy them yourself. The router key is shown once when it is
-generated or regenerated and is never returned afterwards; `agentnotify router key` prints it from the
-local config. Upstream provider keys are write-only in exactly the same way as channel secrets: the
-field stays blank when editing, and no response carries a stored key.
+The **Model router** pages configure the opt-in local provider proxy described in
+[ROUTER.md](ROUTER.md). The router key is shown once when it is generated or regenerated and never
+returned afterwards; `agentnotify router key` prints it from the local config. Upstream provider keys
+are write-only in exactly the same way as channel secrets: the field stays blank when editing, and no
+response carries a stored key.
 
-The page's **Recent requests** and **Summary** cards are proxy-observed records: they count only what
-went through the router. The same call also appears in the agent's own log, which is what the Usage
-page reads, so the two must never be added together.
+**Agents** is the one page in this interface that writes files belonging to other programs: Codex's
+`config.toml` and Claude Code's `settings.json`. It only does so when you press Connect, Apply,
+Disconnect, or Restore. Each of those first copies the file, and the page lists every copy with the
+reason it was taken, so any of them can be put back. If you would rather configure an agent yourself,
+the same page shows the snippets to copy.
+
+**Activity** shows proxy-observed records: they count only what went through the router. The same
+call also appears in the agent's own log, which is what the Usage page reads, so the two must never
+be added together.
 
 Toast placement and sounds belong to the Windows app. On macOS and Linux those settings are still
 stored, and the page says so, but the platform decides how a notification looks.

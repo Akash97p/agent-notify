@@ -151,6 +151,16 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Proxy-observed SQLite ledger with per-attempt rows, kept separate from Usage and Live quota.
 - See [ROUTER.md](ROUTER.md).
 
+### R03 — Routed models in each agent's own picker
+
+- Status: Codex and Claude Code connectors implemented and verified live on macOS with the real
+  agents against a scripted upstream; web page not yet seen in a browser.
+- Codex: generated `model_catalog_json`, provider block with an embedded key, reasoning effort,
+  subagent and review models, and shell tool.
+- Claude Code: `modelPicker` rows with `behavesAs`, and the built-in entries' model variables.
+- A copy before every write, restore of any copy, and disconnect that restores the owner's values.
+- Remaining: OpenCode, Kilo, Cursor, and Gemini CLI connectors; real context windows per model.
+
 ### R02 — Policy routing and richer combos
 
 - Score candidates on capability, health, quota, cost, and latency evidence (`policy/<id>`), with a

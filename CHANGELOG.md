@@ -34,7 +34,17 @@ build.
   Claude Code setup snippets, upstream and route management, the default route, and the request
   ledger with per-attempt detail. The router ledger is kept visibly separate from the Usage page:
   they observe the same calls from different sides and must not be added together.
-- `agentnotify router key` and `agentnotify router status`.
+- **Routed models in the agents' own `/model` menus.** One Connect button (or
+  `agentnotify router connect codex|claude_code`) writes that agent's configuration so every routed
+  model, alias, and combo appears in the picker it already has. Codex gets a generated model catalogue
+  and a provider block carrying the router key; its reasoning effort, subagent model and effort,
+  review model, and shell tool are set from the same page. Claude Code gets rows in its `/model`
+  picker that declare which known model each behaves as, plus its Opus, Sonnet, Haiku, and background
+  entries pointed wherever you choose. Every write copies the file first, the Agents page lists those
+  copies and restores any of them, and Disconnect puts your own settings back. Verified live: real
+  Codex executed a tool call through the router, and real Claude Code answered through it.
+- The router's pages now sit together under **Model router**: Providers, Routing, Agents, Activity.
+- `agentnotify router key`, `status`, `agents`, `connect`, and `disconnect`.
 
 ## [0.1.0-alpha.4] - 2026-09-17
 

@@ -303,14 +303,25 @@ agentnotify relay pair --url http://localhost:4000 --allow-private --json
 agentnotify relay status
 ```
 
-### `router` — router status and key
+### `router` — the local provider router
 
 ```text
-agentnotify router key
 agentnotify router status
+agentnotify router key
+agentnotify router agents
+agentnotify router connect <codex|claude_code> [--model <selector>]
+agentnotify router disconnect <codex|claude_code>
 ```
 
-Both commands read the local configuration file directly, like `token`, and make no network call.
+`status` and `key` read the local configuration file directly, like `token`, and make no network
+call. `agents`, `connect`, and `disconnect` ask the running broker, because it owns the router key and
+the generated model catalogue; they fail with a clear message when AgentNotify is not running.
+
+`router connect` writes the agent's own configuration so its model picker lists every routed model,
+after copying the file. `--model` picks the selector it starts on (a route name, `combo/<name>`, or
+`provider/model`); without it the first selectable model is used. Subagent, review, and effort
+settings are on the web interface's Model router → Agents page. `router disconnect` puts the agent's
+own settings back.
 
 `router key` prints the key an agent authenticates to the router with, as
 `Authorization: Bearer <key>` or `x-api-key: <key>`. When the router has never been turned on there
