@@ -226,6 +226,7 @@ public static class RouterEndpoints
                 routes = routes.Select(r => new { id = r.Id, name = r.Name, kind = r.Kind, targets = r.Targets, enabled = r.Enabled, created_at = r.CreatedAt, updated_at = r.UpdatedAt }),
                 default_route = settings.DefaultRoute,
                 presets = PublicPresets(options.Router?.Credentials),
+                accounts = await AccountsAsync(options, ct),
                 limits = new { max_request_body_bytes = config.RouterMaxRequestBodyBytes, ledger_retention_days = config.RouterLedgerRetentionDays }
             }, WebUiEndpoints.JsonOptions);
         });
@@ -265,9 +266,10 @@ public static class RouterEndpoints
             var preset = RouterPresetCatalog.FindById(body.PresetId);
             try
             {
+                if (await CheckReferenceAsync(body, options, http.RequestAborted) is { } refError) return Error(refError);
                 var key = ResolveKey(body, preset, options.Router?.Credentials);
                 var created = await routerConfig.CreateUpstreamAsync(body.Slug, body.Label, body.Wire, body.BaseUrl, key, body.Models, body.Enabled ?? true, http.RequestAborted,
-                    body.Auth ?? preset?.Auth, ResolveModelWires(body, preset));
+                    body.Auth ?? preset?.Auth, ResolveModelWires(body, preset), body.CredentialRef);
                 return Results.Json(ToPublic(created), WebUiEndpoints.JsonOptions, statusCode: StatusCodes.Status201Created);
             }
             catch (ArgumentException ex) { return Error(ex.Message); }
@@ -284,9 +286,10 @@ public static class RouterEndpoints
             var preset = RouterPresetCatalog.FindById(body.PresetId);
             try
             {
+                if (await CheckReferenceAsync(body, options, http.RequestAborted) is { } refError) return Error(refError);
                 var key = ResolveKey(body, preset, options.Router?.Credentials);
                 var updated = await routerConfig.UpdateUpstreamAsync(id, body.Slug, body.Label, body.Wire, body.BaseUrl, key, body.Models, body.Enabled, body.ClearKey ?? false, http.RequestAborted,
-                    body.Auth, ResolveModelWires(body, preset));
+                    body.Auth, ResolveModelWires(body, preset), body.CredentialRef);
                 return Results.Json(ToPublic(updated), WebUiEndpoints.JsonOptions);
             }
             catch (KeyNotFoundException) { return Error("That upstream was not found.", 404); }
@@ -305,18 +308,24 @@ public static class RouterEndpoints
             var baseUrl = body.BaseUrl ?? preset?.BaseUrl;
             var wire = body.Wire ?? preset?.Wire ?? RouterWire.OpenAiChat;
             var auth = body.Auth ?? preset?.Auth ?? RouterAuth.ApiKey;
+            if (await CheckReferenceAsync(body, options, http.RequestAborted) is { } refError) return Error(refError);
             try
             {
                 var key = ResolveKey(body, preset, options.Router.Credentials);
-                if (key is null && body.UpstreamId is { Length: > 0 } upstreamId)
+                var reference = body.CredentialRef;
+                if (key is null && reference is null && body.UpstreamId is { Length: > 0 } upstreamId)
                 {
                     var stored = await routerConfig.GetStoredUpstreamAsync(upstreamId, http.RequestAborted);
                     if (stored is null) return Error("That upstream was not found.", 404);
+                    reference = stored.CredentialRef;
                     // The stored key is only ever sent back to the host it was saved for.
-                    if (string.Equals(stored.BaseUrl, baseUrl?.Trim().TrimEnd('/'), StringComparison.Ordinal))
+                    if (reference is null && string.Equals(stored.BaseUrl, baseUrl?.Trim().TrimEnd('/'), StringComparison.Ordinal))
                         key = routerConfig.DecryptKey(stored);
                 }
-                var models = await options.Router.Discovery.FetchAsync(baseUrl, wire, auth, key, preset, http.RequestAborted);
+                if (key is null && RouterCredentialRef.ApiAccountId(reference) is { } accountId)
+                    key = await options.Router.Credentials.ApiAccountKeyAsync(accountId, http.RequestAborted);
+                var models = await options.Router.Discovery.FetchAsync(baseUrl, wire, auth, key, preset, http.RequestAborted,
+                    RouterCredentialRef.ProfileDirectory(reference));
                 return Results.Json(new
                 {
                     models = models.Select(model => new { id = model, wire = preset?.WireFor(model) ?? wire })
@@ -490,6 +499,8 @@ public static class RouterEndpoints
     private static object ToPublicAgent(RouterAgentInfo agent) => new
     {
         id = agent.Id,
+        kind = agent.Kind,
+        account_label = agent.AccountLabel,
         display_name = agent.DisplayName,
         config_path = agent.ConfigPath,
         detected = agent.Detected,
@@ -522,7 +533,7 @@ public static class RouterEndpoints
 
     private sealed class RestoreBody { public string? BackupId { get; set; } }
 
-    private static object ToPublic(RouterUpstream u) => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt, auth = u.Auth, model_wires = u.ModelWires };
+    private static object ToPublic(RouterUpstream u) => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt, auth = u.Auth, model_wires = u.ModelWires, credential_ref = u.CredentialRef };
 
     /// <summary>
     /// The presets, with what this computer already has for each: a subscription sign-in, or a key
@@ -550,6 +561,70 @@ public static class RouterEndpoints
                 signin_detail = signin.Item2
             };
         });
+
+    /// <summary>API-account providers whose key also works for inference, mapped to the router preset.</summary>
+    private static readonly IReadOnlyDictionary<string, string> ApiAccountPresets = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["deepseek"] = "deepseek",
+        ["moonshot"] = "moonshot",
+        ["siliconflow"] = "siliconflow",
+        ["openrouter"] = "openrouter"
+        // OpenAI and Anthropic accounts there hold Admin keys, which cannot send model requests.
+    };
+
+    /// <summary>
+    /// What the rest of AgentNotify already knows that a provider can reuse: keys under Live quota's
+    /// API accounts, and the Codex accounts (the same list Live quota monitors) whose ChatGPT sign-in a
+    /// subscription upstream can use. No key or token is included, only what exists.
+    /// </summary>
+    private static async Task<object> AccountsAsync(WebUiOptions options, CancellationToken ct)
+    {
+        var apiAccounts = new List<object>();
+        if (options.Billing is not null)
+        {
+            try
+            {
+                foreach (var account in await options.Billing.ListAsync(ct))
+                    if (ApiAccountPresets.TryGetValue(account.Provider, out var preset))
+                        apiAccounts.Add(new { id = account.Id, provider = account.Provider, label = account.Label, preset_id = preset,
+                            credential_ref = RouterCredentialRef.ApiAccountPrefix + account.Id });
+            }
+            catch (Exception exception) when (exception is IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException) { }
+        }
+
+        var codexAccounts = new List<object>();
+        if (options.RouterConnect is not null && options.Router is not null)
+        {
+            foreach (var profile in options.RouterConnect.Profiles().Where(p => p.Kind == CodexRouterConnector.Id))
+            {
+                var (ready, detail) = options.Router.Credentials.Describe(RouterAuth.CodexChatGpt, profile.Directory);
+                codexAccounts.Add(new
+                {
+                    id = profile.Id, label = profile.Label, directory = profile.Directory, is_default = profile.IsDefault,
+                    display_directory = WebUiEndpoints.TildePath(profile.Directory, options.NativeHome ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)),
+                    signed_in = ready, detail, credential_ref = RouterCredentialRef.ProfilePrefix + profile.Directory
+                });
+            }
+        }
+        return new { api_accounts = apiAccounts, codex_accounts = codexAccounts };
+    }
+
+    /// <summary>A referenced API account must still exist before an upstream is pointed at it.</summary>
+    private static async Task<string?> CheckReferenceAsync(UpstreamBody body, WebUiOptions options, CancellationToken ct)
+    {
+        if (RouterCredentialRef.ProfileDirectory(body.CredentialRef) is { } directory)
+        {
+            // Only an account this computer already lists: never an arbitrary directory's sign-in.
+            var known = (options.RouterConnect?.Profiles().Select(p => p.Directory) ?? [])
+                .Append(options.Router?.Credentials.MuseHome);
+            return known.Any(item => QuotaAccountDefinition.SameDirectory(item, directory))
+                ? null : "That account directory is not one of your agent accounts.";
+        }
+        if (RouterCredentialRef.ApiAccountId(body.CredentialRef) is not { } id) return null;
+        if (options.Billing is null) return "API accounts are not available in this host.";
+        var accounts = await options.Billing.ListAsync(ct);
+        return accounts.Any(account => account.Id == id) ? null : "That API account no longer exists.";
+    }
 
     /// <summary>The key a create or update should store: the typed one, or the one OpenCode already holds.</summary>
     private static string? ResolveKey(UpstreamBody body, RouterPreset? preset, RouterCredentialSource? credentials)
@@ -592,6 +667,7 @@ public static class RouterEndpoints
         public string? UpstreamId { get; set; }
         public bool? UseOpencodeKey { get; set; }
         public Dictionary<string, string>? ModelWires { get; set; }
+        public string? CredentialRef { get; set; }
     }
     private sealed class RouteBody { public string? Name { get; set; } public string? Kind { get; set; } public IReadOnlyList<string>? Targets { get; set; } public bool? Enabled { get; set; } }
     private sealed class DefaultRouteBody { public string? Route { get; set; } }

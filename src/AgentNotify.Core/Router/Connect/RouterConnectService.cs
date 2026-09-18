@@ -31,20 +31,25 @@ public sealed class RouterConnectService
     private readonly RouterConfigService _router;
     private readonly string _stateDir;
     private readonly string _statePath;
-    private readonly CodexRouterConnector _codex;
-    private readonly ClaudeCodeRouterConnector _claude;
+    private readonly Func<IReadOnlyList<RouterAgentProfile>> _profiles;
     private readonly TimeProvider _clock;
     private readonly Func<int> _port;
     private readonly object _gate = new();
 
     /// <param name="home">The home directory the agents' configuration lives under; tests pass their own.</param>
+    /// <param name="profiles">
+    /// The accounts that can be connected, read each time so an account added under Live quota appears
+    /// without a restart. When omitted, only the built-in <c>~/.codex</c> and <c>~/.claude</c> under
+    /// <paramref name="home"/> are offered.
+    /// </param>
     /// <param name="port">Read each time, because the broker's port can change without a restart of this service.</param>
     public RouterConnectService(
         RouterConfigService router,
         string stateDir,
         Func<int> port,
         string? home = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        Func<IReadOnlyList<RouterAgentProfile>>? profiles = null)
     {
         _router = router ?? throw new ArgumentNullException(nameof(router));
         _stateDir = stateDir ?? throw new ArgumentNullException(nameof(stateDir));
@@ -52,9 +57,29 @@ public sealed class RouterConnectService
         _port = port ?? throw new ArgumentNullException(nameof(port));
         _clock = clock ?? TimeProvider.System;
         var root = home ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _codex = new CodexRouterConnector(Path.Combine(root, ".codex"));
-        _claude = new ClaudeCodeRouterConnector(Path.Combine(root, ".claude"));
+        _profiles = profiles ?? (() => RouterAgentProfile.FromAccounts([], root));
     }
+
+    /// <summary>The connectable accounts right now.</summary>
+    public IReadOnlyList<RouterAgentProfile> Profiles() => _profiles();
+
+    private RouterAgentProfile Profile(string agentId) =>
+        _profiles().FirstOrDefault(p => string.Equals(p.Id, agentId, StringComparison.Ordinal))
+        ?? throw new KeyNotFoundException($"No connector for agent '{agentId}'.");
+
+    private static CodexRouterConnector Codex(RouterAgentProfile profile) => new(profile.Directory);
+    private static ClaudeCodeRouterConnector Claude(RouterAgentProfile profile) => new(profile.Directory);
+
+    /// <summary>
+    /// The generated catalogue for one Codex account. Accounts share the router but not a shell-tool
+    /// choice, so each has its own file; the built-in account keeps the original name.
+    /// </summary>
+    public string CatalogPathFor(RouterAgentProfile profile) => profile.IsDefault
+        ? CatalogPath
+        : Path.Combine(_stateDir, $"codex-model-catalog-{SafeName(profile.Id)}.json");
+
+    private static string SafeName(string id) =>
+        new(id.Select(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' ? c : '-').ToArray());
 
     /// <summary>The base URL an OpenAI-wire client is given.</summary>
     public string OpenAiBaseUrl => $"http://127.0.0.1:{_port()}/router/v1";
@@ -68,7 +93,7 @@ public sealed class RouterConnectService
     {
         var snapshot = await _router.GetSnapshotAsync(ct).ConfigureAwait(false);
         var states = LoadStates();
-        return [Describe(CodexRouterConnector.Id, snapshot, states), Describe(ClaudeCodeRouterConnector.Id, snapshot, states)];
+        return _profiles().Select(profile => Describe(profile, snapshot, states)).ToList();
     }
 
     public async Task<RouterConnectResult> ConnectAsync(string agentId, RouterConnectRequest request, CancellationToken ct = default)
@@ -81,24 +106,27 @@ public sealed class RouterConnectService
         if (selectable.Count == 0)
             throw new InvalidOperationException("Add an enabled upstream with at least one model before connecting an agent.");
 
+        var profile = Profile(agentId);
         var states = LoadStates();
         var state = states.TryGetValue(agentId, out var existing) ? existing : new RouterAgentState { Id = agentId };
 
-        switch (agentId)
+        switch (profile.Kind)
         {
             case CodexRouterConnector.Id:
             {
-                Require(_codex.Detected, "Codex is not installed for this user: no ~/.codex directory was found.");
+                var codex = Codex(profile);
+                var catalogPath = CatalogPathFor(profile);
+                Require(codex.Detected, $"This Codex account's directory ({profile.Directory}) was not found.");
                 var model = Validate(request.Model, selectable, "model");
                 var options = ValidateOptions(request.Options, selectable, CodexRouterConnector.Options);
                 // The shell tool belongs to the generated catalogue rather than to config.toml.
                 options.TryGetValue("shell_tool", out var shellTool);
-                var catalogCount = CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool,
-                    nativeEntries: CodexModelCatalog.ReadNative(_codex.Home));
+                var catalogCount = CodexModelCatalog.Write(catalogPath, snapshot, shellType: shellTool,
+                    nativeEntries: CodexModelCatalog.ReadNative(codex.Home));
                 if (catalogCount == 0)
                     throw new InvalidOperationException("The router has no selectable model, so Codex would refuse the catalogue.");
-                Backup(_codex.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
-                var previous = _codex.Apply(OpenAiBaseUrl, key, CatalogPath, model, options);
+                Backup(codex.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
+                var previous = codex.Apply(OpenAiBaseUrl, key, catalogPath, model, options);
                 state = state with
                 {
                     Id = agentId,
@@ -112,7 +140,8 @@ public sealed class RouterConnectService
 
             case ClaudeCodeRouterConnector.Id:
             {
-                Require(_claude.Detected, "Claude Code is not installed for this user: no ~/.claude directory was found.");
+                var claude = Claude(profile);
+                Require(claude.Detected, $"This Claude Code account's directory ({profile.Directory}) was not found.");
                 var slots = new Dictionary<string, string>(StringComparer.Ordinal);
                 var requested = request.ModelSlots ?? new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var slot in ClaudeCodeRouterConnector.Slots.Keys)
@@ -126,8 +155,8 @@ public sealed class RouterConnectService
                     slots["default"] = Validate(request.Model, selectable, "model");
 
                 var claudeOptions = ValidateOptions(request.Options, selectable, ClaudeCodeRouterConnector.Options);
-                Backup(_claude.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
-                var previous = _claude.Apply(AnthropicBaseUrl, key, slots, PickerRows(snapshot), claudeOptions);
+                Backup(claude.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
+                var previous = claude.Apply(AnthropicBaseUrl, key, slots, PickerRows(snapshot), claudeOptions);
                 state = state with
                 {
                     Id = agentId,
@@ -146,25 +175,32 @@ public sealed class RouterConnectService
 
         states[agentId] = state;
         SaveStates(states);
-        return new RouterConnectResult(Describe(agentId, snapshot, states), $"{DisplayName(agentId)} now routes through AgentNotify.");
+        return new RouterConnectResult(Describe(profile, snapshot, states), $"{DisplayName(profile)} now routes through AgentNotify.");
     }
 
     public async Task<RouterConnectResult> DisconnectAsync(string agentId, CancellationToken ct = default)
     {
         var snapshot = await _router.GetSnapshotAsync(ct).ConfigureAwait(false);
+        var profile = Profile(agentId);
         var states = LoadStates();
         var state = states.TryGetValue(agentId, out var existing) ? existing : new RouterAgentState { Id = agentId };
 
-        switch (agentId)
+        switch (profile.Kind)
         {
             case CodexRouterConnector.Id:
-                Backup(_codex.ConfigPath, state, "before disconnecting");
-                _codex.Remove(state.Previous);
+            {
+                var codex = Codex(profile);
+                Backup(codex.ConfigPath, state, "before disconnecting");
+                codex.Remove(state.Previous);
                 break;
+            }
             case ClaudeCodeRouterConnector.Id:
-                Backup(_claude.ConfigPath, state, "before disconnecting");
-                _claude.Remove(state.Previous);
+            {
+                var claude = Claude(profile);
+                Backup(claude.ConfigPath, state, "before disconnecting");
+                claude.Remove(state.Previous);
                 break;
+            }
             default:
                 throw new KeyNotFoundException($"No connector for agent '{agentId}'.");
         }
@@ -179,14 +215,15 @@ public sealed class RouterConnectService
         };
         SaveStates(states);
         return new RouterConnectResult(
-            Describe(agentId, snapshot, states),
-            $"{DisplayName(agentId)} no longer routes through AgentNotify. Its own settings were put back.");
+            Describe(profile, snapshot, states),
+            $"{DisplayName(profile)} no longer routes through AgentNotify. Its own settings were put back.");
     }
 
     /// <summary>Copies one kept backup back over the agent's configuration file.</summary>
     public async Task<RouterConnectResult> RestoreAsync(string agentId, string backupId, CancellationToken ct = default)
     {
         var snapshot = await _router.GetSnapshotAsync(ct).ConfigureAwait(false);
+        var profile = Profile(agentId);
         var states = LoadStates();
         if (!states.TryGetValue(agentId, out var state))
             throw new KeyNotFoundException("AgentNotify has no saved copy for that agent.");
@@ -196,14 +233,14 @@ public sealed class RouterConnectService
         if (!File.Exists(backup.Path))
             throw new FileNotFoundException("That saved copy is no longer on disk.", backup.Path);
 
-        var target = ConfigPathFor(agentId);
+        var target = ConfigPathFor(profile);
         // The file about to be overwritten is itself worth keeping: a restore is an easy thing to
         // regret, and this way the owner can step back and forth.
         Backup(target, state, "before restoring a saved copy");
         File.Copy(backup.Path, target, overwrite: true);
         UnixFilePermissions.RestrictFile(target);
 
-        var connected = agentId == CodexRouterConnector.Id ? _codex.IsConnected() : _claude.IsConnected();
+        var connected = IsConnected(profile);
         states[agentId] = state with
         {
             ConnectedAt = connected ? state.ConnectedAt ?? _clock.GetUtcNow() : null,
@@ -212,8 +249,8 @@ public sealed class RouterConnectService
         };
         SaveStates(states);
         return new RouterConnectResult(
-            Describe(agentId, snapshot, states),
-            $"Restored {DisplayName(agentId)}'s configuration from the copy taken {backup.CreatedAt.ToLocalTime():f}.");
+            Describe(profile, snapshot, states),
+            $"Restored {DisplayName(profile)}'s configuration from the copy taken {backup.CreatedAt.ToLocalTime():f}.");
     }
 
     /// <summary>
@@ -228,38 +265,43 @@ public sealed class RouterConnectService
         var key = await _router.GetRouterKeyAsync(ct).ConfigureAwait(false);
         if (key is null) return;
 
-        if (states.TryGetValue(CodexRouterConnector.Id, out var codexState) &&
-            codexState.ConnectedAt is not null && _codex.IsConnected())
+        foreach (var profile in _profiles())
         {
-            var selectable = Selectable(snapshot);
-            var model = codexState.SelectedModel is { Length: > 0 } chosen && selectable.Contains(chosen)
-                ? chosen
-                : selectable.FirstOrDefault();
-            codexState.Options.TryGetValue("shell_tool", out var shellTool);
-            if (model is not null && CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool,
-                    nativeEntries: CodexModelCatalog.ReadNative(_codex.Home)) > 0)
+            if (!states.TryGetValue(profile.Id, out var agentState) || agentState.ConnectedAt is null || !IsConnected(profile))
+                continue;
+
+            if (profile.Kind == CodexRouterConnector.Id)
             {
-                // A subagent or review model that no longer resolves is dropped rather than written
-                // back: Codex would otherwise send a selector this router refuses.
-                var options = codexState.Options
-                    .Where(pair => !IsModelOption(pair.Key) || selectable.Contains(pair.Value))
-                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-                _codex.Apply(OpenAiBaseUrl, key, CatalogPath, model, options);
-                if (!string.Equals(model, codexState.SelectedModel, StringComparison.Ordinal))
+                var codex = Codex(profile);
+                var catalogPath = CatalogPathFor(profile);
+                var selectable = Selectable(snapshot);
+                var model = agentState.SelectedModel is { Length: > 0 } chosen && selectable.Contains(chosen)
+                    ? chosen
+                    : selectable.FirstOrDefault();
+                agentState.Options.TryGetValue("shell_tool", out var shellTool);
+                if (model is not null && CodexModelCatalog.Write(catalogPath, snapshot, shellType: shellTool,
+                        nativeEntries: CodexModelCatalog.ReadNative(codex.Home)) > 0)
                 {
-                    states[CodexRouterConnector.Id] = codexState with { SelectedModel = model };
-                    SaveStates(states);
+                    // A subagent or review model that no longer resolves is dropped rather than written
+                    // back: Codex would otherwise send a selector this router refuses.
+                    var options = agentState.Options
+                        .Where(pair => !IsModelOption(pair.Key) || selectable.Contains(pair.Value))
+                        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+                    codex.Apply(OpenAiBaseUrl, key, catalogPath, model, options);
+                    if (!string.Equals(model, agentState.SelectedModel, StringComparison.Ordinal))
+                    {
+                        states[profile.Id] = agentState with { SelectedModel = model };
+                        SaveStates(states);
+                    }
                 }
             }
-        }
-
-        if (states.TryGetValue(ClaudeCodeRouterConnector.Id, out var claudeState) &&
-            claudeState.ConnectedAt is not null && _claude.IsConnected())
-        {
-            var slots = claudeState.ModelSlots.Count > 0
-                ? claudeState.ModelSlots
-                : new Dictionary<string, string>(StringComparer.Ordinal) { ["default"] = claudeState.SelectedModel ?? "" };
-            _claude.Apply(AnthropicBaseUrl, key, slots, PickerRows(snapshot), claudeState.Options);
+            else
+            {
+                var slots = agentState.ModelSlots.Count > 0
+                    ? agentState.ModelSlots
+                    : new Dictionary<string, string>(StringComparer.Ordinal) { ["default"] = agentState.SelectedModel ?? "" };
+                Claude(profile).Apply(AnthropicBaseUrl, key, slots, PickerRows(snapshot), agentState.Options);
+            }
         }
     }
 
@@ -278,41 +320,51 @@ public sealed class RouterConnectService
         return selectors;
     }
 
-    private RouterAgentInfo Describe(string agentId, RouterSnapshot snapshot, Dictionary<string, RouterAgentState> states)
+    private RouterAgentInfo Describe(RouterAgentProfile profile, RouterSnapshot snapshot, Dictionary<string, RouterAgentState> states)
     {
-        states.TryGetValue(agentId, out var state);
+        states.TryGetValue(profile.Id, out var state);
         var backups = (state?.Backups ?? []).Where(b => File.Exists(b.Path))
             .OrderByDescending(b => b.CreatedAt).ToList();
         var hasModels = Selectable(snapshot).Count > 0;
 
-        if (agentId == CodexRouterConnector.Id)
+        if (profile.Kind == CodexRouterConnector.Id)
         {
-            var connected = _codex.IsConnected();
+            var codex = Codex(profile);
+            var catalogPath = CatalogPathFor(profile);
+            var connected = codex.IsConnected();
             return new RouterAgentInfo(
-                CodexRouterConnector.Id, _codex.DisplayName, _codex.ConfigPath, _codex.Detected, connected,
+                profile.Id, DisplayName(profile), codex.ConfigPath, codex.Detected, connected,
                 connected ? state?.ConnectedAt : null,
                 connected ? state?.SelectedModel : null,
                 new Dictionary<string, string>(StringComparer.Ordinal),
-                CatalogPath, CodexModelCatalog.CountAt(CatalogPath), backups,
-                Blocked(_codex.Detected, hasModels, "Codex", "~/.codex"))
+                catalogPath, CodexModelCatalog.CountAt(catalogPath), backups,
+                Blocked(codex.Detected, hasModels, "Codex", profile.Directory))
             {
+                Kind = profile.Kind,
+                AccountLabel = profile.Label,
                 Options = WithSelectors(CodexRouterConnector.Options, snapshot),
-                OptionValues = connected ? CodexOptionValues(state) : new Dictionary<string, string>(StringComparer.Ordinal)
+                OptionValues = connected ? CodexOptionValues(codex, state) : new Dictionary<string, string>(StringComparer.Ordinal)
             };
         }
 
-        var claudeConnected = _claude.IsConnected();
+        var claude = Claude(profile);
+        var claudeConnected = claude.IsConnected();
         return new RouterAgentInfo(
-            ClaudeCodeRouterConnector.Id, _claude.DisplayName, _claude.ConfigPath, _claude.Detected, claudeConnected,
+            profile.Id, DisplayName(profile), claude.ConfigPath, claude.Detected, claudeConnected,
             claudeConnected ? state?.ConnectedAt : null,
             claudeConnected ? state?.SelectedModel : null,
-            _claude.CurrentSlots(), null, 0, backups,
-            Blocked(_claude.Detected, hasModels, "Claude Code", "~/.claude"))
+            claude.CurrentSlots(), null, 0, backups,
+            Blocked(claude.Detected, hasModels, "Claude Code", profile.Directory))
         {
+            Kind = profile.Kind,
+            AccountLabel = profile.Label,
             Options = WithSelectors(ClaudeCodeRouterConnector.Options, snapshot),
-            OptionValues = claudeConnected ? _claude.CurrentOptions() : new Dictionary<string, string>(StringComparer.Ordinal)
+            OptionValues = claudeConnected ? claude.CurrentOptions() : new Dictionary<string, string>(StringComparer.Ordinal)
         };
     }
+
+    private static bool IsConnected(RouterAgentProfile profile) =>
+        profile.Kind == CodexRouterConnector.Id ? Codex(profile).IsConnected() : Claude(profile).IsConnected();
 
     /// <summary>
     /// The rows added to a host's own model list: one per selector, described well enough that the
@@ -339,9 +391,9 @@ public sealed class RouterConnectService
     /// What the Codex options are set to now. Most are read back from config.toml; the shell tool is
     /// not written there, so it comes from AgentNotify's own record of the last connect.
     /// </summary>
-    private Dictionary<string, string> CodexOptionValues(RouterAgentState? state)
+    private static Dictionary<string, string> CodexOptionValues(CodexRouterConnector codex, RouterAgentState? state)
     {
-        var values = new Dictionary<string, string>(_codex.CurrentOptions(), StringComparer.Ordinal);
+        var values = new Dictionary<string, string>(codex.CurrentOptions(), StringComparer.Ordinal);
         values["shell_tool"] = state is not null && state.Options.TryGetValue("shell_tool", out var shell)
             ? shell
             : CodexModelCatalog.DefaultShellType;
@@ -401,19 +453,15 @@ public sealed class RouterConnectService
         : !hasModels ? "The router has no enabled upstream model to offer yet."
         : null;
 
-    private string ConfigPathFor(string agentId) => agentId switch
-    {
-        CodexRouterConnector.Id => _codex.ConfigPath,
-        ClaudeCodeRouterConnector.Id => _claude.ConfigPath,
-        _ => throw new KeyNotFoundException($"No connector for agent '{agentId}'.")
-    };
+    private static string ConfigPathFor(RouterAgentProfile profile) =>
+        profile.Kind == CodexRouterConnector.Id ? Codex(profile).ConfigPath : Claude(profile).ConfigPath;
 
-    private static string DisplayName(string agentId) => agentId switch
+    /// <summary>"Codex" for the built-in account, "Codex · second" for another.</summary>
+    private static string DisplayName(RouterAgentProfile profile)
     {
-        CodexRouterConnector.Id => "Codex",
-        ClaudeCodeRouterConnector.Id => "Claude Code",
-        _ => agentId
-    };
+        var host = profile.Kind == CodexRouterConnector.Id ? "Codex" : "Claude Code";
+        return profile.IsDefault ? host : $"{host} · {profile.Label}";
+    }
 
     private static void Require(bool condition, string message)
     {

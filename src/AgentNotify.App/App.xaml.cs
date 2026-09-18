@@ -149,12 +149,18 @@ public partial class App : System.Windows.Application
         await _routerRepository.InitializeAsync();
         _routerConfigService = new AgentNotify.Core.Router.RouterConfigService(_routerRepository, secretProtector, _configStore, _config);
         _routerProxy = new AgentNotify.Core.Router.RouterProxy(_routerConfigService, _routerRepository, _logger);
+        _routerProxy.Credentials.ApiAccountKey = _billingService.GetKeyAsync;
         _routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(_routerRepository, _config, TimeProvider.System, _logger);
         _routerPruner.Start();
         _routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
             _routerConfigService,
             System.IO.Path.Combine(_configStore.ConfigDir, "router"),
-            () => _config.Port);
+            () => _config.Port,
+            // Every account Live quota monitors can be connected, not only the built-in profiles.
+            profiles: () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts(
+                AgentNotify.Core.Config.QuotaAccountDefinition.Monitored(_config, AgentNotify.Core.Wsl.WslDiscovery.Default,
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)),
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
         var routerConnect = _routerConnect;
         var routerLogger = _logger;
         _routerConfigService.Changed = () => _ = System.Threading.Tasks.Task.Run(async () =>

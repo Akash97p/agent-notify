@@ -1972,6 +1972,31 @@ its sign-in file nor key minting has met the real service); ChatGPT-plan token r
 OpenAI; a real Codex or Claude Code session through the new providers; narrow-window layout; the
 Windows tray build with these pages.
 
+## One account list across pages (`feature/agent-accounts`, 2026-09-18)
+
+macOS, same toolchain as above. `./scripts/build.sh` (with `-p:EnableWindowsTargeting=true`): 0
+warnings, 0 errors. `./scripts/test.sh`: 1,224 passed, 0 failed (5 new: profiles from the account
+list, a second Codex account connected into its own files, an API-account key reference used and then
+missing, the one-credential-source rule, and a ChatGPT-plan upstream on a second Codex account with the
+model-list fallback).
+
+Live, through the throwaway host over a scratch home holding `.codex`, `.codex-second`, `.claude`, and
+`.claude-second` (the Codex `auth.json` files copied in; no ChatGPT request was sent from it):
+- An OpenRouter key added as an API account was offered on the OpenRouter tile; models were fetched
+  through the `api_account:` reference (445), a provider saved with it stored no key, and one request
+  to `nex-agi/nex-n2.5-mini:free` through it answered.
+- The ChatGPT plan offered both Codex accounts, defaulting to the one not yet added, with the second
+  account's model list taken from the default account's cache.
+- Model router → Agents listed four accounts grouped by host; connecting `codex:home:second` wrote only
+  `.codex-second/config.toml` and `codex-model-catalog-codex-home-second.json`, and the built-in
+  account's file was unchanged.
+- Configuration → Agents listed the four accounts with skill and harness state and `--path` commands
+  for the second profiles; the navigation shows Configuration before Model router. Seen in headless
+  Chrome screenshots.
+
+Not verified: installing a skill or harness into a real second profile from the page; the Windows
+tray build; a second Claude Code account actually running through the router.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

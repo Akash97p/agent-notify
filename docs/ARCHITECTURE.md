@@ -235,6 +235,12 @@ writes another program's file — because rotating its refresh token without doi
 out. Both kinds are unofficial and opt-in. Reading a key OpenCode already holds happens only on an
 explicit request from the owner, and that key is then sealed like one typed in.
 
+**One account list.** Codex and Claude Code accounts — the built-in profiles, discovered ones such as
+`~/.codex-second`, and those added by hand — are defined once, by `QuotaAccountDefinition.Monitored`.
+Live quota, the router's agent connections (`RouterAgentProfile.FromAccounts`), and the notification
+setup page all read it, so there is no second place to register an account. The same holds for keys:
+a router upstream references a key under API accounts (`api_account:<id>`) instead of copying it.
+
 `RouteResolver` is a pure function of one configuration snapshot and the requested model, so a ledger
 row can be explained after the fact. Translation runs through one intermediate request and one stream
 event model, which is what makes every wire pair work from three decoders and three encoders; when the

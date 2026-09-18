@@ -165,6 +165,31 @@ public sealed record QuotaAccountDefinition(string Id, string Provider, string L
         return result;
     }
 
+    /// <summary>
+    /// Every Codex and Claude Code account the owner monitors, in Live quota's order: the built-in
+    /// defaults, discovered profiles, then accounts added by hand, each minus those removed. This is
+    /// the one list every page that deals with "your agents" reads — Live quota, the router's agent
+    /// connections, and the notification setup — so an account added in one place appears in all.
+    /// </summary>
+    public static IReadOnlyList<QuotaAccountDefinition> Monitored(AgentNotifyConfig config, IWslEnvironment? wsl,
+        string? nativeHome)
+    {
+        string? LabelFor(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
+        var removed = config.RemovedQuotaAccounts;
+        var result = new List<QuotaAccountDefinition>();
+        foreach (var provider in new[] { "codex", "claude_code" })
+        {
+            var account = Default(provider, LabelFor(provider));
+            if (!removed.Contains(account.Id)) result.Add(account);
+        }
+        result.AddRange(MonitoredDiscoveredAccounts(wsl, LabelFor, config.QuotaAccounts, removed, nativeHome));
+        result.AddRange(config.QuotaAccounts.Where(account => account.Provider is "codex" or "claude_code"));
+        return result;
+    }
+
+    /// <summary>Whether this account's profile is on this computer's own filesystem rather than inside WSL.</summary>
+    public bool IsNative => !IsWslAccountId(Id) && !(OperatingSystem.IsWindows() && WslPath.TryParse(Directory, out _, out _));
+
     public static string WslAccountId(string provider, string distribution) => provider + ":wsl:" + distribution;
 
     public static string HomeAccountId(string provider, string suffix) => provider + ":home:" + suffix;

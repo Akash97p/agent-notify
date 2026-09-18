@@ -42,9 +42,15 @@ public sealed class RouterCredentialSource
     private readonly RouterConfigService _config;
     private readonly HttpClient _http;
     private readonly TimeProvider _clock;
-    private readonly SemaphoreSlim _codexLock = new(1, 1);
+    private readonly Dictionary<string, SemaphoreSlim> _codexLocks = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _museLock = new(1, 1);
-    private (string Key, DateTimeOffset Expires, string Identity)? _museKey;
+    private readonly Dictionary<string, (string Key, DateTimeOffset Expires, string Identity)> _museKeys = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Opens a key kept under Live quota's API accounts, by account ID; null when that account is gone.
+    /// Set by the host, which owns that list; without it an <c>api_account:</c> reference cannot be used.
+    /// </summary>
+    public Func<string, CancellationToken, Task<string?>>? ApiAccountKey { get; set; }
 
     public RouterCredentialSource(RouterConfigService config, HttpClient http, TimeProvider? clock = null,
         string? codexHome = null, string? museHome = null, string? openCodeAuthPath = null)
@@ -99,39 +105,52 @@ public sealed class RouterCredentialSource
     /// <exception cref="SubscriptionAuthException">A subscription sign-in is missing or cannot be renewed.</exception>
     public async Task<UpstreamCredential> GetAsync(StoredRouterUpstream upstream, bool renew, CancellationToken ct)
     {
+        var profile = RouterCredentialRef.ProfileDirectory(upstream.CredentialRef);
         switch (upstream.Auth)
         {
             case RouterAuth.CodexChatGpt:
-                return await CodexAsync(renew, ct).ConfigureAwait(false);
+                return await CodexAsync(profile ?? CodexHome, renew, ct).ConfigureAwait(false);
             case RouterAuth.MuseCode:
-                return new UpstreamCredential(await MuseKeyAsync(renew, ct).ConfigureAwait(false),
+                return new UpstreamCredential(await MuseKeyAsync(profile ?? MuseHome, renew, ct).ConfigureAwait(false),
                     new Dictionary<string, string>());
             default:
-                var key = _config.DecryptKey(upstream);
+                var key = RouterCredentialRef.ApiAccountId(upstream.CredentialRef) is { } accountId
+                    ? await ApiAccountKeyAsync(accountId, ct).ConfigureAwait(false)
+                    : _config.DecryptKey(upstream);
                 return key is null ? UpstreamCredential.None : new UpstreamCredential(key, new Dictionary<string, string>());
         }
+    }
+
+    /// <summary>The key of one API account; a missing account fails the attempt rather than sending none.</summary>
+    public async Task<string> ApiAccountKeyAsync(string accountId, CancellationToken ct)
+    {
+        if (ApiAccountKey is null)
+            throw new SubscriptionAuthException("API accounts are not available in this host.");
+        return await ApiAccountKey(accountId, ct).ConfigureAwait(false)
+            ?? throw new SubscriptionAuthException("The API account this provider uses was removed. Choose another key.");
     }
 
     /// <summary>
     /// The credential for listing a provider's models before any upstream is saved: the key the
     /// owner just typed, or the subscription sign-in.
     /// </summary>
-    public async Task<UpstreamCredential> GetForAuthAsync(string auth, string? plainKey, CancellationToken ct) => auth switch
+    public async Task<UpstreamCredential> GetForAuthAsync(string auth, string? plainKey, CancellationToken ct,
+        string? profileDirectory = null) => auth switch
     {
-        RouterAuth.CodexChatGpt => await CodexAsync(false, ct).ConfigureAwait(false),
-        RouterAuth.MuseCode => new UpstreamCredential(await MuseKeyAsync(false, ct).ConfigureAwait(false), new Dictionary<string, string>()),
+        RouterAuth.CodexChatGpt => await CodexAsync(profileDirectory ?? CodexHome, false, ct).ConfigureAwait(false),
+        RouterAuth.MuseCode => new UpstreamCredential(await MuseKeyAsync(profileDirectory ?? MuseHome, false, ct).ConfigureAwait(false), new Dictionary<string, string>()),
         _ => string.IsNullOrEmpty(plainKey) ? UpstreamCredential.None : new UpstreamCredential(plainKey, new Dictionary<string, string>())
     };
 
     /// <summary>Whether this computer has the sign-in a subscription kind needs, for the interface.</summary>
-    public (bool Ready, string Detail) Describe(string auth) => auth switch
+    public (bool Ready, string Detail) Describe(string auth, string? profileDirectory = null) => auth switch
     {
-        RouterAuth.CodexChatGpt => ReadCodexAuth() is { } codex
+        RouterAuth.CodexChatGpt => ReadCodexAuth(profileDirectory ?? CodexHome) is { } codex
             ? (true, codex.AccountId is null ? "Signed in to Codex." : "Signed in to Codex with a ChatGPT account.")
             : (false, "Codex is not signed in with a ChatGPT account on this computer. Run 'codex login' first."),
-        RouterAuth.MuseCode => ReadMuseIdentity() is not null
+        RouterAuth.MuseCode => ReadMuseIdentity(profileDirectory ?? MuseHome) is not null
             ? (true, "Signed in to Muse Code.")
-            : (false, $"No Muse Code sign-in was found at {MuseAuthPath}. Run 'muse-code auth login' first."),
+            : (false, $"No Muse Code sign-in was found at {Path.Combine(profileDirectory ?? MuseHome, "auth.json")}. Run 'muse-code auth login' first."),
         _ => (true, "")
     };
 
@@ -139,23 +158,28 @@ public sealed class RouterCredentialSource
 
     internal sealed record CodexAuth(string AccessToken, string? RefreshToken, string? AccountId, DateTimeOffset? Expires);
 
-    private async Task<UpstreamCredential> CodexAsync(bool renew, CancellationToken ct)
+    private async Task<UpstreamCredential> CodexAsync(string home, bool renew, CancellationToken ct)
     {
-        var auth = ReadCodexAuth()
-            ?? throw new SubscriptionAuthException("Codex is not signed in with a ChatGPT account. Run 'codex login'.");
+        var auth = ReadCodexAuth(home)
+            ?? throw new SubscriptionAuthException($"The Codex account at {home} is not signed in with a ChatGPT account. Run 'codex login'.");
         if (renew || auth.Expires is { } expires && expires - RenewAhead <= _clock.GetUtcNow())
         {
-            await _codexLock.WaitAsync(ct).ConfigureAwait(false);
+            SemaphoreSlim gate;
+            lock (_codexLocks)
+            {
+                if (!_codexLocks.TryGetValue(home, out gate!)) _codexLocks[home] = gate = new SemaphoreSlim(1, 1);
+            }
+            await gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 // Codex itself may have renewed while this request waited; use that instead of
                 // spending the refresh token a second time.
-                var current = ReadCodexAuth() ?? auth;
+                var current = ReadCodexAuth(home) ?? auth;
                 auth = current.AccessToken != auth.AccessToken && !IsExpiring(current)
                     ? current
-                    : await RenewCodexAsync(current, ct).ConfigureAwait(false);
+                    : await RenewCodexAsync(home, current, ct).ConfigureAwait(false);
             }
-            finally { _codexLock.Release(); }
+            finally { gate.Release(); }
         }
 
         var headers = new Dictionary<string, string>
@@ -170,12 +194,13 @@ public sealed class RouterCredentialSource
     private bool IsExpiring(CodexAuth auth) =>
         auth.Expires is { } expires && expires - RenewAhead <= _clock.GetUtcNow();
 
-    internal CodexAuth? ReadCodexAuth()
+    internal CodexAuth? ReadCodexAuth(string? home = null)
     {
+        var path = Path.Combine(home ?? CodexHome, "auth.json");
         try
         {
-            if (!File.Exists(CodexAuthPath)) return null;
-            var root = JsonNode.Parse(File.ReadAllText(CodexAuthPath)) as JsonObject;
+            if (!File.Exists(path)) return null;
+            var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
             if (root?["tokens"] is not JsonObject tokens) return null;
             var access = (string?)tokens["access_token"];
             if (string.IsNullOrWhiteSpace(access)) return null;
@@ -187,7 +212,7 @@ public sealed class RouterCredentialSource
         }
     }
 
-    private async Task<CodexAuth> RenewCodexAsync(CodexAuth auth, CancellationToken ct)
+    private async Task<CodexAuth> RenewCodexAsync(string home, CodexAuth auth, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(auth.RefreshToken))
             throw new SubscriptionAuthException("The Codex sign-in has expired. Run 'codex login'.");
@@ -225,25 +250,25 @@ public sealed class RouterCredentialSource
 
         // Write the renewed tokens back the way Codex stores them, so Codex and the router go on
         // sharing one sign-in instead of invalidating each other's refresh token.
-        WriteCodexTokens(access, (string?)result!["refresh_token"], (string?)result["id_token"]);
+        WriteCodexTokens(Path.Combine(home, "auth.json"), access, (string?)result!["refresh_token"], (string?)result["id_token"]);
         return new CodexAuth(access, (string?)result["refresh_token"] ?? auth.RefreshToken, auth.AccountId, JwtExpiry(access));
     }
 
-    private void WriteCodexTokens(string access, string? refresh, string? idToken)
+    private void WriteCodexTokens(string authPath, string access, string? refresh, string? idToken)
     {
         try
         {
-            var root = JsonNode.Parse(File.ReadAllText(CodexAuthPath)) as JsonObject ?? new JsonObject();
+            var root = JsonNode.Parse(File.ReadAllText(authPath)) as JsonObject ?? new JsonObject();
             var tokens = root["tokens"] as JsonObject ?? new JsonObject();
             tokens["access_token"] = access;
             if (!string.IsNullOrWhiteSpace(refresh)) tokens["refresh_token"] = refresh;
             if (!string.IsNullOrWhiteSpace(idToken)) tokens["id_token"] = idToken;
             root["tokens"] = tokens;
             root["last_refresh"] = _clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'");
-            var temp = CodexAuthPath + ".agentnotify.tmp";
+            var temp = authPath + ".agentnotify.tmp";
             File.WriteAllText(temp, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             UnixFilePermissions.RestrictFile(temp);
-            File.Move(temp, CodexAuthPath, overwrite: true);
+            File.Move(temp, authPath, overwrite: true);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -274,12 +299,13 @@ public sealed class RouterCredentialSource
     /// Muse Code's identity token. Its CLI may keep the sign-in in the OS keychain instead of this
     /// file; only the file is read.
     /// </summary>
-    internal string? ReadMuseIdentity()
+    internal string? ReadMuseIdentity(string? home = null)
     {
+        var path = Path.Combine(home ?? MuseHome, "auth.json");
         try
         {
-            if (!File.Exists(MuseAuthPath)) return null;
-            var root = JsonNode.Parse(File.ReadAllText(MuseAuthPath)) as JsonObject;
+            if (!File.Exists(path)) return null;
+            var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
             var token = (string?)root?["access_token"] ?? (string?)root?["accessToken"];
             return string.IsNullOrWhiteSpace(token) ? null : token;
         }
@@ -293,14 +319,14 @@ public sealed class RouterCredentialSource
     /// A subscription Model API key, minted from the Muse Code sign-in the way Muse Code's own CLI
     /// does, and kept in memory only.
     /// </summary>
-    private async Task<string> MuseKeyAsync(bool renew, CancellationToken ct)
+    private async Task<string> MuseKeyAsync(string home, bool renew, CancellationToken ct)
     {
-        var identity = ReadMuseIdentity()
+        var identity = ReadMuseIdentity(home)
             ?? throw new SubscriptionAuthException("Muse Code is not signed in on this computer. Run 'muse-code auth login'.");
         await _museLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (!renew && _museKey is { } cached && cached.Identity == identity && cached.Expires > _clock.GetUtcNow())
+            if (!renew && _museKeys.TryGetValue(home, out var cached) && cached.Identity == identity && cached.Expires > _clock.GetUtcNow())
                 return cached.Key;
 
             using var request = new HttpRequestMessage(HttpMethod.Post, MuseKeyUrl)
@@ -328,7 +354,7 @@ public sealed class RouterCredentialSource
             }
             if (string.IsNullOrWhiteSpace(key))
                 throw new SubscriptionAuthException("Muse Code returned no key. Run 'muse-code auth login'.");
-            _museKey = (key, _clock.GetUtcNow() + MuseKeyLifetime, identity);
+            _museKeys[home] = (key, _clock.GetUtcNow() + MuseKeyLifetime, identity);
             return key;
         }
         finally { _museLock.Release(); }

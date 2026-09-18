@@ -91,6 +91,18 @@ public sealed class BillingService : IDisposable
         return stored.Select(ToPublic).ToList();
     }
 
+    /// <summary>
+    /// The plaintext key of one API account, for another part of the broker that spends through the
+    /// same provider (the model router), so a key is entered and rotated in one place. Null when the
+    /// account no longer exists. Never returned by an endpoint.
+    /// </summary>
+    public async Task<string?> GetKeyAsync(string id, CancellationToken ct = default)
+    {
+        await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        var stored = (await _repository.ListStoredAsync(ct).ConfigureAwait(false)).FirstOrDefault(account => account.Id == id);
+        return stored is null ? null : _protector.Unprotect(stored.EncryptedKey);
+    }
+
     public async Task<BillingAccount> CreateAsync(string? provider, string? label, string? apiKey, CancellationToken ct = default)
     {
         var normalizedProvider = NormalizeProvider(provider);

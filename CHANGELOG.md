@@ -24,8 +24,19 @@ build.
 - In Codex, models from the ChatGPT plan keep Codex's own prompt, context window, and reasoning
   levels, so they behave as they do without the router.
 
+- **One list of agent accounts everywhere.** Second profiles such as `~/.codex-second` and
+  `~/.claude-second` (and any account added under Live quota) now appear on Model router → Agents,
+  where each can be connected on its own, and on Configuration → Agents, which shows each account's
+  skill and hook harness with the exact command for that account.
+- **Providers reuse what AgentNotify already knows.** A key saved under Live quota → API accounts
+  (DeepSeek, Moonshot, SiliconFlow, OpenRouter) can be a provider's key without pasting it again; the
+  provider follows that account when the key changes. The ChatGPT plan can be added once per Codex
+  account, so a second Codex login is a second subscription provider.
+
 ### Changed
 
+- The Configuration pages (Notifications, Sounds, Agents) come before the Model router in the
+  navigation.
 - Routing explains that routes are optional, and calls aliases **nicknames** and combos **fallback
   chains**. Targets and the fallback for unknown models are picked from your providers' models
   instead of typed.

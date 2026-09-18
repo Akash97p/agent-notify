@@ -121,6 +121,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
         await routerRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var routerConfigService = new AgentNotify.Core.Router.RouterConfigService(routerRepository, protector, _configStore, _config);
         var routerProxy = new AgentNotify.Core.Router.RouterProxy(routerConfigService, routerRepository, _logger);
+        // The router spends through the same keys the API accounts list holds, so a key is entered once.
+        routerProxy.Credentials.ApiAccountKey = billingService.GetKeyAsync;
         var routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(routerRepository, _config, TimeProvider.System, _logger);
         routerPruner.Start();
         var routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
@@ -130,7 +132,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
             // The agents' configuration normally lives under the broker user's home. An override
             // exists so a second profile — or a check like the one in VERIFICATION.md — can be
             // pointed at a throwaway home instead of the owner's real Codex and Claude Code setup.
-            Environment.GetEnvironmentVariable("AGENTNOTIFY_AGENT_HOME"));
+            Environment.GetEnvironmentVariable("AGENTNOTIFY_AGENT_HOME"),
+            profiles: AgentProfiles(Environment.GetEnvironmentVariable("AGENTNOTIFY_AGENT_HOME")));
         // A connected agent's generated catalogue and embedded key follow the router's configuration,
         // so they are rewritten whenever it changes rather than going stale until the next connect.
         routerConfigService.Changed = () => _ = Task.Run(async () =>
@@ -308,5 +311,19 @@ public sealed class BrokerRuntime : IAsyncDisposable
 
         _logger.Info("agentnotifyd stopped");
         _logger.Dispose();
+    }
+
+    /// <summary>
+    /// The Codex and Claude Code accounts the router can connect: the same list Live quota monitors, so
+    /// a second account added or discovered there can be connected too. A throwaway agent home (the
+    /// override used for checks) offers only its own two built-in profiles.
+    /// </summary>
+    private Func<IReadOnlyList<AgentNotify.Core.Router.Connect.RouterAgentProfile>> AgentProfiles(string? agentHome)
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(agentHome))
+            return () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts([], agentHome);
+        return () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts(
+            AgentNotify.Core.Config.QuotaAccountDefinition.Monitored(_config, AgentNotify.Core.Wsl.WslDiscovery.Default, home), home);
     }
 }
