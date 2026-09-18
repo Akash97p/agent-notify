@@ -138,6 +138,38 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Treat A2A, both current Agent Event Protocol drafts, and MCP elicitation as optional projections
   after the interaction contract and response model stabilize.
 
+## Provider router
+
+### R01 — Local provider router
+
+- Status: implemented behind `routerEnabled` (off by default) and covered by automated tests;
+  no traffic to a real provider yet, and the Windows tray build has not been compiled with it.
+- Loopback `/router/v1` endpoints for OpenAI Responses, OpenAI Chat Completions, and Anthropic
+  Messages, authenticated with a router-specific key and refused to browsers.
+- Upstreams with sealed keys and validated destinations; aliases and ordered failover combos;
+  translation through one intermediate model with same-wire passthrough.
+- Proxy-observed SQLite ledger with per-attempt rows, kept separate from Usage and Live quota.
+- See [ROUTER.md](ROUTER.md).
+
+### R03 — Routed models in each agent's own picker
+
+- Status: Codex and Claude Code connectors implemented and verified live on macOS with the real
+  agents against a scripted upstream; web page not yet seen in a browser.
+- Codex: generated `model_catalog_json`, provider block with an embedded key, reasoning effort,
+  subagent and review models, and shell tool.
+- Claude Code: `modelPicker` rows with `behavesAs`, and the built-in entries' model variables.
+- A copy before every write, restore of any copy, and disconnect that restores the owner's values.
+- Remaining: OpenCode, Kilo, Cursor, and Gemini CLI connectors; real context windows per model.
+
+### R02 — Policy routing and richer combos
+
+- Score candidates on capability, health, quota, cost, and latency evidence (`policy/<id>`), with a
+  bounded, redacted decision trace.
+- Weighted round-robin, weighted random, least-used, and reset-window combo strategies.
+- Pin a Codex account pool; add Gemini and Ollama-native wires.
+- Price ledger rows and correlate them with log-derived Usage records without double counting.
+- Raise router spend and quota thresholds as ARC attention requests.
+
 ## Product and platform tasks
 
 - Local usage: read-only Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI token,

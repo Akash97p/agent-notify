@@ -1792,6 +1792,117 @@ pushed with `dev`; `main` was then fast-forwarded to `dev` at `8d405bd`. GitHub 
 Not verified: the published installer has not been downloaded and installed, and the hosted build's
 checksum was not compared with the local one (hosted and local builds are not byte-identical).
 
+## Provider router (`feature/provider-router`, 2026-09-17)
+
+Automated: the full suite passes on this MacBook (macOS 26.6.2, .NET SDK 10.0.401, run through
+`scripts/test.sh` with `AGENTNOTIFY_DOTNET_EXE` pointing at `~/.dotnet/dotnet`) — **1,185 passed, 0
+failed, 0 skipped**, up from 1,050 before the branch. The new tests cover the repository and
+configuration service, route resolution precedence, base-URL destination rules, all three request
+decoders and encoders, the three SSE parsers fed byte-by-byte and whole, the three stream writers
+round-tripped through their own parsers, non-streaming translation for every wire, failover,
+cooldowns, `Retry-After`, mid-stream failures, and the loopback/auth/CSRF guards on `/router/v1`.
+
+Live end-to-end on this machine, with `agentnotifyd` on port 47822 and a scripted fake
+chat-completions upstream:
+
+- A Codex-shaped streaming `POST /router/v1/responses` against `combo/coding`, whose first target was
+  a port with nothing listening. The router recorded `connection_error` for attempt 0, failed over to
+  attempt 1, and returned a well-formed Responses stream: `response.created`, `in_progress`, a message
+  item with two `output_text.delta`s, then a `function_call` item with streamed arguments, then
+  `response.completed`. The upstream received translated Chat Completions: `system` from
+  `instructions`, the prior `function_call`/`function_call_output` pair as an assistant `tool_calls`
+  message plus a `tool` message, the Codex `custom` `apply_patch` tool rewritten as a function with a
+  single `input` string property, the `web_search` built-in dropped, `stream_options.include_usage`
+  set, and `Authorization: Bearer` carrying the stored upstream key.
+- A Claude-Code-shaped streaming `POST /router/v1/messages` over the same chat upstream produced
+  `message_start`, two content blocks (text, then tool use), `message_delta` with
+  `stop_reason: tool_use` and `usage.output_tokens`, and `message_stop`.
+- A non-streaming Anthropic request returned a `message` with `usage.input_tokens` converted back to
+  Anthropic's exclusive convention.
+- `POST /router/v1/messages/count_tokens` against a chat upstream returned `404 not_supported`.
+- Guards: no key `401`, wrong key `401`, a browser `Origin` header `403`, a foreign `Host` header
+  `421`, an unknown model `404 unknown_model`. The management API's `GET /ui/api/router` response
+  contained neither the router key nor the stored upstream key.
+- The ledger row for the failover request recorded `combo` → `coding`, final upstream `fake`, status
+  200, `ok`, 42 input / 8 cached / 7 output tokens, `reported`, with both attempts and their
+  durations.
+
+**That live run found a real defect**: OpenAI-compatible providers send the `finish_reason` chunk
+before the final usage-only chunk, and the stream writers were emitting their terminal frame on the
+finish event, so `response.completed` went out with no `usage` at all — Codex would have shown no
+token counts, even though the ledger had them. Terminal frames are now emitted from a separate
+`Complete()` call after the parser drains, and four tests pin the late-usage ordering for all three
+wires. The captured `response.completed` after the fix carries
+`{input_tokens: 42, input_tokens_details.cached_tokens: 8, output_tokens: 7, total_tokens: 49}`.
+
+Not verified:
+
+- **No request has been sent to a real provider.** Every upstream in these runs was a local script.
+  DeepSeek, OpenRouter, Kimi, Z.ai, Groq, Ollama, and the OpenAI/Anthropic passthrough paths are
+  unproven against the real services, as are their rate-limit and error shapes.
+- **No real agent has been pointed at the router.** Codex and Claude Code were imitated by scripted
+  requests; neither has run a session through it.
+- **The Router web page has not been seen by anyone.** Its module and the whole front end parse, the
+  asset is served, the page calls only the endpoints that exist, and it uses no `innerHTML` — but the
+  browser extension was unavailable in this session, so nothing was rendered or clicked.
+- **The Windows tray build has not been compiled with the router.** `App.xaml.cs` was edited but WPF
+  cannot be built on macOS; only the portable host and CLI were built here.
+- Cancellation, the 300-second idle timeout, and the 32 MiB body limit were exercised only by unit
+  tests, not against a real slow provider.
+
+## Routed models in the agents' own pickers (`feature/router-agent-connect`, 2026-09-18)
+
+**How Codex and Claude Code expose a model list was established against the installed binaries,**
+not assumed. Codex 0.154.0 validates its `model_catalog_json` file at config load, so feeding
+`codex app-server` candidate files and reading its parse errors gave the exact required entry fields
+(`slug`, `display_name`, `supported_reasoning_levels`, `shell_type`, `visibility`, `supported_in_api`,
+`priority`, `support_verbosity`, `truncation_policy` as an object, `experimental_supported_tools`,
+`model_messages`, and `base_instructions`), the accepted `shell_type` values (`default`, `local`,
+`shell_command`, `unified_exec`, `disabled`), that `combo/…` and alias slugs are accepted, and that
+`default_subagent_model`, `default_subagent_reasoning_effort`, `review_model`, and
+`model_reasoning_effort` load. Codex's provider block accepts `experimental_bearer_token`. Claude Code
+2.1.275 reads `ANTHROPIC_DEFAULT_OPUS/SONNET/HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL`, and its
+settings schema defines `modelPicker: {options: [{model, label, description, behavesAs}],
+replaceBuiltInOptions}`.
+
+Automated: **1,203 passed, 0 failed** on this MacBook, including 17 connector tests covering managed
+regions, duplicate-key avoidance, restoring the owner's values, JSON merging, the picker rows, refusal
+of invalid JSON and unknown selectors, the catalogue refresh after router changes, and restoring kept
+copies.
+
+**Live, with the real agents** — `agentnotifyd` on port 47823 with `AGENTNOTIFY_AGENT_HOME` pointed at
+a throwaway home holding a Codex `config.toml` (own model, effort, approval policy, a project table)
+and a Claude Code `settings.json` (own model and env), and a scripted chat-completions upstream:
+
+- Connecting both through `POST /ui/api/router/agents/{id}/connect` wrote the managed regions, the
+  catalogue, the subagent/review/effort keys, the Claude `modelPicker` rows and `env` block, and kept a
+  copy of each file first.
+- `codex doctor` with that `CODEX_HOME` reported `config.toml parse ok` and `model coding · agentnotify`.
+- `codex exec` ran a whole agent turn through the router: `model: coding`, `provider: agentnotify`.
+  The routed model's streamed text reached Codex, its tool call came back through translation, and
+  **Codex executed it** (`/bin/zsh -lc 'echo routed-through-agentnotify'` — succeeded), sent the
+  result back through the router, and finished with the model's final text.
+- `claude -p … --model fake/fake-model-a` with that `CLAUDE_CONFIG_DIR` ran through the router with no
+  login: three upstream requests, and one of them used the model mapped to the background slot, which
+  shows the slot mapping takes effect. No unknown-model warning appeared once `behavesAs` was set.
+- The ledger showed both wires, `openai_responses` from Codex and `anthropic_messages` from Claude
+  Code, all `200 ok`.
+- Disconnecting both restored Codex's own `model`, `model_reasoning_effort`, and provider
+  (`codex doctor`: `gpt-5.6-luna · openai`, parse ok) and removed every managed key from Claude
+  Code's settings while keeping the owner's own `env` entry.
+
+**That live run found four defects, all fixed with tests:** the owner's own `model = …` was left
+beside the managed one, which TOML rejects, so Codex would not have started; the web API dropped the
+subagent/effort options in both directions; unmanaged keys the owner set were being commented out;
+and a Responses turn's text and tool call reached Chat providers as two consecutive assistant
+messages, which some providers reject. Claude Code also printed an unknown-model warning for routed
+selectors, which is why the `modelPicker` rows now carry `behavesAs`.
+
+Not verified: the Agents page itself has not been seen in a browser (the extension was unavailable),
+no real provider was involved, only macOS was used, and the Windows tray build was not compiled.
+Claude Code rewrote its own `model` setting to `opus[1m]` during the run — its doing, not AgentNotify's,
+but a reminder that the host edits these files too.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
@@ -1805,6 +1916,8 @@ These need the repository owner and a real machine; nothing in CI can close them
 - API accounts against real OpenAI and Anthropic Admin keys, Kimi, SiliconFlow, and OpenRouter; only
   DeepSeek has been checked with a real key.
 - Apple Silicon and `terminal-notifier` on macOS remain unobserved.
+- The provider router against a real provider, driven by a real Codex or Claude Code session, and its
+  web page seen in a browser; also a Windows build of the tray app including it.
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,
   and record their provenance in `THIRD_PARTY_NOTICES.md`.

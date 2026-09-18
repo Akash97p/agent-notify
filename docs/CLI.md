@@ -25,7 +25,7 @@ agentnotify --version
 ```
 
 When no command is given the usage text is printed and the process exits `0`. Known commands include
-`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `ui`, `interactions`,
+`send`, `list`, `get`, `resolve`, `dismiss`, `health`, `relay`, `token`, `router`, `ui`, `interactions`,
 `install-skill`, `install-harness`, `install`, `help`, and `--version`. An unknown first argument is
 treated as a positional `send` invocation.
 
@@ -301,6 +301,39 @@ Examples:
 agentnotify relay pair --url https://relay.example.com --name "Home relay"
 agentnotify relay pair --url http://localhost:4000 --allow-private --json
 agentnotify relay status
+```
+
+### `router` — the local provider router
+
+```text
+agentnotify router status
+agentnotify router key
+agentnotify router agents
+agentnotify router connect <codex|claude_code> [--model <selector>]
+agentnotify router disconnect <codex|claude_code>
+```
+
+`status` and `key` read the local configuration file directly, like `token`, and make no network
+call. `agents`, `connect`, and `disconnect` ask the running broker, because it owns the router key and
+the generated model catalogue; they fail with a clear message when AgentNotify is not running.
+
+`router connect` writes the agent's own configuration so its model picker lists every routed model,
+after copying the file. `--model` picks the selector it starts on (a route name, `combo/<name>`, or
+`provider/model`); without it the first selectable model is used. Subagent, review, and effort
+settings are on the web interface's Model router → Agents page. `router disconnect` puts the agent's
+own settings back.
+
+`router key` prints the key an agent authenticates to the router with, as
+`Authorization: Bearer <key>` or `x-api-key: <key>`. When the router has never been turned on there
+is no key: the command writes an explanation to stderr and exits non-zero.
+
+`router status` prints whether the router is on and the two base URLs to configure an agent with —
+`/router/v1` for Codex and other OpenAI-compatible clients, and `/router` for Claude Code, which
+appends `/v1/messages` itself.
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:47821/router
+export ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"
 ```
 
 ### `install-skill` — install the bundled agent skill

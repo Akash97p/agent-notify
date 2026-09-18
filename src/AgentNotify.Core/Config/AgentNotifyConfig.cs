@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using AgentNotify.Protocol;
 
 namespace AgentNotify.Core.Config;
@@ -62,6 +63,27 @@ public sealed class AgentNotifyConfig
 
     /// <summary>Owner-chosen labels for the built-in Codex and Claude profiles.</summary>
     public Dictionary<string, string> DefaultQuotaAccountLabels { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>Router: whether the provider proxy is enabled.</summary>
+    public bool RouterEnabled { get; set; }
+
+    /// <summary>Router: bearer key for /router/v1 (anr_...).</summary>
+    public string RouterKey { get; set; } = "";
+
+    /// <summary>Router: per-request body limit for proxied requests.</summary>
+    public long RouterMaxRequestBodyBytes { get; set; } = 32 * 1024 * 1024;
+
+    /// <summary>Router: ledger retention in days.</summary>
+    public int RouterLedgerRetentionDays { get; set; } = 30;
+
+    public static string GenerateRouterKey()
+    {
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+        return "anr_" + token;
+    }
 
     /// <summary>The day of the month (1–31) the owner's OpenCode Go plan renews, when they set it.</summary>
     public int? OpenCodeGoRenewalDay { get; set; }
@@ -162,6 +184,10 @@ public sealed class AgentNotifyConfig
             def.DurationSeconds = Math.Clamp(def.DurationSeconds, 0, 86400);
             return true;
         }).ToList();
+        RouterKey ??= "";
+        RouterKey = RouterKey.Trim();
+        RouterMaxRequestBodyBytes = Math.Clamp(RouterMaxRequestBodyBytes, 1 * 1024 * 1024, 128 * 1024 * 1024);
+        RouterLedgerRetentionDays = Math.Clamp(RouterLedgerRetentionDays, 1, 365);
     }
 
     private static bool IsHexColor(string? value) => value is { Length: 7 } && value[0] == '#' &&

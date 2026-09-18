@@ -11,6 +11,53 @@ build.
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] - 2026-09-18
+
+This release adds a local model router. AgentNotify can now sit between your coding agents and the
+model providers you pay for: Codex and Claude Code can run on DeepSeek, OpenRouter, Kimi, Z.ai, Groq,
+or a model on your own machine, pick those models from their own `/model` menus, and fail over to
+another provider when one is rate-limited or down. It is off until you turn it on, and nothing else in
+AgentNotify changes when it is off. The minor version moves to 0.2 because this is a new capability
+rather than a refinement of the notification broker.
+
+Not yet exercised against a real provider: every live check so far used a local stand-in upstream,
+with the real Codex and Claude Code clients. Treat provider-specific behaviour as unproven.
+
+### Added
+
+- **Provider router (opt-in, off by default).** The broker can act as a local proxy for coding
+  agents: point Codex, Claude Code, or any OpenAI-compatible client at `http://127.0.0.1:<port>/router`
+  and the router picks the upstream provider and model for each request. It speaks OpenAI Responses,
+  OpenAI Chat Completions, and Anthropic Messages on both sides and translates between them, so Codex
+  can run on DeepSeek, OpenRouter, Kimi, Z.ai, or a local Ollama model, and Claude Code can run on an
+  OpenAI-compatible provider. A same-wire request is passed through untouched apart from the model
+  name. Model selectors are `provider/model`, an alias, `combo/<name>`, a bare model declared by one
+  upstream, or the default route. A combo tries its targets in order and fails over on a connection
+  error, timeout, 408, 429, 5xx, or 529 — but never once a byte has reached the client, because a
+  half-delivered stream cannot be resent. Failed targets cool down, honoring `Retry-After`.
+  Upstream keys are encrypted with the same protector as channel secrets, only travel to their own
+  validated `https` destination (plain `http` only for a model server on this computer), and never
+  appear in any response, log, or ledger row. The router has its own key, separate from the `/v1`
+  bearer token, so an agent's config file holds a credential that can spend money but cannot read
+  notifications; requests carrying a browser `Origin` are refused. Every request and every physical
+  attempt is recorded in SQLite with token counts and outcome, pruned after 30 days. See
+  [docs/ROUTER.md](docs/ROUTER.md).
+- **Router page** in the web interface: the on/off switch, a one-time key reveal, copyable Codex and
+  Claude Code setup snippets, upstream and route management, the default route, and the request
+  ledger with per-attempt detail. The router ledger is kept visibly separate from the Usage page:
+  they observe the same calls from different sides and must not be added together.
+- **Routed models in the agents' own `/model` menus.** One Connect button (or
+  `agentnotify router connect codex|claude_code`) writes that agent's configuration so every routed
+  model, alias, and combo appears in the picker it already has. Codex gets a generated model catalogue
+  and a provider block carrying the router key; its reasoning effort, subagent model and effort,
+  review model, and shell tool are set from the same page. Claude Code gets rows in its `/model`
+  picker that declare which known model each behaves as, plus its Opus, Sonnet, Haiku, and background
+  entries pointed wherever you choose. Every write copies the file first, the Agents page lists those
+  copies and restores any of them, and Disconnect puts your own settings back. Verified live: real
+  Codex executed a tool call through the router, and real Claude Code answered through it.
+- The router's pages now sit together under **Model router**: Providers, Routing, Agents, Activity.
+- `agentnotify router key`, `status`, `agents`, `connect`, and `disconnect`.
+
 ## [0.1.0-alpha.4] - 2026-09-17
 
 This release is mostly about seeing where coding-agent time and money go on a Windows machine whose

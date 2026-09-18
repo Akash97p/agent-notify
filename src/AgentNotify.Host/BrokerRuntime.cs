@@ -34,6 +34,11 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private InteractionResponsePoller? _interactionResponsePoller;
     private IReadOnlyList<IOutboundChannelAdapter>? _adapters;
     private AgentNotify.Core.Billing.BillingService? _billingService;
+    private AgentNotify.Core.Router.RouterRepository? _routerRepository;
+    private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
+    private AgentNotify.Core.Router.RouterProxy? _routerProxy;
+    private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
+    private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
     private WebApplication? _api;
 
     private BrokerRuntime(
@@ -112,6 +117,33 @@ public sealed class BrokerRuntime : IAsyncDisposable
         var billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, protector);
         _billingService = billingService;
 
+        var routerRepository = new AgentNotify.Core.Router.RouterRepository(_configStore.DbPath);
+        await routerRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var routerConfigService = new AgentNotify.Core.Router.RouterConfigService(routerRepository, protector, _configStore, _config);
+        var routerProxy = new AgentNotify.Core.Router.RouterProxy(routerConfigService, routerRepository, _logger);
+        var routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(routerRepository, _config, TimeProvider.System, _logger);
+        routerPruner.Start();
+        var routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
+            routerConfigService,
+            Path.Combine(_configStore.ConfigDir, "router"),
+            () => _config.Port,
+            // The agents' configuration normally lives under the broker user's home. An override
+            // exists so a second profile — or a check like the one in VERIFICATION.md — can be
+            // pointed at a throwaway home instead of the owner's real Codex and Claude Code setup.
+            Environment.GetEnvironmentVariable("AGENTNOTIFY_AGENT_HOME"));
+        // A connected agent's generated catalogue and embedded key follow the router's configuration,
+        // so they are rewritten whenever it changes rather than going stale until the next connect.
+        routerConfigService.Changed = () => _ = Task.Run(async () =>
+        {
+            try { await routerConnect.RefreshAsync().ConfigureAwait(false); }
+            catch (Exception exception) { _logger.Warn($"Refreshing connected agents failed: {exception.Message}"); }
+        });
+        _routerRepository = routerRepository;
+        _routerConfigService = routerConfigService;
+        _routerProxy = routerProxy;
+        _routerPruner = routerPruner;
+        _routerConnect = routerConnect;
+
         var profiles = new ProviderProfileService(_deliveryRepository, protector);
         _adapters = ChannelAdapterFactory.CreateAll();
         _dispatcher = new DeliveryDispatcher(_deliveryRepository, profiles, _adapters, _logger);
@@ -148,6 +180,9 @@ public sealed class BrokerRuntime : IAsyncDisposable
             Routes = new DeliveryRouteService(_deliveryRepository),
             Dispatcher = _dispatcher,
             Billing = billingService,
+            Router = routerProxy,
+            RouterConfig = routerConfigService,
+            RouterConnect = routerConnect,
             SecretProtection = protection.Description,
             DesktopSurface = DesktopSurfaceName(_notifier.Name),
             // Toast placement and sounds belong to the Windows tray app; the portable broker hands
@@ -268,6 +303,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
         }
 
         try { _billingService?.Dispose(); } catch { }
+        try { _routerPruner?.Dispose(); } catch { }
+        try { _routerProxy?.Dispose(); } catch { }
 
         _logger.Info("agentnotifyd stopped");
         _logger.Dispose();

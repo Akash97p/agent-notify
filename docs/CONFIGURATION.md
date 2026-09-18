@@ -62,6 +62,10 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `quotaAccounts` | `array` | `[]` | Additional named Codex/Claude Code profile directories shown in Live quota. Each entry has an AgentNotify-generated `id`, `provider`, `label`, and absolute `directory` under the user's home folder; no credentials are stored. Their session logs are also read by Usage. Add, edit, and remove through Live quota, up to 16 extras. |
 | `defaultQuotaAccountLabels` | `object` | `{}` | Optional owner-chosen display labels for the built-in `codex` and `claude_code` profiles and discovered WSL and secondary profiles (`codex:wsl:<distribution>`, `codex:home:<name>`, `codex:wsl:<distribution>:<name>`, and the `claude_code` equivalents). Values are trimmed to 1–60 printable characters; unknown keys and invalid labels are removed. Editable through Live quota → Manage accounts. |
 | `openCodeGoRenewalDay` | `int?` | `null` | Day of the month (1–31) the OpenCode Go plan renews. When set, the OpenCode Go monthly estimate counts the current billing cycle instead of the last 30 days. Other values are dropped. Editable through Live quota → OpenCode Go. |
+| `routerEnabled` | `bool` | `false` | Whether the provider router accepts requests on `/router/v1`. While `false` every router request is refused with `404 router_disabled` and no provider is ever contacted. Editable through the web interface → Router. See [ROUTER.md](ROUTER.md). |
+| `routerKey` | `string` | `""` | The key an agent authenticates to the router with, as `Authorization: Bearer` or `x-api-key`. Generated when the router is first enabled, replaceable from the Router page, and printed by `agentnotify router key`. It is not the `/v1` bearer token and grants no access to notifications or configuration. |
+| `routerMaxRequestBodyBytes` | `long` | `33554432` (32 MiB) | Per-request body limit for `/router/v1` routes only, clamped to 1 MiB–128 MiB. Agent requests carry whole conversations, so the 64 KiB `maxRequestBodyBytes` limit does not apply to them. Not editable in the interface. |
+| `routerLedgerRetentionDays` | `int` | `30` | How long router request and attempt rows are kept, clamped to 1–365. Older rows are pruned when the broker starts and once a day. Not editable in the interface. |
 | `removedQuotaAccounts` | `array` | `[]` | IDs of built-in (`codex:default`, `claude_code:default`) or discovered accounts (WSL defaults and native/WSL secondary profiles) removed from Live quota. Other values and duplicates are dropped. Removed and restored through Live quota → Manage accounts. |
 
 ### Toast duration defaults
@@ -105,6 +109,13 @@ File resolution uses `ManagedSoundStore.Resolve` against `%LOCALAPPDATA%\AgentNo
 Files imported through Settings → Sounds are validated by `ManagedSoundStore.Import` (`src/AgentNotify.Core/Services/ManagedSoundStore.cs`): must be `.wav`/`.mp3`, `1 byte–10 MB`, copied with a content-addressed safe name `{safeBase}-{hash16}{ext}` where `safeBase` is sanitized to `[A-Za-z0-9_-]` (max 40). Built-in tones (`chime.wav`, `ping.wav`, `alert.wav`, `knock.wav`) are seeded idempotently from embedded resources.
 
 ---
+
+### Agent home override
+
+`AGENTNOTIFY_AGENT_HOME`, when set in the environment of `agentnotifyd`, is the home directory the
+router's agent connectors look under for `.codex/` and `.claude/`, instead of the broker user's own.
+It exists so a second agent profile — or a verification run — can be connected without touching the
+owner's real Codex and Claude Code configuration. It is read at broker start.
 
 ## Custom notification types
 
@@ -161,5 +172,6 @@ These properties have no control in the Settings window and are edited by editin
 
 - `authToken` — generated and shown only via `agentnotify token` or the file itself.
 - `apiVersion` — read-only.
-- `maxRequestBodyBytes`, `rateLimitPerSecond`, `maxMetadataBytes` — code defaults and file edits only.
+- `maxRequestBodyBytes`, `rateLimitPerSecond`, `maxMetadataBytes`, `routerMaxRequestBodyBytes`,
+  `routerLedgerRetentionDays` — code defaults and file edits only.
 - `launchAtStartup` — toggled from the tray menu (registry is the source of truth; reconciled to the file on startup).

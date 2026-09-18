@@ -31,6 +31,11 @@ public partial class App : System.Windows.Application
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
     private AgentNotify.Core.Billing.BillingService? _billingService;
+    private AgentNotify.Core.Router.RouterRepository? _routerRepository;
+    private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
+    private AgentNotify.Core.Router.RouterProxy? _routerProxy;
+    private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
+    private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
     private DeliveryDispatcher? _deliveryDispatcher;
     private AgentNotify.Api.WebUi.WebUiOptions? _webUi;
     private InteractionResponsePoller? _interactionResponsePoller;
@@ -140,6 +145,23 @@ public partial class App : System.Windows.Application
         var billingRepository = new AgentNotify.Core.Billing.BillingAccountRepository(_configStore.DbPath);
         await billingRepository.InitializeAsync();
         _billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, secretProtector);
+        _routerRepository = new AgentNotify.Core.Router.RouterRepository(_configStore.DbPath);
+        await _routerRepository.InitializeAsync();
+        _routerConfigService = new AgentNotify.Core.Router.RouterConfigService(_routerRepository, secretProtector, _configStore, _config);
+        _routerProxy = new AgentNotify.Core.Router.RouterProxy(_routerConfigService, _routerRepository, _logger);
+        _routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(_routerRepository, _config, TimeProvider.System, _logger);
+        _routerPruner.Start();
+        _routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
+            _routerConfigService,
+            System.IO.Path.Combine(_configStore.ConfigDir, "router"),
+            () => _config.Port);
+        var routerConnect = _routerConnect;
+        var routerLogger = _logger;
+        _routerConfigService.Changed = () => _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try { await routerConnect.RefreshAsync(); }
+            catch (Exception exception) { routerLogger.Warn($"Refreshing connected agents failed: {exception.Message}"); }
+        });
         _providerProfiles = new ProviderProfileService(_deliveryRepository, secretProtector);
         _deliveryRoutes = new DeliveryRouteService(_deliveryRepository);
         _channelAdapters = ChannelAdapterFactory.CreateAll();
@@ -194,6 +216,9 @@ public partial class App : System.Windows.Application
             Routes = _deliveryRoutes,
             Dispatcher = _deliveryDispatcher,
             Billing = _billingService,
+            Router = _routerProxy,
+            RouterConfig = _routerConfigService,
+            RouterConnect = _routerConnect,
             SecretProtection = secretProtection.Description,
             DesktopSurface = "the AgentNotify tray app",
             SupportsToastPlacement = true,
@@ -387,6 +412,8 @@ public partial class App : System.Windows.Application
             foreach (var adapter in _channelAdapters)
                 try { (adapter as IDisposable)?.Dispose(); } catch { }
         try { _billingService?.Dispose(); } catch { }
+        try { _routerPruner?.Dispose(); } catch { }
+        try { _routerProxy?.Dispose(); } catch { }
         _logger?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
