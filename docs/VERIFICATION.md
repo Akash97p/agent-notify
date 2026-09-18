@@ -2074,6 +2074,16 @@ Not verified: smart failover to a provider on a stored API key (the keychain rea
 `429` from a real provider triggering it; the Providers page's ChatGPT form seen after the account
 picker was removed; the Windows tray build.
 
+## Agent install prompt (`docs/agent-install-prompt`, 2026-09-18)
+
+`docs/INSTALL_WITH_AGENT.md` was followed by a real Claude Code (`claude -p`, 2.1.276) on the owner's
+Intel Mac, where v0.2.0-alpha.2 was already installed from the published release (install script,
+checksum verified, re-signed, launchd agent restarted). It found the install current, skipped
+reinstalling, ran every check, and ended with the checklist: broker, CLI, test notification, web
+interface, skill, four agent accounts, usage, live quota (one Claude account needing sign-in shown as
+❌), router, and Relay. It then listed next steps that were already done, so the prompt now asks for
+only the ones not yet set up. Not run: a fresh install on a clean macOS, Linux, or Windows machine.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

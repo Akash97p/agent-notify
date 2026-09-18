@@ -98,6 +98,19 @@ On Windows, additionally:
 
 ## Install
 
+### Let your coding agent install it
+
+Paste this into Claude Code, Codex, OpenCode, or any agent with a terminal. It installs AgentNotify
+for your platform, starts it, installs its skill for that agent, checks every feature, and ends with a
+✅/❌ checklist of what works:
+
+```text
+Install AgentNotify on this computer: fetch and follow https://raw.githubusercontent.com/Akash97p/agent-notify/main/docs/INSTALL_WITH_AGENT.md step by step, then show me the checklist it asks for.
+```
+
+The full instructions it follows are in [docs/INSTALL_WITH_AGENT.md](docs/INSTALL_WITH_AGENT.md), if
+you'd rather read them first or do it by hand.
+
 ### Windows
 
 The distributable is [AgentNotifySetup.exe](artifacts/AgentNotifySetup.exe). Copy that one file to a Windows 11 machine and run it; no separate .NET runtime is required.
