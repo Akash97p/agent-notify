@@ -1903,6 +1903,31 @@ no real provider was involved, only macOS was used, and the Windows tray build w
 Claude Code rewrote its own `model` setting to `opus[1m]` during the run — its doing, not AgentNotify's,
 but a reminder that the host edits these files too.
 
+## v0.2.0-alpha.1 release (2026-09-18)
+
+Tagged `v0.2.0-alpha.1` on `main` at `9400931` (`merge: release v0.2.0-alpha.1 to main`) and pushed
+with `dev`. The minor version moved from the 0.1 alpha series to 0.2 because the provider router is a
+new capability. Before tagging, the full suite passed on macOS (1,203 passed, 0 failed) and the CLI
+reported `agentnotify 0.2.0-alpha.1`; local Windows packaging was not run on this Mac, so the hosted
+workflow is the only build of the installer.
+
+- Release run [35306674488](https://github.com/Akash97p/agent-notify/actions/runs/35306674488)
+  succeeded and published the
+  [prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.2.0-alpha.1) at
+  2026-09-18T04:25:49Z with `AgentNotifySetup.exe`, `SHA256SUMS.txt`, `SKILL.md`,
+  `agentnotify-win-x64.zip`, `agentnotify-{linux,osx}-{x64,arm64}.tar.gz`, and
+  `SHA256SUMS-portable.txt`.
+- **Installed on the owner's Intel MacBook from the published release**, replacing
+  `0.1.0-alpha.2`: the broker's launchd job was stopped, `scripts/install.sh` with
+  `AGENTNOTIFY_VERSION=v0.2.0-alpha.1` downloaded `agentnotify-osx-x64.tar.gz` and verified its
+  checksum, and the job was started again. `agentnotify --version`, `agentnotifyd --version`, and
+  `/v1/health` all report `0.2.0-alpha.1`; the 139 existing active notifications were still there;
+  the router answers `404 router_disabled` until it is turned on; the four Model router pages are
+  served; and both Codex and Claude Code are detected, waiting only for an upstream to be added.
+
+Not verified: the Windows installer from this release has not been installed, and nothing has been
+routed through the installed broker yet.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
