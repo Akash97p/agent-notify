@@ -38,7 +38,7 @@ OpenAI wires, `{"type":"error","error":{"type","message"}}` for Anthropic) so th
 The `code` is one of a fixed set — `router_disabled`, `unauthorized`, `forbidden`,
 `host_not_loopback`, `payload_too_large`, `invalid_request`, `missing_model`, `unknown_model`,
 `ambiguous_model`, `no_enabled_target`, `unsupported_previous_response_id`, `not_supported`,
-`provider_key_unreadable`, `rate_limited`, `timeout`, `connection_error`, `client_error`,
+`provider_key_unreadable`, `subscription_signed_out`, `rate_limited`, `timeout`, `connection_error`, `client_error`,
 `upstream_error`, `all_targets_unavailable` — and never a provider's own message.
 
 ## Configuration and storage
@@ -51,8 +51,11 @@ SQLite holds everything else, in tables created idempotently by `RouterRepositor
 
 - **`router_upstreams`** — `id`, `slug` (unique, `[a-z0-9][a-z0-9-]{0,31}`, the `provider` part of
   `provider/model`), `label`, `wire` (`openai_responses | openai_chat | anthropic_messages`),
-  `base_url`, `encrypted_key` (nullable: local servers need none), `models` (JSON array of native model
-  IDs the owner declared), `enabled`, timestamps. Keys are sealed with the broker's `ISecretProtector`
+  `base_url`, `encrypted_key` (nullable: local servers and subscriptions need none), `models` (JSON
+  array of up to 500 native model IDs the owner declared), `enabled`, timestamps, `auth`
+  (`api_key | codex_chatgpt | muse_code`, default `api_key`), and `model_wires` (nullable JSON object
+  of model ID → wire, for a provider that serves some models over a different wire than its own). The
+  last two columns are added to an older database in place. Keys are sealed with the broker's `ISecretProtector`
   before storage, decrypted only while building an upstream request, and never returned, logged, or
   put in the ledger — the same rules as API accounts.
 - **`router_routes`** — `id`, `name` (unique), `kind` (`alias | combo`), `targets` (JSON ordered array
@@ -74,22 +77,80 @@ The ledger never stores prompts, responses, headers, keys, or provider error bod
 
 ### Upstream presets
 
-`RouterPresetCatalog` offers presets that fill `wire` and `base_url`; the owner can still enter any
-base URL. `base_url` is the prefix the wire path is appended to (`/responses`, `/chat/completions`,
-`/messages`):
+`RouterPresetCatalog` offers presets that fill everything except the key: slug, label, wire, base URL,
+how the upstream authenticates, and which wire each model family uses. The owner can still enter any
+base URL as a custom provider. `base_url` is the prefix the wire path is appended to (`/responses`,
+`/chat/completions`, `/messages`):
 
-| Preset | Wire | Base URL |
-| --- | --- | --- |
-| OpenAI | `openai_responses` | `https://api.openai.com/v1` |
-| Anthropic | `anthropic_messages` | `https://api.anthropic.com/v1` |
-| OpenRouter | `openai_chat` | `https://openrouter.ai/api/v1` |
-| DeepSeek | `openai_chat` | `https://api.deepseek.com/v1` |
-| Moonshot (Kimi) | `openai_chat` | `https://api.moonshot.ai/v1` |
-| Z.ai | `openai_chat` | `https://api.z.ai/api/paas/v4` |
-| SiliconFlow | `openai_chat` | `https://api.siliconflow.com/v1` |
-| Groq | `openai_chat` | `https://api.groq.com/openai/v1` |
-| Ollama (this computer) | `openai_chat` | `http://127.0.0.1:11434/v1` |
-| LM Studio (this computer) | `openai_chat` | `http://127.0.0.1:1234/v1` |
+| Preset | Kind | Wire | Base URL |
+| --- | --- | --- | --- |
+| ChatGPT plan (Codex) | subscription, unofficial | `openai_responses` | `https://chatgpt.com/backend-api/codex` |
+| OpenCode Go | subscription (API key) | `openai_chat`, per model | `https://opencode.ai/zen/go/v1` |
+| Muse Code plan | subscription, unofficial | `openai_responses` | `https://api.meta.ai/v1` |
+| OpenCode Zen | per token | `openai_chat`, per model | `https://opencode.ai/zen/v1` |
+| Meta Model API (Muse Spark) | per token | `openai_responses` | `https://api.meta.ai/v1` |
+| OpenAI | per token | `openai_responses` | `https://api.openai.com/v1` |
+| Anthropic | per token | `anthropic_messages` | `https://api.anthropic.com/v1` |
+| OpenRouter | per token | `openai_chat` | `https://openrouter.ai/api/v1` |
+| DeepSeek | per token | `openai_chat` | `https://api.deepseek.com/v1` |
+| Moonshot (Kimi) | per token | `openai_chat` | `https://api.moonshot.ai/v1` |
+| Z.ai | per token | `openai_chat` | `https://api.z.ai/api/paas/v4` |
+| SiliconFlow | per token | `openai_chat` | `https://api.siliconflow.com/v1` |
+| Groq | per token | `openai_chat` | `https://api.groq.com/openai/v1` |
+| Ollama | this computer | `openai_chat` | `http://127.0.0.1:11434/v1` |
+| LM Studio | this computer | `openai_chat` | `http://127.0.0.1:1234/v1` |
+
+**Per-model wires.** OpenCode Zen and Go serve several model families under one base URL and key, each
+on its own wire: Claude, Qwen, and Union (and Go's MiniMax) on `/messages`; GPT, Grok, and Muse Spark on
+`/responses`; everything else on `/chat/completions`. The preset's prefix rules turn the saved model
+list into `model_wires`, and `RouteResolver` narrows each resolved target to its model's wire, so the
+proxy, translator, and ledger see the wire actually used. Zen's Gemini models use Google's own wire,
+which the router does not speak, so they are left out of its model list. A model typed as an explicit
+`provider/model` that was never declared uses the upstream's own wire.
+
+**Finding a provider's models.** `POST /ui/api/router/models/fetch` lists a provider's models so they
+can be ticked rather than typed. It asks `GET <base_url>/models` with the key being entered, the key
+OpenCode already holds, or — for a saved upstream, and only when the base URL is unchanged — the
+stored key, under the same destination rule as routed traffic; nothing is saved. The ChatGPT plan has
+no public list, so Codex's own `models_cache.json` (entries whose `visibility` is `list`) is read
+instead. The OpenAI shape `{"data":[{"id"}]}`, a bare array, and `{"models":[{"name"}]}` are accepted,
+responses are capped at 4 MiB and 500 models, and the reply carries each model's wire.
+
+**Reusing a key OpenCode has.** When OpenCode's `auth.json` holds a plain API key for the preset's
+provider (OpenCode Go and Zen, OpenRouter, DeepSeek, OpenAI, Anthropic, Moonshot, Z.ai, Groq), the page
+offers to use it. The broker reads it only when asked to fetch or save, seals it like a typed key, and
+never returns it; the preset list says only whether one exists. OpenCode's OAuth sign-ins are not
+reused.
+
+### Subscriptions
+
+Two presets use a monthly plan the owner already pays for, through a sign-in another tool on this
+computer keeps. **Both are unofficial**: neither plan documents use from other applications. They are
+opt-in, labelled so on the page, and store no key in AgentNotify.
+
+- **ChatGPT plan (`codex_chatgpt`).** Each attempt reads Codex's `auth.json` (`$CODEX_HOME`, default
+  `~/.codex`) and sends its access token with `chatgpt-account-id`, `OpenAI-Beta: responses=experimental`,
+  and `originator: codex_cli_rs`. When the token is within five minutes of its `exp` claim, or the
+  backend answers `401`, the file is read again (Codex may have renewed it), and otherwise the router
+  renews it with Codex's own OAuth client and writes the new tokens back into Codex's file, leaving
+  every other field alone, so Codex and the router keep sharing one sign-in. A request to this backend
+  is adjusted first: `store` is forced to `false`, `instructions` is added empty when missing, and
+  `max_output_tokens`, `max_tokens`, `temperature`, `top_p`, and `previous_response_id` are removed.
+- **Muse Code plan (`muse_code`).** The identity token in Muse Code's `~/.config/muse/auth.json`
+  (`access_token`) is exchanged at `POST https://api.meta.ai/muse-code/key` for a subscription Model
+  API key, as Muse Code's CLI does; the key is kept in memory for 23 hours and used against
+  `https://api.meta.ai/v1`. Muse Code may keep its sign-in in the OS keychain instead of that file; only
+  the file is read.
+
+A missing or unrenewable sign-in fails the attempt with `subscription_signed_out` (and a warning in the
+broker log that says what to run); in a fallback chain the next target is tried.
+
+**OpenCode Go** is a subscription too, but authenticates with an ordinary key. Its service asks each
+client to name itself and to send a stable per-conversation ID, so every upstream request carries
+`User-Agent: agentnotify-router/<version>`, and a request to an `opencode.ai` host carries
+`x-opencode-session` with the agent's own conversation ID (`x-opencode-session`,
+`x-claude-code-session-id`, `session_id`, or `conversation_id` from the inbound request), or a
+per-process ID when the agent sent none.
 
 **Destination rule.** `base_url` must be absolute `https`, or `http` only when the host is a loopback
 literal (`127.0.0.1`, `::1`, `localhost`). No user info, query, or fragment. The upstream client
@@ -205,7 +266,13 @@ button on the Router → Agents page, or `agentnotify router connect <agent>`.
 generates that file — one entry per `provider/model`, per alias, and per `combo/<name>` — and adds a
 `[model_providers.agentnotify]` block pointing at `/router/v1` with the router key in
 `experimental_bearer_token`, so Codex authenticates with no environment variable set. Every routed
-model then appears in `/model`. Codex also resolves several settings per model, and the same page
+model then appears in `/model`. For a model on a ChatGPT-plan upstream, the catalogue entry is Codex's own, copied from its
+`models_cache.json` with only the slug, display name, and priority changed, so that model keeps Codex's
+prompt, context window, reasoning levels, and shell tool exactly as without the router. Codex's picker
+shows only the catalogue: it has no mode that adds to its own list, which is why the ChatGPT-plan
+provider is how GPT models stay in it.
+
+Codex also resolves several settings per model, and the same page
 writes them: reasoning effort, the subagent model and its effort (`default_subagent_model`), the
 review model, and which shell tool a routed model is offered.
 
@@ -222,7 +289,8 @@ copying anyone else's prompt.
 **Claude Code** has both a curated picker and per-entry environment variables, so both are written.
 Its `modelPicker` setting gains a row per routed selector, each declaring the known model it
 `behavesAs` — without that Claude Code cannot tell a routed model's context window or capabilities and
-says so on every start. Optionally those rows replace Anthropic's own lineup instead of following it.
+says so on every start. Optionally those rows replace Anthropic's own lineup instead of following it; that switch is off unless
+the owner turns it on.
 Separately, `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and the model each built-in entry resolves
 (`ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `…SONNET…`, `…HAIKU…`, and the background
 `ANTHROPIC_SMALL_FAST_MODEL`) are set in the `env` block of `settings.json`.
@@ -252,8 +320,8 @@ The **Model router** group in the navigation holds four pages:
 
 | Page | What it does |
 | --- | --- |
-| Providers | The on/off switch, the base URLs, a one-time key reveal on regenerate, and the upstreams (presets, write-only keys, declared models, enable) |
-| Routing | Aliases and ordered failover combos, and the default route |
+| Providers | The on/off switch; your providers, each with an on/off switch; and a gallery of presets grouped as subscriptions, pay per token, and this computer. Adding one is: pick it, paste a key (or reuse OpenCode's, or a subscription sign-in), tick models from the fetched list, save. Slug, wire, and base URL sit under Advanced. The base URLs and key regeneration are under a disclosure. |
+| Routing | Optional: nicknames (an alias, one model) and fallback chains (a combo, tried in order), each picked from the providers' models, and what an unknown model falls back to. The page says plainly that no route is needed to use a model. |
 | Agents | Connect an agent so its own picker lists these models, choose its subagent/review/effort settings, disconnect, and restore a saved copy of its configuration |
 | Activity | The request ledger with per-attempt detail, and totals by model |
 

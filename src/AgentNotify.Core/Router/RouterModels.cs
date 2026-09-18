@@ -18,6 +18,34 @@ public static class RouterWire
     }
 }
 
+/// <summary>
+/// How the router authenticates to an upstream. An API key is the default and the only kind the
+/// owner types in. The subscription kinds reuse a sign-in another tool on this computer already made,
+/// so no key is stored for them at all; they are unofficial and opt-in.
+/// </summary>
+public static class RouterAuth
+{
+    public const string ApiKey = "api_key";
+
+    /// <summary>A ChatGPT plan, through the sign-in Codex keeps in <c>~/.codex/auth.json</c>.</summary>
+    public const string CodexChatGpt = "codex_chatgpt";
+
+    /// <summary>A Muse Code plan, through the sign-in Muse Code keeps in <c>~/.config/muse/auth.json</c>.</summary>
+    public const string MuseCode = "muse_code";
+
+    public static bool IsValid(string? auth) => auth is ApiKey or CodexChatGpt or MuseCode;
+
+    public static bool IsSubscription(string? auth) => auth is CodexChatGpt or MuseCode;
+
+    public static string Normalize(string? auth)
+    {
+        if (string.IsNullOrWhiteSpace(auth)) return ApiKey;
+        if (!IsValid(auth))
+            throw new ArgumentException("Auth must be one of api_key, codex_chatgpt, muse_code.");
+        return auth!;
+    }
+}
+
 /// <summary>Public view of a configured upstream.</summary>
 public sealed record RouterUpstream(
     string Id,
@@ -29,7 +57,18 @@ public sealed record RouterUpstream(
     IReadOnlyList<string> Models,
     bool Enabled,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public string Auth { get; init; } = RouterAuth.ApiKey;
+    public IReadOnlyDictionary<string, string> ModelWires { get; init; } = RouterUpstreamWires.None;
+}
+
+/// <summary>Per-model wire overrides.</summary>
+public static class RouterUpstreamWires
+{
+    public static readonly IReadOnlyDictionary<string, string> None =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+}
 
 /// <summary>Stored upstream including encrypted key.</summary>
 public sealed record StoredRouterUpstream(
@@ -42,7 +81,21 @@ public sealed record StoredRouterUpstream(
     IReadOnlyList<string> Models,
     bool Enabled,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    /// <summary>How the router authenticates to this upstream; see <see cref="RouterAuth"/>.</summary>
+    public string Auth { get; init; } = RouterAuth.ApiKey;
+
+    /// <summary>
+    /// Models this upstream serves over a wire other than <see cref="Wire"/>. OpenCode Zen, for one,
+    /// answers Claude on <c>/messages</c>, GPT on <c>/responses</c>, and the rest on
+    /// <c>/chat/completions</c> under a single base URL and key.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ModelWires { get; init; } = RouterUpstreamWires.None;
+
+    public string WireFor(string model) =>
+        ModelWires.TryGetValue(model, out var wire) && RouterWire.IsValid(wire) ? wire : Wire;
+}
 
 /// <summary>A named route with ordered targets.</summary>
 public sealed record RouterRoute(

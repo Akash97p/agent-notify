@@ -6,8 +6,8 @@ import {
 
 // Page titles live here so every section shares one voice.
 const TITLES = {
-  providers: ["Providers", "The upstream providers this machine can route model requests to."],
-  routing: ["Routing", "Which model selector goes where, and what happens when a target fails."],
+  providers: ["Providers", "Add a provider, tick its models, and they show up in your agents' model pickers."],
+  routing: ["Routing", "Optional nicknames and fallback chains on top of your providers' models."],
   agents: ["Agents", "Point an agent's own model picker at the router, and put its settings back."],
   activity: ["Activity", "What the router actually sent, per request and per attempt."],
 };
@@ -63,7 +63,6 @@ export async function renderRouter(page, ctx, section) {
     }
 
     let state = data;
-    let upstreamEditId = null;
     let routeEditId = null;
     let requests = [];
     let summary = [];
@@ -104,16 +103,14 @@ export async function renderRouter(page, ctx, section) {
     }
 
     function drawStatus() {
-      const enabledToggle = toggle("Router enabled", state.enabled);
-      const baseLine = copyBlock(state.base_url || "");
-      const anthLine = copyBlock(state.anthropic_base_url || "");
-      const offNotice = state.enabled ? null : notice("The router is off. No request is sent to any model provider until you turn it on. The rest of this page stays visible so you can prepare upstreams and routes first.", "info");
+      const enabledToggle = toggle(state.enabled ? "Router on" : "Router off", state.enabled,
+        { help: state.enabled ? "Agents you connect send their model requests through AgentNotify." : "Nothing is sent to any model provider until you turn it on." });
 
-      const regen = button("Regenerate key", { iconName: "refresh" });
+      const regen = button("Regenerate key", { size: "sm", iconName: "refresh" });
       regen.addEventListener("click", () => busy(regen, async () => {
         const ok = await confirmDialog({
           title: "Regenerate router key?",
-          message: "Every agent configured with this key stops working until you update its configuration. This cannot be undone.",
+          message: "Connected agents are updated automatically. Anything you configured by hand stops working until you paste the new key.",
           confirmLabel: "Regenerate",
           danger: true,
         });
@@ -133,12 +130,9 @@ export async function renderRouter(page, ctx, section) {
         try {
           const result = await api.post("router/enable", { enabled: desired });
           state.enabled = result.enabled;
-          if (result.key) showKeyOnce(result.key);
-          toast(desired ? "Router enabled." : "Router disabled.");
+          toast(desired ? "Router on." : "Router off.");
           await reload();
-          // preserve key reveal if it was just shown (reload clears hosts but keyRevealHost content is recreated)
-          // Re-show if this call generated a key and we already showed it: need to keep it.
-          // Draw again will clear keyRevealHost, so re-add after reload if needed.
+          // Reloading redraws this card, so a freshly generated key is shown after it.
           if (result.key) showKeyOnce(result.key);
         } catch (error) {
           enabledToggle.input.checked = !desired;
@@ -148,159 +142,280 @@ export async function renderRouter(page, ctx, section) {
 
       mount(statusHost,
         card({
-          title: "Status",
-          description: "Off by default. The router handles only traffic that reaches its own /router/v1 routes.",
-          body: [
-            h("div", { class: "fields" },
-              h("div", null, enabledToggle),
-              keyRevealHost,
-              offNotice,
+          body: h("div", { class: "fields" },
+            enabledToggle,
+            keyRevealHost,
+            h("details", { class: "disclosure" },
+              h("summary", { text: "Connection details for configuring an agent by hand" }),
               h("div", { class: "stack" },
-                field("Responses and Chat base URL", baseLine),
-                field("Anthropic base URL", anthLine),
-                h("p", { class: "muted small", text: state.has_key ? "A router key is stored. Regenerating replaces it." : "No router key yet. Enable the router to generate one." }),
-                regen,
-              ),
-            ),
-          ],
+                field("Responses and Chat base URL", copyBlock(state.base_url || "")),
+                field("Anthropic base URL", copyBlock(state.anthropic_base_url || "")),
+                h("p", { class: "muted small", text: state.has_key ? "A router key is stored. Connecting an agent on the Agents page writes it for you." : "No router key yet. Turn the router on to generate one." }),
+                h("div", { class: "row" }, regen))),
+          ),
         }),
       );
     }
 
-    // ---- connect an agent ------------------------------------------------------------
+    // ---- providers -------------------------------------------------------------------
 
-    function drawConnect() {
-      const p = state.base_url || "http://127.0.0.1:PORT/router/v1";
-      const anthBase = state.anthropic_base_url || "http://127.0.0.1:PORT/router";
-      // Derive port from base_url if possible for substitution realism; otherwise keep as is.
-      const codexBlock = `model_provider = "agentnotify"\nmodel = "combo/coding"\n\n[model_providers.agentnotify]\nname = "AgentNotify router"\nbase_url = "${p}"\nenv_key = "AGENTNOTIFY_ROUTER_KEY"\nwire_api = "responses"`;
-      const claudeBlock = `export ANTHROPIC_BASE_URL=${anthBase}\nexport ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"\nexport ANTHROPIC_MODEL=combo/coding`;
+    const KIND_LABEL = { subscription: "Subscription", api: "Pay per token", local: "This computer" };
+    const WIRE_LABEL = { openai_responses: "Responses API", openai_chat: "Chat Completions", anthropic_messages: "Messages API" };
 
-      mount(connectHost,
-        card({
-          title: "Connect an agent",
-          description: "Point the agent at the broker. AgentNotify does not edit another agent's configuration files.",
-          body: [
-            h("div", { class: "stack" },
-              h("h3", { class: "card-title", text: "Codex (~/.codex/config.toml)" }),
-              copyBlock(codexBlock),
-              h("h3", { class: "card-title", text: "Claude Code (environment)" }),
-              copyBlock(claudeBlock),
-              h("p", { class: "muted small", text: "Set AGENTNOTIFY_ROUTER_KEY to the one-time key shown above. Restart the agent after changing configuration." }),
-            ),
-          ],
-        }),
-      );
+    // What the editor is showing: a preset being added ("custom" for none), or an existing upstream.
+    let adding = null;
+
+    function presetFor(upstream) {
+      return state.presets.find(p => p.id === upstream.slug && p.auth === upstream.auth)
+        || state.presets.find(p => p.base_url === upstream.base_url && p.auth === upstream.auth)
+        || null;
     }
 
-    // ---- upstreams -------------------------------------------------------------------
+    function hostOf(url) {
+      try { return new URL(url).host; } catch { return url; }
+    }
 
-    function upstreamCard(u) {
-      const isSelected = u.id === upstreamEditId;
-      return h("button", {
-        type: "button",
-        class: "list-item",
-        "aria-selected": String(isSelected),
-        onClick: () => { upstreamEditId = u.id; drawUpstreams(); },
-      },
-        h("div", { class: "list-main" },
+    function freeSlug(base) {
+      const taken = new Set(state.upstreams.map(u => u.slug));
+      if (!taken.has(base)) return base;
+      for (let i = 2; i < 100; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+      return base;
+    }
+
+    function providerRow(u) {
+      const preset = presetFor(u);
+      const kind = u.auth !== "api_key" ? "subscription" : preset?.kind || "api";
+      const onSwitch = toggle("", u.enabled);
+      onSwitch.title = u.enabled ? "On — click to turn off" : "Off — click to turn on";
+      onSwitch.addEventListener("click", event => event.stopPropagation());
+      onSwitch.input.addEventListener("change", () => busy(onSwitch.input, async () => {
+        try {
+          await api.put(`router/upstreams/${encodeURIComponent(u.id)}`, {
+            slug: u.slug, label: u.label, wire: u.wire, base_url: u.base_url, models: u.models,
+            enabled: onSwitch.input.checked,
+          });
+          await reload();
+        } catch (error) {
+          onSwitch.input.checked = !onSwitch.input.checked;
+          toast(error.message, "error");
+        }
+      }));
+      const count = u.models?.length || 0;
+      return h("div", { class: "provider-row", "aria-selected": String(adding?.upstream?.id === u.id) },
+        h("button", { type: "button", class: "provider-row-main", onClick: () => { adding = { upstream: u, preset }; drawUpstreams(); } },
           h("div", { class: "list-title", text: u.label }),
-          h("div", { class: "list-sub", text: `${u.slug} · ${u.wire} · ${u.base_url} · ${u.models?.length || 0} models` })),
-        h("div", { class: "row" },
-          u.enabled ? badge("On", "ok") : badge("Off"),
-          u.has_key ? badge("Key", "info") : badge("No key")),
+          h("div", { class: "list-sub", text: `${KIND_LABEL[kind]} · ${count} model${count === 1 ? "" : "s"} · ${u.slug}/…` })),
+        h("div", { class: "provider-row-side" },
+          count === 0 ? badge("No models", "warn") : null,
+          u.auth === "api_key" && preset?.needs_key && !u.has_key ? badge("No key", "danger") : null,
+          onSwitch),
       );
+    }
+
+    function presetTile(p) {
+      const added = state.upstreams.some(u => (u.slug === p.id || u.base_url === p.base_url) && u.auth === p.auth);
+      const chips = [];
+      if (added) chips.push(badge("Added", "ok"));
+      if (p.opencode_key) chips.push(badge("Key found in OpenCode", "info"));
+      if (p.auth !== "api_key") chips.push(p.signin_ready ? badge("Signed in", "ok") : badge("Not signed in", "warn"));
+      if (p.unofficial) chips.push(badge("Unofficial", "warn"));
+      return h("button", { type: "button", class: "provider-tile", onClick: () => { adding = { preset: p }; drawUpstreams(); } },
+        h("div", { class: "provider-tile-name", text: p.display_name }),
+        h("div", { class: "muted small", text: p.blurb || hostOf(p.base_url) }),
+        chips.length ? h("div", { class: "row provider-tile-chips" }, chips) : null);
     }
 
     function drawUpstreams() {
-      const listBody = h("div", { class: "list" });
-      if (state.upstreams.length === 0) {
-        listBody.append(empty("No upstreams yet", "Add one below. Pick a preset to fill the wire and base URL, then set its slug, label, and models.", "route"));
+      const rows = state.upstreams.map(providerRow);
+      const yours = state.upstreams.length
+        ? card({
+            title: "Your providers",
+            description: "Every model ticked here is already in your connected agents' model pickers as provider/model. No route needed.",
+            body: h("div", { class: "provider-list" }, rows),
+          })
+        : null;
+
+      let lower;
+      if (adding) {
+        lower = buildProviderEditor(adding.preset || null, adding.upstream || null);
       } else {
-        for (const u of state.upstreams) listBody.append(upstreamCard(u));
-      }
-
-      const editorHost = h("div");
-      if (state.upstreams.length === 0) {
-        editorHost.append(notice("Add your first upstream. Its slug becomes the provider part of provider/model, for example openai/gpt-4o. Declare the native model IDs you want to expose.", "info"));
-      }
-
-      const editing = upstreamEditId ? state.upstreams.find(x => x.id === upstreamEditId) : null;
-      editorHost.append(buildUpstreamForm(editing));
-
-      const addBtn = button(upstreamEditId ? "Add upstream" : "Add upstream", { variant: upstreamEditId ? null : "primary", size: "sm", iconName: "plus", onClick: () => { upstreamEditId = null; drawUpstreams(); } });
-      const showEmpty = state.upstreams.length === 0;
-
-      mount(upstreamsHost,
-        h("div", { class: "section-heading" },
-          h("div", null, h("h2", { text: "Upstreams" }), h("p", { class: "muted small", text: "Providers the router can forward to. Keys are write-only." })),
-          addBtn),
-        showEmpty ? empty("No upstreams configured", "Use the form below to add one.", "route") : null,
-        h("div", { class: "split" },
-          h("div", { class: "sticky" }, card({ title: "Configured", description: "Select one to edit it.", body: listBody })),
-          editorHost),
-      );
-    }
-
-    function buildUpstreamForm(existing) {
-      const isEdit = !!existing;
-      const presetChoices = [["", "Custom"], ...state.presets.map(p => [p.id, `${p.display_name} · ${p.base_url}`])];
-      const preset = select(presetChoices, "");
-      const slug = input({ value: existing?.slug || "", maxlength: 32, placeholder: "openai", autocomplete: "off", spellcheck: "false" });
-      const label = input({ value: existing?.label || "", maxlength: 60, placeholder: "OpenAI", autocomplete: "off" });
-      const wire = select(wireOptions, existing?.wire || "openai_chat");
-      const baseUrl = input({ value: existing?.base_url || "", placeholder: "https://api.openai.com/v1", autocomplete: "off", spellcheck: "false" });
-      const apiKey = input({ type: "password", autocomplete: "off", placeholder: isEdit ? "Leave blank to keep the stored key" : "Paste the provider key", spellcheck: "false" });
-      const ack = checkbox("I understand this key is stored encrypted for this user and is sent only to the host above.", false);
-      const clearKey = isEdit && existing.has_key ? checkbox("Remove the stored key", false) : null;
-      if (clearKey) {
-        clearKey.input.addEventListener("change", () => {
-          if (clearKey.input.checked) apiKey.value = "";
-          apiKey.disabled = clearKey.input.checked;
+        const groups = [
+          ["subscription", "Subscriptions", "A monthly plan you already pay for."],
+          ["api", "Pay per token", "An API key billed by usage."],
+          ["local", "On this computer", "No key and no internet needed."],
+        ];
+        lower = card({
+          title: state.upstreams.length ? "Add another provider" : "Add a provider",
+          description: "Pick one. You'll paste a key (or reuse a sign-in), tick the models you want, and save.",
+          body: h("div", { class: "stack" },
+            groups.map(([kind, title, text]) => {
+              const presets = state.presets.filter(p => p.kind === kind);
+              if (!presets.length) return null;
+              return h("div", { class: "stack-sm" },
+                h("div", null, h("h3", { class: "provider-group-title", text: title }), h("p", { class: "muted small", text })),
+                h("div", { class: "provider-grid" }, presets.map(presetTile)));
+            }),
+            h("div", { class: "row" },
+              button("Custom provider", { size: "sm", iconName: "plus", onClick: () => { adding = { preset: null }; drawUpstreams(); } }),
+              h("span", { class: "muted small", text: "Any OpenAI- or Anthropic-compatible endpoint." }))),
         });
       }
-      const models = h("textarea", {
-        class: "textarea",
-        rows: 5,
-        placeholder: "One model per line, for example:\ngpt-4o\ngpt-4o-mini",
-        value: (existing?.models || []).join("\n"),
-      });
-      const enabled = toggle("Enabled", existing ? existing.enabled : true);
+
+      mount(upstreamsHost, h("div", { class: "page-stack" }, yours, lower));
+    }
+
+    function buildProviderEditor(preset, existing) {
+      const isEdit = !!existing;
+      const custom = !preset;
+      const auth = existing?.auth || preset?.auth || "api_key";
+      const subscription = auth !== "api_key";
+      const baseWire = () => wire.value;
+
+      // Connection details. A preset fills them all, so they sit under "Advanced".
+      const slug = input({ value: existing?.slug || freeSlug(preset?.id || ""), maxlength: 32, placeholder: "my-provider", autocomplete: "off", spellcheck: "false" });
+      const label = input({ value: existing?.label || preset?.display_name || "", maxlength: 60, placeholder: "My provider", autocomplete: "off" });
+      const wire = select(wireOptions.map(([v]) => [v, `${WIRE_LABEL[v]} (${v})`]), existing?.wire || preset?.wire || "openai_chat");
+      const baseUrl = input({ value: existing?.base_url || preset?.base_url || "", placeholder: "https://api.example.com/v1", autocomplete: "off", spellcheck: "false" });
+      const enabled = toggle("On", existing ? existing.enabled : true);
       const status = h("div", { class: "stack" });
 
-      preset.addEventListener("change", () => {
-        const p = state.presets.find(x => x.id === preset.value);
-        if (!p) return;
-        wire.value = p.wire;
-        baseUrl.value = p.base_url;
+      // Key: typed, reused from OpenCode, or kept as stored.
+      const needsKeyUi = !subscription && (custom || preset?.needs_key || existing?.has_key);
+      const useOpenCode = needsKeyUi && preset?.opencode_key
+        ? toggle("Use the key OpenCode already has", !existing?.has_key, { help: "Copied into AgentNotify's own encrypted store. Nothing is shown." })
+        : null;
+      const apiKey = input({
+        type: "password", autocomplete: "off", spellcheck: "false",
+        placeholder: existing?.has_key ? "Leave blank to keep the stored key" : preset?.needs_key === false ? "Optional" : "Paste the key",
       });
+      const clearKey = isEdit && existing.has_key ? checkbox("Remove the stored key", false) : null;
+      clearKey?.input.addEventListener("change", () => { apiKey.disabled = clearKey.input.checked; if (clearKey.input.checked) apiKey.value = ""; });
+      const keyField = field("API key", apiKey, {
+        help: `Stored encrypted for your user and sent only to ${hostOf(baseUrl.value || preset?.base_url || "the base URL")}.`,
+        extra: preset?.key_url ? h("a", { href: preset.key_url, target: "_blank", rel: "noopener noreferrer", class: "small", text: "Get a key ↗" }) : null,
+      });
+      const syncKeyVisibility = () => { keyField.hidden = !!useOpenCode?.input.checked; };
+      useOpenCode?.input.addEventListener("change", () => { syncKeyVisibility(); fetchModels(); });
+      syncKeyVisibility();
 
-      const save = button(isEdit ? "Save changes" : "Save upstream", { variant: "primary" });
-      save.addEventListener("click", () => busy(save, async () => {
-        const modelList = models.value.split("\n").map(s => s.trim()).filter(Boolean);
+      // Models: fetched from the provider and ticked, plus any typed by hand.
+      const known = new Map(); // id -> wire
+      const selected = new Set(existing?.models || []);
+      for (const m of existing?.models || []) known.set(m, existing.model_wires?.[m] || existing.wire);
+      const modelHost = h("div", { class: "model-picker" });
+      const modelStatus = h("p", { class: "muted small" });
+      const search = input({ type: "search", placeholder: "Filter models", autocomplete: "off", spellcheck: "false" });
+      const manual = input({ placeholder: "Add a model ID by hand", autocomplete: "off", spellcheck: "false" });
+      const counter = h("span", { class: "muted small" });
+      let fetched = false;
+
+      const drawModels = () => {
+        const term = search.value.trim().toLowerCase();
+        const ids = [...known.keys()];
+        const shown = term ? ids.filter(id => id.toLowerCase().includes(term)) : ids;
+        counter.textContent = `${selected.size} of ${ids.length} selected`;
+        if (!ids.length) {
+          mount(modelHost, h("p", { class: "muted small model-empty", text: fetched ? "This provider listed no models. Add one by ID below." : "Models appear here once the provider can be asked." }));
+          return;
+        }
+        mount(modelHost, shown.map(id => {
+          const box = h("input", { type: "checkbox", checked: selected.has(id) });
+          box.addEventListener("change", () => { if (box.checked) selected.add(id); else selected.delete(id); counter.textContent = `${selected.size} of ${ids.length} selected`; });
+          const modelWire = known.get(id);
+          return h("label", { class: "model-option" }, box,
+            h("span", { class: "mono small", text: id }),
+            modelWire && modelWire !== baseWire() ? h("span", { class: "model-wire", text: WIRE_LABEL[modelWire] || modelWire }) : null);
+        }));
+      };
+      search.addEventListener("input", drawModels);
+
+      const selectAll = button("Select all", { size: "sm", onClick: () => { for (const id of known.keys()) if (!search.value || id.toLowerCase().includes(search.value.toLowerCase())) selected.add(id); drawModels(); } });
+      const selectNone = button("Clear", { size: "sm", onClick: () => { selected.clear(); drawModels(); } });
+      const addManual = button("Add", { size: "sm", iconName: "plus" });
+      const doAddManual = () => {
+        const id = manual.value.trim();
+        if (!id) return;
+        if (!known.has(id)) known.set(id, baseWire());
+        selected.add(id);
+        manual.value = "";
+        drawModels();
+      };
+      addManual.addEventListener("click", doAddManual);
+      manual.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); doAddManual(); } });
+
+      const refresh = button("Fetch models", { size: "sm", iconName: "refresh" });
+      async function fetchModels() {
         const body = {
+          preset_id: preset?.id || null,
+          upstream_id: existing?.id || null,
+          base_url: baseUrl.value.trim() || null,
+          wire: wire.value,
+          auth,
+          api_key: apiKey.value || null,
+          use_opencode_key: !!useOpenCode?.input.checked,
+        };
+        modelStatus.textContent = "Asking the provider for its models…";
+        modelStatus.className = "muted small";
+        try {
+          const result = await api.post("router/models/fetch", body);
+          const firstFetch = !fetched && !isEdit;
+          fetched = true;
+          for (const m of result.models) known.set(m.id, m.wire);
+          // A short list is ticked for you; a long one (OpenRouter lists hundreds) is left to choose from.
+          if (firstFetch && result.models.length <= 40) for (const m of result.models) selected.add(m.id);
+          modelStatus.textContent = result.models.length
+            ? `${result.models.length} models available.${firstFetch && result.models.length > 40 ? " Tick the ones you want." : ""}`
+            : "The provider listed no models.";
+        } catch (error) {
+          modelStatus.textContent = error.message;
+          modelStatus.className = "small text-danger";
+        }
+        drawModels();
+      }
+      refresh.addEventListener("click", () => busy(refresh, fetchModels));
+      // Asking needs a key for most providers: ask as soon as one is pasted.
+      apiKey.addEventListener("change", () => { if (apiKey.value) fetchModels(); });
+
+      // Ask straight away whenever no key has to be typed first.
+      const canAskNow = subscription
+        ? preset?.signin_ready !== false
+        : isEdit || !!useOpenCode?.input.checked || (!custom && preset?.needs_key === false);
+      drawModels();
+      if (canAskNow) queueMicrotask(fetchModels);
+      else modelStatus.textContent = subscription ? "" : "Paste the key, and the model list loads by itself.";
+
+      // Save.
+      const save = button(isEdit ? "Save changes" : "Add provider", { variant: "primary", iconName: "check" });
+      save.addEventListener("click", () => busy(save, async () => {
+        const models = [...known.keys()].filter(id => selected.has(id));
+        if (!models.length) {
+          status.replaceChildren(notice("Tick at least one model, or add one by ID.", "danger"));
+          return;
+        }
+        const modelWires = {};
+        for (const id of models) { const w = known.get(id); if (w && w !== wire.value) modelWires[id] = w; }
+        const body = {
+          preset_id: preset?.id || null,
           slug: slug.value.trim(),
           label: label.value.trim(),
           wire: wire.value,
           base_url: baseUrl.value.trim(),
-          api_key: apiKey.value || null,
-          models: modelList,
-          enabled: enabled.input.checked,
+          auth,
+          api_key: useOpenCode?.input.checked ? null : (apiKey.value || null),
+          use_opencode_key: !!useOpenCode?.input.checked,
+          // The statement next to the key field is the acknowledgement.
+          ack_key_storage: true,
           clear_key: clearKey?.input.checked || false,
+          models,
+          model_wires: modelWires,
+          enabled: enabled.input.checked,
         };
-        if (apiKey.value) body.ack_key_storage = ack.input.checked;
-        // Endpoint also accepts acknowledge_risk; ack_key_storage is preferred.
-        if (apiKey.value && !ack.input.checked) {
-          status.replaceChildren(notice("Tick the acknowledgement to store a key.", "danger"));
-          return;
-        }
         try {
           if (isEdit) await api.put(`router/upstreams/${encodeURIComponent(existing.id)}`, body);
           else await api.post("router/upstreams", body);
-          toast(isEdit ? "Upstream saved." : "Upstream added.");
-          upstreamEditId = null;
+          toast(isEdit ? "Provider saved." : `${body.label} added. Its models are in your agents' pickers as ${body.slug}/…`);
+          adding = null;
           await reload();
-          clear(status);
         } catch (error) {
           status.replaceChildren(notice(error.message, "danger"));
         }
@@ -308,41 +423,109 @@ export async function renderRouter(page, ctx, section) {
 
       const remove = isEdit ? button("Delete", { variant: "danger", iconName: "trash" }) : null;
       remove?.addEventListener("click", async () => {
-        const ok = await confirmDialog({ title: `Delete ${existing.label}?`, message: "The router can no longer send requests to or through this upstream.", confirmLabel: "Delete upstream", danger: true });
+        const ok = await confirmDialog({ title: `Delete ${existing.label}?`, message: "Its models disappear from your agents' pickers.", confirmLabel: "Delete provider", danger: true });
         if (!ok) return;
         await busy(remove, async () => {
           try {
             await api.del(`router/upstreams/${encodeURIComponent(existing.id)}`);
-            toast("Upstream deleted.");
-            upstreamEditId = null;
+            toast("Provider deleted.");
+            adding = null;
             await reload();
           } catch (error) {
             status.replaceChildren(notice(error.message, "danger"));
           }
         });
       });
+      const cancel = button("Cancel", { onClick: () => { adding = null; drawUpstreams(); } });
 
-      const cancel = isEdit ? button("Cancel", { size: "sm", onClick: () => { upstreamEditId = null; drawUpstreams(); } }) : null;
+      const intro = [];
+      if (preset?.unofficial)
+        intro.push(notice(`Unofficial. This reuses the sign-in ${auth === "codex_chatgpt" ? "Codex" : "Muse Code"} keeps on this computer; the plan does not document use from other apps, so use it at your own risk. AgentNotify stores no key for it.`, "warn"));
+      if (subscription)
+        intro.push(notice(preset?.signin_detail || "Uses this computer's sign-in.", preset?.signin_ready === false ? "danger" : "ok"));
 
       return card({
-        title: isEdit ? existing.label : "New upstream",
-        description: isEdit ? `${existing.slug} · ${existing.wire}` : "Choose a preset or enter the details directly.",
+        title: isEdit ? existing.label : custom ? "Custom provider" : preset.display_name,
+        description: isEdit ? `${existing.slug}/… · ${hostOf(existing.base_url)}` : custom ? "Any endpoint that speaks the OpenAI or Anthropic API." : preset.blurb || hostOf(preset.base_url),
         body: [
-          field("Preset", preset, { help: "Fills wire and base URL. You can still edit them." }),
-          h("div", { class: "grid-2" }, field("Slug", slug, { required: true, help: "Lower-case letters, digits, hyphens. This is the provider part of provider/model." }), field("Label", label, { required: true })),
-          h("div", { class: "grid-2" }, field("Wire", wire, { required: true }), field("Base URL", baseUrl, { required: true, help: "Must be https, or http only for loopback." })),
-          field("API key", apiKey, { help: isEdit ? "Leave blank to keep the stored key. Stored encrypted and never shown." : "Stored encrypted and never shown." }),
-          ack,
-          clearKey || null,
-          field("Models", models, { help: "One native model ID per line. These are the model names after the slash in provider/model." }),
-          h("div", { class: "field" }, h("span", { class: "field-label", text: "Status" }), enabled),
+          intro,
+          custom ? h("div", { class: "grid-2" }, field("Name", label, { required: true }), field("Base URL", baseUrl, { required: true, help: "https, or http for a server on this computer." })) : null,
+          custom ? field("API format", wire, { help: "Most providers use Chat Completions." }) : null,
+          useOpenCode,
+          needsKeyUi ? keyField : null,
+          h("div", { class: "field" },
+            h("div", { class: "row-between" }, h("span", { class: "field-label", text: "Models" }), h("div", { class: "row" }, counter, refresh)),
+            modelStatus,
+            h("div", { class: "row" }, search, selectAll, selectNone),
+            modelHost,
+            h("div", { class: "row" }, manual, addManual)),
+          h("details", { class: "disclosure" },
+            h("summary", { text: "Advanced" }),
+            h("div", { class: "fields" },
+              h("div", { class: "grid-2" },
+                field("Slug", slug, { required: true, help: "The provider part of provider/model. Lower-case letters, digits, hyphens." }),
+                custom ? null : field("Name", label, { required: true })),
+              custom ? null : h("div", { class: "grid-2" }, field("API format", wire), field("Base URL", baseUrl, { help: "https, or http for a server on this computer." })),
+              enabled,
+              clearKey)),
           status,
         ],
-        footer: [remove, cancel, h("span", { class: "grow" }), save],
+        footer: [remove, h("span", { class: "grow" }), cancel, save],
       });
     }
 
-    // ---- aliases and combos ----------------------------------------------------------
+    // ---- configuring an agent by hand ----------------------------------------------------
+
+    function drawConnect() {
+      const p = state.base_url || "http://127.0.0.1:PORT/router/v1";
+      const anthBase = state.anthropic_base_url || "http://127.0.0.1:PORT/router";
+      const codexBlock = `model_provider = "agentnotify"\nmodel = "deepseek/deepseek-chat"\n\n[model_providers.agentnotify]\nname = "AgentNotify router"\nbase_url = "${p}"\nenv_key = "AGENTNOTIFY_ROUTER_KEY"\nwire_api = "responses"`;
+      const claudeBlock = `export ANTHROPIC_BASE_URL=${anthBase}\nexport ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"\nexport ANTHROPIC_MODEL=deepseek/deepseek-chat`;
+
+      mount(connectHost,
+        h("details", { class: "disclosure" },
+          h("summary", { text: "Rather configure an agent by hand?" }),
+          h("div", { class: "stack" },
+            h("p", { class: "muted small", text: "Connect above edits the agent's own files for you and keeps a copy. To do it yourself instead, use these, with any provider/model in place of the example." }),
+            h("h3", { class: "card-title", text: "Codex (~/.codex/config.toml)" }),
+            copyBlock(codexBlock),
+            h("h3", { class: "card-title", text: "Claude Code (environment)" }),
+            copyBlock(claudeBlock),
+            h("p", { class: "muted small", text: "AGENTNOTIFY_ROUTER_KEY is the output of 'agentnotify router key'. Restart the agent after changing its configuration." }))),
+      );
+    }
+
+    // ---- routes: nicknames and fallback chains ---------------------------------------
+
+    const ROUTE_KIND = {
+      alias: ["Nickname", "A short name for one model."],
+      combo: ["Fallback chain", "Tries each model in order until one answers."],
+    };
+
+    /** Every provider/model, grouped by provider, for a select. */
+    function modelChoices() {
+      return state.upstreams.filter(u => u.models?.length).map(u => ({
+        label: u.label,
+        options: u.models.map(m => `${u.slug}/${m}`),
+      }));
+    }
+
+    function modelPicker(value, { allowEmpty = false, emptyLabel = "Choose a model" } = {}) {
+      const el = h("select", { class: "select" });
+      if (allowEmpty || !value) el.append(h("option", { value: "", text: emptyLabel }));
+      let found = !value;
+      for (const group of modelChoices()) {
+        const og = h("optgroup", { label: group.label });
+        for (const option of group.options) {
+          if (option === value) found = true;
+          og.append(h("option", { value: option, text: option, selected: option === value }));
+        }
+        el.append(og);
+      }
+      // A route may name a model its provider no longer lists; keep it visible rather than losing it.
+      if (!found) el.append(h("option", { value, text: `${value} (not in a provider's list)`, selected: true }));
+      return el;
+    }
 
     function routeCard(r) {
       const isSelected = r.id === routeEditId;
@@ -354,126 +537,78 @@ export async function renderRouter(page, ctx, section) {
       },
         h("div", { class: "list-main" },
           h("div", { class: "list-title", text: r.name }),
-          h("div", { class: "list-sub", text: `${r.kind} · ${(r.targets || []).join(" → ")}` })),
-        r.enabled ? badge("On", "ok") : badge("Off"),
+          h("div", { class: "list-sub", text: `${ROUTE_KIND[r.kind]?.[0] || r.kind} · ${(r.targets || []).join(" → ")}` })),
+        h("div", { class: "list-side" }, r.enabled ? badge("On", "ok") : badge("Off")),
       );
     }
 
     function drawRoutes() {
       const listBody = h("div", { class: "list" });
       if (!state.routes.length) {
-        listBody.append(empty("No routes yet", "An alias maps one provider/model to a single target. A combo tries its targets in order until one succeeds.", "route"));
+        listBody.append(empty("No routes", "That's fine — routes are optional.", "route"));
       } else {
         for (const r of state.routes) listBody.append(routeCard(r));
       }
 
       const editing = routeEditId ? state.routes.find(x => x.id === routeEditId) : null;
-      const editorHost = h("div", null, buildRouteForm(editing));
-      const addBtn = button("Add route", { variant: routeEditId ? null : "primary", size: "sm", iconName: "plus", onClick: () => { routeEditId = null; drawRoutes(); } });
+      const addBtn = button("New route", { variant: routeEditId ? null : "primary", size: "sm", iconName: "plus", onClick: () => { routeEditId = null; drawRoutes(); } });
 
       mount(routesHost,
+        notice("You don't need a route to use a model. Every model you ticked on the Providers page is already in your agents' pickers as provider/model — for example opencode-go/kimi-k3. "
+          + "A route only adds a Nickname (a short name for one model) or a Fallback chain (several models tried in order, so a rate-limited or failing provider hands over to the next; this was called a combo).", "info"),
         h("div", { class: "section-heading" },
-          h("div", null, h("h2", { text: "Aliases and combos" }), h("p", { class: "muted small", text: "A combo tries its targets in order (failover order)." })),
+          h("div", null, h("h2", { text: "Routes" }), h("p", { class: "muted small", text: "Nicknames and fallback chains." })),
           addBtn),
         h("div", { class: "split" },
           h("div", { class: "sticky" }, card({ title: "Routes", body: listBody })),
-          editorHost),
+          h("div", null, buildRouteForm(editing))),
       );
     }
 
     function buildRouteForm(existing) {
       const isEdit = !!existing;
-      const name = input({ value: existing?.name || "", maxlength: 64, placeholder: "coding", autocomplete: "off", spellcheck: "false" });
-      const kind = select([["alias", "alias — one target"], ["combo", "combo — ordered failover"]], existing?.kind || "alias");
-      const enabled = toggle("Enabled", existing ? existing.enabled : true);
+      const name = input({ value: existing?.name || "", maxlength: 64, placeholder: "fast", autocomplete: "off", spellcheck: "false" });
+      const kind = select(Object.entries(ROUTE_KIND).map(([id, [title, text]]) => [id, `${title} — ${text}`]), existing?.kind || "alias");
+      const enabled = toggle("On", existing ? existing.enabled : true);
       const status = h("div", { class: "stack" });
 
-      // Targets handling
       let targets = (existing?.targets || []).slice();
       if (!targets.length) targets = [""];
-
       const targetsHost = h("div", { class: "stack" });
 
-      const upstreamOptions = state.upstreams.map(u => [u.slug, `${u.label} (${u.slug})`]);
-
       const rebuildTargets = () => {
+        if (kind.value === "alias" && targets.length > 1) targets = [targets[0]];
         clear(targetsHost);
+        const chain = kind.value === "combo";
         targets.forEach((t, idx) => {
-          const slash = t.indexOf("/");
-          const curSlug = slash >= 0 ? t.slice(0, slash) : (upstreamOptions[0]?.[0] || "");
-          const curModel = slash >= 0 ? t.slice(slash + 1) : t;
-          const slugSel = select(upstreamOptions.length ? upstreamOptions : [["", "No upstreams — add one first"]], curSlug);
-          const modelInput = input({ value: curModel, placeholder: "model id", autocomplete: "off", spellcheck: "false" });
-          const sync = () => { targets[idx] = slugSel.value ? `${slugSel.value}/${modelInput.value.trim()}` : modelInput.value.trim(); };
-          slugSel.addEventListener("change", sync);
-          modelInput.addEventListener("input", sync);
-
-          const upBtn = button("", { size: "sm", iconName: "plus", title: "Move up" });
-          // reuse plus rotated? We'll make simple text buttons for move up/down
-          const mvUp = button("↑", { size: "sm", title: "Move up", disabled: idx === 0 });
-          const mvDown = button("↓", { size: "sm", title: "Move down", disabled: idx === targets.length - 1 });
-          const rem = button("", { size: "sm", iconName: "x", title: "Remove" });
-          // Use handler that respects alias length
-          mvUp.addEventListener("click", () => {
-            const tmp = targets[idx - 1]; targets[idx - 1] = targets[idx]; targets[idx] = tmp; rebuildTargets();
-          });
-          mvDown.addEventListener("click", () => {
-            const tmp = targets[idx + 1]; targets[idx + 1] = targets[idx]; targets[idx] = tmp; rebuildTargets();
-          });
-          rem.addEventListener("click", () => {
-            if (kind.value === "alias" && targets.length <= 1) {
-              toast("Alias must have exactly one target.", "error");
-              return;
-            }
-            targets.splice(idx, 1);
-            if (!targets.length) targets = [""];
-            rebuildTargets();
-          });
-
-          const row = h("div", { class: "row" },
-            field(`Target ${idx + 1}`, slugSel),
-            field("Model", modelInput),
-            mvUp, mvDown, rem,
-          );
-          // Show order hint for combos
-          targetsHost.append(row);
+          const picker = modelPicker(t);
+          picker.addEventListener("change", () => { targets[idx] = picker.value; });
+          const mvUp = button("↑", { size: "sm", title: "Try earlier", disabled: idx === 0 });
+          const mvDown = button("↓", { size: "sm", title: "Try later", disabled: idx === targets.length - 1 });
+          const rem = button("", { size: "sm", iconName: "x", title: "Remove", disabled: targets.length <= 1 });
+          mvUp.addEventListener("click", () => { [targets[idx - 1], targets[idx]] = [targets[idx], targets[idx - 1]]; rebuildTargets(); });
+          mvDown.addEventListener("click", () => { [targets[idx + 1], targets[idx]] = [targets[idx], targets[idx + 1]]; rebuildTargets(); });
+          rem.addEventListener("click", () => { targets.splice(idx, 1); rebuildTargets(); });
+          targetsHost.append(h("div", { class: "route-target" },
+            h("span", { class: "route-target-n", text: chain ? `${idx + 1}.` : "" }),
+            picker,
+            chain ? h("div", { class: "row" }, mvUp, mvDown, rem) : null));
         });
-        const addTarget = button("Add target", { size: "sm", iconName: "plus" });
-        addTarget.addEventListener("click", () => {
-          if (kind.value === "alias" && targets.length >= 1) {
-            toast("Alias can have only one target.", "error");
-            return;
-          }
-          if (targets.length >= 8) {
-            toast("A combo can have at most 8 targets.", "error");
-            return;
-          }
-          targets.push("");
-          rebuildTargets();
-        });
-        // Control add button visibility
-        if (kind.value === "combo" || targets.length === 0) targetsHost.append(addTarget);
-        // Sync alias constraint: hide extra controls if needed
-        if (kind.value === "alias" && targets.length > 1) {
-          // Trim to one
-          targets = [targets[0]];
-          rebuildTargets();
-          return;
+        if (chain && targets.length < 8) {
+          targetsHost.append(button("Add a fallback", { size: "sm", iconName: "plus", onClick: () => { targets.push(""); rebuildTargets(); } }));
         }
       };
-      kind.addEventListener("change", () => rebuildTargets());
+      kind.addEventListener("change", rebuildTargets);
       rebuildTargets();
 
       const save = button(isEdit ? "Save changes" : "Save route", { variant: "primary" });
       save.addEventListener("click", () => busy(save, async () => {
-        // Collect current text values (in case edits not synced due to stale closures, re-read)
-        // targets array is kept in sync via events; final trim
         const normalized = targets.map(t => t.trim()).filter(Boolean);
         try {
           const body = { name: name.value.trim(), kind: kind.value, targets: normalized, enabled: enabled.input.checked };
           if (isEdit) await api.put(`router/routes/${encodeURIComponent(existing.id)}`, body);
           else await api.post("router/routes", body);
-          toast(isEdit ? "Route saved." : "Route added.");
+          toast(isEdit ? "Route saved." : `Route added. Pick "${body.name}" in your agent's model menu.`);
           routeEditId = null;
           await reload();
         } catch (error) {
@@ -483,7 +618,7 @@ export async function renderRouter(page, ctx, section) {
 
       const remove = isEdit ? button("Delete", { variant: "danger", iconName: "trash" }) : null;
       remove?.addEventListener("click", async () => {
-        const ok = await confirmDialog({ title: `Delete ${existing.name}?`, message: "Requests can no longer use this route name.", confirmLabel: "Delete route", danger: true });
+        const ok = await confirmDialog({ title: `Delete ${existing.name}?`, message: "Agents can no longer ask for this name.", confirmLabel: "Delete route", danger: true });
         if (!ok) return;
         await busy(remove, async () => {
           try {
@@ -500,14 +635,14 @@ export async function renderRouter(page, ctx, section) {
 
       return card({
         title: isEdit ? existing.name : "New route",
-        description: kind.value === "combo" ? "A combo tries its targets in order." : "An alias has exactly one target.",
         body: [
-          h("div", { class: "grid-2" }, field("Name", name, { required: true, help: "Lower-case, digits, dot, underscore, hyphen." }), h("div", { class: "field" }, h("span", { class: "field-label", text: "Status" }), enabled)),
-          field("Kind", kind, { required: true }),
-          h("div", null,
-            h("span", { class: "field-label", text: "Targets (order is failover order)" }),
-            h("p", { class: "muted small", text: "Pick upstream and type the native model. Order matters for combos." }),
+          h("div", { class: "grid-2" },
+            field("Name", name, { required: true, help: "What you pick in the agent's menu. Lower-case letters, digits, dot, underscore, hyphen." }),
+            field("Type", kind)),
+          h("div", { class: "field" },
+            h("span", { class: "field-label", text: "Model" + (kind.value === "combo" ? "s, in the order they are tried" : "") }),
             targetsHost),
+          enabled,
           status,
         ],
         footer: [remove, cancel, h("span", { class: "grow" }), save],
@@ -517,26 +652,26 @@ export async function renderRouter(page, ctx, section) {
     // ---- default route ---------------------------------------------------------------
 
     function drawDefault() {
-      const options = [["", "none"]];
-      for (const r of state.routes) {
-        options.push([r.name, r.name]);
-        options.push([`combo/${r.name}`, `combo/${r.name}`]);
-      }
-      for (const u of state.upstreams) {
-        for (const m of (u.models || [])) {
-          options.push([`${u.slug}/${m}`, `${u.slug}/${m}`]);
-        }
-      }
+      const sel = h("select", { class: "select" }, h("option", { value: "", text: "None — refuse the request" }));
       const current = state.default_route || "";
-      const sel = select(options, current);
+      if (state.routes.length) {
+        const og = h("optgroup", { label: "Routes" });
+        for (const r of state.routes) og.append(h("option", { value: r.name, text: r.name, selected: r.name === current }));
+        sel.append(og);
+      }
+      for (const group of modelChoices()) {
+        const og = h("optgroup", { label: group.label });
+        for (const option of group.options) og.append(h("option", { value: option, text: option, selected: option === current }));
+        sel.append(og);
+      }
       const status = h("div", { class: "stack" });
-      const save = button("Save default", { variant: "primary", size: "sm" });
+      const save = button("Save", { variant: "primary", size: "sm" });
       save.addEventListener("click", () => busy(save, async () => {
         try {
           await api.put("router/default", { route: sel.value || null });
           state.default_route = sel.value || null;
-          toast(sel.value ? `Default set to ${sel.value}.` : "Default cleared.");
-          status.replaceChildren(notice(sel.value ? `Default route is now ${sel.value}.` : "Default route cleared.", "ok"));
+          toast(sel.value ? `Unknown models now go to ${sel.value}.` : "Default cleared.");
+          clear(status);
         } catch (error) {
           status.replaceChildren(notice(error.message, "danger"));
         }
@@ -544,13 +679,9 @@ export async function renderRouter(page, ctx, section) {
 
       mount(defaultHost,
         card({
-          title: "Default route",
-          description: "Used when the requested model does not match any route or upstream.",
-          body: [
-            field("Default", sel),
-            h("div", { class: "row" }, save),
-            status,
-          ],
+          title: "When an agent asks for a model the router doesn't know",
+          description: "For example Claude Code asking for its own claude-… model name. Optional.",
+          body: [h("div", { class: "row route-default" }, sel, save), status],
         }),
       );
     }
@@ -732,6 +863,12 @@ export async function renderRouter(page, ctx, section) {
         agent.connected ? badge("Connected", "ok") : badge(agent.detected ? "Not connected" : "Not installed", agent.detected ? "warn" : "danger"));
 
       const lines = [h("p", { class: "muted small", text: agent.config_path })];
+      if (agent.id === "codex") {
+        const plan = state.upstreams.find(u => u.auth === "codex_chatgpt" && u.enabled);
+        lines.push(notice(plan
+          ? `Codex's /model menu lists exactly the models below; it has no "add to my own list" mode like Claude Code's. Your ChatGPT plan models (${plan.slug}/…) are among them and keep Codex's own prompt and settings.`
+          : `Codex's /model menu lists exactly the models below; it has no "add to my own list" mode like Claude Code's. To keep GPT models in it, add the ChatGPT plan provider — they then appear here and behave as Codex's own.`, "info"));
+      }
       if (agent.blocked) lines.push(notice(agent.blocked, "warn"));
       if (agent.connected && agent.selected_model)
         lines.push(h("p", { class: "small", text: `Sends ${agent.selected_model} by default.` }));
@@ -761,6 +898,13 @@ export async function renderRouter(page, ctx, section) {
       const optionControls = {};
       for (const option of (agent.options || [])) {
         const current = (agent.option_values || {})[option.id] || "";
+        // An on/off setting is a switch, off unless it was turned on.
+        if (option.choices?.length === 2 && option.choices.includes("on") && option.choices.includes("off")) {
+          const sw = toggle(option.display_name, current === "on", { help: option.description });
+          optionControls[option.id] = { get value() { return sw.input.checked ? "on" : "off"; } };
+          controls.push(sw);
+          continue;
+        }
         const control = option.is_model_selector
           ? modelSelect(current, selectable, { allowEmpty: true, emptyLabel: "Leave unchanged" })
           : select([["", "Leave unchanged"], ...option.choices.map(c => [c, c])], current);

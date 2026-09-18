@@ -106,7 +106,26 @@ public sealed class RouterRepository
             CREATE INDEX IF NOT EXISTS idx_router_attempts_request_id ON router_attempts(request_id);
             """;
         await command.ExecuteNonQueryAsync(ct);
+        await AddColumnIfMissingAsync(connection, "router_upstreams", "auth", "TEXT NOT NULL DEFAULT 'api_key'", ct);
+        await AddColumnIfMissingAsync(connection, "router_upstreams", "model_wires", "TEXT", ct);
         UnixFilePermissions.RestrictFile(_dbPath);
+    }
+
+    /// <summary>Adds a column an older database lacks. Existing rows keep every value they had.</summary>
+    private static async Task AddColumnIfMissingAsync(SqliteConnection connection, string table, string column,
+        string definition, CancellationToken ct)
+    {
+        await using (var probe = connection.CreateCommand())
+        {
+            probe.CommandText = $"SELECT 1 FROM pragma_table_info('{table}') WHERE name = $name";
+            probe.Parameters.AddWithValue("$name", column);
+            if (await probe.ExecuteScalarAsync(ct) is not null) return;
+        }
+        await using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        try { await alter.ExecuteNonQueryAsync(ct); }
+        // Two initializations racing: the other one already added it.
+        catch (SqliteException error) when (error.Message.Contains("duplicate column", StringComparison.OrdinalIgnoreCase)) { }
     }
 
 
@@ -148,8 +167,8 @@ public sealed class RouterRepository
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO router_upstreams (id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at)
-            VALUES ($id, $slug, $label, $wire, $baseUrl, $key, $models, $enabled, $createdAt, $updatedAt);
+            INSERT INTO router_upstreams (id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires)
+            VALUES ($id, $slug, $label, $wire, $baseUrl, $key, $models, $enabled, $createdAt, $updatedAt, $auth, $modelWires);
             """;
         BindUpstream(command, upstream);
         await command.ExecuteNonQueryAsync(ct);
@@ -164,7 +183,7 @@ public sealed class RouterRepository
             UPDATE router_upstreams SET
                 slug = $slug, label = $label, wire = $wire, base_url = $baseUrl,
                 encrypted_key = $key, models = $models, enabled = $enabled,
-                created_at = $createdAt, updated_at = $updatedAt
+                created_at = $createdAt, updated_at = $updatedAt, auth = $auth, model_wires = $modelWires
             WHERE id = $id;
             """;
         BindUpstream(command, upstream);
@@ -428,6 +447,10 @@ public sealed class RouterRepository
         command.Parameters.AddWithValue("$enabled", u.Enabled ? 1 : 0);
         command.Parameters.AddWithValue("$createdAt", u.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("$updatedAt", u.UpdatedAt.ToString("O"));
+        command.Parameters.AddWithValue("$auth", u.Auth);
+        command.Parameters.AddWithValue("$modelWires", u.ModelWires.Count == 0
+            ? DBNull.Value
+            : JsonSerializer.Serialize(u.ModelWires, Json.Options));
     }
 
     private static void BindRoute(SqliteCommand command, RouterRoute r)
@@ -441,7 +464,7 @@ public sealed class RouterRepository
         command.Parameters.AddWithValue("$updatedAt", r.UpdatedAt.ToString("O"));
     }
 
-    private static StoredRouterUpstream ReadUpstream(SqliteDataReader reader) => new(
+    private static StoredRouterUpstream ReadUpstream(SqliteDataReader reader) => new StoredRouterUpstream(
         reader.GetString(0),
         reader.GetString(1),
         reader.GetString(2),
@@ -451,7 +474,13 @@ public sealed class RouterRepository
         JsonSerializer.Deserialize<List<string>>(reader.GetString(6), Json.Options) ?? [],
         reader.GetInt32(7) != 0,
         DateTimeOffset.Parse(reader.GetString(8), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-        DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
+        DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind))
+    {
+        Auth = reader.GetString(10),
+        ModelWires = reader.IsDBNull(11)
+            ? RouterUpstreamWires.None
+            : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(11), Json.Options) ?? RouterUpstreamWires.None
+    };
 
     private static RouterRoute ReadRoute(SqliteDataReader reader) => new(
         reader.GetString(0),
@@ -495,7 +524,7 @@ public sealed class RouterRepository
         DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
 
     private const string SelectUpstreamColumns =
-        "SELECT id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at FROM router_upstreams";
+        "SELECT id, slug, label, wire, base_url, encrypted_key, models, enabled, created_at, updated_at, auth, model_wires FROM router_upstreams";
     private const string SelectRouteColumns =
         "SELECT id, name, kind, targets, enabled, created_at, updated_at FROM router_routes";
     private const string SelectRequestColumns =

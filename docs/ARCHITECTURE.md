@@ -226,6 +226,15 @@ that cannot be opened fails that attempt (`provider_key_unreadable`) rather than
 without a credential. A key may only travel to its own validated base URL: `https` anywhere, plain
 `http` only for a loopback literal, no redirects, no cookies, no system proxy.
 
+Two upstream kinds carry no key at all: a subscription upstream (`codex_chatgpt`, `muse_code`)
+authenticates with the sign-in another tool keeps on this computer, read from that tool's file at
+request time by `RouterCredentialSource`. Those tokens are held only in memory, never logged, stored,
+or returned, and go only to the preset's fixed host. Renewing Codex's sign-in writes the new tokens
+back into Codex's own `auth.json` — the one other place, beside `Router/Connect`, where AgentNotify
+writes another program's file — because rotating its refresh token without doing so would sign Codex
+out. Both kinds are unofficial and opt-in. Reading a key OpenCode already holds happens only on an
+explicit request from the owner, and that key is then sealed like one typed in.
+
 `RouteResolver` is a pure function of one configuration snapshot and the requested model, so a ledger
 row can be explained after the fact. Translation runs through one intermediate request and one stream
 event model, which is what makes every wire pair work from three decoders and three encoders; when the

@@ -212,7 +212,7 @@ public sealed class RouterCoreTests
             var created = await service.CreateUpstreamAsync("openai", "Label", RouterWire.OpenAiChat, "https://api.example.com/v1", null, ["a", "b", "a", "c"]);
             Assert.Equal(new[] { "a", "b", "c" }, created.Models);
             await Assert.ThrowsAsync<ArgumentException>(() => service.CreateUpstreamAsync("s2", "Label", RouterWire.OpenAiChat, "https://api.example.com/v1", null, ["has space model 123"]));
-            var tooMany = Enumerable.Range(0, 201).Select(i => $"m{i}").ToList();
+            var tooMany = Enumerable.Range(0, 501).Select(i => $"m{i}").ToList();
             await Assert.ThrowsAsync<ArgumentException>(() => service.CreateUpstreamAsync("s3", "Label", RouterWire.OpenAiChat, "https://api.example.com/v1", null, tooMany));
         }
         finally { Cleanup(db, cfg); }

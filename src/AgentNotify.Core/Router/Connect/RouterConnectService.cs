@@ -93,7 +93,8 @@ public sealed class RouterConnectService
                 var options = ValidateOptions(request.Options, selectable, CodexRouterConnector.Options);
                 // The shell tool belongs to the generated catalogue rather than to config.toml.
                 options.TryGetValue("shell_tool", out var shellTool);
-                var catalogCount = CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool);
+                var catalogCount = CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool,
+                    nativeEntries: CodexModelCatalog.ReadNative(_codex.Home));
                 if (catalogCount == 0)
                     throw new InvalidOperationException("The router has no selectable model, so Codex would refuse the catalogue.");
                 Backup(_codex.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
@@ -235,7 +236,8 @@ public sealed class RouterConnectService
                 ? chosen
                 : selectable.FirstOrDefault();
             codexState.Options.TryGetValue("shell_tool", out var shellTool);
-            if (model is not null && CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool) > 0)
+            if (model is not null && CodexModelCatalog.Write(CatalogPath, snapshot, shellType: shellTool,
+                    nativeEntries: CodexModelCatalog.ReadNative(_codex.Home)) > 0)
             {
                 // A subagent or review model that no longer resolves is dropped rather than written
                 // back: Codex would otherwise send a selector this router refuses.

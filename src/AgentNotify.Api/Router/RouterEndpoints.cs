@@ -127,7 +127,16 @@ public static class RouterEndpoints
         var anthBeta = context.Request.Headers["anthropic-beta"].ToString();
         if (string.IsNullOrWhiteSpace(anthBeta)) anthBeta = null;
 
-        var inbound = new RouterInbound(inboundWire, bodyBytes, anthVersion, anthBeta, isCountTokens);
+        // The agent's own conversation ID, when it sends one, so a provider that pins a conversation
+        // to one backend for prompt caching (OpenCode Go requires it) sees each conversation as one.
+        string? sessionId = null;
+        foreach (var header in RouterInbound.SessionHeaders)
+        {
+            var value = context.Request.Headers[header].ToString();
+            if (!string.IsNullOrWhiteSpace(value) && value.Length <= 200) { sessionId = value.Trim(); break; }
+        }
+
+        var inbound = new RouterInbound(inboundWire, bodyBytes, anthVersion, anthBeta, isCountTokens) { SessionId = sessionId };
         var sink = new RouterSink(context);
         try
         {
@@ -199,7 +208,7 @@ public static class RouterEndpoints
                     upstreams = Array.Empty<object>(),
                     routes = Array.Empty<object>(),
                     default_route = (string?)null,
-                    presets = RouterPresetCatalog.Presets.Select(p => new { id = p.Id, display_name = p.DisplayName, wire = p.Wire, base_url = p.BaseUrl, needs_key = p.NeedsKey, docs_url = p.DocsUrl }),
+                    presets = PublicPresets(options.Router?.Credentials),
                     limits = new { max_request_body_bytes = config.RouterMaxRequestBodyBytes, ledger_retention_days = config.RouterLedgerRetentionDays }
                 }, WebUiEndpoints.JsonOptions);
             }
@@ -213,10 +222,10 @@ public static class RouterEndpoints
                 has_key = !string.IsNullOrWhiteSpace(config.RouterKey),
                 base_url = $"http://127.0.0.1:{config.Port}/router/v1",
                 anthropic_base_url = $"http://127.0.0.1:{config.Port}/router",
-                upstreams = upstreams.Select(u => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt }),
+                upstreams = upstreams.Select(ToPublic),
                 routes = routes.Select(r => new { id = r.Id, name = r.Name, kind = r.Kind, targets = r.Targets, enabled = r.Enabled, created_at = r.CreatedAt, updated_at = r.UpdatedAt }),
                 default_route = settings.DefaultRoute,
-                presets = RouterPresetCatalog.Presets.Select(p => new { id = p.Id, display_name = p.DisplayName, wire = p.Wire, base_url = p.BaseUrl, needs_key = p.NeedsKey, docs_url = p.DocsUrl }),
+                presets = PublicPresets(options.Router?.Credentials),
                 limits = new { max_request_body_bytes = config.RouterMaxRequestBodyBytes, ledger_retention_days = config.RouterLedgerRetentionDays }
             }, WebUiEndpoints.JsonOptions);
         });
@@ -251,11 +260,14 @@ public static class RouterEndpoints
             var body = await ReadAsync<UpstreamBody>(http);
             if (body is null) return Error("The request body is not valid JSON.");
             bool ack = (body.AckKeyStorage == true) || (body.AcknowledgeRisk == true);
-            if (!string.IsNullOrWhiteSpace(body.ApiKey) && !ack)
+            if ((!string.IsNullOrWhiteSpace(body.ApiKey) || body.UseOpencodeKey == true) && !ack)
                 return Error("You must acknowledge the storage risk to add an API key.");
+            var preset = RouterPresetCatalog.FindById(body.PresetId);
             try
             {
-                var created = await routerConfig.CreateUpstreamAsync(body.Slug, body.Label, body.Wire, body.BaseUrl, body.ApiKey, body.Models, body.Enabled ?? true, http.RequestAborted);
+                var key = ResolveKey(body, preset, options.Router?.Credentials);
+                var created = await routerConfig.CreateUpstreamAsync(body.Slug, body.Label, body.Wire, body.BaseUrl, key, body.Models, body.Enabled ?? true, http.RequestAborted,
+                    body.Auth ?? preset?.Auth, ResolveModelWires(body, preset));
                 return Results.Json(ToPublic(created), WebUiEndpoints.JsonOptions, statusCode: StatusCodes.Status201Created);
             }
             catch (ArgumentException ex) { return Error(ex.Message); }
@@ -267,15 +279,53 @@ public static class RouterEndpoints
             var body = await ReadAsync<UpstreamBody>(http);
             if (body is null) return Error("The request body is not valid JSON.");
             bool ack = (body.AckKeyStorage == true) || (body.AcknowledgeRisk == true);
-            if (!string.IsNullOrWhiteSpace(body.ApiKey) && !ack)
+            if ((!string.IsNullOrWhiteSpace(body.ApiKey) || body.UseOpencodeKey == true) && !ack)
                 return Error("You must acknowledge the storage risk to add an API key.");
+            var preset = RouterPresetCatalog.FindById(body.PresetId);
             try
             {
-                var updated = await routerConfig.UpdateUpstreamAsync(id, body.Slug, body.Label, body.Wire, body.BaseUrl, body.ApiKey, body.Models, body.Enabled, body.ClearKey ?? false, http.RequestAborted);
+                var key = ResolveKey(body, preset, options.Router?.Credentials);
+                var updated = await routerConfig.UpdateUpstreamAsync(id, body.Slug, body.Label, body.Wire, body.BaseUrl, key, body.Models, body.Enabled, body.ClearKey ?? false, http.RequestAborted,
+                    body.Auth, ResolveModelWires(body, preset));
                 return Results.Json(ToPublic(updated), WebUiEndpoints.JsonOptions);
             }
             catch (KeyNotFoundException) { return Error("That upstream was not found.", 404); }
             catch (ArgumentException ex) { return Error(ex.Message); }
+        });
+
+        // Lists a provider's models so they can be ticked rather than typed. The key is the one being
+        // entered, the one OpenCode holds, or — for a saved upstream — its stored one; it is sent only
+        // to the base URL named, under the same destination rule as routed traffic.
+        app.MapPost($"{WebUiEndpoints.BasePath}/api/router/models/fetch", async (HttpContext http) =>
+        {
+            if (routerConfig is null || options.Router is null) return Error("Router is not configured.", 404);
+            var body = await ReadAsync<UpstreamBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            var preset = RouterPresetCatalog.FindById(body.PresetId);
+            var baseUrl = body.BaseUrl ?? preset?.BaseUrl;
+            var wire = body.Wire ?? preset?.Wire ?? RouterWire.OpenAiChat;
+            var auth = body.Auth ?? preset?.Auth ?? RouterAuth.ApiKey;
+            try
+            {
+                var key = ResolveKey(body, preset, options.Router.Credentials);
+                if (key is null && body.UpstreamId is { Length: > 0 } upstreamId)
+                {
+                    var stored = await routerConfig.GetStoredUpstreamAsync(upstreamId, http.RequestAborted);
+                    if (stored is null) return Error("That upstream was not found.", 404);
+                    // The stored key is only ever sent back to the host it was saved for.
+                    if (string.Equals(stored.BaseUrl, baseUrl?.Trim().TrimEnd('/'), StringComparison.Ordinal))
+                        key = routerConfig.DecryptKey(stored);
+                }
+                var models = await options.Router.Discovery.FetchAsync(baseUrl, wire, auth, key, preset, http.RequestAborted);
+                return Results.Json(new
+                {
+                    models = models.Select(model => new { id = model, wire = preset?.WireFor(model) ?? wire })
+                }, WebUiEndpoints.JsonOptions);
+            }
+            catch (ArgumentException ex) { return Error(ex.Message); }
+            catch (SubscriptionAuthException ex) { return Error(ex.Message, StatusCodes.Status409Conflict); }
+            catch (InvalidOperationException ex) { return Error(ex.Message, StatusCodes.Status502BadGateway); }
+            catch (CryptographicException) { return Error("The stored key cannot be read on this computer. Enter it again.", StatusCodes.Status409Conflict); }
         });
 
         app.MapDelete($"{WebUiEndpoints.BasePath}/api/router/upstreams/{{id}}", async (string id, CancellationToken ct) =>
@@ -472,7 +522,48 @@ public static class RouterEndpoints
 
     private sealed class RestoreBody { public string? BackupId { get; set; } }
 
-    private static object ToPublic(RouterUpstream u) => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt };
+    private static object ToPublic(RouterUpstream u) => new { id = u.Id, slug = u.Slug, label = u.Label, wire = u.Wire, base_url = u.BaseUrl, has_key = u.HasKey, models = u.Models, enabled = u.Enabled, created_at = u.CreatedAt, updated_at = u.UpdatedAt, auth = u.Auth, model_wires = u.ModelWires };
+
+    /// <summary>
+    /// The presets, with what this computer already has for each: a subscription sign-in, or a key
+    /// OpenCode holds. Only whether one exists is said, never the key.
+    /// </summary>
+    private static IEnumerable<object> PublicPresets(RouterCredentialSource? credentials) =>
+        RouterPresetCatalog.Presets.Select(p =>
+        {
+            var signin = credentials is not null && RouterAuth.IsSubscription(p.Auth) ? credentials.Describe(p.Auth) : (true, "");
+            return new
+            {
+                id = p.Id,
+                display_name = p.DisplayName,
+                wire = p.Wire,
+                base_url = p.BaseUrl,
+                needs_key = p.NeedsKey,
+                docs_url = p.DocsUrl,
+                kind = p.Kind,
+                auth = p.Auth,
+                blurb = p.Blurb,
+                key_url = p.KeyUrl,
+                unofficial = p.Unofficial,
+                opencode_key = credentials?.ReadOpenCodeKey(p.OpenCodeAuthId) is not null,
+                signin_ready = signin.Item1,
+                signin_detail = signin.Item2
+            };
+        });
+
+    /// <summary>The key a create or update should store: the typed one, or the one OpenCode already holds.</summary>
+    private static string? ResolveKey(UpstreamBody body, RouterPreset? preset, RouterCredentialSource? credentials)
+    {
+        if (!string.IsNullOrWhiteSpace(body.ApiKey)) return body.ApiKey;
+        if (body.UseOpencodeKey == true)
+            return credentials?.ReadOpenCodeKey(preset?.OpenCodeAuthId)
+                ?? throw new ArgumentException("OpenCode has no key for this provider any more. Paste one instead.");
+        return null;
+    }
+
+    /// <summary>Per-model wires sent by the client, or else derived from the preset's rules.</summary>
+    private static IReadOnlyDictionary<string, string>? ResolveModelWires(UpstreamBody body, RouterPreset? preset) =>
+        body.ModelWires ?? (preset is null || body.Models is null ? null : preset.ModelWires(body.Models));
 
     private static IResult Error(string message, int status = StatusCodes.Status400BadRequest) =>
         Results.Json(new { error = message }, WebUiEndpoints.JsonOptions, statusCode: status);
@@ -496,6 +587,11 @@ public static class RouterEndpoints
         public bool? Enabled { get; set; }
         public bool? AckKeyStorage { get; set; }
         public bool? AcknowledgeRisk { get; set; }
+        public string? Auth { get; set; }
+        public string? PresetId { get; set; }
+        public string? UpstreamId { get; set; }
+        public bool? UseOpencodeKey { get; set; }
+        public Dictionary<string, string>? ModelWires { get; set; }
     }
     private sealed class RouteBody { public string? Name { get; set; } public string? Kind { get; set; } public IReadOnlyList<string>? Targets { get; set; } public bool? Enabled { get; set; } }
     private sealed class DefaultRouteBody { public string? Route { get; set; } }

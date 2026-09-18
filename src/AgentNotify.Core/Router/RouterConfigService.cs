@@ -161,15 +161,20 @@ public sealed class RouterConfigService
         string? apiKey,
         IReadOnlyList<string>? models,
         bool enabled = true,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? auth = null,
+        IReadOnlyDictionary<string, string>? modelWires = null)
     {
         var normalizedSlug = NormalizeSlug(slug);
         var normalizedLabel = NormalizeLabel(label);
         var normalizedWire = RouterWire.Normalize(wire);
         var normalizedBaseUrl = NormalizeBaseUrl(baseUrl);
         var normalizedModels = NormalizeModels(models);
+        var normalizedAuth = RouterAuth.Normalize(auth);
+        var normalizedWires = NormalizeModelWires(modelWires, normalizedModels, normalizedWire);
         string? encryptedKey = null;
-        if (!string.IsNullOrEmpty(apiKey))
+        // A subscription upstream reuses another tool's sign-in; there is no key to keep.
+        if (!string.IsNullOrEmpty(apiKey) && !RouterAuth.IsSubscription(normalizedAuth))
         {
             ValidateKey(apiKey);
             encryptedKey = _protector.Protect(apiKey);
@@ -185,7 +190,11 @@ public sealed class RouterConfigService
         var now = _clock.GetUtcNow();
         var stored = new StoredRouterUpstream(
             NewId("ru"), normalizedSlug, normalizedLabel, normalizedWire, normalizedBaseUrl,
-            encryptedKey, normalizedModels, enabled, now, now);
+            encryptedKey, normalizedModels, enabled, now, now)
+        {
+            Auth = normalizedAuth,
+            ModelWires = normalizedWires
+        };
         await _repository.InsertUpstreamAsync(stored, ct).ConfigureAwait(false);
         Invalidate();
         return ToPublic(stored);
@@ -201,7 +210,9 @@ public sealed class RouterConfigService
         IReadOnlyList<string>? models,
         bool? enabled = null,
         bool clearKey = false,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? auth = null,
+        IReadOnlyDictionary<string, string>? modelWires = null)
     {
         if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("id is required.");
         var normalizedSlug = NormalizeSlug(slug);
@@ -220,8 +231,14 @@ public sealed class RouterConfigService
         if (all.Any(u => u.Id != id && string.Equals(u.Slug, normalizedSlug, StringComparison.Ordinal)))
             throw new ArgumentException($"Slug '{normalizedSlug}' is already in use.");
 
+        // Omitted means unchanged, so an older client or a partial edit keeps what is stored.
+        var normalizedAuth = auth is null ? existing.Auth : RouterAuth.Normalize(auth);
+        var normalizedWires = NormalizeModelWires(modelWires ?? existing.ModelWires, normalizedModels, normalizedWire);
+
         string? encryptedKey;
-        if (clearKey)
+        if (RouterAuth.IsSubscription(normalizedAuth))
+            encryptedKey = null;
+        else if (clearKey)
             encryptedKey = null;
         else if (hasNewKey)
             encryptedKey = _protector.Protect(apiKey!);
@@ -238,7 +255,9 @@ public sealed class RouterConfigService
             EncryptedKey = encryptedKey,
             Models = normalizedModels,
             Enabled = enabled ?? existing.Enabled,
-            UpdatedAt = now
+            UpdatedAt = now,
+            Auth = normalizedAuth,
+            ModelWires = normalizedWires
         };
         await _repository.UpdateUpstreamAsync(updated, ct).ConfigureAwait(false);
         Invalidate();
@@ -429,8 +448,8 @@ public sealed class RouterConfigService
     private static IReadOnlyList<string> NormalizeModels(IReadOnlyList<string>? models)
     {
         if (models is null) return [];
-        if (models.Count > 200)
-            throw new ArgumentException("Up to 200 models can be declared.");
+        if (models.Count > 500)
+            throw new ArgumentException("Up to 500 models can be declared.");
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var result = new List<string>();
         foreach (var m in models)
@@ -439,6 +458,25 @@ public sealed class RouterConfigService
                 throw new ArgumentException("Each model must be 1–200 printable characters without whitespace.");
             if (seen.Add(m))
                 result.Add(m);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Keeps only overrides for declared models that actually differ from the upstream's own wire, so
+    /// removing a model also drops its override.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> NormalizeModelWires(
+        IReadOnlyDictionary<string, string>? modelWires, IReadOnlyList<string> models, string wire)
+    {
+        if (modelWires is null || modelWires.Count == 0) return RouterUpstreamWires.None;
+        var declared = new HashSet<string>(models, StringComparer.Ordinal);
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (model, modelWire) in modelWires)
+        {
+            if (!RouterWire.IsValid(modelWire))
+                throw new ArgumentException($"The wire for '{model}' must be one of openai_responses, openai_chat, anthropic_messages.");
+            if (declared.Contains(model) && modelWire != wire) result[model] = modelWire;
         }
         return result;
     }
@@ -527,5 +565,9 @@ public sealed class RouterConfigService
     }
 
     private static RouterUpstream ToPublic(StoredRouterUpstream s) =>
-        new(s.Id, s.Slug, s.Label, s.Wire, s.BaseUrl, s.EncryptedKey is not null, s.Models, s.Enabled, s.CreatedAt, s.UpdatedAt);
+        new(s.Id, s.Slug, s.Label, s.Wire, s.BaseUrl, s.EncryptedKey is not null, s.Models, s.Enabled, s.CreatedAt, s.UpdatedAt)
+        {
+            Auth = s.Auth,
+            ModelWires = s.ModelWires
+        };
 }

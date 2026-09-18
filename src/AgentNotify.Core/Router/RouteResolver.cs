@@ -43,7 +43,7 @@ public static class RouteResolver
             .Where(upstream => upstream.Enabled && upstream.Models.Contains(model, StringComparer.Ordinal))
             .ToList();
         if (declaring.Count == 1)
-            return Success([new ResolvedTarget(declaring[0], model)], RouterRouteKind.ModelList, null);
+            return Success([Target(declaring[0], model)], RouterRouteKind.ModelList, null);
         if (declaring.Count > 1)
             return Fail("ambiguous_model", 400);
 
@@ -74,7 +74,7 @@ public static class RouteResolver
         var upstream = FindUpstream(snapshot, selector[..slash]);
         return upstream is null
             ? null
-            : Success([new ResolvedTarget(upstream, selector[(slash + 1)..])], routeKind, null);
+            : Success([Target(upstream, selector[(slash + 1)..])], routeKind, null);
     }
 
     /// <summary>Rule 4: the default route, resolved by rules 1–2 only.</summary>
@@ -104,7 +104,7 @@ public static class RouteResolver
             var slash = target.IndexOf('/');
             if (slash <= 0 || slash == target.Length - 1) continue;
             if (FindUpstream(snapshot, target[..slash]) is { } upstream)
-                targets.Add(new ResolvedTarget(upstream, target[(slash + 1)..]));
+                targets.Add(Target(upstream, target[(slash + 1)..]));
         }
 
         return targets.Count == 0
@@ -124,6 +124,17 @@ public static class RouteResolver
     private static StoredRouterUpstream? FindUpstream(RouterSnapshot snapshot, string slug) =>
         snapshot.Upstreams.FirstOrDefault(upstream =>
             upstream.Enabled && string.Equals(upstream.Slug, slug, StringComparison.Ordinal));
+
+    /// <summary>
+    /// One concrete target. A provider that serves different models over different wires (OpenCode
+    /// Zen and Go do) records that per model, so the upstream is narrowed to the wire this model uses
+    /// and everything downstream keeps reading <c>Upstream.Wire</c>.
+    /// </summary>
+    private static ResolvedTarget Target(StoredRouterUpstream upstream, string model)
+    {
+        var wire = upstream.WireFor(model);
+        return new ResolvedTarget(wire == upstream.Wire ? upstream : upstream with { Wire = wire }, model);
+    }
 
     private static RouteResolution Success(IReadOnlyList<ResolvedTarget> targets, string routeKind, string? routeName) =>
         new(targets, routeKind, routeName, null, null);

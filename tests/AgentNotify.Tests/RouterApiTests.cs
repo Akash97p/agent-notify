@@ -186,6 +186,54 @@ public sealed class RouterApiTests
     }
 
     [Fact]
+    public async Task PresetCreate_DerivesModelWires_AndFetchListsModelsWithTheirWire()
+    {
+        var handler = new FakeHandler();
+        handler.Enqueue(req =>
+        {
+            Assert.Equal("https://opencode.ai/zen/go/v1/models", req.RequestUri!.ToString());
+            Assert.Equal("sk-go-12345678", req.Headers.Authorization!.Parameter);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"data\":[{\"id\":\"minimax-m3\"},{\"id\":\"kimi-k3\"}]}", Encoding.UTF8, "application/json")
+            };
+        });
+        await using var app = await TestApp.CreateAsync(routerEnabled: true, handler: handler);
+        using var browser = app.Browser();
+
+        var fetch = await browser.PostAsJsonAsync("/ui/api/router/models/fetch", new { preset_id = "opencode-go", api_key = "sk-go-12345678" });
+        Assert.Equal(HttpStatusCode.OK, fetch.StatusCode);
+        using (var doc = JsonDocument.Parse(await fetch.Content.ReadAsStringAsync()))
+        {
+            var models = doc.RootElement.GetProperty("models").EnumerateArray()
+                .ToDictionary(m => m.GetProperty("id").GetString()!, m => m.GetProperty("wire").GetString()!);
+            Assert.Equal(RouterWire.AnthropicMessages, models["minimax-m3"]);
+            Assert.Equal(RouterWire.OpenAiChat, models["kimi-k3"]);
+        }
+
+        // No model_wires sent: the preset's rules supply them. A typed key still needs the acknowledgement.
+        var refused = await browser.PostAsJsonAsync("/ui/api/router/upstreams", new
+        {
+            preset_id = "opencode-go", slug = "opencode-go", label = "OpenCode Go", wire = "openai_chat",
+            base_url = "https://opencode.ai/zen/go/v1", api_key = "sk-go-12345678", models = new[] { "minimax-m3", "kimi-k3" }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var created = await browser.PostAsJsonAsync("/ui/api/router/upstreams", new
+        {
+            preset_id = "opencode-go", slug = "opencode-go", label = "OpenCode Go", wire = "openai_chat",
+            base_url = "https://opencode.ai/zen/go/v1", api_key = "sk-go-12345678", ack_key_storage = true,
+            models = new[] { "minimax-m3", "kimi-k3" }
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var body = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        Assert.Equal("api_key", body.RootElement.GetProperty("auth").GetString());
+        Assert.True(body.RootElement.GetProperty("has_key").GetBoolean());
+        var wires = body.RootElement.GetProperty("model_wires");
+        Assert.Equal(RouterWire.AnthropicMessages, wires.GetProperty("minimax-m3").GetString());
+        Assert.False(wires.TryGetProperty("kimi-k3", out _));
+    }
+
+    [Fact]
     public async Task OriginHeader_Returns403()
     {
         await using var app = await TestApp.CreateAsync(routerEnabled: true);

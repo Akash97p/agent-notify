@@ -11,6 +11,30 @@ build.
 
 ## [Unreleased]
 
+### Added
+
+- **Add a model provider in one step.** Providers is now a gallery: pick one, paste its key (or reuse
+  the key OpenCode already has for it), tick models from the list the provider returns, and save. The
+  models are immediately in your connected agents' model pickers as `provider/model`; no route is
+  needed. Slug, API format, and base URL moved under Advanced.
+- **New providers:** OpenCode Go and OpenCode Zen (each model on the API format it needs, from one
+  key), Meta Model API for Muse Spark, and two subscriptions that reuse a sign-in already on your
+  computer: **ChatGPT plan** through Codex's sign-in, and **Muse Code plan** through Muse Code's.
+  Both subscriptions are unofficial and opt-in; AgentNotify stores no key for them.
+- In Codex, models from the ChatGPT plan keep Codex's own prompt, context window, and reasoning
+  levels, so they behave as they do without the router.
+
+### Changed
+
+- Routing explains that routes are optional, and calls aliases **nicknames** and combos **fallback
+  chains**. Targets and the fallback for unknown models are picked from your providers' models
+  instead of typed.
+- Claude Code's "Show only routed models" is a switch, off unless you turn it on.
+
+### Fixed
+
+- The "On" and "Key" badges in the provider list no longer spill over the form beside it.
+
 ## [0.2.0-alpha.1] - 2026-09-18
 
 This release adds a local model router. AgentNotify can now sit between your coding agents and the
