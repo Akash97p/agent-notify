@@ -554,10 +554,14 @@ public sealed class RouterCoreTests
         finally { Cleanup(db, cfg); }
     }
 
+    // Absolute on every platform: "/home/me" is not a fully qualified path on Windows.
+    private static readonly string CodexHome = Path.Combine(Path.GetTempPath(), "an-home", ".codex");
+    private static readonly string CodexSecond = Path.Combine(Path.GetTempPath(), "an-home", ".codex-second");
+
     private static CodexPlanAccount[] TwoCodexAccounts(bool secondSignedIn = true) =>
     [
-        new("/home/me/.codex", "me@work", true, true),
-        new("/home/me/.codex-second", "me@home", false, secondSignedIn),
+        new(CodexHome, "me@work", true, true),
+        new(CodexSecond, "me@home", false, secondSignedIn),
     ];
 
     [Fact]
@@ -582,7 +586,7 @@ public sealed class RouterCoreTests
                 ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt);
             Assert.True(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
             var added = (await service.ListUpstreamsAsync()).Single(u => u.Slug == "chatgpt-second");
-            Assert.Equal("profile:/home/me/.codex-second", added.CredentialRef);
+            Assert.Equal("profile:" + CodexSecond, added.CredentialRef);
             Assert.Equal("ChatGPT plan · me@home", added.Label);
             Assert.Equal(["gpt-5.6-luna"], added.Models);
             Assert.Equal(RouterAuth.CodexChatGpt, added.Auth);
@@ -599,14 +603,14 @@ public sealed class RouterCoreTests
         try
         {
             await service.CreateUpstreamAsync("chatgpt", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
-                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:/home/me/.codex");
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:" + CodexHome);
             await service.CreateUpstreamAsync("chatgpt-2", "ChatGPT plan", RouterWire.OpenAiResponses, "https://chatgpt.com/backend-api/codex", null,
-                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:/home/me/.codex");
+                ["gpt-5.6-luna"], auth: RouterAuth.CodexChatGpt, credentialRef: "profile:" + CodexHome);
             Assert.True(await service.SyncCodexAccountsAsync(TwoCodexAccounts()));
             var upstreams = await service.ListUpstreamsAsync();
             Assert.Equal(2, upstreams.Count);
-            Assert.Equal("profile:/home/me/.codex-second", upstreams.Single(u => u.Slug == "chatgpt-2").CredentialRef);
-            Assert.Equal("profile:/home/me/.codex", upstreams.Single(u => u.Slug == "chatgpt").CredentialRef);
+            Assert.Equal("profile:" + CodexSecond, upstreams.Single(u => u.Slug == "chatgpt-2").CredentialRef);
+            Assert.Equal("profile:" + CodexHome, upstreams.Single(u => u.Slug == "chatgpt").CredentialRef);
         }
         finally { Cleanup(db, cfg); }
     }

@@ -2063,6 +2063,13 @@ in the copy, stored API keys unreadable there because the sandboxed shell cannot
 - Routing page screenshots (headless Chrome, 1400 px): a four-model fallback chain wraps one model per
   line inside its card; before the fix it ran over the form beside it.
 
+Tag `v0.2.0-alpha.2`: the Release workflow succeeded and published the prerelease with the Windows
+installer, portable archives for Windows, Linux, and macOS, checksums, and the skill; CI (Linux and
+macOS) and the documentation site passed. The Windows CI run on the same `dev` commit failed two of
+the new Codex-account tests: they used `/home/me/.codex`, which is not a fully qualified path on
+Windows, so the account-directory check rejected it. The product was unaffected (real account
+directories are absolute); the tests now build their paths from the temp directory.
+
 Not verified: smart failover to a provider on a stored API key (the keychain reason above); a real
 `429` from a real provider triggering it; the Providers page's ChatGPT form seen after the account
 picker was removed; the Windows tray build.
