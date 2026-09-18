@@ -109,6 +109,7 @@ public sealed class RouterRepository
         await AddColumnIfMissingAsync(connection, "router_upstreams", "auth", "TEXT NOT NULL DEFAULT 'api_key'", ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "model_wires", "TEXT", ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "credential_ref", "TEXT", ct);
+        await AddColumnIfMissingAsync(connection, "router_settings", "smart_routing", "INTEGER NOT NULL DEFAULT 0", ct);
         UnixFilePermissions.RestrictFile(_dbPath);
     }
 
@@ -276,10 +277,10 @@ public sealed class RouterRepository
     {
         await using var connection = Open();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT default_route FROM router_settings WHERE id = 1";
+        command.CommandText = "SELECT default_route, smart_routing FROM router_settings WHERE id = 1";
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (await reader.ReadAsync(ct))
-            return new RouterSettings(reader.IsDBNull(0) ? null : reader.GetString(0));
+            return new RouterSettings(reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetInt64(1) != 0);
         return new RouterSettings(null);
     }
 
@@ -287,8 +288,9 @@ public sealed class RouterRepository
     {
         await using var connection = Open();
         await using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE router_settings SET default_route = $route WHERE id = 1";
+        command.CommandText = "UPDATE router_settings SET default_route = $route, smart_routing = $smart WHERE id = 1";
         command.Parameters.AddWithValue("$route", settings.DefaultRoute is null ? DBNull.Value : settings.DefaultRoute);
+        command.Parameters.AddWithValue("$smart", settings.SmartRouting ? 1 : 0);
         await command.ExecuteNonQueryAsync(ct);
     }
 

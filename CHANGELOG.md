@@ -11,7 +11,31 @@ build.
 
 ## [Unreleased]
 
+## [0.2.0-alpha.2] - 2026-09-18
+
+The model router grows up. **Smart routing** is one switch: when a model fails at one provider (a
+usage limit, an outage, a refused key), the same model is used from another provider you have, plans
+first and pay-per-token APIs last. Every Codex account you're signed in to becomes its own ChatGPT-plan
+provider automatically, providers are added in one step, and Claude Code keeps its own Claude models
+and sign-in while it's connected to the router.
+
+**Update both ends together:** after installing, reconnect Claude Code once under Model router →
+Agents. It now receives the router key as `ANTHROPIC_CUSTOM_HEADERS`, not `ANTHROPIC_AUTH_TOKEN`.
+
+Still unofficial: the ChatGPT plan and Muse Code plan providers reuse another tool's sign-in, which
+those plans do not document. They're opt-in and labelled.
+
 ### Added
+
+- **Smart routing.** One switch on Model router → Routing. The model you picked is tried first; if it
+  fails, the same model from your other providers follows — each ChatGPT account, then OpenCode Go,
+  then models on this computer, then pay-per-token APIs, always last. A model name several providers
+  list starts with the cheapest instead of being refused as ambiguous. Your nicknames and fallback
+  chains still work, with the same-model fallbacks added after them. The page lists which models it can
+  switch and in what order.
+- **Every Codex account is used.** Once the ChatGPT plan is added, each Codex account you're signed in
+  to (the ones Insights shows, such as `~/.codex-second`) gets its own provider automatically, and a
+  provider that was pointing at the same account as another is moved to the unused one.
 
 - **Add a model provider in one step.** Providers is now a gallery: pick one, paste its key (or reuse
   the key OpenCode already has for it), tick models from the list the provider returns, and save. The
@@ -56,6 +80,12 @@ build.
 - Reconnecting an agent and then disconnecting it no longer leaves the router's base URL behind.
 - Routed models no longer fail on Claude Code's mid-conversation system messages or on content blocks
   another provider cannot carry.
+- The Routing page's route list no longer spills over the form beside it; a fallback chain lists one
+  model per line.
+- The ChatGPT plan now answers requests that don't stream. Its backend only streams, so the router
+  streams to it and collects the answer.
+- A provider that refuses its key (`401`/`403`) or doesn't serve a model it lists (`404`) now hands the
+  request to the next target instead of failing it.
 - Router errors now say why a provider refused: `Upstream returned HTTP 429 (usage_limit_reached)`
   instead of the bare status. A provider out of credit (`402`) fails over to the next target, and when
   every target is rate limited the agent gets `429` with `retry-after` instead of a bare `503`.

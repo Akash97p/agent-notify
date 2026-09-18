@@ -435,6 +435,7 @@ public sealed class RouterProxy : IDisposable
                 {
                     429 or 529 => "rate_limited",
                     402 => "payment_required",
+                    401 or 403 => "upstream_unauthorized",
                     _ => "upstream_error"
                 };
                 ex.ProviderCode = await ReadProviderCodeAsync(httpResp, target, statusCode).ConfigureAwait(false);
@@ -528,7 +529,8 @@ public sealed class RouterProxy : IDisposable
         httpReq.Content = new ByteArrayContent(upstreamBody);
         httpReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         httpReq.Headers.Accept.Clear();
-        httpReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(stream ? "text/event-stream" : "application/json"));
+        var streamsAnyway = target.Upstream.Auth == RouterAuth.CodexChatGpt;
+        httpReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(stream || streamsAnyway ? "text/event-stream" : "application/json"));
 
         if (target.Upstream.Wire == RouterWire.AnthropicMessages)
         {
@@ -777,6 +779,12 @@ public sealed class RouterProxy : IDisposable
         bool isPassthrough,
         CancellationToken ct)
     {
+        // A backend that only streams: its stream is collected into the one response the client asked for.
+        if (target.Upstream.Auth == RouterAuth.CodexChatGpt)
+        {
+            decoded ??= TryDecode(inbound).Request;
+            isPassthrough = false;
+        }
         if (isPassthrough)
         {
             var tap = new UsageTap(target.Upstream.Wire);
@@ -821,7 +829,9 @@ public sealed class RouterProxy : IDisposable
             RouterResponse parsed;
             try
             {
-                parsed = _translator.ParseResponse(target.Upstream.Wire, bodyBytes);
+                parsed = target.Upstream.Auth == RouterAuth.CodexChatGpt
+                    ? CollectStream(target.Upstream.Wire, bodyBytes)
+                    : _translator.ParseResponse(target.Upstream.Wire, bodyBytes);
             }
             catch (TranslationException)
             {
@@ -925,6 +935,36 @@ public sealed class RouterProxy : IDisposable
             httpResp.Dispose();
             return result;
         }
+    }
+
+    /// <summary>One response from a whole upstream stream: its text, reasoning, tool calls, and usage.</summary>
+    private RouterResponse CollectStream(string wire, byte[] body)
+    {
+        var parser = _translator.CreateStreamParser(wire);
+        var events = parser.Feed(body).Concat(parser.Complete()).ToList();
+        var text = new StringBuilder();
+        var reasoning = new StringBuilder();
+        var calls = new SortedDictionary<int, (string Id, string Name, StringBuilder Arguments)>();
+        RouterUsage? usage = null;
+        string? finish = null;
+        foreach (var item in events)
+        {
+            switch (item)
+            {
+                case TextDeltaEvent delta: text.Append(delta.Text); break;
+                case ReasoningDeltaEvent delta: reasoning.Append(delta.Text); break;
+                case ToolCallStartEvent start: calls[start.Index] = (start.Id, start.Name, new StringBuilder()); break;
+                case ToolCallArgumentsDeltaEvent delta when calls.TryGetValue(delta.Index, out var call): call.Arguments.Append(delta.JsonDelta); break;
+                case UsageEvent reported: usage = reported.Usage; break;
+                case FinishEvent end: finish = end.Reason; break;
+            }
+        }
+        if (finish == FinishEvent.Error) throw new TranslationException("upstream_error", "The upstream stream failed.");
+        var toolCalls = calls.Values
+            .Select(call => new RouterToolCallPart(call.Id, call.Name, call.Arguments.Length == 0 ? "{}" : call.Arguments.ToString()))
+            .ToList();
+        return new RouterResponse(text.ToString(), reasoning.ToString(), toolCalls,
+            finish ?? (toolCalls.Count > 0 ? FinishEvent.ToolCalls : FinishEvent.Stop), usage);
     }
 
     private bool IsAllCooling(IReadOnlyList<ResolvedTarget> targets)
@@ -1050,8 +1090,11 @@ public sealed class RouterProxy : IDisposable
         _ => "/chat/completions"
     };
 
-    // 402 is the target's account out of credit, not the request's fault: another target can serve it.
-    private static bool IsRetryableStatus(int status) => status is 402 or 408 or 429 or 500 or 502 or 503 or 504 or 529;
+    // Each of these is about the target, not the request, so another target can still serve it: 401 and
+    // 403 a key or sign-in the provider refuses, 402 an account out of credit, 404 a model the provider
+    // lists but does not serve, and the usual limits and outages.
+    private static bool IsRetryableStatus(int status) =>
+        status is 401 or 402 or 403 or 404 or 408 or 429 or 500 or 502 or 503 or 504 or 529;
 
     private static string UpstreamMessage(int status, string? providerCode) =>
         providerCode is null ? $"Upstream returned HTTP {status}" : $"Upstream returned HTTP {status} ({providerCode})";
@@ -1172,6 +1215,7 @@ public sealed class RouterProxy : IDisposable
         if (status == 429 || status == 529) return TimeSpan.FromSeconds(30);
         // Credit does not come back in seconds; stop asking for a while.
         if (status == 402) return TimeSpan.FromMinutes(5);
+        if (status is 401 or 403 or 404) return TimeSpan.FromSeconds(60);
         return TimeSpan.FromSeconds(15);
     }
 

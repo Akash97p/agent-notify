@@ -264,6 +264,34 @@ public sealed class RouterProvidersTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatGptPlan_AClientThatDoesNotStream_GetsTheStreamCollectedIntoOneResponse()
+    {
+        // The backend refuses stream:false with a 400, so the router always streams to it.
+        WriteCodexAuth(Jwt(_clock.GetUtcNow().AddDays(5)));
+        await _config.CreateUpstreamAsync("chatgpt", "ChatGPT plan", RouterWire.OpenAiResponses,
+            RouterPresetCatalog.CodexChatGptBaseUrl, null, ["gpt-5.5"], auth: RouterAuth.CodexChatGpt);
+        using var proxy = Proxy();
+        _handler.Enqueue(request =>
+        {
+            Assert.Equal("text/event-stream", request.Headers.Accept.Single().MediaType);
+            return Sse(ResponsesSse);
+        });
+
+        var body = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            model = "chatgpt/gpt-5.5", stream = false,
+            messages = new[] { new { role = "user", content = "hi" } }
+        });
+        var sink = new Sink();
+        var result = await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink, CancellationToken.None);
+        Assert.Equal(200, result.Status);
+        Assert.True((bool)JsonNode.Parse(_handler.Bodies.Single())!["stream"]!);
+        var reply = JsonNode.Parse(sink.Text)!;
+        Assert.Equal("chat.completion", (string?)reply["object"]);
+        Assert.False(string.IsNullOrEmpty((string?)reply["choices"]![0]!["message"]!["content"]));
+    }
+
+    [Fact]
     public async Task ChatGptPlan_ExpiredSignIn_IsRenewedAndWrittenBackForCodex()
     {
         WriteCodexAuth(Jwt(_clock.GetUtcNow().AddMinutes(-1)));
@@ -481,7 +509,9 @@ public sealed class RouterProvidersTests : IDisposable
             HasStarted = true;
             return Task.CompletedTask;
         }
-        public Task WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct) => Task.CompletedTask;
+        private readonly List<byte> _written = new();
+        public string Text => System.Text.Encoding.UTF8.GetString(_written.ToArray());
+        public Task WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct) { _written.AddRange(data.ToArray()); return Task.CompletedTask; }
         public Task FlushAsync(CancellationToken ct) => Task.CompletedTask;
     }
 }

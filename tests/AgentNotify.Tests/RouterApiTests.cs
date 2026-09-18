@@ -499,6 +499,27 @@ public sealed class RouterApiTests
     }
 
     [Fact]
+    public async Task SmartRouting_SwitchesOnFromThePage_AndListsWhatItCanSwitch()
+    {
+        await using var app = await TestApp.CreateAsync(routerEnabled: true);
+        await app.RouterConfig.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-test-12345678", ["deepseek-v4-flash"]);
+        await app.RouterConfig.CreateUpstreamAsync("opencode-go", "Go", RouterWire.OpenAiChat, "https://opencode.ai/zen/go/v1", "sk-go-12345678", ["deepseek-v4-flash", "kimi-k3"]);
+        using var browser = app.Browser();
+
+        var before = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router");
+        Assert.False(before.GetProperty("smart_routing").GetBoolean());
+        var group = before.GetProperty("smart_groups").EnumerateArray().Single();
+        Assert.Equal("deepseek-v4-flash", group.GetProperty("model").GetString());
+        Assert.Equal(["opencode-go/deepseek-v4-flash", "deepseek/deepseek-v4-flash"],
+            group.GetProperty("targets").EnumerateArray().Select(t => t.GetString()));
+
+        var put = await browser.PutAsJsonAsync("/ui/api/router/smart", new { enabled = true });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var after = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router");
+        Assert.True(after.GetProperty("smart_routing").GetBoolean());
+    }
+
+    [Fact]
     public async Task CountTokens_ForwardOnlyToAnthropic()
     {
         await using var app = await TestApp.CreateAsync(routerEnabled: true);

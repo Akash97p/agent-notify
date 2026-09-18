@@ -32,6 +32,14 @@ public static class RouteResolver
     /// </param>
     public static RouteResolution Resolve(RouterSnapshot snapshot, string? requestedModel, bool nativeAnthropic = false)
     {
+        var resolution = ResolveCore(snapshot, requestedModel, nativeAnthropic);
+        return snapshot.Settings.SmartRouting && resolution.IsSuccess && resolution.RouteKind != RouterRouteKind.Native
+            ? WithSameModelElsewhere(snapshot, resolution)
+            : resolution;
+    }
+
+    private static RouteResolution ResolveCore(RouterSnapshot snapshot, string? requestedModel, bool nativeAnthropic)
+    {
         var model = requestedModel?.Trim();
 
         if (string.IsNullOrEmpty(model))
@@ -52,6 +60,10 @@ public static class RouteResolver
             .Where(upstream => upstream.Enabled && upstream.Models.Contains(model, StringComparer.Ordinal))
             .ToList();
         if (declaring.Count == 1)
+            return Success([Target(declaring[0], model)], RouterRouteKind.ModelList, null);
+        // Several providers serve it: smart routing uses them all (it orders them below), and without it
+        // the router will not guess which one the owner meant.
+        if (declaring.Count > 1 && snapshot.Settings.SmartRouting)
             return Success([Target(declaring[0], model)], RouterRouteKind.ModelList, null);
         if (declaring.Count > 1)
             return Fail("ambiguous_model", 400);
@@ -143,6 +155,60 @@ public static class RouteResolver
     {
         var wire = upstream.WireFor(model);
         return new ResolvedTarget(wire == upstream.Wire ? upstream : upstream with { Wire = wire }, model);
+    }
+
+    /// <summary>
+    /// Smart routing: after the targets the request resolved to, every other enabled provider that
+    /// serves one of the same models, cheapest kind first (<see cref="CostTier"/>), so a limit or an
+    /// outage at one provider hands the request to the same model somewhere else. Models are the same
+    /// when their IDs match ignoring case and any vendor path (<c>deepseek/deepseek-v4-flash</c> at
+    /// OpenRouter is <c>deepseek-v4-flash</c>). A bare model several providers list starts from the
+    /// cheapest of them rather than from whichever was added first.
+    /// </summary>
+    private static RouteResolution WithSameModelElsewhere(RouterSnapshot snapshot, RouteResolution resolution)
+    {
+        var targets = resolution.Targets.ToList();
+        if (resolution.RouteKind == RouterRouteKind.ModelList)
+            targets.Clear();
+        var wanted = resolution.Targets.Select(target => ModelKey(target.NativeModel)).ToHashSet(StringComparer.Ordinal);
+        var taken = targets.Select(target => (target.Upstream.Slug, target.NativeModel)).ToHashSet();
+
+        var elsewhere = snapshot.Upstreams
+            .Select((upstream, order) => (upstream, order))
+            .Where(item => item.upstream.Enabled)
+            .SelectMany(item => item.upstream.Models
+                .Where(model => wanted.Contains(ModelKey(model)))
+                .Select(model => (item.upstream, item.order, model)))
+            .Where(item => !taken.Contains((item.upstream.Slug, item.model)))
+            .OrderBy(item => CostTier(item.upstream))
+            .ThenBy(item => item.order)
+            .Select(item => Target(item.upstream, item.model));
+        targets.AddRange(elsewhere);
+        return Success(targets, resolution.RouteKind!, resolution.RouteName);
+    }
+
+    /// <summary>A model's identity across providers: its last path segment, ignoring case.</summary>
+    public static string ModelKey(string model)
+    {
+        var slash = model.LastIndexOf('/');
+        return (slash >= 0 ? model[(slash + 1)..] : model).Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Which providers smart routing tries first: a plan already paid for through another tool's
+    /// sign-in (0), OpenCode Go's flat monthly plan (1), a server on this computer (2), then anything
+    /// billed per token (3), which is always last because it is the one that costs more with every call.
+    /// </summary>
+    public static int CostTier(StoredRouterUpstream upstream) => CostTier(upstream.Auth, upstream.BaseUrl);
+
+    public static int CostTier(string auth, string baseUrl)
+    {
+        if (RouterAuth.IsSubscription(auth)) return 0;
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)) return 3;
+        if (uri.Host.EndsWith("opencode.ai", StringComparison.OrdinalIgnoreCase) &&
+            uri.AbsolutePath.Contains("/zen/go", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (uri.IsLoopback) return 2;
+        return 3;
     }
 
     private static RouteResolution Success(IReadOnlyList<ResolvedTarget> targets, string routeKind, string? routeName) =>

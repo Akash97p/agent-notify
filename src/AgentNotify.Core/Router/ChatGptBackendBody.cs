@@ -6,7 +6,8 @@ namespace AgentNotify.Core.Router;
 /// <summary>
 /// The ChatGPT-plan Codex backend accepts a narrower Responses request than the public API: it keeps
 /// no state, so <c>store</c> must be false, and it rejects the output-length and sampling
-/// parameters. A request is adjusted to that shape just before it is sent there.
+/// parameters, and it only answers as a stream. A request is adjusted to that shape just before it is
+/// sent there.
 /// </summary>
 internal static class ChatGptBackendBody
 {
@@ -21,6 +22,9 @@ internal static class ChatGptBackendBody
         if (root is null) return body;
 
         root["store"] = false;
+        // The backend only streams. A client that wanted one response gets the stream collected into
+        // one (RouterProxy.CollectStream).
+        root["stream"] = true;
         foreach (var name in Unsupported) root.Remove(name);
         // The backend requires instructions; an empty string satisfies it when the client sent none.
         if (root["instructions"] is null) root["instructions"] = "";

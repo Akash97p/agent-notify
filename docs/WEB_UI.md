@@ -44,8 +44,8 @@ so a profile discovered or added in one appears in all three.
 | Configuration → Notifications | API port, history retention, pause, do-not-disturb, toast placement and lifetimes, custom types |
 | Configuration → Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Configuration → Agents | Every Codex and Claude Code account (the same list as Live quota, including second profiles such as `~/.claude-second`) with its skill state, an install button, and whether its hook harness is installed, with the exact command for that account; then the skill and harness for every other host |
-| Model router → Providers | Turn the router on; add a provider from a gallery, reusing a key from API accounts or OpenCode, or a Codex account's ChatGPT sign-in; tick fetched models |
-| Model router → Routing | Optional nicknames and fallback chains, and where an unknown model goes |
+| Model router → Providers | Turn the router on; add a provider from a gallery, reusing a key from API accounts or OpenCode; the ChatGPT plan adds one provider per signed-in Codex account by itself; tick fetched models |
+| Model router → Routing | The smart routing switch and the models it can move between providers; optional nicknames and fallback chains, and where an unknown model goes |
 | Model router → Agents | Connect any of those Codex and Claude Code accounts so its own `/model` menu lists routed models, set subagent and review models, disconnect, and restore a saved copy of its configuration |
 | Model router → Activity | The router's request ledger and per-model totals |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |

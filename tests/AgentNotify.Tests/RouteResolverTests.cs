@@ -263,4 +263,60 @@ public sealed class RouteResolverTests
         Assert.Equal(RouterRouteKind.Native, RouteResolver.Resolve(snap, "claude-opus-5", nativeAnthropic: true).RouteKind);
         Assert.Equal(RouterRouteKind.Explicit, RouteResolver.Resolve(snap, "zen/claude-opus-5", nativeAnthropic: true).RouteKind);
     }
+
+    private static StoredRouterUpstream Provider(string slug, string baseUrl, string[] models, string auth = RouterAuth.ApiKey) =>
+        new($"id_{slug}", slug, slug, RouterWire.OpenAiChat, baseUrl, null, models, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow) { Auth = auth };
+
+    private static RouterSnapshot Smart(StoredRouterUpstream[] upstreams, RouterRoute[]? routes = null) =>
+        new(upstreams, routes ?? [], new RouterSettings(null, SmartRouting: true), 0);
+
+    private static readonly StoredRouterUpstream[] LunaEverywhere =
+    [
+        Provider("openai", "https://api.openai.com/v1", ["gpt-5.6-luna"]),
+        Provider("opencode-go", "https://opencode.ai/zen/go/v1", ["gpt-5.6-luna"]),
+        Provider("chatgpt", "https://chatgpt.com/backend-api/codex", ["gpt-5.6-luna"], RouterAuth.CodexChatGpt),
+        Provider("chatgpt-second", "https://chatgpt.com/backend-api/codex", ["gpt-5.6-luna"], RouterAuth.CodexChatGpt),
+        Provider("deepseek", "https://api.deepseek.com/v1", ["deepseek-flash"]),
+    ];
+
+    [Fact]
+    public void SmartRouting_PickedModelFirst_ThenTheSameModelElsewhere_PlansBeforePayPerToken()
+    {
+        var res = RouteResolver.Resolve(Smart(LunaEverywhere), "opencode-go/gpt-5.6-luna");
+        Assert.Equal(["opencode-go", "chatgpt", "chatgpt-second", "openai"], res.Targets.Select(t => t.Upstream.Slug));
+        Assert.Equal(RouterRouteKind.Explicit, res.RouteKind);
+    }
+
+    [Fact]
+    public void SmartRouting_ABareModelSeveralProvidersList_StartsWithTheCheapest()
+    {
+        var res = RouteResolver.Resolve(Smart(LunaEverywhere), "gpt-5.6-luna");
+        Assert.Null(res.ErrorCode);
+        Assert.Equal(["chatgpt", "chatgpt-second", "opencode-go", "openai"], res.Targets.Select(t => t.Upstream.Slug));
+        // Off, the router still refuses to guess.
+        var off = new RouterSnapshot(LunaEverywhere, [], new RouterSettings(null), 0);
+        Assert.Equal("ambiguous_model", RouteResolver.Resolve(off, "gpt-5.6-luna").ErrorCode);
+    }
+
+    [Fact]
+    public void SmartRouting_MatchesAcrossVendorPathsAndCase_AndLeavesOtherModelsAlone()
+    {
+        var snap = Smart(
+        [
+            Provider("deepseek", "https://api.deepseek.com/v1", ["deepseek-v4-flash"]),
+            Provider("openrouter", "https://openrouter.ai/api/v1", ["deepseek/DeepSeek-V4-Flash", "deepseek/deepseek-v4-pro"]),
+            Provider("ollama", "http://127.0.0.1:11434/v1", ["deepseek-v4-flash"]),
+        ]);
+        var res = RouteResolver.Resolve(snap, "deepseek/deepseek-v4-flash");
+        Assert.Equal(["deepseek/deepseek-v4-flash", "ollama/deepseek-v4-flash", "openrouter/deepseek/DeepSeek-V4-Flash"],
+            res.Targets.Select(t => t.Upstream.Slug + "/" + t.NativeModel));
+    }
+
+    [Fact]
+    public void SmartRouting_KeepsAChainsOrder_AndAddsTheFallbacksAfterIt()
+    {
+        var snap = Smart(LunaEverywhere, [ComboRoute("fast", ["openai/gpt-5.6-luna", "deepseek/deepseek-flash"])]);
+        var res = RouteResolver.Resolve(snap, "combo/fast");
+        Assert.Equal(["openai", "deepseek", "chatgpt", "chatgpt-second", "opencode-go"], res.Targets.Select(t => t.Upstream.Slug));
+    }
 }

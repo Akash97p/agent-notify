@@ -155,6 +155,8 @@ opt-in, labelled so on the page, and store no key in AgentNotify.
   every other field alone, so Codex and the router keep sharing one sign-in. A request to this backend
   is adjusted first: `store` is forced to `false`, `instructions` is added empty when missing, and
   `max_output_tokens`, `max_tokens`, `temperature`, `top_p`, and `previous_response_id` are removed.
+  The backend only answers as a stream (it refuses `stream: false` with a `400`), so `stream` is
+  forced on, and a client that asked for one response gets the stream collected into one.
 - **Muse Code plan (`muse_code`).** The identity token in Muse Code's `~/.config/muse/auth.json`
   (`access_token`) is exchanged at `POST https://api.meta.ai/muse-code/key` for a subscription Model
   API key, as Muse Code's CLI does; the key is kept in memory for 23 hours and used against
@@ -198,6 +200,39 @@ requested `model` string. It returns an ordered list of concrete targets `{upstr
 
 Disabled upstreams are skipped inside a combo, and a combo with no enabled target fails with
 `no_enabled_target`.
+
+### Smart routing
+
+One switch on the Routing page (`router_settings.smart_routing`, `PUT /ui/api/router/smart`), off by
+default. When it is on, whatever the rules above resolved to is tried first, and after it **the same
+model at every other enabled provider that lists it**, so a usage limit, an outage, or a refused key
+at one provider hands the request to the same model somewhere else with no route to set up:
+
+- **Same model** means the IDs match ignoring case and any vendor path: `deepseek-v4-flash` at
+  DeepSeek, `deepseek/deepseek-v4-flash` at OpenRouter, and `DeepSeek-V4-Flash` elsewhere are one model.
+  Nothing else is treated as equivalent; a different version is a different model.
+- **Order** of the added targets, cheapest kind first (`RouteResolver.CostTier`): a subscription through
+  another tool's sign-in (each ChatGPT account, Muse Code), then OpenCode Go's flat plan, then a server
+  on this computer, then anything billed per token, which is always last. Within a kind, the order the
+  providers were added.
+- **A bare model name several providers list** is no longer `ambiguous_model`: it goes to all of them in
+  that order, starting with the cheapest.
+- **Routes still apply.** A nickname or fallback chain resolves as before; smart routing appends the
+  same-model fallbacks of every target after the chain's own. A native Anthropic request is never
+  expanded.
+
+The Routing page lists every model more than one provider serves, with the order it would try them in.
+
+### Every Codex account is a ChatGPT-plan provider
+
+Codex accounts are one list, the one Insights and Live quota show. Once the owner has added the ChatGPT
+plan at all, the broker keeps one ChatGPT-plan provider per signed-in Codex account
+(`RouterConfigService.SyncCodexAccountsAsync`, run when the router page loads and after a plan is
+added): a missing account gets a provider (`chatgpt-second` for `~/.codex-second`, same models as the
+first), and a provider that duplicates another's account is pointed at one nothing uses yet, keeping its
+slug so routes and agent pickers that name it keep working. A signed-out account is left out. The page
+therefore never asks which Codex account to use; with smart routing on, a GPT model moves from one plan
+to the next when the first runs out.
 
 ## Protocol translation
 
@@ -269,15 +304,17 @@ parses usage for the ledger. This keeps fields the IR does not model (Responses 
 
 A combo's targets are tried in order for one logical request. A target is skipped while it is cooling
 down. An attempt **fails over** to the next target only when no byte has been written to the client
-and the failure is one of: connection error, timeout before response headers, HTTP `402` (that
-target's account is out of credit), `408`, `429`, `500`, `502`, `503`, `504`, `529`. Any other `4xx` is the request's fault: it is returned to the client
+and the failure is one of: connection error, timeout before response headers, HTTP `401`/`403` (the
+provider refuses its key or sign-in), `402` (that target's account is out of credit), `404` (a model
+the provider lists but does not serve), `408`, `429`, `500`, `502`, `503`, `504`, `529`. Each of those
+is about the target, not the request, so another target can still serve it. Any other `4xx` is the request's fault: it is returned to the client
 without trying another target and without cooling the target down. Once the first byte reaches the
 client the attempt is committed; a later upstream failure ends the stream with the wire's error event
 (`response.failed`, Anthropic `error` event, or a Chat error chunk) and is recorded, never retried.
 
 Cooldown is in memory, per `upstream slug + model`: `Retry-After` (seconds or HTTP date, capped at
 10 minutes) when present, otherwise 30 seconds after a `429`/`529` and 15 seconds after a connection
-error or `5xx`, and 5 minutes after a `402`. When every target has failed, the client receives the last
+error or `5xx`, 60 seconds after a `401`, `403`, or `404`, and 5 minutes after a `402`. When every target has failed, the client receives the last
 failure. When every target is already cooling down, the request is answered at once without asking
 any of them: `429 rate_limited` if the soonest cooldown to end began with a `429`/`529`, otherwise
 `503 all_targets_unavailable`, with `retry-after` set to the seconds until it ends, so the agent waits
