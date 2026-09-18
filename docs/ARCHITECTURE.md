@@ -235,6 +235,13 @@ writes another program's file — because rotating its refresh token without doi
 out. Both kinds are unofficial and opt-in. Reading a key OpenCode already holds happens only on an
 explicit request from the owner, and that key is then sealed like one typed in.
 
+One credential the router never holds: an agent's **own** Anthropic sign-in. Claude Code has a single
+base URL, so a connected Claude Code sends its built-in models to the router too. It authenticates to
+the router with `x-agentnotify-router-key`, which leaves its `Authorization`/`x-api-key` carrying its
+own credential; the router forwards that, with the request body unchanged, to
+`https://api.anthropic.com/v1` for a bare `claude-…` model no route claims, and to nothing else. It is
+per request, never stored, logged, or put in the ledger, and never sent to a configured upstream.
+
 **One account list.** Codex and Claude Code accounts — the built-in profiles, discovered ones such as
 `~/.codex-second`, and those added by hand — are defined once, by `QuotaAccountDefinition.Monitored`.
 Live quota, the router's agent connections (`RouterAgentProfile.FromAccounts`), and the notification
@@ -257,8 +264,10 @@ files, so it is held to a narrow contract: a copy is taken before every write an
 restored, only marker-delimited lines or named keys are touched, a key the owner set is commented out
 rather than duplicated (TOML refuses duplicates), disconnecting restores the owner's previous values,
 and a connected agent's catalogue is rewritten whenever the router's configuration changes so it never
-lists a model the router would refuse. The router key is written into those files deliberately, so a
-connected agent needs no environment variable; that key can spend through the router and nothing more.
+lists a model the router would refuse. A reconnect keeps the values recorded at the first connect,
+including a recorded "none", because what it finds in their place are AgentNotify's own. The router
+key is written into those files deliberately, so a connected agent needs no environment variable; that
+key can spend through the router and nothing more.
 
 The ledger is proxy-observed usage and is kept separate from the log-derived Usage view and from Live
 quota. The same physical call appears in both the router ledger and the agent's own log, so the two

@@ -286,7 +286,9 @@ public sealed class RouterConnectTests : IAsyncLifetime
         var root = JsonDocument.Parse(File.ReadAllText(ClaudeSettings)).RootElement;
         var env = root.GetProperty("env");
         Assert.Equal("http://127.0.0.1:47821/router", env.GetProperty("ANTHROPIC_BASE_URL").GetString());
-        Assert.Equal(await _config.GetRouterKeyAsync(), env.GetProperty("ANTHROPIC_AUTH_TOKEN").GetString());
+        // The key rides in a header of its own, so Claude Code keeps sending its own sign-in.
+        Assert.Equal($"{RouterNative.RouterKeyHeader}: {await _config.GetRouterKeyAsync()}", env.GetProperty("ANTHROPIC_CUSTOM_HEADERS").GetString());
+        Assert.False(env.TryGetProperty("ANTHROPIC_AUTH_TOKEN", out _));
         Assert.Equal("coding", env.GetProperty("ANTHROPIC_MODEL").GetString());
         Assert.Equal("deepseek/deepseek-chat", env.GetProperty("ANTHROPIC_DEFAULT_SONNET_MODEL").GetString());
         Assert.Equal("deepseek/deepseek-chat", env.GetProperty("ANTHROPIC_SMALL_FAST_MODEL").GetString());
@@ -298,7 +300,7 @@ public sealed class RouterConnectTests : IAsyncLifetime
         var after = JsonDocument.Parse(File.ReadAllText(ClaudeSettings)).RootElement.GetProperty("env");
         Assert.Equal("claude-opus-4", after.GetProperty("ANTHROPIC_MODEL").GetString());
         Assert.False(after.TryGetProperty("ANTHROPIC_BASE_URL", out _));
-        Assert.False(after.TryGetProperty("ANTHROPIC_AUTH_TOKEN", out _));
+        Assert.False(after.TryGetProperty("ANTHROPIC_CUSTOM_HEADERS", out _));
         Assert.False(after.TryGetProperty("ANTHROPIC_DEFAULT_SONNET_MODEL", out _));
         Assert.Equal("keep me", after.GetProperty("MY_OWN").GetString());
     }
@@ -392,6 +394,32 @@ public sealed class RouterConnectTests : IAsyncLifetime
         await _connect.ConnectAsync("codex", new RouterConnectRequest("deepseek/deepseek-chat"));
         await _connect.DisconnectAsync("codex");
         Assert.Contains("model = \"gpt-5.6-luna\"", File.ReadAllText(CodexConfig));
+    }
+
+    [Fact]
+    public async Task ClaudeCode_KeepsTheOwnersOwnHeaders_BesideTheRouterKey()
+    {
+        File.WriteAllText(ClaudeSettings, """{ "env": { "ANTHROPIC_CUSTOM_HEADERS": "x-team: blue" } }""");
+        await _connect.ConnectAsync("claude_code", new RouterConnectRequest("coding"));
+        var headers = JsonDocument.Parse(File.ReadAllText(ClaudeSettings)).RootElement.GetProperty("env").GetProperty("ANTHROPIC_CUSTOM_HEADERS").GetString();
+        Assert.Equal($"x-team: blue\n{RouterNative.RouterKeyHeader}: {await _config.GetRouterKeyAsync()}", headers);
+
+        await _connect.DisconnectAsync("claude_code");
+        var after = JsonDocument.Parse(File.ReadAllText(ClaudeSettings)).RootElement.GetProperty("env");
+        Assert.Equal("x-team: blue", after.GetProperty("ANTHROPIC_CUSTOM_HEADERS").GetString());
+    }
+
+    [Fact]
+    public async Task Reconnecting_ClaudeCode_ThenDisconnecting_LeavesNoRouterSettingBehind()
+    {
+        // Nothing of the owner's to restore: a reconnect must not mistake AgentNotify's own values,
+        // written the first time, for the owner's originals.
+        await _connect.ConnectAsync("claude_code", new RouterConnectRequest("coding"));
+        await _connect.ConnectAsync("claude_code", new RouterConnectRequest("deepseek/deepseek-chat"));
+        await _connect.DisconnectAsync("claude_code");
+        var root = JsonDocument.Parse(File.ReadAllText(ClaudeSettings)).RootElement;
+        Assert.False(root.TryGetProperty("env", out _));
+        Assert.False((await _connect.ListAsync()).Single(agent => agent.Id == "claude_code").Connected);
     }
 
     [Fact]

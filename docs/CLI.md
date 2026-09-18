@@ -333,7 +333,7 @@ appends `/v1/messages` itself.
 
 ```bash
 export ANTHROPIC_BASE_URL=http://127.0.0.1:47821/router
-export ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"
+export ANTHROPIC_CUSTOM_HEADERS="x-agentnotify-router-key: $(agentnotify router key)"
 ```
 
 ### `install-skill` — install the bundled agent skill

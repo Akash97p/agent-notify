@@ -481,10 +481,11 @@ public sealed class RouterConnectService
     private static Dictionary<string, string?> Merge(RouterAgentState state, IReadOnlyDictionary<string, string?> discovered)
     {
         // A reconnect must not overwrite what was recorded the first time: that is the only record of
-        // the owner's original values.
+        // the owner's original values. A recorded null is a record too (the owner had none); what a
+        // reconnect finds in its place is AgentNotify's own value, which a disconnect must not restore.
         var merged = new Dictionary<string, string?>(state.Previous, StringComparer.Ordinal);
         foreach (var (key, value) in discovered)
-            if (!merged.ContainsKey(key) || merged[key] is null) merged[key] = value;
+            if (!merged.ContainsKey(key)) merged[key] = value;
         return merged;
     }
 

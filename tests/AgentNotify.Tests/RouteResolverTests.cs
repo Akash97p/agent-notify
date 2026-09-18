@@ -237,4 +237,30 @@ public sealed class RouteResolverTests
         var res = RouteResolver.Resolve(snap, "openai/gpt-4o");
         Assert.Equal(RouterRouteKind.Explicit, res.RouteKind);
     }
+
+    [Fact]
+    public void ClaudeModel_WithTheClientsOwnSignIn_GoesToAnthropicRatherThanTheDefault()
+    {
+        var snap = Snapshot([Upstream("deepseek", models: ["deepseek-chat"])], [], defaultRoute: "deepseek/deepseek-chat");
+        var res = RouteResolver.Resolve(snap, "claude-opus-5", nativeAnthropic: true);
+        Assert.Equal(RouterRouteKind.Native, res.RouteKind);
+        Assert.True(RouterNative.IsNative(res.Targets.Single().Upstream));
+        Assert.Equal("claude-opus-5", res.Targets.Single().NativeModel);
+
+        // Without a credential of its own to forward, it is just an unrouted name.
+        Assert.Equal(RouterRouteKind.Default, RouteResolver.Resolve(snap, "claude-opus-5").RouteKind);
+        // Only Anthropic's own IDs are sent there.
+        Assert.Equal(RouterRouteKind.Default, RouteResolver.Resolve(snap, "gpt-5", nativeAnthropic: true).RouteKind);
+    }
+
+    [Fact]
+    public void ClaudeModel_ANamedRouteStillWins_ButAProviderListingItDoesNot()
+    {
+        var snap = Snapshot(
+            [Upstream("zen", models: ["claude-opus-5", "claude-haiku-4-5"])],
+            [AliasRoute("claude-haiku-4-5", "zen/claude-haiku-4-5")]);
+        Assert.Equal(RouterRouteKind.Alias, RouteResolver.Resolve(snap, "claude-haiku-4-5", nativeAnthropic: true).RouteKind);
+        Assert.Equal(RouterRouteKind.Native, RouteResolver.Resolve(snap, "claude-opus-5", nativeAnthropic: true).RouteKind);
+        Assert.Equal(RouterRouteKind.Explicit, RouteResolver.Resolve(snap, "zen/claude-opus-5", nativeAnthropic: true).RouteKind);
+    }
 }
