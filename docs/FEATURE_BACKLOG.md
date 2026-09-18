@@ -161,6 +161,17 @@ Track live agent instances, projects, working directories, last activity, and wa
 - A copy before every write, restore of any copy, and disconnect that restores the owner's values.
 - Remaining: OpenCode, Kilo, Cursor, and Gemini CLI connectors; real context windows per model.
 
+### R04 — One-step providers and subscriptions
+
+- Status: implemented on `feature/router-easy-setup`; model fetching, the ChatGPT plan, and OpenCode
+  Go verified against the real services on macOS through a scratch broker; the Muse Code plan is
+  untested because Muse Code is not installed on the test Mac.
+- Provider gallery, fetched model lists with tick boxes, reuse of OpenCode's keys, per-model wires for
+  OpenCode Zen and Go, and the ChatGPT-plan and Muse Code subscription upstreams.
+- Remaining: a Muse Code sign-in kept in the OS keychain; AgentNotify's own sign-in flow for a plan
+  instead of reusing another tool's; non-streaming requests to the ChatGPT backend, which only
+  streams.
+
 ### R02 — Policy routing and richer combos
 
 - Score candidates on capability, health, quota, cost, and latency evidence (`policy/<id>`), with a

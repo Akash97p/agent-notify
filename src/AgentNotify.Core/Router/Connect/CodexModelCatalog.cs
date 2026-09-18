@@ -65,7 +65,8 @@ public static class CodexModelCatalog
     /// Builds the catalogue for one router snapshot. Every enabled upstream model, every enabled
     /// route, and <c>combo/&lt;name&gt;</c> for each combo becomes a selectable entry.
     /// </summary>
-    public static JsonObject Build(RouterSnapshot snapshot, string? instructions = null, string? shellType = null)
+    public static JsonObject Build(RouterSnapshot snapshot, string? instructions = null, string? shellType = null,
+        IReadOnlyDictionary<string, JsonObject>? nativeEntries = null)
     {
         var shell = ShellTypes.Contains(shellType, StringComparer.Ordinal) ? shellType! : DefaultShellType;
         var text = string.IsNullOrWhiteSpace(instructions) ? DefaultInstructions : instructions!.Trim();
@@ -95,6 +96,20 @@ public static class CodexModelCatalog
             foreach (var model in upstream.Models)
             {
                 var slug = upstream.Slug + "/" + model;
+                // A ChatGPT-plan model is one of Codex's own, reached through the same backend: its
+                // real entry (prompt, context window, reasoning levels, tools) is reused so it behaves
+                // exactly as it does without the router.
+                if (upstream.Auth == RouterAuth.CodexChatGpt && nativeEntries is not null &&
+                    nativeEntries.TryGetValue(model, out var native) && models.Count < MaxEntries && seen.Add(slug))
+                {
+                    var entry = (JsonObject)native.DeepClone();
+                    entry["slug"] = slug;
+                    entry["display_name"] = $"{(string?)native["display_name"] ?? model} · {upstream.Label}";
+                    entry["priority"] = priority++;
+                    entry["visibility"] = "list";
+                    models.Add(entry);
+                    continue;
+                }
                 Add(slug, $"{upstream.Label} · {model}", $"Routed to {upstream.Label} as {model}");
             }
         }
@@ -103,15 +118,37 @@ public static class CodexModelCatalog
     }
 
     /// <summary>Writes the catalogue for this snapshot and returns how many models it holds.</summary>
-    public static int Write(string path, RouterSnapshot snapshot, string? instructions = null, string? shellType = null)
+    public static int Write(string path, RouterSnapshot snapshot, string? instructions = null, string? shellType = null,
+        IReadOnlyDictionary<string, JsonObject>? nativeEntries = null)
     {
-        var catalog = Build(snapshot, instructions, shellType);
+        var catalog = Build(snapshot, instructions, shellType, nativeEntries);
         var count = (catalog["models"] as JsonArray)?.Count ?? 0;
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) UnixFilePermissions.CreateOwnerOnlyDirectory(directory);
         File.WriteAllText(path, catalog.ToJsonString(WriteOptions) + Environment.NewLine);
         UnixFilePermissions.RestrictFile(path);
         return count;
+    }
+
+    /// <summary>
+    /// Codex's own model entries, from the catalogue its backend last sent (<c>models_cache.json</c>),
+    /// keyed by model ID. Empty when Codex has not cached one.
+    /// </summary>
+    public static IReadOnlyDictionary<string, JsonObject> ReadNative(string codexHome)
+    {
+        var entries = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        try
+        {
+            var path = Path.Combine(codexHome, "models_cache.json");
+            if (!File.Exists(path)) return entries;
+            if (JsonNode.Parse(File.ReadAllText(path)) is JsonObject root && root["models"] is JsonArray models)
+            {
+                foreach (var model in models.OfType<JsonObject>())
+                    if ((string?)model["slug"] is { Length: > 0 } slug) entries[slug] = model;
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException) { }
+        return entries;
     }
 
     /// <summary>How many models the catalogue at this path currently holds, or 0 when unreadable.</summary>

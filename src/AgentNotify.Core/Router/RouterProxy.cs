@@ -16,7 +16,18 @@ public sealed record RouterInbound(
     byte[] Body,
     string? AnthropicVersion = null,
     string? AnthropicBeta = null,
-    bool IsCountTokens = false);
+    bool IsCountTokens = false)
+{
+    /// <summary>
+    /// Headers agents carry their conversation ID in, in order of preference: an explicit OpenCode
+    /// session, Claude Code's, then Codex's.
+    /// </summary>
+    public static readonly string[] SessionHeaders =
+        ["x-opencode-session", "x-claude-code-session-id", "session_id", "conversation_id"];
+
+    /// <summary>The agent's conversation ID, when it sent one.</summary>
+    public string? SessionId { get; init; }
+}
 
 /// <summary>Sink that writes the router response back to the client.</summary>
 public interface IRouterClientSink
@@ -44,6 +55,7 @@ public sealed class RouterProxy : IDisposable
     private readonly IAppLogger? _logger;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsClient;
+    private readonly RouterCredentialSource _credentials;
     private readonly TimeProvider _clock;
     private readonly TimeSpan _headersTimeout;
     private readonly TimeSpan _idleTimeout;
@@ -61,7 +73,8 @@ public sealed class RouterProxy : IDisposable
         HttpMessageHandler? handler = null,
         TimeProvider? clock = null,
         TimeSpan? headersTimeout = null,
-        TimeSpan? idleTimeout = null)
+        TimeSpan? idleTimeout = null,
+        Func<HttpClient, RouterCredentialSource>? credentials = null)
     {
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -88,7 +101,16 @@ public sealed class RouterProxy : IDisposable
             _httpClient = new HttpClient(sockets, disposeHandler: true);
             _ownsClient = true;
         }
+
+        _credentials = credentials?.Invoke(_httpClient) ?? new RouterCredentialSource(_configService, _httpClient, _clock);
+        Discovery = new RouterModelDiscovery(_httpClient, _credentials);
     }
+
+    /// <summary>Where each attempt's credential comes from, including subscription sign-ins.</summary>
+    public RouterCredentialSource Credentials => _credentials;
+
+    /// <summary>Lists a provider's models through the same client and destination rule as routed traffic.</summary>
+    public RouterModelDiscovery Discovery { get; }
 
     public void Dispose()
     {
@@ -240,14 +262,20 @@ public sealed class RouterProxy : IDisposable
             var attemptStarted = _clock.GetUtcNow();
             var attemptOrdinal = ordinal++;
 
-            string? plaintextKey;
+            UpstreamCredential credential;
             try
             {
-                plaintextKey = _configService.DecryptKey(target.Upstream);
+                credential = await _credentials.GetAsync(target.Upstream, renew: false, ct).ConfigureAwait(false);
             }
             catch (CryptographicException)
             {
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, "provider_key_unreadable", (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
+                continue;
+            }
+            catch (SubscriptionAuthException sae)
+            {
+                _logger?.Warn($"Router upstream '{target.Upstream.Slug}': {sae.Message}");
+                ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, "subscription_signed_out", (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
                 continue;
             }
 
@@ -262,7 +290,10 @@ public sealed class RouterProxy : IDisposable
                 return await FailAsync(sink, ex, 400, te.Code, te.Message, false).ConfigureAwait(false);
             }
 
-            var httpReq = BuildUpstreamRequest(target, plaintextKey, upstreamBody, inbound, stream);
+            if (target.Upstream.Auth == RouterAuth.CodexChatGpt)
+                upstreamBody = ChatGptBackendBody.Adapt(upstreamBody);
+
+            var httpReq = BuildUpstreamRequest(target, credential, upstreamBody, inbound, stream);
 
             HttpResponseMessage? httpResp = null;
             bool isTimeout = false;
@@ -274,7 +305,26 @@ public sealed class RouterProxy : IDisposable
                 using var headersCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 headersCts.CancelAfter(_headersTimeout);
                 httpResp = await _httpClient.SendAsync(httpReq, HttpCompletionOption.ResponseHeadersRead, headersCts.Token).ConfigureAwait(false);
-                attemptStatus = (int)httpResp.StatusCode;
+                // A subscription sign-in the provider no longer accepts is renewed once and the same
+                // body sent again; nothing has reached the client yet.
+                if (httpResp.StatusCode == HttpStatusCode.Unauthorized && RouterAuth.IsSubscription(target.Upstream.Auth))
+                {
+                    httpResp.Dispose();
+                    httpResp = null;
+                    try
+                    {
+                        var renewed = await _credentials.GetAsync(target.Upstream, renew: true, ct).ConfigureAwait(false);
+                        httpReq.Dispose();
+                        httpReq = BuildUpstreamRequest(target, renewed, upstreamBody, inbound, stream);
+                        httpResp = await _httpClient.SendAsync(httpReq, HttpCompletionOption.ResponseHeadersRead, headersCts.Token).ConfigureAwait(false);
+                    }
+                    catch (SubscriptionAuthException sae)
+                    {
+                        _logger?.Warn($"Router upstream '{target.Upstream.Slug}': {sae.Message}");
+                        attemptErrorCode = "subscription_signed_out";
+                    }
+                }
+                attemptStatus = httpResp is null ? null : (int)httpResp.StatusCode;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
@@ -301,6 +351,12 @@ public sealed class RouterProxy : IDisposable
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, attemptStatus, "canceled", (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
                 httpResp?.Dispose();
                 return await ex.FinishAsync(null, "canceled", RouterOutcome.Canceled).ConfigureAwait(false);
+            }
+
+            if (httpResp is null && attemptErrorCode == "subscription_signed_out")
+            {
+                ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, 401, attemptErrorCode, (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
+                continue;
             }
 
             if (isTimeout || isConnectionError)
@@ -414,8 +470,9 @@ public sealed class RouterProxy : IDisposable
         return _translator.EncodeRequest(target.Upstream.Wire, decoded!, target.NativeModel);
     }
 
-    private HttpRequestMessage BuildUpstreamRequest(ResolvedTarget target, string? plaintextKey, byte[] upstreamBody, RouterInbound inbound, bool stream)
+    private static HttpRequestMessage BuildUpstreamRequest(ResolvedTarget target, UpstreamCredential credential, byte[] upstreamBody, RouterInbound inbound, bool stream)
     {
+        var plaintextKey = credential.Secret;
         string path = inbound.IsCountTokens ? "/messages/count_tokens" : UpstreamPathFor(target.Upstream.Wire);
         var uri = target.Upstream.BaseUrl + path;
         var httpReq = new HttpRequestMessage(HttpMethod.Post, uri);
@@ -440,6 +497,13 @@ public sealed class RouterProxy : IDisposable
             if (plaintextKey != null)
                 httpReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", plaintextKey);
         }
+        foreach (var (name, value) in credential.Headers)
+            httpReq.Headers.TryAddWithoutValidation(name, value);
+        // Providers that serve coding agents ask each client to name itself rather than send a
+        // generic HTTP-library agent.
+        httpReq.Headers.UserAgent.ParseAdd(RouterUserAgent);
+        if (IsOpenCodeHost(target.Upstream.BaseUrl))
+            httpReq.Headers.TryAddWithoutValidation("x-opencode-session", inbound.SessionId ?? ProcessSessionId);
         return httpReq;
     }
 
@@ -899,6 +963,16 @@ public sealed class RouterProxy : IDisposable
         "not_supported" => "Counting tokens needs an Anthropic upstream; this model does not resolve to one.",
         _ => code
     };
+
+    private static readonly string RouterUserAgent =
+        "agentnotify-router/" + (typeof(RouterProxy).Assembly.GetName().Version?.ToString(3) ?? "0");
+
+    /// <summary>Used when an agent sends no conversation ID: stable for this broker's lifetime.</summary>
+    private static readonly string ProcessSessionId = "agentnotify-" + Guid.NewGuid().ToString("N");
+
+    private static bool IsOpenCodeHost(string baseUrl) =>
+        Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) &&
+        (uri.Host == "opencode.ai" || uri.Host.EndsWith(".opencode.ai", StringComparison.OrdinalIgnoreCase));
 
     private static string UpstreamPathFor(string wire) => wire switch
     {

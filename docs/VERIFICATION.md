@@ -1928,6 +1928,50 @@ workflow is the only build of the installer.
 Not verified: the Windows installer from this release has not been installed, and nothing has been
 routed through the installed broker yet.
 
+## One-step providers and subscriptions (`feature/router-easy-setup`, 2026-09-18)
+
+On the owner's Intel MacBook, macOS SDK `~/.dotnet` 10.0.401 through the repository scripts
+(`AGENTNOTIFY_DOTNET_EXE=~/.dotnet/dotnet`, `-p:EnableWindowsTargeting=true` for the WPF projects):
+
+- `./scripts/build.sh`: 0 warnings, 0 errors. `./scripts/test.sh`: 1,219 passed, 0 failed (16 new:
+  presets and per-model wires, the column migration on an older database, discovery shapes and
+  refusals, Codex's model cache, OpenCode key reuse, the ChatGPT-plan request shape and headers,
+  token renewal written back to Codex's file, a missing sign-in, Muse key minting and caching, the
+  OpenCode session header, Codex catalogue reuse of native entries, and the create/fetch endpoints).
+- `./scripts/publish-cross.sh` built all five portable archives with the new pages embedded.
+  `./scripts/package.sh` needs Windows (PowerShell under WSL) and was not run, so the installer was
+  not built.
+- **Live, against the real services**, through a throwaway host that serves the real web interface
+  and router over a scratch database with an in-memory secret protector (the installed broker's
+  keychain item cannot be read by a development binary without a macOS prompt, so the dev broker
+  itself was not used):
+  - Model fetch: OpenCode Go 38 models with MiniMax on `anthropic_messages`, OpenCode Zen 64 with
+    Gemini left out, OpenRouter 445 (both using the keys OpenCode holds), and the ChatGPT plan's 5
+    models from Codex's cache. DeepSeek with the key OpenCode holds was refused by DeepSeek (that key
+    is stale; the owner's own DeepSeek upstream uses a different one). Meta without a key was refused,
+    as expected.
+  - ChatGPT plan: one streamed Responses request (Codex's shape, passthrough) and one streamed
+    Anthropic Messages request (Claude Code's shape, translated) to `gpt-5.6-luna` each answered
+    `ok`; the ledger shows `openai_responses` 200 for both. The access token was valid, so renewal
+    ran only in tests.
+  - OpenCode Go: `minimax-m3` (Messages) and `glm-5.3-flash` (Chat Completions) through one upstream
+    each answered `ok`. Before the session header was added both failed with
+    `MissingSessionID`, which is how that requirement was found.
+  - Codex connected in a scratch home with Codex's `models_cache.json` copied in: `codex debug
+    models` (Codex 0.155.0) parsed the generated catalogue, and the ChatGPT-plan entries carried
+    Codex's own instructions template and 272k context window. Claude Code connected in the same home
+    with `replaceBuiltInOptions: false`.
+- **Seen in a browser** (headless Chrome screenshots, driven over the DevTools protocol): the
+  Providers gallery and list, the OpenRouter editor with 445 fetched models, the ChatGPT-plan editor
+  (unofficial and signed-in notices, 2 of 5 ticked), the Muse Code editor (not signed in), Routing
+  with a fallback chain, and Agents with the Codex note and the "Show only routed models" switch off.
+  The old provider list's badge overlap was reproduced on the installed 0.2.0-alpha.1 page first.
+
+Not verified: the Muse Code plan end to end (Muse Code is not installed on this Mac, so neither
+its sign-in file nor key minting has met the real service); ChatGPT-plan token renewal against
+OpenAI; a real Codex or Claude Code session through the new providers; narrow-window layout; the
+Windows tray build with these pages.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.
