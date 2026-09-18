@@ -428,6 +428,77 @@ public sealed class RouterApiTests
     }
 
     [Fact]
+    public async Task ClaudeCodeOwnModels_GoToAnthropicWithItsOwnSignIn_AndRoutedOnesUseTheProvidersKey()
+    {
+        await using var app = await TestApp.CreateAsync(routerEnabled: true);
+        await app.RouterConfig.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-deepseek-12345678", ["deepseek-chat"]);
+        await app.RouterConfig.SetDefaultRouteAsync("deepseek/deepseek-chat");
+
+        // How Claude Code talks to the router once connected: its own sign-in in Authorization, the
+        // router key in a header of its own.
+        using var client = new HttpClient { BaseAddress = new Uri(app.BaseUrl) };
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer sk-ant-oat01-client-own-token");
+        client.DefaultRequestHeaders.Add(RouterNative.RouterKeyHeader, app.Config.RouterKey);
+        client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        client.DefaultRequestHeaders.Add("anthropic-beta", "claude-code-20250219,oauth-2025-04-20");
+        client.DefaultRequestHeaders.Add("x-app", "cli");
+
+        app.Handler.Enqueue(req =>
+        {
+            Assert.Equal("https://api.anthropic.com/v1/messages?beta=true", req.RequestUri!.ToString());
+            Assert.Equal("Bearer sk-ant-oat01-client-own-token", req.Headers.GetValues("Authorization").Single());
+            Assert.Equal("claude-code-20250219,oauth-2025-04-20", req.Headers.GetValues("anthropic-beta").Single());
+            Assert.Equal("cli", req.Headers.GetValues("x-app").Single());
+            Assert.False(req.Headers.Contains(RouterNative.RouterKeyHeader));
+            Assert.False(req.Headers.Contains("x-api-key"));
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}],\"stop_reason\":\"end_turn\",\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}", Encoding.UTF8, "application/json") };
+        });
+        var own = await client.PostAsJsonAsync("/router/v1/messages?beta=true", new { model = "claude-opus-5", max_tokens = 10, messages = new[] { new { role = "user", content = "hi" } } });
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+
+        // A routed model from the same client uses the provider's key; Claude's sign-in stays home.
+        app.Handler.Enqueue(req =>
+        {
+            Assert.StartsWith("https://api.deepseek.com/v1/", req.RequestUri!.ToString());
+            Assert.Equal("sk-deepseek-12345678", req.Headers.Authorization!.Parameter);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"chatcmpl-1\",\"object\":\"chat.completion\",\"created\":123,\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}", Encoding.UTF8, "application/json") };
+        });
+        var routed = await client.PostAsJsonAsync("/router/v1/messages?beta=true", new { model = "deepseek/deepseek-chat", max_tokens = 10, messages = new[] { new { role = "user", content = "hi" } } });
+        Assert.Equal(HttpStatusCode.OK, routed.StatusCode);
+
+        var ledger = await app.RouterRepo.ListRecentRequestsAsync(10);
+        var native = ledger.Single(entry => entry.Request.RequestedModel == "claude-opus-5").Request;
+        Assert.Equal(RouterRouteKind.Native, native.RouteKind);
+        Assert.Equal("anthropic", native.UpstreamSlug);
+    }
+
+    [Fact]
+    public async Task RouterKeyAsTheBearer_NeverSendsClaudeModelsToAnthropic()
+    {
+        await using var app = await TestApp.CreateAsync(routerEnabled: true);
+        await app.RouterConfig.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-deepseek-12345678", ["deepseek-chat"]);
+        await app.RouterConfig.SetDefaultRouteAsync("deepseek/deepseek-chat");
+        using var client = app.RouterClient(app.Config.RouterKey);
+
+        // With no credential of its own to forward, a Claude model is just an unrouted name.
+        var resp = await client.PostAsJsonAsync("/router/v1/messages", new { model = "claude-opus-5", max_tokens = 10, messages = new[] { new { role = "user", content = "hi" } } });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.StartsWith("https://api.deepseek.com/v1/", app.Handler.Requests.Single().RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task WrongRouterKeyHeader_Returns401_EvenWithAClientSignIn()
+    {
+        await using var app = await TestApp.CreateAsync(routerEnabled: true);
+        using var client = new HttpClient { BaseAddress = new Uri(app.BaseUrl) };
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + app.Config.RouterKey);
+        client.DefaultRequestHeaders.Add(RouterNative.RouterKeyHeader, "not-the-key");
+        var resp = await client.PostAsJsonAsync("/router/v1/messages", new { model = "claude-opus-5", max_tokens = 10, messages = new[] { new { role = "user", content = "hi" } } });
+        Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
+        Assert.Empty(app.Handler.Requests);
+    }
+
+    [Fact]
     public async Task CountTokens_ForwardOnlyToAnthropic()
     {
         await using var app = await TestApp.CreateAsync(routerEnabled: true);

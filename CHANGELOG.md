@@ -45,6 +45,20 @@ build.
 ### Fixed
 
 - The "On" and "Key" badges in the provider list no longer spill over the form beside it.
+- **Claude Code's own models keep working when it is connected to the router.** Opus, Sonnet, and
+  Haiku used to fall through to the router's default route, or fail with `400 Invalid role system`.
+  They now go to Anthropic with Claude Code's own sign-in. Connecting now writes the router key as
+  `ANTHROPIC_CUSTOM_HEADERS` instead of `ANTHROPIC_AUTH_TOKEN`, so **reconnect Claude Code once** after
+  updating.
+- Disconnecting Claude Code while a session is open no longer breaks that session. Claude Code keeps a
+  removed setting until it restarts, so the session keeps talking to the router, and its own models
+  pass through.
+- Reconnecting an agent and then disconnecting it no longer leaves the router's base URL behind.
+- Routed models no longer fail on Claude Code's mid-conversation system messages or on content blocks
+  another provider cannot carry.
+- Router errors now say why a provider refused: `Upstream returned HTTP 429 (usage_limit_reached)`
+  instead of the bare status. A provider out of credit (`402`) fails over to the next target, and when
+  every target is rate limited the agent gets `429` with `retry-after` instead of a bare `503`.
 
 ## [0.2.0-alpha.1] - 2026-09-18
 

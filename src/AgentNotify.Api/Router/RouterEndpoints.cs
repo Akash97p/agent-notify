@@ -53,8 +53,20 @@ public static class RouterEndpoints
         if (bodySizeFeature is not null && !bodySizeFeature.IsReadOnly)
             bodySizeFeature.MaxRequestBodySize = config.RouterMaxRequestBodyBytes;
 
+        // A client that keeps its own Anthropic sign-in (Claude Code) sends the router key in a header of
+        // its own, so its Authorization or x-api-key is its credential for Anthropic, not for us.
         string? provided = null;
-        var authHeader = context.Request.Headers.Authorization.ToString();
+        KeyValuePair<string, string>? clientCredential = null;
+        var routerKeyHeader = context.Request.Headers[RouterNative.RouterKeyHeader].ToString();
+        if (!string.IsNullOrWhiteSpace(routerKeyHeader))
+        {
+            provided = routerKeyHeader.Trim();
+            var clientAuthorization = context.Request.Headers.Authorization.ToString();
+            var clientApiKey = context.Request.Headers["x-api-key"].ToString();
+            if (!string.IsNullOrWhiteSpace(clientAuthorization)) clientCredential = new("Authorization", clientAuthorization.Trim());
+            else if (!string.IsNullOrWhiteSpace(clientApiKey)) clientCredential = new("x-api-key", clientApiKey.Trim());
+        }
+        var authHeader = provided is null ? context.Request.Headers.Authorization.ToString() : "";
         if (!string.IsNullOrWhiteSpace(authHeader))
         {
             var trimmed = authHeader.Trim();
@@ -136,7 +148,19 @@ public static class RouterEndpoints
             if (!string.IsNullOrWhiteSpace(value) && value.Length <= 200) { sessionId = value.Trim(); break; }
         }
 
-        var inbound = new RouterInbound(inboundWire, bodyBytes, anthVersion, anthBeta, isCountTokens) { SessionId = sessionId };
+        var nativeHeaders = clientCredential is null
+            ? []
+            : context.Request.Headers
+                .Where(header => RouterInbound.IsNativeHeader(header.Key))
+                .Select(header => new KeyValuePair<string, string>(header.Key, header.Value.ToString()))
+                .ToList();
+        var inbound = new RouterInbound(inboundWire, bodyBytes, anthVersion, anthBeta, isCountTokens)
+        {
+            SessionId = sessionId,
+            ClientCredential = clientCredential,
+            NativeHeaders = nativeHeaders,
+            Query = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null
+        };
         var sink = new RouterSink(context);
         try
         {

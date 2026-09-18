@@ -392,7 +392,7 @@ public sealed class RouterProxyTests
     }
 
     [Fact]
-    public async Task AllTargetsCooling_Returns503()
+    public async Task AllTargetsRateLimited_Returns429WithRetryAfter_WithoutAskingAgain()
     {
         var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
         try
@@ -406,13 +406,114 @@ public sealed class RouterProxyTests
             handler.Enqueue(req => new HttpResponseMessage((HttpStatusCode)429) { Content = new StringContent("rate") });
             var sink1 = new TestSink();
             await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink1, CancellationToken.None);
-            // Both are cooling now, next request should immediately 503 without calling upstream
+            // Both are cooling now: the next request says so at once, and for how long.
             handler.Requests.Clear();
+            clock.Advance(TimeSpan.FromSeconds(10));
             var sink2 = new TestSink();
             await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink2, CancellationToken.None);
-            Assert.Equal(503, sink2.Status);
-            Assert.Contains("all_targets_unavailable", sink2.WrittenText);
+            Assert.Equal(429, sink2.Status);
+            Assert.Contains("rate_limited", sink2.WrittenText);
+            Assert.Equal("20", sink2.Headers["retry-after"]);
             Assert.Empty(handler.Requests);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task AllTargetsFailing_Returns503()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("openai", "OpenAI", RouterWire.OpenAiChat, "https://api.openai.com/v1", "sk-1-12345678", []);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "openai/gpt-4o", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
+            handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.BadGateway) { Content = new StringContent("bad") });
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new TestSink(), CancellationToken.None);
+            var sink = new TestSink();
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink, CancellationToken.None);
+            Assert.Equal(503, sink.Status);
+            Assert.Contains("all_targets_unavailable", sink.WrittenText);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task ProvidersOwnErrorCode_ReachesTheAgent_ButNotItsMessage()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("chatgpt", "ChatGPT", RouterWire.OpenAiResponses, "https://chatgpt.example/v1", "sk-1-12345678", []);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "chatgpt/gpt-5", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
+            handler.Enqueue(req => new HttpResponseMessage((HttpStatusCode)429)
+            {
+                Content = new StringContent("{\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached for sk-secret\"}}", Encoding.UTF8, "application/json")
+            });
+            var sink = new TestSink();
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink, CancellationToken.None);
+            Assert.Equal(429, sink.Status);
+            Assert.Contains("Upstream returned HTTP 429 (usage_limit_reached)", sink.WrittenText);
+            Assert.DoesNotContain("sk-secret", sink.WrittenText);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task OutOfCredit_FailsOverToTheNextTarget()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("meta", "Meta", RouterWire.OpenAiChat, "https://meta.example/v1", "sk-1-12345678", []);
+            await svc.CreateUpstreamAsync("go", "Go", RouterWire.OpenAiChat, "https://go.example/v1", "sk-2-12345678", []);
+            await svc.CreateRouteAsync("muse", RouterKind.Combo, ["meta/muse", "go/muse"]);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "combo/muse", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
+            handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.PaymentRequired) { Content = new StringContent("{\"error\":{\"code\":\"insufficient_quota\"}}") });
+            handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("hello"), Encoding.UTF8, "application/json") });
+            var sink = new TestSink();
+            var result = await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), sink, CancellationToken.None);
+            Assert.Equal(200, result.Status);
+            Assert.Equal("payment_required", result.Attempts[0].ErrorCode);
+            Assert.Equal("go", result.Attempts[1].UpstreamSlug);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task NativeAnthropic_SendsTheBodyUnchanged_AndReturnsAnthropicsOwnErrorsUncooled()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            var body = Encoding.UTF8.GetBytes("{\"model\":\"claude-opus-5\",\"max_tokens\":10,\"thinking\":{\"type\":\"adaptive\"},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"},{\"role\":\"system\",\"content\":[{\"type\":\"text\",\"text\":\"env\"}]}]}");
+            RouterInbound Inbound() => new(RouterWire.AnthropicMessages, body, "2023-06-01")
+            {
+                ClientCredential = new("Authorization", "Bearer sk-ant-oat01-own"),
+                Query = "?beta=true"
+            };
+            handler.Enqueue(req =>
+            {
+                var response = new HttpResponseMessage((HttpStatusCode)429)
+                {
+                    Content = new StringContent("{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}", Encoding.UTF8, "application/json")
+                };
+                response.Headers.TryAddWithoutValidation("retry-after", "7");
+                return response;
+            });
+            var sink = new TestSink();
+            await proxy.ExecuteAsync(Inbound(), sink, CancellationToken.None);
+            Assert.Equal(429, sink.Status);
+            Assert.Contains("rate_limit_error", sink.WrittenText);
+            Assert.Equal("7", sink.Headers["retry-after"]);
+            Assert.Equal(body, handler.RequestBodies[0]);
+            Assert.Equal("https://api.anthropic.com/v1/messages?beta=true", handler.Requests[0].RequestUri!.ToString());
+
+            // Not cooled down: Anthropic decides when the agent may try again, not the router.
+            handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnthropicNonStreamJson("hi"), Encoding.UTF8, "application/json") });
+            var again = new TestSink();
+            await proxy.ExecuteAsync(Inbound(), again, CancellationToken.None);
+            Assert.Equal(200, again.Status);
+            Assert.Equal(2, handler.Requests.Count);
         }
         finally { proxy.Dispose(); Cleanup(db, cfg); }
     }

@@ -24,9 +24,11 @@ All routes live on the broker's existing loopback listener, under `/router/v1`:
 
 - **Off:** every `/router` request gets `404 {"error":{"type":"router_disabled",...}}`.
 - **Authentication:** a separate router key, not the broker's `/v1` bearer token. It is accepted as
-  `Authorization: Bearer <key>` or `x-api-key: <key>` and compared in constant time. The key only
-  grants spending through the router; it cannot read notifications or configuration. It is generated
-  when the router is first enabled and can be regenerated.
+  `x-agentnotify-router-key: <key>`, `Authorization: Bearer <key>`, or `x-api-key: <key>` and compared
+  in constant time. The key only grants spending through the router; it cannot read notifications or
+  configuration. It is generated when the router is first enabled and can be regenerated. When it
+  arrives in `x-agentnotify-router-key`, the client's `Authorization` or `x-api-key` is its **own**
+  Anthropic credential, used only for its own models (see [Claude Code's own models](#claude-codes-own-models)).
 - **Loopback:** the same `Host` check as the web interface (loopback names only), so a DNS-rebinding
   page cannot reach it. Browsers are refused: a request carrying an `Origin` header gets `403`.
 - **Body size:** the broker's 64 KiB API limit does not apply. Router routes raise the per-request
@@ -38,8 +40,15 @@ OpenAI wires, `{"type":"error","error":{"type","message"}}` for Anthropic) so th
 The `code` is one of a fixed set — `router_disabled`, `unauthorized`, `forbidden`,
 `host_not_loopback`, `payload_too_large`, `invalid_request`, `missing_model`, `unknown_model`,
 `ambiguous_model`, `no_enabled_target`, `unsupported_previous_response_id`, `not_supported`,
-`provider_key_unreadable`, `subscription_signed_out`, `rate_limited`, `timeout`, `connection_error`, `client_error`,
-`upstream_error`, `all_targets_unavailable` — and never a provider's own message.
+`provider_key_unreadable`, `subscription_signed_out`, `rate_limited`, `payment_required`, `timeout`,
+`connection_error`, `client_error`, `upstream_error`, `all_targets_unavailable` — and never a
+provider's own message. What the message may carry is the provider's own short error *code*, such as
+`Upstream returned HTTP 429 (usage_limit_reached)`: taken from `error.code`, `error.type`,
+`detail.code`, or a top-level `code`/`type`, and only when it is an identifier of at most 64
+characters (`[A-Za-z0-9_.-]`). It is also written to the broker log with the upstream and model, so a
+failed request can be explained afterwards. The ledger keeps its fixed code. A native Anthropic
+request is the exception: Anthropic's own error body and `retry-after` are returned to the agent
+unchanged.
 
 ## Configuration and storage
 
@@ -63,7 +72,7 @@ SQLite holds everything else, in tables created idempotently by `RouterRepositor
   1–8 and fails over in order.
 - **`router_settings`** — one row: `default_route` (a `provider/model`, alias, or combo name, nullable).
 - **`router_requests`** — one row per logical request: `id`, `started_at`, `finished_at`,
-  `inbound_wire`, `requested_model`, `route_kind` (`explicit | alias | combo | model_list | default`),
+  `inbound_wire`, `requested_model`, `route_kind` (`explicit | alias | combo | native | model_list | default`),
   `route_name`, final `upstream_slug`/`model`, `stream`, `status` (HTTP status returned to the client),
   `outcome` (`ok | upstream_error | client_error | canceled | failed_over_exhausted`), token counts
   (`input`, `cached_input`, `output`, `reasoning`, nullable), `usage_status`
@@ -176,11 +185,16 @@ requested `model` string. It returns an ordered list of concrete targets `{upstr
 1. **Combo or alias by name.** `combo/<name>` or a bare `<name>` equal to an enabled route's name.
 2. **Explicit `provider/model`.** The part before the first `/` names an enabled upstream slug; the
    rest is the native model ID verbatim (so `openrouter/anthropic/claude-sonnet-4.5` works).
-3. **Declared model list.** A bare model ID declared by exactly one enabled upstream goes there. If
+3. **The agent's own Anthropic model.** On the Anthropic wire, when the client sent its own credential
+   (see Authentication), a bare `claude-…` ID goes to Anthropic itself with that credential — route
+   kind `native`, upstream `anthropic`. This comes before the declared-model rule, so a provider that
+   happens to list `claude-opus-5` does not take over Claude Code's own Opus; only a route the owner
+   named that way (rule 1) does.
+4. **Declared model list.** A bare model ID declared by exactly one enabled upstream goes there. If
    two or more declare it, the request fails with `ambiguous_model` rather than picking one.
-4. **Default route.** Otherwise the default route, when set, resolved by rules 1–2. A request that
+5. **Default route.** Otherwise the default route, when set, resolved by rules 1–2. A request that
    carries no model at all also lands here; without a default it is `missing_model` (`400`).
-5. Otherwise `unknown_model` (`404`).
+6. Otherwise `unknown_model` (`404`).
 
 Disabled upstreams are skipped inside a combo, and a combo with no enabled target fails with
 `no_enabled_target`.
@@ -220,8 +234,11 @@ parses usage for the ledger. This keeps fields the IR does not model (Responses 
   `image_generation`, …) are dropped when translating, and noted in the ledger as `tools_dropped`.
   `store` is forced irrelevant (no state is kept); `previous_response_id` on a translated hop fails
   with `unsupported_previous_response_id`.
-- Anthropic `system` (string or text blocks), `text`, `image` (base64 or URL), `tool_use`,
-  `tool_result` (text or text blocks; `is_error`), `thinking`/`redacted_thinking` (dropped),
+- Anthropic `system` (string or text blocks), mid-conversation `system`-role messages (Claude Code's
+  environment block; joined to `system`, as the other decoders do with system and developer turns),
+  `text`, `image` (base64 or URL), `tool_use`,
+  `tool_result` (text or text blocks; `is_error`), `thinking`/`redacted_thinking` (dropped), any other
+  block type — server tools, documents — (dropped, noted as `blocks_dropped`),
   `tools[].input_schema`, `tool_choice` (`auto`, `any` → required, `tool` → name, `none`),
   `max_tokens`, `stop_sequences`, `temperature`, `top_p`.
 - Chat Completions `messages` (`system`/`developer`, `user` string or parts, `assistant` with
@@ -252,16 +269,20 @@ parses usage for the ledger. This keeps fields the IR does not model (Responses 
 
 A combo's targets are tried in order for one logical request. A target is skipped while it is cooling
 down. An attempt **fails over** to the next target only when no byte has been written to the client
-and the failure is one of: connection error, timeout before response headers, HTTP `408`, `429`,
-`500`, `502`, `503`, `504`, `529`. Any other `4xx` is the request's fault: it is returned to the client
+and the failure is one of: connection error, timeout before response headers, HTTP `402` (that
+target's account is out of credit), `408`, `429`, `500`, `502`, `503`, `504`, `529`. Any other `4xx` is the request's fault: it is returned to the client
 without trying another target and without cooling the target down. Once the first byte reaches the
 client the attempt is committed; a later upstream failure ends the stream with the wire's error event
 (`response.failed`, Anthropic `error` event, or a Chat error chunk) and is recorded, never retried.
 
 Cooldown is in memory, per `upstream slug + model`: `Retry-After` (seconds or HTTP date, capped at
 10 minutes) when present, otherwise 30 seconds after a `429`/`529` and 15 seconds after a connection
-error or `5xx`. When every target is cooling down or has failed, the client receives the last failure
-(or `503 all_targets_unavailable`).
+error or `5xx`, and 5 minutes after a `402`. When every target has failed, the client receives the last
+failure. When every target is already cooling down, the request is answered at once without asking
+any of them: `429 rate_limited` if the soonest cooldown to end began with a `429`/`529`, otherwise
+`503 all_targets_unavailable`, with `retry-after` set to the seconds until it ends, so the agent waits
+that long instead of retrying into the same wall. A native Anthropic request is never cooled down:
+Anthropic's own answer, `retry-after` included, goes back to the agent.
 
 Timeouts: 30 seconds to connect, 300 seconds to the response headers, and 300 seconds of silence
 between streamed chunks. A client disconnect cancels the upstream request and records `canceled`.
@@ -309,9 +330,31 @@ Its `modelPicker` setting gains a row per routed selector, each declaring the kn
 `behavesAs` — without that Claude Code cannot tell a routed model's context window or capabilities and
 says so on every start. Optionally those rows replace Anthropic's own lineup instead of following it; that switch is off unless
 the owner turns it on.
-Separately, `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and the model each built-in entry resolves
-(`ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `…SONNET…`, `…HAIKU…`, and the background
-`ANTHROPIC_SMALL_FAST_MODEL`) are set in the `env` block of `settings.json`.
+Separately, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS` (the router key, as
+`x-agentnotify-router-key: <key>`, after any header lines the owner already sends), and the model each
+built-in entry resolves (`ANTHROPIC_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`, `…SONNET…`, `…HAIKU…`, and
+the background `ANTHROPIC_SMALL_FAST_MODEL`) are set in the `env` block of `settings.json`.
+`ANTHROPIC_AUTH_TOKEN` is deliberately not set.
+
+### Claude Code's own models
+
+Claude Code has one base URL for every model, so once it points at the router its built-in Opus,
+Sonnet, and Haiku arrive there too. They must not run on some other provider under Claude's name, and
+they should keep using the owner's Claude sign-in. So the router key travels in its own header, which
+leaves Claude Code sending its own sign-in exactly as it would to Anthropic (`Authorization: Bearer
+sk-ant-oat…` for a Claude plan, `x-api-key` for an API key). A `claude-…` model that no route claims
+is then sent to `https://api.anthropic.com/v1/messages` (or `/messages/count_tokens`) with that
+credential, the body byte for byte, the inbound query string (`?beta=true`), and the client's own
+`anthropic-*`, `x-stainless-*`, `user-agent`, `x-app`, and `x-claude-code-session-id` headers. The
+credential goes to Anthropic and nowhere else: it is never sent to another upstream, stored, logged,
+or put in the ledger. A client that sends the router key as its bearer has no credential of its own to
+forward, so its `claude-…` models are ordinary unrouted names (default route or `unknown_model`).
+
+**Running sessions.** Claude Code applies an `env` variable added to `settings.json` to a running
+session at once, but keeps one that was removed until it restarts (verified with Claude Code 2.1.276).
+Connecting therefore takes effect in open sessions, and disconnecting does not: they keep sending to
+the router until restarted. Because their built-in models pass through to Anthropic, they keep
+working; routed models keep working too while the router is on.
 
 ### What writing those files is held to
 
@@ -363,7 +406,7 @@ Claude Code:
 
 ```bash
 export ANTHROPIC_BASE_URL=http://127.0.0.1:47821/router
-export ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"
+export ANTHROPIC_CUSTOM_HEADERS="x-agentnotify-router-key: $(agentnotify router key)"
 export ANTHROPIC_MODEL=combo/coding
 ```
 

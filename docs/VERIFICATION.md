@@ -1997,6 +1997,48 @@ Live, through the throwaway host over a scratch home holding `.codex`, `.codex-s
 Not verified: installing a skill or harness into a real second profile from the page; the Windows
 tray build; a second Claude Code account actually running through the router.
 
+## Claude Code's own models through the router (`fix/router-claude-code-native`, 2026-09-18)
+
+macOS, same toolchain as above. `./scripts/build.sh -p:EnableWindowsTargeting=true`: 0 warnings, 0
+errors. `./scripts/test.sh -p:EnableWindowsTargeting=true`: 1,237 passed, 0 failed (13 new or changed:
+native resolution and its precedence, native forwarding through the endpoint with the client's own
+credential and headers, the router key as a bearer never going native, a wrong key header refused,
+native errors returned uncooled with `retry-after`, provider error codes in the message but not their
+text, `402` failover, `429` + `retry-after` when every target is cooling, mid-conversation `system`
+messages, dropped unknown blocks, the owner's own `ANTHROPIC_CUSTOM_HEADERS` kept and restored, and
+reconnect-then-disconnect leaving nothing behind).
+
+Diagnosed against the owner's real setup (Claude Code 2.1.276, profile `~/.claude-second`):
+- A capture server in place of the router showed Claude Code, pointed at a custom base URL, still
+  sends its own Claude sign-in (`Authorization: Bearer sk-ant-oat…`), adds `ANTHROPIC_CUSTOM_HEADERS`,
+  and calls only `POST /v1/messages?beta=true`. Its requests carry a `system`-role message, which the
+  old Anthropic decoder rejected (`Invalid role system`): the ledger's `claude-opus-5 … 400
+  invalid_request` rows.
+- In a running session, an `env` block added to `settings.json` took effect on the next request; one
+  removed did not (requests kept going to the old base URL with the old header) until restart.
+- The ChatGPT-plan `429`s at 16:37 were not reproduced: the same translated request, and one padded to
+  about 48k tokens, answered `200` through both the installed broker and directly, on both Codex
+  accounts. Both `chatgpt` and `chatgpt-2` upstreams reference `~/.codex`, so they share one account's
+  limit. The Meta `402` came from the per-token Meta Model API key, not the Muse Code plan.
+
+End to end with the dev build (a broker on port 47831 over a copy of the owner's database, outbound
+providers disabled in the copy; stored API keys unreadable there because the sandboxed shell cannot
+reach the login keychain) and a real interactive `claude2` session in tmux:
+- Connecting through Model router → Agents while the session was open: the next prompt on built-in
+  Opus answered, recorded as `native · anthropic · 200`.
+- `/model chatgpt/gpt-5.6-luna` in the same session answered through the ChatGPT plan (`200`).
+- Disconnecting while the session stayed open, then `/model opus`: answered, `native · anthropic · 200`.
+- `settings.json` held no `ANTHROPIC_AUTH_TOKEN` while connected and was restored afterwards.
+
+One full-suite run failed `InteractionRelayPublisherTests.Publish_SkipsBodylessNonRelayAndFilteredRoutes`
+once; it passed on the rerun, three times alone, and on `dev` without this change, so it is a timing
+flake under load, not this change. `./scripts/package.sh` was not run: it needs WSL and PowerShell,
+and the only change to embedded resources is one snippet string in `router-shared.js`.
+
+Not verified: a routed model on a stored API key (DeepSeek, OpenCode Go) through the dev build, for the
+keychain reason above; `count_tokens` on the native path; an Anthropic API-key (`x-api-key`) Claude
+Code login; the Windows tray build.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

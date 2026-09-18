@@ -252,6 +252,40 @@ public sealed class RouterTranslationTests
         Assert.Equal("hi", res.Request.Messages[0].Parts.OfType<RouterTextPart>().Single().Text);
     }
 
+    [Fact]
+    public void Anthropic_Decoder_MidConversationSystemJoinsTheSystemPrompt()
+    {
+        // Claude Code's environment block, sent under the mid-conversation-system beta.
+        var json = """
+        {
+          "model":"m",
+          "system":[{"type":"text","text":"base"}],
+          "messages":[
+            {"role":"user","content":"hi"},
+            {"role":"system","content":[{"type":"text","text":"# Environment"}]}
+          ]
+        }
+        """;
+        var res = new RouterTranslator().DecodeRequest(RouterWire.AnthropicMessages, Utf8(json));
+        Assert.Equal("base\n# Environment", res.Request.SystemPrompt);
+        Assert.Single(res.Request.Messages);
+        Assert.Equal(RouterMessage.User, res.Request.Messages[0].Role);
+    }
+
+    [Fact]
+    public void Anthropic_Decoder_DropsBlocksOtherWiresCannotCarry()
+    {
+        var json = """
+        {
+          "model":"m",
+          "messages":[{"role":"user","content":[{"type":"text","text":"hi"},{"type":"document","source":{"type":"text","data":"x"}}]}]
+        }
+        """;
+        var res = new RouterTranslator().DecodeRequest(RouterWire.AnthropicMessages, Utf8(json));
+        Assert.Contains("blocks_dropped", res.DroppedNotes);
+        Assert.Equal("hi", res.Request.Messages.Single().Parts.OfType<RouterTextPart>().Single().Text);
+    }
+
     // Encoder tests
 
     [Fact]

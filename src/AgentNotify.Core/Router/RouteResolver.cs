@@ -26,7 +26,11 @@ public static class RouteResolver
 {
     private const string ComboPrefix = "combo/";
 
-    public static RouteResolution Resolve(RouterSnapshot snapshot, string? requestedModel)
+    /// <param name="nativeAnthropic">
+    /// The client brought its own Anthropic credential, so an Anthropic model it asks for by its bare ID
+    /// goes to Anthropic itself (rule 3) unless the owner named a route that way.
+    /// </param>
+    public static RouteResolution Resolve(RouterSnapshot snapshot, string? requestedModel, bool nativeAnthropic = false)
     {
         var model = requestedModel?.Trim();
 
@@ -38,6 +42,11 @@ public static class RouteResolver
 
         if (ByExplicitTarget(snapshot, model, RouterRouteKind.Explicit) is { } explicitTarget)
             return explicitTarget;
+
+        // Before the declared-model rule: a provider that happens to list claude-opus-5 must not take
+        // over the agent's own Opus. Only a route the owner named that way (rule 1) does.
+        if (nativeAnthropic && RouterNative.IsNativeModel(model))
+            return Success([new ResolvedTarget(RouterNative.Upstream, model)], RouterRouteKind.Native, null);
 
         var declaring = snapshot.Upstreams
             .Where(upstream => upstream.Enabled && upstream.Models.Contains(model, StringComparer.Ordinal))
@@ -77,7 +86,7 @@ public static class RouteResolver
             : Success([Target(upstream, selector[(slash + 1)..])], routeKind, null);
     }
 
-    /// <summary>Rule 4: the default route, resolved by rules 1–2 only.</summary>
+    /// <summary>Rule 5: the default route, resolved by rules 1–2 only.</summary>
     private static RouteResolution? ResolveDefault(RouterSnapshot snapshot)
     {
         var configured = snapshot.Settings.DefaultRoute?.Trim();

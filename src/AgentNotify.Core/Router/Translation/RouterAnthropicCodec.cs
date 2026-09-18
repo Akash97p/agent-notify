@@ -143,6 +143,15 @@ internal static class RouterAnthropicCodec
                     if (!mEl.TryGetProperty("role", out var roleEl) || roleEl.ValueKind != JsonValueKind.String)
                         throw new TranslationException("invalid_request", "Message missing role.");
                     var role = roleEl.GetString()!;
+                    if (role == "system")
+                    {
+                        // Claude Code sends system text mid-conversation too (its environment block,
+                        // under the mid-conversation-system beta). The other wires have nowhere to put a
+                        // system turn, so it joins the system prompt, as their own decoders do.
+                        if (SystemText(mEl) is { Length: > 0 } midSystem)
+                            systemPrompt = string.IsNullOrEmpty(systemPrompt) ? midSystem : systemPrompt + "\n" + midSystem;
+                        continue;
+                    }
                     if (role != "user" && role != "assistant")
                         throw new TranslationException("invalid_request", $"Invalid role {role}.");
                     if (!mEl.TryGetProperty("content", out var contentEl))
@@ -241,7 +250,10 @@ internal static class RouterAnthropicCodec
                                     if (!notes.Contains("thinking_dropped")) notes.Add("thinking_dropped");
                                     break;
                                 default:
-                                    throw new TranslationException("invalid_request", $"Unknown content block type {typ}.");
+                                    // Server tools, documents, and whatever Anthropic adds next have no
+                                    // equivalent on another wire; the rest of the conversation still does.
+                                    if (!notes.Contains("blocks_dropped")) notes.Add("blocks_dropped");
+                                    break;
                             }
                         }
                         if (pendingParts.Count > 0)
@@ -278,6 +290,20 @@ internal static class RouterAnthropicCodec
     }
 
     public static byte[] Encode(RouterRequest request, string nativeModel) => EncodeAnthropicProper(request, nativeModel);
+
+    /// <summary>The text of a mid-conversation system message: a string, or its text blocks.</summary>
+    private static string? SystemText(JsonElement message)
+    {
+        if (!message.TryGetProperty("content", out var content)) return null;
+        if (content.ValueKind == JsonValueKind.String) return content.GetString();
+        if (content.ValueKind != JsonValueKind.Array) throw new TranslationException("invalid_request", "Invalid message content.");
+        var parts = content.EnumerateArray()
+            .Where(block => block.ValueKind == JsonValueKind.Object &&
+                            block.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "text" &&
+                            block.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+            .Select(block => block.GetProperty("text").GetString());
+        return string.Join("\n", parts);
+    }
 
     private static byte[] EncodeAnthropicProper(RouterRequest request, string nativeModel)
     {

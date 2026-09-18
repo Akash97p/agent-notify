@@ -225,6 +225,39 @@ public static class RouterRouteKind
     public const string Combo = "combo";
     public const string ModelList = "model_list";
     public const string Default = "default";
+
+    /// <summary>An Anthropic model the agent asked for itself, sent to Anthropic with its own sign-in.</summary>
+    public const string Native = "native";
+}
+
+/// <summary>
+/// Claude Code's own models, which the router hands to Anthropic unchanged, authenticated with the
+/// credential Claude Code itself sent. Claude Code has one base URL for every model, so once it points
+/// at the router its built-in Opus, Sonnet, and Haiku arrive here too; without this they would fall
+/// through to the default route and run on some other provider under Claude's name.
+/// </summary>
+/// <remarks>
+/// This only applies when the client authenticated to the router with <see cref="RouterKeyHeader"/>,
+/// which leaves its <c>Authorization</c> or <c>x-api-key</c> free to carry its own Anthropic
+/// credential. That credential is forwarded to Anthropic and nowhere else, never stored or logged.
+/// </remarks>
+public static class RouterNative
+{
+    /// <summary>The header a client sends the router key in when its usual auth headers are its own.</summary>
+    public const string RouterKeyHeader = "x-agentnotify-router-key";
+
+    /// <summary>The prefix of every Anthropic model ID; anything else is never sent to Anthropic natively.</summary>
+    public const string ModelPrefix = "claude-";
+
+    public static bool IsNativeModel(string? model) =>
+        model is not null && model.StartsWith(ModelPrefix, StringComparison.OrdinalIgnoreCase) && !model.Contains('/');
+
+    /// <summary>The destination: Anthropic's own API, on the Messages wire.</summary>
+    public static readonly StoredRouterUpstream Upstream = new(
+        "native-anthropic", "anthropic", "Anthropic (the agent's own sign-in)", RouterWire.AnthropicMessages,
+        "https://api.anthropic.com/v1", null, [], true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+
+    public static bool IsNative(StoredRouterUpstream upstream) => ReferenceEquals(upstream, Upstream);
 }
 
 /// <summary>Outcome constants for ledger rows.</summary>

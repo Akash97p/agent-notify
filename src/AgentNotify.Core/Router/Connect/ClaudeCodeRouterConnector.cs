@@ -15,9 +15,15 @@ namespace AgentNotify.Core.Router.Connect;
 /// built-in entries resolve their model name from the environment instead, so those variables are set
 /// as well and the owner decides what Opus, Sonnet, Haiku, and the background model point at.
 ///
+/// The router key travels in <c>ANTHROPIC_CUSTOM_HEADERS</c> rather than <c>ANTHROPIC_AUTH_TOKEN</c>,
+/// so Claude Code keeps sending its own sign-in: the router forwards that to Anthropic for Claude
+/// Code's built-in models and uses the key header for everything routed. This is also what keeps a
+/// running session working across a disconnect, because Claude Code applies an added <c>env</c>
+/// variable at once but keeps a removed one until it restarts.
+///
 /// The file is merged as JSON, so every other setting, hook, and permission the owner has is
 /// preserved; only the keys listed in <see cref="ManagedVariables"/> are touched, and their previous
-/// values are recorded for a restore.
+/// values are recorded for a restore. Header lines the owner already sends are kept beside the key.
 /// </remarks>
 public sealed class ClaudeCodeRouterConnector
 {
@@ -55,9 +61,12 @@ public sealed class ClaudeCodeRouterConnector
     /// <summary>The settings key holding the extra rows this connector adds to the picker.</summary>
     private const string PickerKey = "modelPicker";
 
+    /// <summary>Claude Code's newline-separated <c>Name: value</c> list of extra request headers.</summary>
+    public const string HeadersVariable = "ANTHROPIC_CUSTOM_HEADERS";
+
     /// <summary>Every variable this connector owns while connected.</summary>
     public static readonly string[] ManagedVariables =
-        ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", .. Slots.Values];
+        ["ANTHROPIC_BASE_URL", HeadersVariable, .. Slots.Values];
 
     private static readonly JsonSerializerOptions WriteOptions = new()
     {
@@ -106,9 +115,13 @@ public sealed class ClaudeCodeRouterConnector
         var previous = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var variable in ManagedVariables)
             previous[variable] = env[variable] is JsonValue existing ? existing.GetValue<string>() : null;
+        // What the owner sends of their own is their value; a key line already there is ours.
+        var ownHeaders = WithoutRouterKey(previous[HeadersVariable]);
+        previous[HeadersVariable] = ownHeaders;
 
         env["ANTHROPIC_BASE_URL"] = anthropicBaseUrl;
-        env["ANTHROPIC_AUTH_TOKEN"] = routerKey;
+        var keyLine = $"{RouterNative.RouterKeyHeader}: {routerKey}";
+        env[HeadersVariable] = string.IsNullOrEmpty(ownHeaders) ? keyLine : ownHeaders + "\n" + keyLine;
         foreach (var (slot, variable) in Slots)
         {
             if (slotModels.TryGetValue(slot, out var model) && !string.IsNullOrWhiteSpace(model))
@@ -230,6 +243,17 @@ public sealed class ClaudeCodeRouterConnector
     }
 
     private static JsonObject? ReadEnv(JsonObject root) => root["env"] as JsonObject;
+
+    /// <summary>A header list with any router key line removed; null when nothing else is left.</summary>
+    private static string? WithoutRouterKey(string? headers)
+    {
+        if (string.IsNullOrEmpty(headers)) return null;
+        var kept = headers.Split('\n')
+            .Where(line => !line.TrimStart().StartsWith(RouterNative.RouterKeyHeader + ":", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var joined = string.Join("\n", kept).Trim('\n');
+        return joined.Trim().Length == 0 ? null : joined;
+    }
 
     private void Save(JsonObject root)
     {

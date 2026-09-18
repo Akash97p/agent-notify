@@ -546,7 +546,7 @@ export async function renderRouter(page, ctx, section) {
       const p = state.base_url || "http://127.0.0.1:PORT/router/v1";
       const anthBase = state.anthropic_base_url || "http://127.0.0.1:PORT/router";
       const codexBlock = `model_provider = "agentnotify"\nmodel = "deepseek/deepseek-chat"\n\n[model_providers.agentnotify]\nname = "AgentNotify router"\nbase_url = "${p}"\nenv_key = "AGENTNOTIFY_ROUTER_KEY"\nwire_api = "responses"`;
-      const claudeBlock = `export ANTHROPIC_BASE_URL=${anthBase}\nexport ANTHROPIC_AUTH_TOKEN="$(agentnotify router key)"\nexport ANTHROPIC_MODEL=deepseek/deepseek-chat`;
+      const claudeBlock = `export ANTHROPIC_BASE_URL=${anthBase}\nexport ANTHROPIC_CUSTOM_HEADERS="x-agentnotify-router-key: $(agentnotify router key)"\nexport ANTHROPIC_MODEL=deepseek/deepseek-chat`;
 
       mount(connectHost,
         h("details", { class: "disclosure" },

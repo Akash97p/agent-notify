@@ -27,6 +27,30 @@ public sealed record RouterInbound(
 
     /// <summary>The agent's conversation ID, when it sent one.</summary>
     public string? SessionId { get; init; }
+
+    /// <summary>
+    /// The client's own Anthropic credential (<c>Authorization</c> or <c>x-api-key</c>, name and value),
+    /// present only when it authenticated to the router with <see cref="RouterNative.RouterKeyHeader"/>.
+    /// It is forwarded to Anthropic for the client's own models and to nothing else.
+    /// </summary>
+    public KeyValuePair<string, string>? ClientCredential { get; init; }
+
+    /// <summary>The client's own request headers that a native Anthropic request carries unchanged.</summary>
+    public IReadOnlyList<KeyValuePair<string, string>> NativeHeaders { get; init; } = [];
+
+    /// <summary>The inbound query string (<c>?beta=true</c>), kept for a native Anthropic request.</summary>
+    public string? Query { get; init; }
+
+    /// <summary>
+    /// Whether a request header is one Claude Code sends Anthropic that a native request keeps: the API
+    /// version and betas, and how the client identifies itself. Credentials travel separately.
+    /// </summary>
+    public static bool IsNativeHeader(string name) =>
+        name.StartsWith("anthropic-", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("x-stainless-", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("user-agent", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("x-app", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("x-claude-code-session-id", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Sink that writes the router response back to the client.</summary>
@@ -60,7 +84,8 @@ public sealed class RouterProxy : IDisposable
     private readonly TimeSpan _headersTimeout;
     private readonly TimeSpan _idleTimeout;
 
-    private readonly Dictionary<string, DateTimeOffset> _cooldowns = new();
+    /// <summary>Per target: until when it is skipped, and the status that started the cooldown.</summary>
+    private readonly Dictionary<string, (DateTimeOffset Until, int Status)> _cooldowns = new();
     private readonly object _cooldownLock = new();
 
     public const int MaxErrorBodyBytes = 64 * 1024;
@@ -163,6 +188,9 @@ public sealed class RouterProxy : IDisposable
         public string? NativeModel;
         public RouterUsage? Usage;
         public string UsageStatus = "unreported";
+
+        /// <summary>The last upstream's own short error code (<c>usage_limit_reached</c>), for the message.</summary>
+        public string? ProviderCode;
         public readonly List<RouterAttemptRecord> Attempts = new();
 
         private readonly RouterProxy _owner;
@@ -189,10 +217,10 @@ public sealed class RouterProxy : IDisposable
         }
     }
 
-    private async Task<RouterProxyResult> FailAsync(IRouterClientSink sink, Exchange ex, int status, string code, string message, bool stream)
+    private async Task<RouterProxyResult> FailAsync(IRouterClientSink sink, Exchange ex, int status, string code, string message, bool stream, int? retryAfterSeconds = null)
     {
         var body = _translator.WriteErrorBody(ex.Inbound.Wire, status, code, message);
-        await WriteErrorToSink(sink, status, body, stream, CancellationToken.None).ConfigureAwait(false);
+        await WriteErrorToSink(sink, status, body, stream, CancellationToken.None, retryAfterSeconds).ConfigureAwait(false);
         string outcome = code == "all_targets_unavailable"
             ? RouterOutcome.FailedOverExhausted
             : status >= 500 ? RouterOutcome.UpstreamError
@@ -225,7 +253,8 @@ public sealed class RouterProxy : IDisposable
             return await FailAsync(sink, ex, 500, "upstream_error", "Upstream returned HTTP 500", false).ConfigureAwait(false);
         }
 
-        var resolution = ResolveWithCountTokensFilter(snapshot, requestedModel, inbound.IsCountTokens);
+        var nativeAnthropic = inbound.ClientCredential is not null && inbound.Wire == RouterWire.AnthropicMessages;
+        var resolution = ResolveWithCountTokensFilter(snapshot, requestedModel, inbound.IsCountTokens, nativeAnthropic);
         if (!resolution.IsSuccess)
         {
             int status = resolution.HttpStatus ?? 404;
@@ -250,7 +279,12 @@ public sealed class RouterProxy : IDisposable
 
         if (IsAllCooling(resolution.Targets))
         {
-            return await FailAsync(sink, ex, 503, "all_targets_unavailable", "Upstream returned HTTP 503", false).ConfigureAwait(false);
+            // Every target is waiting out a failure. Say which, and for how long, so the agent backs
+            // off for that long instead of retrying into the same wall.
+            var (coolingStatus, retryAfter) = Cooling(resolution.Targets);
+            return coolingStatus is 429 or 529
+                ? await FailAsync(sink, ex, 429, "rate_limited", $"Every target of this model is rate limited; try again in {retryAfter}s.", false, retryAfter).ConfigureAwait(false)
+                : await FailAsync(sink, ex, 503, "all_targets_unavailable", $"Every target of this model failed recently; try again in {retryAfter}s.", false, retryAfter).ConfigureAwait(false);
         }
 
         int ordinal = 0;
@@ -265,7 +299,9 @@ public sealed class RouterProxy : IDisposable
             UpstreamCredential credential;
             try
             {
-                credential = await _credentials.GetAsync(target.Upstream, renew: false, ct).ConfigureAwait(false);
+                credential = RouterNative.IsNative(target.Upstream)
+                    ? NativeCredential(inbound)
+                    : await _credentials.GetAsync(target.Upstream, renew: false, ct).ConfigureAwait(false);
             }
             catch (CryptographicException)
             {
@@ -365,7 +401,9 @@ public sealed class RouterProxy : IDisposable
             {
                 if (attemptErrorCode == null) attemptErrorCode = isTimeout ? "timeout" : "connection_error";
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, attemptErrorCode, (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
-                SetCooldown(cooldownKey, TimeSpan.FromSeconds(15));
+                if (!RouterNative.IsNative(target.Upstream))
+                    SetCooldown(cooldownKey, TimeSpan.FromSeconds(15), 503);
+                ex.ProviderCode = null; // the last failure said nothing of its own
                 httpResp?.Dispose();
                 continue;
             }
@@ -389,12 +427,19 @@ public sealed class RouterProxy : IDisposable
                 continue;
             }
 
-            if (isRetryable && !sink.HasStarted)
+            // Anthropic's own answer goes back to the agent exactly as given, so it can renew its
+            // sign-in on a 401 or wait out a 429 on Anthropic's retry-after.
+            if (isRetryable && !sink.HasStarted && !RouterNative.IsNative(target.Upstream))
             {
-                if (statusCode == 429 || statusCode == 529) attemptErrorCode = "rate_limited";
-                else attemptErrorCode = "upstream_error";
+                attemptErrorCode = statusCode switch
+                {
+                    429 or 529 => "rate_limited",
+                    402 => "payment_required",
+                    _ => "upstream_error"
+                };
+                ex.ProviderCode = await ReadProviderCodeAsync(httpResp, target, statusCode).ConfigureAwait(false);
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, attemptStatus, attemptErrorCode, durationMs, false, attemptStarted));
-                SetCooldown(cooldownKey, GetCooldownDuration(httpResp, statusCode));
+                SetCooldown(cooldownKey, GetCooldownDuration(httpResp, statusCode), statusCode);
                 httpResp.Dispose();
                 continue;
             }
@@ -413,7 +458,7 @@ public sealed class RouterProxy : IDisposable
             string errorCode = lastAttempt.ErrorCode ?? "upstream_error";
             if (!sink.HasStarted)
             {
-                var body = _translator.WriteErrorBody(inbound.Wire, status, errorCode, $"Upstream returned HTTP {status}");
+                var body = _translator.WriteErrorBody(inbound.Wire, status, errorCode, UpstreamMessage(status, ex.ProviderCode));
                 await WriteErrorToSink(sink, status, body, false, ct).ConfigureAwait(false);
             }
             ex.UpstreamSlug = ex.Attempts.Last().UpstreamSlug;
@@ -422,10 +467,10 @@ public sealed class RouterProxy : IDisposable
         }
     }
 
-    private static RouteResolution ResolveWithCountTokensFilter(RouterSnapshot snapshot, string? requestedModel, bool isCountTokens)
+    private static RouteResolution ResolveWithCountTokensFilter(RouterSnapshot snapshot, string? requestedModel, bool isCountTokens, bool nativeAnthropic)
     {
-        if (!isCountTokens) return RouteResolver.Resolve(snapshot, requestedModel);
-        var baseRes = RouteResolver.Resolve(snapshot, requestedModel);
+        if (!isCountTokens) return RouteResolver.Resolve(snapshot, requestedModel, nativeAnthropic);
+        var baseRes = RouteResolver.Resolve(snapshot, requestedModel, nativeAnthropic);
         if (!baseRes.IsSuccess) return baseRes;
         var anthropicTargets = baseRes.Targets.Where(t => t.Upstream.Wire == RouterWire.AnthropicMessages).ToList();
         if (anthropicTargets.Count == 0)
@@ -461,6 +506,7 @@ public sealed class RouterProxy : IDisposable
 
     private byte[] BuildUpstreamBody(RouterInbound inbound, ResolvedTarget target, RouterRequest? decoded)
     {
+        if (RouterNative.IsNative(target.Upstream)) return inbound.Body;
         bool isPassthrough = RouterTranslator.IsPassthrough(inbound.Wire, target.Upstream.Wire);
         if (isPassthrough)
             return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel);
@@ -475,8 +521,9 @@ public sealed class RouterProxy : IDisposable
     private static HttpRequestMessage BuildUpstreamRequest(ResolvedTarget target, UpstreamCredential credential, byte[] upstreamBody, RouterInbound inbound, bool stream)
     {
         var plaintextKey = credential.Secret;
+        var native = RouterNative.IsNative(target.Upstream);
         string path = inbound.IsCountTokens ? "/messages/count_tokens" : UpstreamPathFor(target.Upstream.Wire);
-        var uri = target.Upstream.BaseUrl + path;
+        var uri = target.Upstream.BaseUrl + path + (native ? inbound.Query ?? "" : "");
         var httpReq = new HttpRequestMessage(HttpMethod.Post, uri);
         httpReq.Content = new ByteArrayContent(upstreamBody);
         httpReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -501,6 +548,16 @@ public sealed class RouterProxy : IDisposable
         }
         foreach (var (name, value) in credential.Headers)
             httpReq.Headers.TryAddWithoutValidation(name, value);
+        if (native)
+        {
+            // The agent's own request, as it would have reached Anthropic without the router.
+            foreach (var (name, value) in inbound.NativeHeaders)
+            {
+                httpReq.Headers.Remove(name);
+                httpReq.Headers.TryAddWithoutValidation(name, value);
+            }
+            return httpReq;
+        }
         // Providers that serve coding agents ask each client to name itself rather than send a
         // generic HTTP-library agent.
         httpReq.Headers.UserAgent.ParseAdd(RouterUserAgent);
@@ -833,6 +890,7 @@ public sealed class RouterProxy : IDisposable
             {
                 var capped = await ReadUpstreamBodyCapped(httpResp, MaxErrorBodyBytes, null, CancellationToken.None).ConfigureAwait(false);
                 var headers = new Dictionary<string, string> { ["content-type"] = "application/json" };
+                if (httpResp.Headers.RetryAfter?.ToString() is { Length: > 0 } retryAfter) headers["retry-after"] = retryAfter;
                 await sink.SetStatusAndHeadersAsync(statusCode, headers, ct).ConfigureAwait(false);
                 await sink.WriteAsync(capped, ct).ConfigureAwait(false);
                 await sink.FlushAsync(ct).ConfigureAwait(false);
@@ -857,7 +915,8 @@ public sealed class RouterProxy : IDisposable
         }
         else
         {
-            var errBody = _translator.WriteErrorBody(inbound.Wire, statusCode, attemptErrorCode, $"Upstream returned HTTP {statusCode}");
+            var providerCode = await ReadProviderCodeAsync(httpResp, target, statusCode).ConfigureAwait(false);
+            var errBody = _translator.WriteErrorBody(inbound.Wire, statusCode, attemptErrorCode, UpstreamMessage(statusCode, providerCode));
             await WriteErrorToSink(sink, statusCode, errBody, false, ct).ConfigureAwait(false);
             ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, statusCode, attemptErrorCode, durationMs, false, attemptStarted));
             ex.UpstreamSlug = target.Upstream.Slug;
@@ -879,10 +938,11 @@ public sealed class RouterProxy : IDisposable
         return true;
     }
 
-    private async Task WriteErrorToSink(IRouterClientSink sink, int status, byte[] body, bool stream, CancellationToken ct)
+    private async Task WriteErrorToSink(IRouterClientSink sink, int status, byte[] body, bool stream, CancellationToken ct, int? retryAfterSeconds = null)
     {
         var headers = new Dictionary<string, string> { ["content-type"] = stream ? "text/event-stream" : "application/json" };
         if (stream) headers["cache-control"] = "no-cache";
+        if (retryAfterSeconds is > 0) headers["retry-after"] = retryAfterSeconds.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         try { await sink.SetStatusAndHeadersAsync(status, headers, ct).ConfigureAwait(false); } catch { }
         try
         {
@@ -966,6 +1026,12 @@ public sealed class RouterProxy : IDisposable
         _ => code
     };
 
+    /// <summary>The credential a native Anthropic request carries: the one the agent sent.</summary>
+    private static UpstreamCredential NativeCredential(RouterInbound inbound) =>
+        inbound.ClientCredential is { } credential
+            ? new UpstreamCredential(null, new Dictionary<string, string> { [credential.Key] = credential.Value })
+            : UpstreamCredential.None;
+
     private static readonly string RouterUserAgent =
         "agentnotify-router/" + (typeof(RouterProxy).Assembly.GetName().Version?.ToString(3) ?? "0");
 
@@ -984,7 +1050,61 @@ public sealed class RouterProxy : IDisposable
         _ => "/chat/completions"
     };
 
-    private static bool IsRetryableStatus(int status) => status is 408 or 429 or 500 or 502 or 503 or 504 or 529;
+    // 402 is the target's account out of credit, not the request's fault: another target can serve it.
+    private static bool IsRetryableStatus(int status) => status is 402 or 408 or 429 or 500 or 502 or 503 or 504 or 529;
+
+    private static string UpstreamMessage(int status, string? providerCode) =>
+        providerCode is null ? $"Upstream returned HTTP {status}" : $"Upstream returned HTTP {status} ({providerCode})";
+
+    /// <summary>
+    /// The provider's own short error code from an error body (<c>usage_limit_reached</c>,
+    /// <c>insufficient_quota</c>), which says why far better than the status alone. Only an identifier
+    /// is taken, never the provider's message text, which can quote the request back. It is logged
+    /// with the upstream and model so a failure can be explained after the fact.
+    /// </summary>
+    private async Task<string?> ReadProviderCodeAsync(HttpResponseMessage response, ResolvedTarget target, int status)
+    {
+        string? code = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var body = await ReadUpstreamBodyCapped(response, 16 * 1024, null, cts.Token).ConfigureAwait(false);
+            code = ProviderErrorCode(body);
+        }
+        catch (Exception e) when (e is IOException or HttpRequestException or OperationCanceledException) { }
+        _logger?.Warn($"Router upstream '{target.Upstream.Slug}' answered HTTP {status} for '{target.NativeModel}'" +
+            (code is null ? "." : $" ({code})."));
+        return code;
+    }
+
+    internal static string? ProviderErrorCode(ReadOnlySpan<byte> body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body.ToArray());
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            // OpenAI and Anthropic nest it under "error"; the ChatGPT backend puts it under "error" or "detail".
+            foreach (var container in new[] { "error", "detail" })
+            {
+                if (!root.TryGetProperty(container, out var inner) || inner.ValueKind != JsonValueKind.Object) continue;
+                if ((SafeCode(inner, "code") ?? SafeCode(inner, "type")) is { } nested) return nested;
+            }
+            return SafeCode(root, "code") ?? SafeCode(root, "type");
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private static string? SafeCode(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String) return null;
+        var text = value.GetString();
+        return text is { Length: > 0 and <= 64 } &&
+               text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.') &&
+               text != "error"
+            ? text
+            : null;
+    }
 
     private static string CooldownKey(string slug, string model) => slug + "/" + model;
 
@@ -992,21 +1112,41 @@ public sealed class RouterProxy : IDisposable
     {
         lock (_cooldownLock)
         {
-            if (_cooldowns.TryGetValue(key, out var expiry))
+            if (_cooldowns.TryGetValue(key, out var cooldown))
             {
-                if (_clock.GetUtcNow() < expiry) return true;
+                if (_clock.GetUtcNow() < cooldown.Until) return true;
                 _cooldowns.Remove(key);
             }
             return false;
         }
     }
 
-    private void SetCooldown(string key, TimeSpan duration)
+    private void SetCooldown(string key, TimeSpan duration, int status)
     {
         if (duration <= TimeSpan.Zero) return;
         duration = duration > TimeSpan.FromMinutes(10) ? TimeSpan.FromMinutes(10) : duration;
         var expiry = _clock.GetUtcNow().Add(duration);
-        lock (_cooldownLock) _cooldowns[key] = expiry;
+        lock (_cooldownLock) _cooldowns[key] = (expiry, status);
+    }
+
+    /// <summary>
+    /// For targets that are all cooling down: the status that started the soonest-ending cooldown,
+    /// and the seconds until it ends.
+    /// </summary>
+    private (int Status, int RetryAfterSeconds) Cooling(IReadOnlyList<ResolvedTarget> targets)
+    {
+        var now = _clock.GetUtcNow();
+        lock (_cooldownLock)
+        {
+            var soonest = targets
+                .Select(t => _cooldowns.TryGetValue(CooldownKey(t.Upstream.Slug, t.NativeModel), out var c) ? c : ((DateTimeOffset, int)?)null)
+                .Where(c => c is not null)
+                .Select(c => c!.Value)
+                .OrderBy(c => c.Item1)
+                .FirstOrDefault();
+            var seconds = soonest.Item1 > now ? (int)Math.Ceiling((soonest.Item1 - now).TotalSeconds) : 1;
+            return (soonest.Item2 == 0 ? 503 : soonest.Item2, Math.Max(1, seconds));
+        }
     }
 
     private TimeSpan GetCooldownDuration(HttpResponseMessage resp, int status)
@@ -1030,6 +1170,8 @@ public sealed class RouterProxy : IDisposable
             }
         }
         if (status == 429 || status == 529) return TimeSpan.FromSeconds(30);
+        // Credit does not come back in seconds; stop asking for a while.
+        if (status == 402) return TimeSpan.FromMinutes(5);
         return TimeSpan.FromSeconds(15);
     }
 
