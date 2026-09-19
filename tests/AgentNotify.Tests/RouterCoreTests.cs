@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Router;
+using AgentNotify.Router;
 
 namespace AgentNotify.Tests;
 

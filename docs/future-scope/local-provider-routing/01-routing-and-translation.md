@@ -1,6 +1,6 @@
 # Router: routing, resolution, and wire translation
 
-The router in [`AgentNotify.Core/Router`](../../src/AgentNotify.Core/Router) is an opt-in loopback
+The router in [`AgentNotify.Router`](../../../src/AgentNotify.Router) is an opt-in loopback
 endpoint with its own key, separate from the notification API token. It accepts OpenAI Responses,
 OpenAI Chat Completions, and Anthropic Messages requests, resolves each to one concrete upstream
 provider and model, and translates between wires only when the selected upstream does not already

@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using AgentNotify.Api;
 using AgentNotify.Api.WebUi;
-using AgentNotify.Core.Billing;
+using AgentNotify.Insights.Billing;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;

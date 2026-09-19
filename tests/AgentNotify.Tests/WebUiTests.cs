@@ -11,8 +11,8 @@ using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;
 using AgentNotify.Core.Services;
-using AgentNotify.Core.Usage;
-using AgentNotify.Core.Quota;
+using AgentNotify.Insights.Usage;
+using AgentNotify.Insights.Quota;
 using AgentNotify.Core.Wsl;
 using Microsoft.AspNetCore.Builder;
 

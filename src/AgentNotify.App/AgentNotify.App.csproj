@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\AgentNotify.Api\AgentNotify.Api.csproj" />
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\AgentNotify.Router\AgentNotify.Router.csproj" />
+    <ProjectReference Include="..\AgentNotify.Insights\AgentNotify.Insights.csproj" />
     <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
   </ItemGroup>
 

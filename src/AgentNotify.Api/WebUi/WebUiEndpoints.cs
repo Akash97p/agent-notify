@@ -11,10 +11,10 @@ using AgentNotify.Core.Domain;
 using AgentNotify.Core.Harness;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
-using AgentNotify.Core.Quota;
+using AgentNotify.Insights.Quota;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
-using AgentNotify.Core.Usage;
+using AgentNotify.Insights.Usage;
 using AgentNotify.Core.Wsl;
 using AgentNotify.Protocol;
 using Microsoft.AspNetCore.Builder;
@@ -43,7 +43,7 @@ namespace AgentNotify.Api.WebUi;
 /// <item>Provider secrets are write-only: no response carries a stored secret value.</item>
 /// </list>
 /// </remarks>
-public static class WebUiEndpoints
+public sealed partial class WebUiEndpoints
 {
     public const string BasePath = "/ui";
     public const string CsrfHeader = "X-AgentNotify-UI";
@@ -141,7 +141,46 @@ public static class WebUiEndpoints
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     }
 
+    private readonly WebApplication app;
+    private readonly WebUiOptions options;
+    private readonly AgentNotifyConfig config;
+    private readonly INotificationRepository repository;
+    private readonly NotificationService service;
+    private readonly InteractionService? interactions;
+    private readonly ApiCallbacks? callbacks;
+    private readonly IAppLogger? logger;
+    private readonly int port;
+    private readonly string version;
+    private readonly DateTimeOffset startedAt;
+    private readonly RelayPairingSessions pairings;
+    private readonly ProviderFormService forms;
+    private readonly ManagedSoundStore sounds;
+    private readonly IWslEnvironment wsl;
+    private readonly string nativeHome;
+    private readonly LocalUsageService usage;
+    private readonly LiveQuotaService quota;
+    private readonly object quotaAccountsGate = new();
+
+    /// <summary>
+    /// Mounts the web UI routes on <paramref name="app"/>. One instance holds the readers and
+    /// stores every request shares; each route group lives in its own partial-class file.
+    /// </summary>
     public static void Map(
+        WebApplication app,
+        WebUiOptions options,
+        AgentNotifyConfig config,
+        INotificationRepository repository,
+        NotificationService service,
+        InteractionService? interactions,
+        ApiCallbacks? callbacks,
+        IAppLogger? logger,
+        int port,
+        string version,
+        DateTimeOffset startedAt) =>
+        new WebUiEndpoints(app, options, config, repository, service, interactions, callbacks, logger, port, version, startedAt)
+            .Register();
+
+    private WebUiEndpoints(
         WebApplication app,
         WebUiOptions options,
         AgentNotifyConfig config,
@@ -154,709 +193,39 @@ public static class WebUiEndpoints
         string version,
         DateTimeOffset startedAt)
     {
-        var pairings = new RelayPairingSessions();
-        var forms = new ProviderFormService(options.Providers);
-        var sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
-        var wsl = options.Wsl ?? WslDiscovery.Default;
-        var nativeHome = options.NativeHome ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string? DetectedLabel(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
-        // Built-in and discovered accounts, including removed ones; the owner's list is filtered from these.
-        IReadOnlyList<QuotaAccountDefinition> DetectedAccounts() =>
-        [
-            QuotaAccountDefinition.Default("codex", DetectedLabel("codex")),
-            QuotaAccountDefinition.Default("claude_code", DetectedLabel("claude_code")),
-            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
-                Array.Empty<string>(), nativeHome)
-        ];
-        // Secondary profiles whose session logs Usage counts alongside the hand-added accounts.
-        IReadOnlyList<QuotaAccountDefinition> UsageAccounts() =>
-        [
-            .. config.QuotaAccounts.ToArray(),
-            .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
-                config.RemovedQuotaAccounts, nativeHome)
-                .Where(account => QuotaAccountDefinition.IsSecondaryAccountId(account.Id))
-        ];
-        var usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: UsageAccounts);
-        var quota = options.Quota ?? new AgentNotify.Core.Quota.LiveQuotaService(
+        this.app = app;
+        this.options = options;
+        this.config = config;
+        this.repository = repository;
+        this.service = service;
+        this.interactions = interactions;
+        this.callbacks = callbacks;
+        this.logger = logger;
+        this.port = port;
+        this.version = version;
+        this.startedAt = startedAt;
+        pairings = new RelayPairingSessions();
+        forms = new ProviderFormService(options.Providers);
+        sounds = new ManagedSoundStore(options.ConfigStore.SoundsDir);
+        wsl = options.Wsl ?? WslDiscovery.Default;
+        nativeHome = options.NativeHome ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        usage = options.Usage ?? new LocalUsageService(wsl: wsl, accounts: UsageAccounts);
+        quota = options.Quota ?? new LiveQuotaService(
             accounts: () => config.QuotaAccounts.ToArray(), usage: usage,
             defaultAccountLabel: key => config.DefaultQuotaAccountLabels.GetValueOrDefault(key), wsl: wsl,
             removedAccounts: () => config.RemovedQuotaAccounts, nativeHome: nativeHome,
             openCodeGoRenewalDay: () => config.OpenCodeGoRenewalDay);
-        IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
-            DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
-        void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
-        {
-            var (previousAccounts, previousRemoved) = (config.QuotaAccounts, config.RemovedQuotaAccounts);
-            (config.QuotaAccounts, config.RemovedQuotaAccounts) = (accounts, removed);
-            try { options.ConfigStore.Save(config); }
-            catch { (config.QuotaAccounts, config.RemovedQuotaAccounts) = (previousAccounts, previousRemoved); throw; }
-        }
-        var quotaAccountsGate = new object();
         app.Lifetime.ApplicationStopping.Register(pairings.Dispose);
+    }
 
-        // ---- overview ----------------------------------------------------------------------
+    private void Register()
+    {
+        MapOverview();
+        MapSettings();
+        MapAttention();
+        MapChannels();
+        MapAgents();
 
-        app.MapGet($"{BasePath}/api/overview", async (CancellationToken ct) =>
-        {
-            var providers = await options.Providers.ListAsync(ct);
-            var routes = await options.Routes.ListAsync(ct);
-            var delivery = await options.Dispatcher.GetDiagnosticsAsync(ct);
-            var pending = interactions is null
-                ? 0
-                : (await interactions.ListAsync(new InteractionQuery { PendingOnly = true, Limit = 500 }, ct)).Count;
-            return Results.Json(new
-            {
-                version,
-                pid = Environment.ProcessId,
-                uptime_seconds = (long)(DateTimeOffset.UtcNow - startedAt).TotalSeconds,
-                api_url = $"http://127.0.0.1:{port}",
-                data_directory = options.ConfigStore.ConfigDir,
-                platform = PlatformName(),
-                secret_protection = options.SecretProtection,
-                desktop_surface = options.DesktopSurface,
-                capabilities = new { toast_placement = options.SupportsToastPlacement, sounds = options.SupportsSounds, questions = interactions is not null },
-                counts = new
-                {
-                    active_notifications = await repository.CountActiveAsync(ct),
-                    pending_questions = pending,
-                    providers = providers.Count,
-                    enabled_providers = providers.Count(p => p.Enabled),
-                    routes = routes.Count,
-                    enabled_routes = routes.Count(r => r.Enabled)
-                },
-                delivery = DeliveryJson(delivery)
-            }, JsonOptions);
-        });
-
-        // Local agent logs are read-only inputs. This route never accepts a filesystem path.
-        app.MapGet($"{BasePath}/api/usage", async (HttpContext http, CancellationToken ct) =>
-        {
-            var requested = http.Request.Query["days"].ToString();
-            var days = requested switch { "7" => 7, "30" or "" => 30, "all" => 0, _ => -1 };
-            if (days < 0) return Error("Choose 7 days, 30 days, or all history.");
-            var report = await usage.GetReportAsync(days, ct);
-            return Results.Json(report, JsonOptions);
-        });
-
-        // Provider/account snapshots are separate from local token history. Manual refresh is
-        // a same-origin POST so unrelated pages cannot trigger credential-backed probes.
-        app.MapGet($"{BasePath}/api/quota", async (CancellationToken ct) =>
-            Results.Json(await quota.GetReportAsync(cancellationToken: ct), JsonOptions));
-        app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
-            Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
-
-        // The native macOS client receives only normalized quota fields and its presentation
-        // settings. It never reads config.json, the API bearer token, or an agent credential file.
-        app.MapGet($"{BasePath}/api/menu-bar", async (CancellationToken ct) =>
-            Results.Json(MenuBarQuotaProjector.Project(
-                await quota.GetReportAsync(cancellationToken: ct), config.MacMenuBar), JsonOptions));
-        app.MapPost($"{BasePath}/api/menu-bar/refresh", async (CancellationToken ct) =>
-            Results.Json(MenuBarQuotaProjector.Project(
-                await quota.GetReportAsync(refresh: true, cancellationToken: ct), config.MacMenuBar), JsonOptions));
-        app.MapGet($"{BasePath}/api/menu-bar/settings", () =>
-            Results.Json(MenuBarSettingsJson(config), JsonOptions));
-        app.MapPut($"{BasePath}/api/menu-bar/settings", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<MenuBarSettingsBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            try
-            {
-                lock (quotaAccountsGate)
-                {
-                    var known = MonitoredDetectedAccounts().Concat(config.QuotaAccounts)
-                        .Select(account => account.Id).ToHashSet(StringComparer.Ordinal);
-                    var previous = config.MacMenuBar;
-                    config.MacMenuBar = ValidateMenuBarSettings(previous, body, known);
-                    try { options.ConfigStore.Save(config); }
-                    catch { config.MacMenuBar = previous; throw; }
-                }
-                Notify(options, config, false, logger);
-                return Results.Json(MenuBarSettingsJson(config), JsonOptions);
-            }
-            catch (ArgumentException error) { return Error(error.Message); }
-        });
-        app.MapPost($"{BasePath}/api/menu-bar/disable", () =>
-        {
-            lock (quotaAccountsGate)
-            {
-                if (config.MacMenuBar.Enabled)
-                {
-                    var previous = config.MacMenuBar;
-                    config.MacMenuBar = new MacMenuBarSettings
-                    {
-                        Enabled = false,
-                        RefreshMinutes = previous.RefreshMinutes,
-                        AccountIds = [.. previous.AccountIds]
-                    };
-                    try { options.ConfigStore.Save(config); }
-                    catch { config.MacMenuBar = previous; throw; }
-                }
-            }
-            Notify(options, config, false, logger);
-            return Results.Json(MenuBarSettingsJson(config), JsonOptions);
-        });
-
-        static string? WslName(QuotaAccountDefinition account) =>
-            QuotaAccountDefinition.DetectedWslDistribution(account.Id);
-
-        app.MapGet($"{BasePath}/api/quota/accounts", () =>
-        {
-            var detected = DetectedAccounts();
-            return Results.Json(new
-            {
-                accounts = detected.Where(account => !config.RemovedQuotaAccounts.Contains(account.Id))
-                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, IsDefault = true, Wsl = WslName(account) })
-                    .Concat(config.QuotaAccounts.Select(account => new
-                        { account.Id, account.Provider, account.Label, account.Directory, IsDefault = false, Wsl = (string?)null })).ToArray(),
-                // A removed account keeps its row while its profile is missing, without a directory.
-                removed = config.RemovedQuotaAccounts.Select(id => detected.FirstOrDefault(account => account.Id == id) ??
-                        new QuotaAccountDefinition(id, id[..id.IndexOf(':')],
-                            DetectedLabel(id) ?? QuotaAccountDefinition.FallbackLabel(id), ""))
-                    .Select(account => new { account.Id, account.Provider, account.Label, account.Directory, Wsl = WslName(account) })
-                    .ToArray()
-            }, JsonOptions);
-        });
-
-        app.MapPost($"{BasePath}/api/quota/accounts", (Func<HttpContext, Task<IResult>>)(async http =>
-        {
-            var body = await ReadAsync<QuotaAccountBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            try
-            {
-                QuotaAccountDefinition account;
-                lock (quotaAccountsGate)
-                {
-                    if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
-                    account = QuotaAccountDefinition.Create(body.Provider, body.Label, body.Directory,
-                        config.QuotaAccounts.Concat(MonitoredDetectedAccounts()));
-                    SaveQuotaAccounts([.. config.QuotaAccounts, account], config.RemovedQuotaAccounts);
-                }
-                Notify(options, config, false, logger);
-                return Results.Json(account, JsonOptions, statusCode: StatusCodes.Status201Created);
-            }
-            catch (ArgumentException error) { return Error(error.Message); }
-        }));
-
-        // Renames an account and, when a directory is given, points it at that profile. A built-in or
-        // discovered account moved to another directory becomes an added account and leaves its
-        // detected entry removed, so the move survives restarts and rediscovery.
-        app.MapPut($"{BasePath}/api/quota/accounts/{{id}}", async (string id, HttpContext http) =>
-        {
-            var body = await ReadAsync<QuotaAccountBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            try
-            {
-                var label = QuotaAccountDefinition.NormalizeLabel(body.Label);
-                QuotaAccountDefinition saved;
-                lock (quotaAccountsGate)
-                {
-                    if (QuotaAccountDefinition.IsDetectedAccountId(id))
-                    {
-                        if (config.RemovedQuotaAccounts.Contains(id))
-                            return Error("That account was removed. Restore it first.", StatusCodes.Status404NotFound);
-                        var provider = id[..id.IndexOf(':')];
-                        var current = DetectedAccounts().FirstOrDefault(account => account.Id == id);
-                        var moved = !string.IsNullOrWhiteSpace(body.Directory) && current is not null &&
-                            !QuotaAccountDefinition.SameDirectory(body.Directory.Trim(), current.Directory) &&
-                            !QuotaAccountDefinition.SameDirectory(QuotaAccountDefinition.NormalizeDirectory(body.Directory), current.Directory);
-                        if (moved)
-                        {
-                            if (config.QuotaAccounts.Count >= 16) return Error("Up to 16 additional accounts can be monitored.");
-                            saved = QuotaAccountDefinition.Create(provider, label, body.Directory,
-                                config.QuotaAccounts.Concat(MonitoredDetectedAccounts().Where(account => account.Id != id)));
-                            SaveQuotaAccounts([.. config.QuotaAccounts, saved], [.. config.RemovedQuotaAccounts, id]);
-                        }
-                        else
-                        {
-                            // Built-in accounts are keyed by provider; discovered WSL accounts by their full ID.
-                            var key = id.EndsWith(":default", StringComparison.Ordinal) ? provider : id;
-                            var previous = config.DefaultQuotaAccountLabels;
-                            config.DefaultQuotaAccountLabels = new Dictionary<string, string>(previous, StringComparer.Ordinal)
-                                { [key] = label };
-                            try { options.ConfigStore.Save(config); }
-                            catch { config.DefaultQuotaAccountLabels = previous; throw; }
-                            saved = (current ?? new QuotaAccountDefinition(id, provider, label, "")) with { Label = label };
-                        }
-                    }
-                    else
-                    {
-                        var index = config.QuotaAccounts.FindIndex(account => account.Id == id);
-                        if (index < 0) return Error("That account was not found.", StatusCodes.Status404NotFound);
-                        var updated = config.QuotaAccounts.ToList();
-                        saved = string.IsNullOrWhiteSpace(body.Directory)
-                            ? updated[index] with { Label = label }
-                            : QuotaAccountDefinition.Create(updated[index].Provider, label, body.Directory,
-                                updated.Where(account => account.Id != id).Concat(MonitoredDetectedAccounts())) with { Id = id };
-                        updated[index] = saved;
-                        SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
-                    }
-                }
-                Notify(options, config, false, logger);
-                return Results.Json(saved, JsonOptions);
-            }
-            catch (ArgumentException error) { return Error(error.Message); }
-        });
-
-        // Added accounts are deleted. Built-in and discovered ones are only hidden, because they would
-        // otherwise reappear on the next discovery; the agent profile and its sign-in stay untouched.
-        app.MapDelete($"{BasePath}/api/quota/accounts/{{id}}", (string id) =>
-        {
-            lock (quotaAccountsGate)
-            {
-                if (QuotaAccountDefinition.IsDetectedAccountId(id))
-                {
-                    if (config.RemovedQuotaAccounts.Contains(id))
-                        return Error("That account was already removed.", StatusCodes.Status404NotFound);
-                    SaveQuotaAccounts(config.QuotaAccounts, [.. config.RemovedQuotaAccounts, id]);
-                }
-                else
-                {
-                    var updated = config.QuotaAccounts.Where(account => account.Id != id).ToList();
-                    if (updated.Count == config.QuotaAccounts.Count)
-                        return Error("That account was not found.", StatusCodes.Status404NotFound);
-                    SaveQuotaAccounts(updated, config.RemovedQuotaAccounts);
-                }
-            }
-            Notify(options, config, false, logger);
-            return Results.Json(new { deleted = id }, JsonOptions);
-        });
-
-        // The OpenCode Go plan's renewal day anchors the monthly estimate to the billing cycle.
-        app.MapPut($"{BasePath}/api/quota/opencode-go", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<OpenCodeGoBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            if (body.RenewalDay is not null && !AgentNotify.Core.Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(body.RenewalDay))
-                return Error("Choose a renewal day from 1 to 31, or clear it.");
-            lock (quotaAccountsGate)
-            {
-                var previous = config.OpenCodeGoRenewalDay;
-                config.OpenCodeGoRenewalDay = body.RenewalDay;
-                try { options.ConfigStore.Save(config); }
-                catch { config.OpenCodeGoRenewalDay = previous; throw; }
-            }
-            Notify(options, config, false, logger);
-            return Results.Json(new { renewal_day = config.OpenCodeGoRenewalDay }, JsonOptions);
-        });
-
-        app.MapPost($"{BasePath}/api/quota/accounts/{{id}}/restore", (string id) =>
-        {
-            lock (quotaAccountsGate)
-            {
-                if (!config.RemovedQuotaAccounts.Contains(id))
-                    return Error("That account is not removed.", StatusCodes.Status404NotFound);
-                SaveQuotaAccounts(config.QuotaAccounts, config.RemovedQuotaAccounts.Where(item => item != id).ToList());
-            }
-            Notify(options, config, false, logger);
-            return Results.Json(new { restored = id }, JsonOptions);
-        });
-        BillingEndpoints.Map(app, options);
-        AgentNotify.Api.Router.RouterEndpoints.Map(app, options, config, port);
-
-        // ---- settings ----------------------------------------------------------------------
-
-        app.MapGet($"{BasePath}/api/settings", () => Results.Json(SettingsJson(config), JsonOptions));
-
-        app.MapPut($"{BasePath}/api/settings", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<SettingsBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            try
-            {
-                var originalPort = config.Port;
-                ApplySettings(config, body);
-                options.ConfigStore.Save(config);
-                var restart = config.Port != originalPort;
-                Notify(options, config, restart, logger);
-                return Results.Json(new { settings = SettingsJson(config), restart_required = restart }, JsonOptions);
-            }
-            catch (ArgumentException exception)
-            {
-                return Error(exception.Message);
-            }
-        });
-
-        app.MapGet($"{BasePath}/api/types", () => Results.Json(TypesJson(config), JsonOptions));
-
-        app.MapPut($"{BasePath}/api/types", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<TypesBody>(http);
-            if (body?.Custom is null) return Error("The request body is not valid JSON.");
-            try
-            {
-                var definitions = ValidateTypes(body.Custom);
-                var kept = definitions.Select(d => d.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach (var removed in config.CustomNotificationTypes.Select(d => d.Id).Where(id => !kept.Contains(id)).ToList())
-                    config.TypeSoundFiles.Remove(removed);
-                config.CustomNotificationTypes = definitions;
-                options.ConfigStore.Save(config);
-                Notify(options, config, false, logger);
-                return Results.Json(TypesJson(config), JsonOptions);
-            }
-            catch (ArgumentException exception)
-            {
-                return Error(exception.Message);
-            }
-        });
-
-        // ---- sounds ------------------------------------------------------------------------
-
-        app.MapGet($"{BasePath}/api/sounds", () =>
-        {
-            var builtIn = BuiltInTones.All.Select(t => new { file_name = t.FileName, display_name = t.DisplayName, available = sounds.Resolve(t.FileName) is not null });
-            var imported = Directory.Exists(sounds.DirectoryPath)
-                ? Directory.EnumerateFiles(sounds.DirectoryPath)
-                    .Select(Path.GetFileName)
-                    .Where(name => name is not null && !BuiltInTones.Contains(name) &&
-                                   (name.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)))
-                    .Order(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-                : [];
-            return Results.Json(new { built_in = builtIn, imported }, JsonOptions);
-        });
-
-        app.MapPost($"{BasePath}/api/sounds", async (HttpContext http) =>
-        {
-            var sizeFeature = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
-            if (sizeFeature is { IsReadOnly: false }) sizeFeature.MaxRequestBodySize = MaximumSoundUploadBytes;
-            if (!http.Request.HasFormContentType) return Error("Upload a WAV or MP3 file.");
-
-            IFormFile? file;
-            try
-            {
-                file = (await http.Request.ReadFormAsync(http.RequestAborted)).Files.GetFile("file");
-            }
-            catch (Exception exception) when (exception is InvalidDataException or IOException or BadHttpRequestException)
-            {
-                return Error("Sound files must be at most 10 MB.");
-            }
-            if (file is null || file.Length == 0) return Error("Upload a WAV or MP3 file.");
-
-            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (extension is not ".wav" and not ".mp3") return Error("Only WAV and MP3 sound files are supported.");
-            var baseName = Path.GetFileNameWithoutExtension(SafeFileName.Last(file.FileName));
-            var staging = Path.Combine(Path.GetTempPath(), $"agentnotify-upload-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(staging);
-            var temporary = Path.Combine(staging, (string.IsNullOrWhiteSpace(baseName) ? "sound" : baseName) + extension);
-            try
-            {
-                await using (var target = File.Create(temporary))
-                    await file.CopyToAsync(target, http.RequestAborted);
-                return Results.Json(new { file_name = sounds.Import(temporary) }, JsonOptions);
-            }
-            catch (InvalidOperationException exception)
-            {
-                return Error(exception.Message);
-            }
-            finally
-            {
-                try { Directory.Delete(staging, recursive: true); } catch { }
-            }
-        });
-
-        app.MapGet($"{BasePath}/api/sounds/{{fileName}}", (string fileName) =>
-        {
-            var path = sounds.Resolve(fileName);
-            if (path is null) return Error("That sound is not available on this machine.", StatusCodes.Status404NotFound);
-            var type = path.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "audio/mpeg" : "audio/wav";
-            return Results.File(path, type);
-        });
-
-        // ---- attention ---------------------------------------------------------------------
-
-        app.MapGet($"{BasePath}/api/notifications", async (HttpContext http, CancellationToken ct) =>
-        {
-            var attention = http.Request.Query["view"] != "recent";
-            var items = await repository.QueryAsync(new NotificationQuery
-            {
-                Unresolved = attention ? true : null,
-                Limit = int.TryParse(http.Request.Query["limit"], out var limit) ? Math.Clamp(limit, 1, 500) : 200
-            }, ct);
-            return Results.Json(items.Select(DtoMapper.ToDto), JsonOptions);
-        });
-
-        app.MapPost($"{BasePath}/api/notifications/{{id}}/{{action}}", async (string id, string action, CancellationToken ct) =>
-        {
-            var status = action switch
-            {
-                "resolve" => NotificationStatus.Resolved,
-                "dismiss" => NotificationStatus.Dismissed,
-                _ => (NotificationStatus?)null
-            };
-            if (status is null) return Error("Unknown action.", StatusCodes.Status404NotFound);
-            var result = await service.UpdateStatusAsync(id, new UpdateNotificationRequest { Status = status.Value }, ct);
-            if (result.NotFound) return Error("That notification no longer exists.", StatusCodes.Status404NotFound);
-            if (result.Error is not null) return Error(result.Error);
-            try { callbacks?.Updated?.Invoke(result.Value!); }
-            catch (Exception exception) { logger?.Error("Notification UI callback failed", exception); }
-            return Results.Json(DtoMapper.ToDto(result.Value!), JsonOptions);
-        });
-
-        // ---- questions ---------------------------------------------------------------------
-
-        if (interactions is not null)
-        {
-            app.MapGet($"{BasePath}/api/interactions", async (HttpContext http, CancellationToken ct) =>
-            {
-                var pendingOnly = http.Request.Query["view"] != "recent";
-                var items = await interactions.ListAsync(new InteractionQuery { PendingOnly = pendingOnly, Limit = 100 }, ct);
-                return Results.Json(items.Select(ToPageDto), JsonOptions);
-            });
-
-            app.MapPost($"{BasePath}/api/interactions/{{id}}/respond", async (string id, HttpContext http) =>
-            {
-                var body = await ReadAsync<AnswerBody>(http);
-                if (body is null) return Error("The request body is not valid JSON.");
-                var current = await interactions.GetAsync(id, http.RequestAborted);
-                if (current.NotFound) return Error("That question no longer exists.", StatusCodes.Status404NotFound);
-
-                // The digest comes from the page, so an answer can only apply to the exact question
-                // the person read. The nonce is filled in here; it never leaves the broker.
-                var result = await interactions.RespondAsync(id, new RespondInteractionRequest
-                {
-                    ResponseId = Guid.NewGuid().ToString("N"),
-                    RequestDigest = body.RequestDigest ?? "",
-                    Nonce = current.Value!.Nonce,
-                    ChoiceId = body.ChoiceId,
-                    Text = body.Text,
-                    Source = "web"
-                }, http.RequestAborted);
-                if (result.NotFound) return Error("That question no longer exists.", StatusCodes.Status404NotFound);
-                if (result.Error is not null)
-                    return Error(result.Error, result.Error == "interaction already answered" ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest);
-                return Results.Json(ToPageDto(result.Value!), JsonOptions);
-            });
-
-            app.MapPost($"{BasePath}/api/interactions/{{id}}/cancel", async (string id, CancellationToken ct) =>
-            {
-                var result = await interactions.CancelAsync(id, ct);
-                return result.NotFound
-                    ? Error("That question no longer exists.", StatusCodes.Status404NotFound)
-                    : Results.Json(ToPageDto(result.Value!), JsonOptions);
-            });
-        }
-
-        // ---- providers ---------------------------------------------------------------------
-
-        app.MapGet($"{BasePath}/api/provider-kinds", () => Results.Json(ProviderFormCatalog.All, JsonOptions));
-
-        app.MapGet($"{BasePath}/api/providers", async (CancellationToken ct) =>
-            Results.Json((await options.Providers.ListAsync(ct)).Select(ProviderJson), JsonOptions));
-
-        // Typed explicitly: an expression-bodied (HttpContext) lambda binds to RequestDelegate, which
-        // discards the returned IResult and answers 200 with an empty body.
-        app.MapPost($"{BasePath}/api/providers", (Func<HttpContext, Task<IResult>>)(http => SaveProviderAsync(http, null)));
-
-        app.MapPut($"{BasePath}/api/providers/{{id}}", (string id, HttpContext http) => SaveProviderAsync(http, id));
-
-        app.MapDelete($"{BasePath}/api/providers/{{id}}", async (string id, CancellationToken ct) =>
-        {
-            await options.Providers.DeleteAsync(id, ct);
-            return Results.Json(new { deleted = id }, JsonOptions);
-        });
-
-        app.MapPost($"{BasePath}/api/providers/{{id}}/test", async (string id, CancellationToken ct) =>
-        {
-            if ((await options.Providers.ListAsync(ct)).All(p => p.Id != id))
-                return Error("That provider no longer exists.", StatusCodes.Status404NotFound);
-            var result = await options.Dispatcher.TestProviderAsync(id, ct: ct);
-            return Results.Json(new
-            {
-                succeeded = result.Succeeded,
-                status_code = result.StatusCode,
-                error_code = result.ErrorCode,
-                message = result.Succeeded
-                    ? $"Test delivered (provider status {result.StatusCode?.ToString() ?? "ok"})."
-                    : result.ErrorCode switch
-                    {
-                        "no_devices_paired" => "Connected to the relay, but no phone is paired yet. Pair a phone from the relay console, then send a test.",
-                        "relay_device_not_found" => "The selected Relay phone is no longer paired. Pair it again, then send a test.",
-                        "relay_installation_identity_missing" => "This Relay profile predates installation identity. Connect it again.",
-                        "provider_disabled" => "Enable the provider before sending a test.",
-                        _ => $"Test failed: {result.ErrorCode ?? "unspecified"}."
-                    }
-            }, JsonOptions);
-        });
-
-        async Task<IResult> SaveProviderAsync(HttpContext http, string? id)
-        {
-            var body = await ReadAsync<ProviderBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            RelayPairingOutcome? pairing = null;
-            if (!string.IsNullOrWhiteSpace(body.PairingId))
-            {
-                pairing = pairings.Take(body.PairingId);
-                if (pairing is null)
-                    return Error("That Relay connection is no longer waiting to be saved. Connect again.");
-            }
-
-            try
-            {
-                var saved = await forms.SaveAsync(id, body.Kind ?? "", new ProviderFormInput
-                {
-                    Name = body.Name ?? "",
-                    Enabled = body.Enabled,
-                    Values = body.Values ?? new Dictionary<string, string?>(),
-                    Secrets = body.Secrets ?? new Dictionary<string, string?>(),
-                    ClearSecrets = body.ClearSecrets ?? [],
-                    Pairing = pairing
-                }, http.RequestAborted);
-                return Results.Json(ProviderJson(saved), JsonOptions);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Error("That provider no longer exists.", StatusCodes.Status404NotFound);
-            }
-            catch (Exception exception) when (exception is ArgumentException or JsonException)
-            {
-                return Error(exception.Message);
-            }
-        }
-
-        // ---- relay pairing -----------------------------------------------------------------
-
-        app.MapPost($"{BasePath}/api/relay/pairings", async (HttpContext http) =>
-        {
-            var body = await ReadAsync<PairingBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            string? installId = null;
-            if (!string.IsNullOrWhiteSpace(body.ProviderId))
-            {
-                var profile = (await options.Providers.ListAsync(http.RequestAborted)).FirstOrDefault(p => p.Id == body.ProviderId);
-                installId = ProviderFormReader.ReadConfigString(profile, "install_id");
-            }
-
-            try
-            {
-                var snapshot = await pairings.StartAsync(body.SenderName, installId, http.RequestAborted);
-                return Results.Json(snapshot, JsonOptions);
-            }
-            catch (RelayPairingException exception)
-            {
-                return Error(RelayPairingSessions.Describe(exception), StatusCodes.Status502BadGateway);
-            }
-            catch (ArgumentException exception)
-            {
-                return Error(exception.Message);
-            }
-        });
-
-        app.MapGet($"{BasePath}/api/relay/pairings/{{id}}", (string id) =>
-            pairings.Get(id) is { } snapshot
-                ? Results.Json(snapshot, JsonOptions)
-                : Error("That connection request is gone. Connect again.", StatusCodes.Status404NotFound));
-
-        app.MapDelete($"{BasePath}/api/relay/pairings/{{id}}", (string id) =>
-            Results.Json(new { cancelled = pairings.Cancel(id) }, JsonOptions));
-
-        // ---- routes ------------------------------------------------------------------------
-
-        app.MapGet($"{BasePath}/api/routes", async (CancellationToken ct) =>
-            Results.Json(await options.Routes.ListAsync(ct), JsonOptions));
-
-        app.MapPost($"{BasePath}/api/routes", (Func<HttpContext, Task<IResult>>)(http => SaveRouteAsync(http, null)));
-        app.MapPut($"{BasePath}/api/routes/{{id}}", (string id, HttpContext http) => SaveRouteAsync(http, id));
-
-        app.MapDelete($"{BasePath}/api/routes/{{id}}", async (string id, CancellationToken ct) =>
-        {
-            await options.Routes.DeleteAsync(id, ct);
-            return Results.Json(new { deleted = id }, JsonOptions);
-        });
-
-        async Task<IResult> SaveRouteAsync(HttpContext http, string? id)
-        {
-            var body = await ReadAsync<RouteBody>(http);
-            if (body is null) return Error("The request body is not valid JSON.");
-            if (id is not null && (await options.Routes.ListAsync(http.RequestAborted)).All(r => r.Id != id))
-                return Error("That route no longer exists.", StatusCodes.Status404NotFound);
-            if (!Enum.TryParse<NotificationPriority>(body.MinimumPriority, ignoreCase: true, out var priority))
-                return Error("Select a minimum priority.");
-            try
-            {
-                var route = await options.Routes.SaveAsync(id, body.Name ?? "", body.ProviderId ?? "", body.Enabled,
-                    priority, body.TypeId, body.Project, body.Agent, body.IncludeMessage, http.RequestAborted);
-                return Results.Json(route, JsonOptions);
-            }
-            catch (ArgumentException exception)
-            {
-                return Error(exception.Message);
-            }
-        }
-
-        app.MapGet($"{BasePath}/api/delivery", async (CancellationToken ct) =>
-            Results.Json(DeliveryJson(await options.Dispatcher.GetDiagnosticsAsync(ct)), JsonOptions));
-
-        // ---- agents ------------------------------------------------------------------------
-
-        // The Codex and Claude Code accounts on this computer: the same list Live quota monitors.
-        IReadOnlyList<QuotaAccountDefinition> NativeAgentAccounts() =>
-            QuotaAccountDefinition.Monitored(config, wsl, nativeHome).Where(account => account.IsNative).ToList();
-
-        app.MapGet($"{BasePath}/api/agents", () => Results.Json(new
-        {
-            // Every Codex and Claude Code account, each with its own skill and harness state.
-            accounts = NativeAgentAccounts().Select(account => AgentAccountJson(account, nativeHome)),
-            // Skills for this user's other agents, then for agents inside each running WSL distribution.
-            skills = AgentSkillCatalog.WithKnownLocations.Where(target => target.Id is not ("codex" or "claude"))
-                .Select(target => SkillJson(target, null))
-                .Concat(wsl.RunningHomes().SelectMany(home =>
-                    AgentSkillCatalog.WithKnownLocations.Select(target => SkillJson(target, home)))),
-            harnesses = HarnessCatalog.All.Select(target => new
-            {
-                id = target.Id,
-                display_name = target.DisplayName,
-                note = target.Note,
-                command = $"agentnotify install-harness {target.Id}",
-                ask_command = target.Id is "codex" or "claude" ? $"agentnotify install-harness {target.Id} --ask" : null
-            })
-        }, JsonOptions));
-
-        app.MapPost($"{BasePath}/api/agents/skills/{{id}}", async (string id, HttpContext http) =>
-        {
-            var target = AgentSkillCatalog.Find(id);
-            if (target is null || !target.HasDefaultLocation)
-                return Error("Unknown agent.", StatusCodes.Status404NotFound);
-            var body = await ReadAsync<SkillBody>(http);
-            // A Claude Code account keeps its skills inside its own profile directory; the account is
-            // named by ID and its directory comes from the account list, never from the request.
-            if (!string.IsNullOrEmpty(body?.Account))
-            {
-                var account = NativeAgentAccounts().FirstOrDefault(item => item.Id == body.Account);
-                if (account is null) return Error("That account is not on this computer.", StatusCodes.Status404NotFound);
-                try
-                {
-                    var root = AccountSkillsRoot(target, account);
-                    var installed = SkillInstaller.Install(target.DisplayName, root, WebUiSkill.Files(target), body.Force, dryRun: false);
-                    return Results.Json(new { success = installed.Success, changed = installed.Changed, message = installed.Message },
-                        statusCode: installed.Success ? StatusCodes.Status200OK : StatusCodes.Status409Conflict, options: JsonOptions);
-                }
-                catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
-                {
-                    return Error(exception.Message);
-                }
-            }
-            // A WSL install names the distribution, never a path; the home comes from discovery.
-            WslHome? home = null;
-            if (!string.IsNullOrEmpty(body?.Wsl))
-            {
-                home = wsl.RunningHomes().FirstOrDefault(item =>
-                    string.Equals(item.Distribution, body.Wsl, StringComparison.OrdinalIgnoreCase));
-                if (home is null) return Error("That WSL distribution is not running.", StatusCodes.Status404NotFound);
-            }
-            try
-            {
-                var root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
-                var result = SkillInstaller.Install(target.DisplayName, root, WebUiSkill.Files(target), body?.Force == true, dryRun: false);
-                return Results.Json(new { success = result.Success, changed = result.Changed, message = result.Message, skill = SkillJson(target, home) },
-                    statusCode: result.Success ? StatusCodes.Status200OK : StatusCodes.Status409Conflict, options: JsonOptions);
-            }
-            catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
-            {
-                return Error(exception.Message);
-            }
-        });
-
-        // ---- static front end --------------------------------------------------------------
 
         app.MapGet($"{BasePath}/{{**path}}", (string? path, HttpContext http) =>
         {
@@ -871,451 +240,35 @@ public static class WebUiEndpoints
             return Results.Bytes(asset.Content, asset.ContentType);
         });
     }
+    private string? DetectedLabel(string key) => config.DefaultQuotaAccountLabels.GetValueOrDefault(key);
 
-    // ---- helpers ---------------------------------------------------------------------------
+    /// <summary>Built-in and discovered accounts, including removed ones; the owner's list is filtered from these.</summary>
+    private IReadOnlyList<QuotaAccountDefinition> DetectedAccounts() =>
+    [
+        QuotaAccountDefinition.Default("codex", DetectedLabel("codex")),
+        QuotaAccountDefinition.Default("claude_code", DetectedLabel("claude_code")),
+        .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+            Array.Empty<string>(), nativeHome)
+    ];
 
-    private static IResult Error(string message, int status = StatusCodes.Status400BadRequest) =>
-        Results.Json(new { error = message }, JsonOptions, statusCode: status);
+    /// <summary>Secondary profiles whose session logs Usage counts alongside the hand-added accounts.</summary>
+    private IReadOnlyList<QuotaAccountDefinition> UsageAccounts() =>
+    [
+        .. config.QuotaAccounts.ToArray(),
+        .. QuotaAccountDefinition.MonitoredDiscoveredAccounts(wsl, DetectedLabel, config.QuotaAccounts,
+            config.RemovedQuotaAccounts, nativeHome)
+            .Where(account => QuotaAccountDefinition.IsSecondaryAccountId(account.Id))
+    ];
 
-    private static async Task<T?> ReadAsync<T>(HttpContext http) where T : class
+    private IEnumerable<QuotaAccountDefinition> MonitoredDetectedAccounts() =>
+        DetectedAccounts().Where(account => !config.RemovedQuotaAccounts.Contains(account.Id));
+
+    private void SaveQuotaAccounts(List<QuotaAccountDefinition> accounts, List<string> removed)
     {
-        try
-        {
-            return await http.Request.ReadFromJsonAsync<T>(JsonOptions, http.RequestAborted);
-        }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or BadHttpRequestException)
-        {
-            return null;
-        }
+        var (previousAccounts, previousRemoved) = (config.QuotaAccounts, config.RemovedQuotaAccounts);
+        (config.QuotaAccounts, config.RemovedQuotaAccounts) = (accounts, removed);
+        try { options.ConfigStore.Save(config); }
+        catch { (config.QuotaAccounts, config.RemovedQuotaAccounts) = (previousAccounts, previousRemoved); throw; }
     }
 
-    private static void Notify(WebUiOptions options, AgentNotifyConfig config, bool restartRequired, IAppLogger? logger)
-    {
-        try { options.ConfigSaved?.Invoke(config, restartRequired); }
-        catch (Exception exception) { logger?.Error("Web UI configuration callback failed", exception); }
-    }
-
-    private static string PlatformName()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "Windows";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return "macOS";
-        return "Linux";
-    }
-
-    private static object DeliveryJson(DeliveryDiagnosticSnapshot snapshot) => new
-    {
-        pending = snapshot.Pending,
-        processing = snapshot.Processing,
-        retry = snapshot.Retry,
-        delivered = snapshot.Delivered,
-        dead_letter = snapshot.DeadLetter,
-        adapters = snapshot.RegisteredAdapters
-    };
-
-    private static object ProviderJson(ProviderProfile profile)
-    {
-        var relay = profile.Kind == "relay"
-            ? new
-            {
-                connected = profile.SecretNames.Contains("installation_token", StringComparer.Ordinal),
-                relay_name = ProviderFormReader.ReadConfigString(profile, "relay_name"),
-                installation_id = ProviderFormReader.ReadConfigString(profile, "installation_id")
-            }
-            : null;
-        return new
-        {
-            id = profile.Id,
-            name = profile.Name,
-            kind = profile.Kind,
-            enabled = profile.Enabled,
-            secret_names = profile.SecretNames,
-            values = ProviderFormReader.ReadValues(profile),
-            relay,
-            created_at = profile.CreatedAt,
-            updated_at = profile.UpdatedAt
-        };
-    }
-
-    private static InteractionDto ToPageDto(Interaction interaction)
-    {
-        var dto = DtoMapper.ToDto(interaction);
-        // The nonce authorizes Relay answers; the page answers through the broker instead.
-        dto.Nonce = "";
-        return dto;
-    }
-
-    private static object SkillJson(AgentSkillTarget target, WslHome? home)
-    {
-        string? root = null;
-        var state = "unavailable";
-        try
-        {
-            root = AgentSkillCatalog.DefaultSkillsRoot(target, homeDirectory: home?.WindowsHome);
-            state = SkillInstaller.Inspect(root, WebUiSkill.Files(target)) switch
-            {
-                SkillInstallState.UpToDate => "up_to_date",
-                SkillInstallState.Outdated => "outdated",
-                _ => "not_installed"
-            };
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        return new
-        {
-            id = target.Id,
-            display_name = target.DisplayName,
-            note = target.Note,
-            wsl = home?.Distribution,
-            environment = home is null ? null : "WSL · " + home.Distribution,
-            destination = root is null ? null : SkillInstaller.SkillDirectory(root),
-            state
-        };
-    }
-
-    private static object MenuBarSettingsJson(AgentNotifyConfig config) => new
-    {
-        supported = OperatingSystem.IsMacOS(),
-        enabled = config.MacMenuBar.Enabled,
-        refresh_minutes = config.MacMenuBar.RefreshMinutes,
-        account_ids = config.MacMenuBar.AccountIds
-    };
-
-    private static MacMenuBarSettings ValidateMenuBarSettings(
-        MacMenuBarSettings current,
-        MenuBarSettingsBody body,
-        IReadOnlySet<string> knownAccounts)
-    {
-        var refresh = body.RefreshMinutes ?? current.RefreshMinutes;
-        if (refresh is < 5 or > 60)
-            throw new ArgumentException("Menu-bar refresh must be between 5 and 60 minutes.");
-        var accountIds = body.AccountIds is null ? [.. current.AccountIds] : body.AccountIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        if (accountIds.Count > 32)
-            throw new ArgumentException("Select at most 32 menu-bar accounts.");
-        var unknown = accountIds.FirstOrDefault(id => !knownAccounts.Contains(id));
-        if (unknown is not null)
-            throw new ArgumentException("A selected menu-bar account is not currently monitored.");
-        return new MacMenuBarSettings
-        {
-            Enabled = body.Enabled ?? current.Enabled,
-            RefreshMinutes = refresh,
-            AccountIds = accountIds
-        };
-    }
-
-    private static object SettingsJson(AgentNotifyConfig config) => new
-    {
-        port = config.Port,
-        history_retention_days = config.HistoryRetentionDays,
-        pause_notifications = config.PauseNotifications,
-        do_not_disturb = config.DoNotDisturb,
-        launch_at_startup = config.LaunchAtStartup,
-        toast_location = config.ToastLocation,
-        max_visible_toasts = config.MaxVisibleToasts,
-        toast_durations = NotificationTypes.BuiltIns.ToDictionary(type => type, config.ToastDurationSeconds),
-        sounds_enabled = config.SoundsEnabled,
-        sound_volume = (int)Math.Round(config.SoundVolume * 100),
-        play_critical_sounds_during_do_not_disturb = config.PlayCriticalSoundsDuringDoNotDisturb,
-        default_sound_file = config.DefaultSoundFile,
-        type_sound_files = config.TypeSoundFiles
-    };
-
-    private static void ApplySettings(AgentNotifyConfig config, SettingsBody body)
-    {
-        // Validate everything before touching the shared config, so a refusal changes nothing.
-        static int Range(int? value, int current, int min, int max, string label) =>
-            value is null ? current
-            : value < min || value > max ? throw new ArgumentException($"{label} must be between {min} and {max}.")
-            : value.Value;
-
-        var port = Range(body.Port, config.Port, 1, 65535, "Port");
-        var retention = Range(body.HistoryRetentionDays, config.HistoryRetentionDays, 0, 3650, "Retention");
-        var visible = Range(body.MaxVisibleToasts, config.MaxVisibleToasts, 1, 20, "Maximum visible toasts");
-        var volume = Range(body.SoundVolume, (int)Math.Round(config.SoundVolume * 100), 0, 100, "Sound volume");
-        var location = body.ToastLocation ?? config.ToastLocation;
-        if (location is not ("BottomRight" or "TopRight"))
-            throw new ArgumentException("Screen corner must be BottomRight or TopRight.");
-
-        var durations = new Dictionary<string, int>(config.ToastDurations, StringComparer.OrdinalIgnoreCase);
-        foreach (var (type, seconds) in body.ToastDurations ?? [])
-        {
-            var id = NotificationTypes.Normalize(type);
-            if (id is null || !NotificationTypes.BuiltIns.Contains(id))
-                throw new ArgumentException($"'{type}' is not a built-in notification type.");
-            durations[id] = Range(seconds, 0, 0, 86400, $"{id.Replace('_', ' ')} duration");
-        }
-
-        string? defaultSound = config.DefaultSoundFile;
-        if (body.DefaultSoundFile is not null)
-            defaultSound = NormalizeSound(body.DefaultSoundFile);
-        Dictionary<string, string>? typeSounds = null;
-        if (body.TypeSoundFiles is not null)
-        {
-            typeSounds = new(StringComparer.OrdinalIgnoreCase);
-            foreach (var (type, file) in body.TypeSoundFiles)
-            {
-                var id = NotificationTypes.Normalize(type) ?? throw new ArgumentException($"'{type}' is not a valid notification type.");
-                if (NormalizeSound(file) is { } sound) typeSounds[id] = sound;
-            }
-        }
-
-        config.Port = port;
-        config.HistoryRetentionDays = retention;
-        config.MaxVisibleToasts = visible;
-        config.SoundVolume = volume / 100d;
-        config.ToastLocation = location;
-        config.ToastDurations = durations;
-        if (body.PauseNotifications is { } pause) config.PauseNotifications = pause;
-        if (body.DoNotDisturb is { } dnd) config.DoNotDisturb = dnd;
-        if (body.SoundsEnabled is { } soundsEnabled) config.SoundsEnabled = soundsEnabled;
-        if (body.PlayCriticalSoundsDuringDoNotDisturb is { } critical) config.PlayCriticalSoundsDuringDoNotDisturb = critical;
-        config.DefaultSoundFile = defaultSound;
-        if (typeSounds is not null) config.TypeSoundFiles = typeSounds;
-    }
-
-    private static string? NormalizeSound(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        var file = SafeFileName.Last(value.Trim());
-        var extension = Path.GetExtension(file);
-        if (!extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Sounds must be WAV or MP3 files.");
-        return file;
-    }
-
-    private static object TypesJson(AgentNotifyConfig config) => new
-    {
-        built_in = NotificationTypes.BuiltIns,
-        custom = config.CustomNotificationTypes.Select(type => new
-        {
-            id = type.Id,
-            display_name = type.DisplayName,
-            accent_color = type.AccentColor,
-            default_priority = type.DefaultPriority,
-            duration_seconds = type.DurationSeconds,
-            enabled = type.Enabled
-        })
-    };
-
-    private static List<NotificationTypeDefinition> ValidateTypes(IReadOnlyList<TypeBody> types)
-    {
-        if (types.Count > 100) throw new ArgumentException("At most 100 custom types are supported.");
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<NotificationTypeDefinition>();
-        foreach (var type in types)
-        {
-            var id = NotificationTypes.Normalize(type.Id);
-            if (id is null || NotificationTypes.BuiltIns.Contains(id))
-                throw new ArgumentException($"'{type.Id}' is not a usable custom type ID. Use lowercase letters, digits, and underscores, and avoid built-in names.");
-            if (!seen.Add(id)) throw new ArgumentException($"The custom type ID '{id}' is used twice.");
-            if (type.DurationSeconds is < 0 or > 86400) throw new ArgumentException("Custom lifetime must be 0–86400 seconds.");
-            var color = (type.AccentColor ?? "").Trim();
-            if (color.Length != 7 || color[0] != '#' || !color[1..].All(Uri.IsHexDigit))
-                throw new ArgumentException("Accent must use #RRGGBB.");
-            if (!Enum.TryParse<NotificationPriority>(type.DefaultPriority, ignoreCase: true, out var priority))
-                priority = NotificationPriority.Normal;
-            var name = (type.DisplayName ?? "").Trim();
-            if (name.Length > 60) throw new ArgumentException("Display names must be at most 60 characters.");
-            result.Add(new NotificationTypeDefinition
-            {
-                Id = id,
-                DisplayName = name.Length == 0 ? id.Replace('_', ' ') : name,
-                AccentColor = color.ToUpperInvariant(),
-                DefaultPriority = priority,
-                DurationSeconds = type.DurationSeconds,
-                Enabled = type.Enabled
-            });
-        }
-
-        return result;
-    }
-
-    // ---- request bodies --------------------------------------------------------------------
-
-    private sealed class OpenCodeGoBody
-    {
-        public int? RenewalDay { get; set; }
-    }
-
-    private sealed class QuotaAccountBody
-    {
-        public string? Provider { get; set; }
-        public string? Label { get; set; }
-        public string? Directory { get; set; }
-    }
-
-    private sealed class MenuBarSettingsBody
-    {
-        public bool? Enabled { get; set; }
-        public int? RefreshMinutes { get; set; }
-        public List<string>? AccountIds { get; set; }
-    }
-
-    private sealed class SettingsBody
-    {
-        public int? Port { get; set; }
-        public int? HistoryRetentionDays { get; set; }
-        public bool? PauseNotifications { get; set; }
-        public bool? DoNotDisturb { get; set; }
-        public string? ToastLocation { get; set; }
-        public int? MaxVisibleToasts { get; set; }
-        public Dictionary<string, int>? ToastDurations { get; set; }
-        public bool? SoundsEnabled { get; set; }
-        public int? SoundVolume { get; set; }
-        public bool? PlayCriticalSoundsDuringDoNotDisturb { get; set; }
-        public string? DefaultSoundFile { get; set; }
-        public Dictionary<string, string>? TypeSoundFiles { get; set; }
-    }
-
-    private sealed class TypesBody { public List<TypeBody>? Custom { get; set; } }
-
-    private sealed class TypeBody
-    {
-        public string? Id { get; set; }
-        public string? DisplayName { get; set; }
-        public string? AccentColor { get; set; }
-        public string? DefaultPriority { get; set; }
-        public int DurationSeconds { get; set; }
-        public bool Enabled { get; set; } = true;
-    }
-
-    private sealed class AnswerBody
-    {
-        public string? RequestDigest { get; set; }
-        public string? ChoiceId { get; set; }
-        public string? Text { get; set; }
-    }
-
-    private sealed class ProviderBody
-    {
-        public string? Name { get; set; }
-        public string? Kind { get; set; }
-        public bool Enabled { get; set; }
-        public Dictionary<string, string?>? Values { get; set; }
-        public Dictionary<string, string?>? Secrets { get; set; }
-        public List<string>? ClearSecrets { get; set; }
-        public string? PairingId { get; set; }
-    }
-
-    private sealed class PairingBody
-    {
-        public string? SenderName { get; set; }
-        public string? ProviderId { get; set; }
-    }
-
-    private sealed class RouteBody
-    {
-        public string? Name { get; set; }
-        public string? ProviderId { get; set; }
-        public bool Enabled { get; set; }
-        public string? MinimumPriority { get; set; }
-        public string? TypeId { get; set; }
-        public string? Project { get; set; }
-        public string? Agent { get; set; }
-        public bool IncludeMessage { get; set; } = true;
-    }
-
-    private sealed class SkillBody { public bool Force { get; set; } public string? Wsl { get; set; } public string? Account { get; set; } }
-
-    /// <summary>
-    /// Where an account's skill goes. Claude Code reads skills from its own profile directory, so each
-    /// account has its own; Codex reads the user-wide <c>~/.agents/skills</c>, which every Codex account
-    /// shares.
-    /// </summary>
-    private static string AccountSkillsRoot(AgentSkillTarget target, QuotaAccountDefinition account) =>
-        account.Provider == "claude_code"
-            ? Path.Combine(account.Directory, "skills")
-            : AgentSkillCatalog.DefaultSkillsRoot(target);
-
-    /// <summary>One account's notification setup: its skill, and whether the hook harness is in its profile.</summary>
-    private static object AgentAccountJson(QuotaAccountDefinition account, string? home)
-    {
-        var isClaude = account.Provider == "claude_code";
-        var target = AgentSkillCatalog.Find(isClaude ? "claude" : "codex")!;
-        string? root = null;
-        var state = "unavailable";
-        try
-        {
-            root = AccountSkillsRoot(target, account);
-            state = SkillInstaller.Inspect(root, WebUiSkill.Files(target)) switch
-            {
-                SkillInstallState.UpToDate => "up_to_date",
-                SkillInstallState.Outdated => "outdated",
-                _ => "not_installed"
-            };
-        }
-        catch (InvalidOperationException) { }
-
-        var hooksFile = Path.Combine(account.Directory, isClaude ? "settings.json" : "hooks.json");
-        var script = Path.Combine(account.Directory, "agentnotify", HarnessCatalog.HookScriptFileName);
-        bool harness;
-        try { harness = File.Exists(script) && File.Exists(hooksFile) && File.ReadAllText(hooksFile).Contains(HarnessCatalog.HookScriptFileName, StringComparison.Ordinal); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { harness = false; }
-
-        var host = isClaude ? "claude" : "codex";
-        var isDefault = account.Id.EndsWith(":default", StringComparison.Ordinal);
-        var path = isDefault ? "" : $" --path {QuoteArgument(account.Directory)}";
-        return new
-        {
-            id = account.Id,
-            provider = account.Provider,
-            display_name = isClaude ? "Claude Code" : "Codex",
-            label = account.Label,
-            directory = account.Directory,
-            display_directory = TildePath(account.Directory, home),
-            is_default = isDefault,
-            skill = new
-            {
-                id = target.Id,
-                state,
-                destination = root is null ? null : SkillInstaller.SkillDirectory(root),
-                shared = !isClaude
-            },
-            harness = new
-            {
-                installed = harness,
-                command = $"agentnotify install-harness {host}{path}",
-                ask_command = $"agentnotify install-harness {host}{path} --ask"
-            }
-        };
-    }
-
-    /// <summary>A path under the home directory written as <c>~/…</c>, for display only.</summary>
-    internal static string TildePath(string path, string? home)
-    {
-        if (string.IsNullOrEmpty(home)) return path;
-        var relative = Path.GetRelativePath(home, path);
-        return relative == "." ? "~" : relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)
-            ? path : "~/" + relative.Replace('\\', '/');
-    }
-
-    private static string QuoteArgument(string value) =>
-        value.Any(c => char.IsWhiteSpace(c) || c is '"' or '\'' or '$') ? "\"" + value.Replace("\"", "\\\"") + "\"" : value;
-}
-
-/// <summary>The agent skill as this build carries it, for installs started from the web UI.</summary>
-internal static class WebUiSkill
-{
-    private static readonly Lazy<string> Skill = new(() => Read("AgentNotify.Api.Resources.SKILL.md"));
-    private static readonly Lazy<string> OpenAiMetadata = new(() => Read("AgentNotify.Api.Resources.openai.yaml"));
-
-    public static IReadOnlyList<SkillInstaller.SkillFile> Files(AgentSkillTarget target)
-    {
-        var files = new List<SkillInstaller.SkillFile> { new("SKILL.md", Skill.Value) };
-        if (target.Id == AgentSkillCatalog.Codex.Id)
-            files.Add(new(Path.Combine("agents", "openai.yaml"), OpenAiMetadata.Value));
-        return files;
-    }
-
-    private static string Read(string name)
-    {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)
-            ?? throw new InvalidOperationException($"Embedded resource '{name}' is missing.");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
 }

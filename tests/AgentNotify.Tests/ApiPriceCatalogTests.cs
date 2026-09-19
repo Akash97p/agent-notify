@@ -1,4 +1,4 @@
-using AgentNotify.Core.Usage;
+using AgentNotify.Insights.Usage;
 
 namespace AgentNotify.Tests;
 

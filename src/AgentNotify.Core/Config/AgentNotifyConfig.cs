@@ -168,7 +168,7 @@ public sealed class AgentNotifyConfig
             .Select(item => new KeyValuePair<string, string?>(item.Key, QuotaAccountDefinition.TryNormalizeLabel(item.Value)))
             .Where(item => item.Value is not null)
             .ToDictionary(item => item.Key, item => item.Value!, StringComparer.Ordinal);
-        if (!Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(OpenCodeGoRenewalDay)) OpenCodeGoRenewalDay = null;
+        if (!OpenCodeGoBillingCycle.IsValidRenewalDay(OpenCodeGoRenewalDay)) OpenCodeGoRenewalDay = null;
         RemovedQuotaAccounts = (RemovedQuotaAccounts ?? []).Where(QuotaAccountDefinition.IsDetectedAccountId)
             .Distinct(StringComparer.Ordinal).Take(64).ToList();
         MacMenuBar ??= new();

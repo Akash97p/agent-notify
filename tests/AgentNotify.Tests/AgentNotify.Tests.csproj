@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -31,6 +31,8 @@
     <ProjectReference Include="..\..\src\AgentNotify.Cli\AgentNotify.Cli.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentNotify.Router\AgentNotify.Router.csproj" />
+    <ProjectReference Include="..\..\src\AgentNotify.Insights\AgentNotify.Insights.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Desktop\AgentNotify.Desktop.csproj" />
     <ProjectReference Include="..\..\src\AgentNotify.Host\AgentNotify.Host.csproj" />
   </ItemGroup>

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using AgentNotify.Core.Billing;
+using AgentNotify.Insights.Billing;
 using AgentNotify.Core.Delivery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

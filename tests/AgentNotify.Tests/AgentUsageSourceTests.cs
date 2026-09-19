@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using AgentNotify.Core.Usage;
+using AgentNotify.Insights.Usage;
 using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Tests;

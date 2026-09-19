@@ -13,7 +13,7 @@ using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Domain;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
-using AgentNotify.Core.Router.Translation;
+using AgentNotify.Router.Translation;
 using AgentNotify.Core.Services;
 
 namespace AgentNotify.Api;

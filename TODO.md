@@ -123,6 +123,11 @@
 
 ## Quality
 
+- [x] Router, usage, quota, and billing code extracted from the notification core
+      (`AgentNotify.Router`, `AgentNotify.Insights`)
+- [x] Source files over ~2,000 lines split by responsibility; no file in `src/` now exceeds ~700 lines
+- [ ] Split the remaining 600–700 line files (`BillingService`, `RouterResponsesCodec`,
+      `RouterRepository`, `ApiHost`) as they are touched
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
 - [x] Automated tests: 1,257 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation

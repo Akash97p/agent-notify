@@ -5,6 +5,29 @@ Environment: Windows 11 host, WSL workspace, Windows .NET SDK 10.0.302 at `/mnt/
 
 This record distinguishes automated/process verification from visual checks. No result from the inherited `/mnt/d/dev/AgentNotify` documentation was accepted without rerunning it.
 
+## Router and Insights split out of Core; oversized files split (2026-09-19)
+
+`AgentNotify.Router` (router, translation, connectors) and `AgentNotify.Insights` (usage, quota,
+billing) are now separate assemblies that reference `AgentNotify.Core`; Core has no compile-time
+dependency on either. Alongside that, the largest source files were split into partial-class files
+by responsibility (`WebUiEndpoints.*`, `RouterEndpoints.*`, `Program.*`, `HarnessInstaller.*`,
+`LocalUsageService.*`, `RouterProxy.*`, `RouterConfigService.*`, `ProviderFormBuilder.*`,
+`ChannelSettingsPanel.*`). No behavior was intended to change; the route strings and method bodies
+were moved verbatim.
+
+Commands run on the owner's macOS host (Intel, macOS 26.6.2) with the native SDK at
+`~/.dotnet/dotnet` (10.0.401):
+
+```bash
+dotnet build AgentNotify.slnx -c Release -p:EnableWindowsTargeting=true   # 0 warnings, 0 errors
+dotnet test tests/AgentNotify.Tests/AgentNotify.Tests.csproj -c Release   # 1262 passed, 0 failed, 0 skipped
+```
+
+Not run: `./scripts/build.sh`, `./scripts/test.sh`, and `./scripts/package.sh` (they invoke the
+Windows SDK at `/mnt/d/dev/dotnet/dotnet.exe`, absent on this host), any Windows launch, any
+browser session, and any visual check of the Windows UI or the macOS menu bar. The router/insights
+split is therefore compiled and test-covered, but unexercised at runtime.
+
 ## Router switching and effort mapping: unverified (2026-09-19)
 
 Ordered/sticky/round-robin switching, one-way native-Claude fallback, and editable per-target effort

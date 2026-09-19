@@ -9,7 +9,7 @@ using AgentNotify.Api.WebUi;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
 using AgentNotify.Core.Persistence;
-using AgentNotify.Core.Router;
+using AgentNotify.Router;
 using AgentNotify.Core.Services;
 using Microsoft.AspNetCore.Builder;
 

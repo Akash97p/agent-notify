@@ -2,8 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Router;
-using AgentNotify.Core.Router.Connect;
+using AgentNotify.Router;
+using AgentNotify.Router.Connect;
 
 namespace AgentNotify.Tests;
 

@@ -5,8 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Router;
-using AgentNotify.Core.Router.Connect;
+using AgentNotify.Router;
+using AgentNotify.Router.Connect;
 using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Tests;
