@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { GitBranch } from "lucide-react";
+import { ArrowRight, GitBranch } from "lucide-react";
 
 import { MobileNav } from "@/components/mobile-nav";
 import { Button } from "@/components/ui/button";
-import { basePath, site } from "@/lib/site";
+import { basePath, navigation, site } from "@/lib/site";
 
 export function SiteHeader() {
   return (
@@ -14,17 +14,19 @@ export function SiteHeader() {
           <Image src={`${basePath}/an.png`} alt="" width={26} height={26} className="rounded-md" priority />
           AgentNotify
         </Link>
-        <nav className="ml-8 hidden items-center gap-6 text-sm lg:flex" aria-label="Primary navigation">
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/">Documentation</Link>
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/arc/">ARC</Link>
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/router/">Router</Link>
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/channels/">Channels</Link>
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/relay/">Relay</Link>
-          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/architecture/">Architecture</Link>
+        <nav className="ml-8 hidden items-center gap-5 text-sm lg:flex" aria-label="Primary navigation">
+          {navigation.map((item) => (
+            <Link key={item.href} className="text-muted-foreground transition-colors hover:text-foreground" href={item.href}>
+              {item.label}
+            </Link>
+          ))}
         </nav>
         <div className="ml-auto flex items-center gap-1">
           <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
             <a href={site.repository}><GitBranch />GitHub</a>
+          </Button>
+          <Button asChild size="sm">
+            <a href={site.releases}>Download <ArrowRight /></a>
           </Button>
           <MobileNav />
         </div>

@@ -46,7 +46,11 @@ done < <(find "$OUT/docs" -mindepth 2 -maxdepth 2 -name index.html -type f | sor
 
 test -s "$OUT/index.html"
 test -s "$OUT/404.html"
-test -s "$OUT/docs/index.html"
+test -s "$OUT/insights/index.html"
+test -s "$OUT/router/index.html"
+test -s "$OUT/visuals/insights-dashboard.svg"
+test -s "$OUT/visuals/router-flow.svg"
+test -s "$OUT/visuals/attention-queue.svg"
 test -s "$OUT/docs/cli/index.html"
 test -s "$OUT/docs/api/index.html"
 test -s "$OUT/docs/channels/index.html"

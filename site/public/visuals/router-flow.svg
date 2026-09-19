@@ -1,0 +1,79 @@
+<svg width="1200" height="620" viewBox="0 0 1200 620" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentNotify model router sending agent requests to provider targets with failover">
+  <defs>
+    <pattern id="rgrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" stroke="#1c1c1c" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="620" fill="#0b0b0b"/>
+  <rect width="1200" height="620" fill="url(#rgrid)" opacity="0.5"/>
+  <rect x="0.5" y="0.5" width="1199" height="619" stroke="#262626"/>
+
+  <text x="64" y="76" font-family="Geist, system-ui, sans-serif" font-size="18" font-weight="600" fill="#f5f5f5">Agents</text>
+  <text x="64" y="98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">unchanged clients</text>
+
+  <g font-family="Geist, system-ui, sans-serif" font-size="13">
+    <rect x="64" y="126" width="196" height="52" rx="10" fill="#111111" stroke="#242424"/>
+    <text x="84" y="150" fill="#e5e5e5">Codex</text>
+    <text x="84" y="168" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">openai-responses</text>
+    <rect x="64" y="194" width="196" height="52" rx="10" fill="#111111" stroke="#242424"/>
+    <text x="84" y="218" fill="#e5e5e5">Claude Code</text>
+    <text x="84" y="236" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">anthropic-messages</text>
+    <rect x="64" y="262" width="196" height="52" rx="10" fill="#111111" stroke="#242424"/>
+    <text x="84" y="286" fill="#e5e5e5">OpenCode · Kilo · Cursor</text>
+    <text x="84" y="304" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">chat-completions</text>
+  </g>
+
+  <path d="M260 152H340" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M260 220H340" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M260 288H340" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M340 152V288" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M340 220H376" stroke="#3a3a3a" stroke-width="1.5"/>
+
+  <rect x="376" y="126" width="300" height="214" rx="14" fill="#121212" stroke="#2e2e2e"/>
+  <text x="400" y="158" font-family="Geist, system-ui, sans-serif" font-size="14" font-weight="600" fill="#f5f5f5">Model router</text>
+  <text x="400" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">127.0.0.1 · router key</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">
+    <rect x="400" y="196" width="252" height="30" rx="7" fill="#171717" stroke="#262626"/>
+    <text x="414" y="215">resolve route · alias / combo</text>
+    <rect x="400" y="234" width="252" height="30" rx="7" fill="#171717" stroke="#262626"/>
+    <text x="414" y="253">translate wire format</text>
+    <rect x="400" y="272" width="252" height="30" rx="7" fill="#171717" stroke="#262626"/>
+    <text x="414" y="291">skip cooling targets</text>
+  </g>
+  <text x="400" y="324" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">no prompt is stored in the ledger</text>
+
+  <path d="M676 200H760" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M676 268H760" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M760 200H820" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M760 268H820" stroke="#3a3a3a" stroke-width="1.5" stroke-dasharray="5 4"/>
+
+  <text x="820" y="76" font-family="Geist, system-ui, sans-serif" font-size="18" font-weight="600" fill="#f5f5f5">Provider targets</text>
+  <text x="820" y="98" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">ordered fallback · sealed keys</text>
+
+  <g font-family="Geist, system-ui, sans-serif" font-size="13">
+    <rect x="820" y="126" width="316" height="58" rx="10" fill="#111111" stroke="#2e2e2e"/>
+    <circle cx="844" cy="155" r="4" fill="#e5e5e5"/>
+    <text x="860" y="150" fill="#e5e5e5">OpenAI · gpt-5.1-codex</text>
+    <text x="860" y="170" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">selected · 412 ms</text>
+
+    <rect x="820" y="194" width="316" height="58" rx="10" fill="#111111" stroke="#242424" stroke-dasharray="5 4"/>
+    <circle cx="844" cy="223" r="4" fill="#6f6f6f"/>
+    <text x="860" y="218" fill="#c4c4c4">Anthropic · claude-sonnet</text>
+    <text x="860" y="238" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">fallback armed</text>
+
+    <rect x="820" y="262" width="316" height="58" rx="10" fill="#111111" stroke="#242424"/>
+    <circle cx="844" cy="291" r="4" fill="#6f6f6f"/>
+    <text x="860" y="286" fill="#c4c4c4">Google · gemini-pro</text>
+    <text x="860" y="306" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">cooling · retry after 60s</text>
+  </g>
+
+  <rect x="64" y="382" width="1072" height="182" rx="14" fill="#111111" stroke="#242424"/>
+  <text x="88" y="414" font-family="Geist, system-ui, sans-serif" font-size="14" font-weight="600" fill="#f5f5f5">Proxy-observed ledger</text>
+  <text x="88" y="434" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">one row per logical request · bounded, redacted metadata</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#8f8f8f">
+    <text x="88" y="470">time</text><text x="220" y="470">route</text><text x="470" y="470">attempts</text><text x="700" y="470">tokens</text><text x="900" y="470">status</text>
+    <path d="M88 484H1112" stroke="#262626"/>
+    <text x="88" y="510" fill="#d4d4d4">14:02:18</text><text x="220" y="510" fill="#d4d4d4">openai/gpt-5.1-codex</text><text x="470" y="510">1</text><text x="700" y="510">184,220</text><text x="900" y="510" fill="#d4d4d4">reported</text>
+    <text x="88" y="538" fill="#d4d4d4">14:03:41</text><text x="220" y="538" fill="#d4d4d4">combo/fast → anthropic</text><text x="470" y="538">2 · fallback</text><text x="700" y="538">92,004</text><text x="900" y="538" fill="#d4d4d4">reported</text>
+  </g>
+</svg>

@@ -5,15 +5,7 @@ import { Menu } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-
-const links = [
-  ["Documentation", "/docs/"],
-  ["ARC", "/docs/arc/"],
-  ["Router", "/docs/router/"],
-  ["Channels", "/docs/channels/"],
-  ["Relay", "/docs/relay/"],
-  ["Architecture", "/docs/architecture/"],
-] as const;
+import { navigation, site } from "@/lib/site";
 
 export function MobileNav() {
   return (
@@ -26,16 +18,19 @@ export function MobileNav() {
       <SheetContent className="p-0">
         <SheetHeader className="border-b px-6 py-5 text-left">
           <SheetTitle>AgentNotify</SheetTitle>
-          <SheetDescription>Human attention infrastructure for coding agents.</SheetDescription>
+          <SheetDescription>Human attention, usage, and quota for coding agents.</SheetDescription>
         </SheetHeader>
         <nav className="grid gap-1 p-4" aria-label="Mobile navigation">
-          {links.map(([label, href]) => (
-            <SheetClose asChild key={href}>
-              <Link className="rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" href={href}>{label}</Link>
+          {navigation.map((item) => (
+            <SheetClose asChild key={item.href}>
+              <Link className="rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" href={item.href}>{item.label}</Link>
             </SheetClose>
           ))}
           <SheetClose asChild>
-            <a className="rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" href="https://github.com/Akash97p/agent-notify">GitHub</a>
+            <a className="rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" href={site.repository}>GitHub</a>
+          </SheetClose>
+          <SheetClose asChild>
+            <a className="rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" href={site.releases}>Download latest release</a>
           </SheetClose>
         </nav>
       </SheetContent>

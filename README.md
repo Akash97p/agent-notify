@@ -16,7 +16,9 @@
 
 <p align="center">
   <strong>The local human-attention and notification broker for coding agents.</strong><br>
-  <a href="https://akash97p.github.io/agent-notify/">Documentation</a> ·
+  <a href="https://akash97p.github.io/agent-notify/docs/install-with-agent/">Documentation</a> ·
+  <a href="https://akash97p.github.io/agent-notify/insights/">Insights</a> ·
+  <a href="https://akash97p.github.io/agent-notify/router/">Model router</a> ·
   <a href="https://github.com/Akash97p/agent-notify">GitHub</a> ·
   <a href="docs/INSTALLATION.md">Installation</a> ·
   <a href="docs/WEB_UI.md">Web interface</a> ·
@@ -86,6 +88,10 @@ Everywhere:
   and spend from a key stored encrypted on the broker. The interface has no sign-in, is served only
   to the local machine, and never receives stored credentials. See [Web interface](docs/WEB_UI.md)
   for the sources and estimate limits.
+- **An opt-in local model router.** Point Codex, Claude Code, or an OpenAI-compatible client at
+  the loopback router and it resolves a provider and model, translates between the Responses, Chat
+  Completions, and Anthropic wires when needed, skips cooling targets, and records a redacted
+  per-request ledger. See [Router](docs/ROUTER.md).
 - Single-instance behavior and a desktop notification on each supported platform.
 
 On macOS, additionally:
@@ -554,7 +560,8 @@ The transport design keeps the local broker as the source of truth. Completed de
 - A full macOS notification center/settings window, a Linux tray client, signed releases, automatic
   updates, and migration tooling.
 
-External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). No new outbound adapter branch is active; current work is cross-platform support and documentation.
+External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). No new outbound adapter branch is active; current work is the local dashboard, module
+boundaries, and documentation.
 
 ## Contributing and license
 

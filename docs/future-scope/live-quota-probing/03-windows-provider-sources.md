@@ -1,19 +1,34 @@
-# How the native Windows port gets quota data
+# Live quota on Windows and inside WSL
 
-This document describes a **separate, native Windows implementation** of the quota monitor: a Rust provider crate and CLI, with a Tauri 2 desktop shell and React 18/Vite frontend. Its live quota data comes from the Rust crate, not from the original project's Swift a shared core library, and it does not need WSL2. The root Cargo workspace makes the Tauri shell depend on that crate. The code path is factory → `Provider::fetch_usage` → provider-specific HTTP/credential parser → normalized snapshot. See [refresh and normalization](04-windows-normalization-and-cache.md) for publication rules.
+On Windows the tray application owns the same `LiveQuotaService`; there is no separate provider
+implementation per platform. Discovery is what differs, because agent profiles can live in the
+Windows user profile, in a WSL distribution's home, or in a hand-added directory.
 
-## Codex: native credential read and HTTP probe
+## Discovery
 
-`CodexApi::codex_dir` uses `CODEX_HOME` when set, otherwise `~/.codex`. It reads `auth.json` and optionally `config.toml` for a custom `chatgpt_base_url`. The OAuth token is taken from `tokens.access_token`, with `tokens.account_id`; a top-level `OPENAI_API_KEY` is another recognized credential shape. A five-second cache is keyed by auth-file path and modification time. The port treats a `refresh_token` as Codex CLI-owned OAuth and checks `last_refresh` plus access-token expiry. Stale external OAuth sources fail closed by default; the usage probe does not silently rotate Codex's credential file.
+`WslDiscovery` in Core lists distributions from
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`, asks `wsl.exe --list --running` which of them
+are running, and resolves each distribution's default user through that distribution's
+`/etc/wsl.conf` (`[user] default=`) before falling back to the registry's `DefaultUid`. Only running
+distributions are touched, because opening a stopped distribution's share boots its VM.
 
-`CodexProvider::fetch_usage` first tries a personal access token in `Auto` mode when one exists, falling back to OAuth only for missing/auth-required PAT errors. `pat.rs` reads `personal_access_token` or `personalAccessToken` from `auth.json`, calls `https://auth.openai.com/api/accounts/v1/user-auth-credential/whoami`, and uses the returned ChatGPT account ID in its subsequent usage request. This avoids applying a token to the wrong account. Other PAT failures surface as errors instead of silently switching credentials.
+Discovery is cached briefly and re-resolved per scan, so a distribution that starts while the broker
+runs becomes visible without a restart. Each discovered home contributes its own Codex and Claude
+profile entries, and every account can be renamed, moved, removed, and restored from the web
+interface.
 
-The OAuth HTTP fetch sends `GET https://chatgpt.com/backend-api/wham/usage` by default, with bearer access token and `ChatGPT-Account-Id` when available. It optionally calls `/wham/rate-limit-reset-credits`; failure of that enrichment does not discard the usage response. It parses `rate_limit.primary_window`, `secondary_window`, `code_review_window`, `additional_rate_limits`, and `credits`. It also accepts a `rate_limits` array or direct percentage fields. Windows' `SourceMode::Cli` is listed as available, but this `fetch_usage` implementation still calls the same direct OAuth HTTP method for that mode. Do not infer a Swift CLI/app-server RPC implementation from the mode name.
+## Probing through the share
 
-## Claude: separate authenticated sources
+A profile inside a distribution is read through `\\wsl.localhost\<distribution>` using the paths the
+agents use inside Linux, because their environment variables are not visible to a Windows broker. A
+Codex child process is started with the selected `CODEX_HOME`; a Claude probe reads that profile's
+`.credentials.json` when it exists. No credential is copied into the Windows profile, and the
+owner-only configuration file stores profile IDs, editable labels, and paths only.
 
-`ClaudeProvider` implements `Auto`, `OAuth`, `Web`, and `Cli`. Auto tries an eligible Admin API source, then Web, then OAuth, then CLI. The OAuth fetcher sends `GET https://api.anthropic.com/api/oauth/usage` with bearer token and `anthropic-beta: oauth-2025-04-20`. It decodes five-hour, seven-day, scoped weekly, `limits`, and extra-usage fields. It checks OAuth scope, distinguishes revoked from expired tokens, and backs off after 429 using `Retry-After` when present.
+## Boundaries
 
-The Web fetcher takes a `sessionKey` from environment, a validated cookie cache, or browser-cookie extraction. It discovers the Claude organization ID via `/api/organizations`, then gets `/api/organizations/{id}/usage`; extra usage, credits, and account info are optional enrichment. A selected manual Claude cookie can take precedence over an active OAuth token account in the Tauri fetch-context builder. The winning source is recorded in the provider result, so the integration can retain provenance.
-
-For a combined app, use one adapter per source with its own credential owner, account identity, response fixture, and fallback policy. These are provider-reported quota probes; they are not token totals reconstructed from local logs.
+RPC and endpoint shapes remain provider implementation details and may change without notice.
+Every probe stays behind the same versioned fetcher and fixture tests as the native cases, and a
+source that fails is reported as unavailable rather than replaced with an estimate. OpenCode Go is
+the one exception by design: it is a local published-cap estimate, and it is labelled as an estimate
+in every surface that shows it.
