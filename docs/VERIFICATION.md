@@ -2271,6 +2271,15 @@ documentation type-check and 30-page static export passed; and `publish-cross.sh
 portable archives (`win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`). Every checksum in
 `artifacts/cross/SHA256SUMS.txt` verified. Both macOS archives contain `agentnotify-menubar`, both CLI
 and broker binaries in the Intel archive report `0.2.0-alpha.3`, and the menu-bar binary passes strict
-codesign verification. The Windows WPF build, 1262-test run, and installer packaging still must pass
-independently in the tag-triggered Release workflow; they cannot run through the repository's
-Windows/WSL scripts on this macOS host.
+codesign verification. The Windows WPF build, 1262-test run, and installer packaging were deferred
+to the tag-triggered Release workflow because they cannot run through the repository's Windows/WSL
+scripts on this macOS host.
+
+The tag-triggered [Release run 12](https://github.com/Akash97p/agent-notify/actions/runs/35440004194)
+subsequently passed both hosted jobs. Windows validated the tag/version match, built and tested the
+solution, packaged the installer, generated release notes, and published the prerelease. The macOS
+job then built and attached all five portable archives plus their checksum manifest. The published
+[`v0.2.0-alpha.3` prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.2.0-alpha.3)
+contains the Windows installer, five portable archives, both checksum files, and the distributable
+skill. The parallel Windows CI, Linux/macOS CI, and documentation deployment also passed for the
+tagged commit `08d1d27`.
