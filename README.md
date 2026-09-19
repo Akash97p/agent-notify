@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.2.0--alpha.2-2563eb.svg)](Directory.Build.props)
 [![Platform](https://img.shields.io/badge/desktop%20app-Windows%2011-0078d4.svg)](docs/INSTALLATION.md)
 [![Platform](https://img.shields.io/badge/CLI%20%2B%20broker-macOS%20%7C%20Linux-6b7280.svg)](docs/INSTALLATION_UNIX.md)
-[![Tests](https://img.shields.io/badge/tests-903%20passing-2ea44f.svg)](docs/VERIFICATION.md)
+[![Tests](https://img.shields.io/badge/tests-1%2C254%20passing-2ea44f.svg)](docs/VERIFICATION.md)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Akash97p%2Fagent--notify-181717?logo=github)](https://github.com/Akash97p/agent-notify)
 [![Documentation](https://img.shields.io/badge/docs-akash97p.github.io-8b5cf6.svg)](https://akash97p.github.io/agent-notify/)
 
@@ -25,7 +25,10 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-AgentNotify is a local human-attention broker for autonomous coding agents. Agents send a small authenticated request; AgentNotify displays a dedicated non-activating WPF toast, preserves the event in local history, and makes unresolved requests visible from the system tray.
+AgentNotify is a local human-attention broker for autonomous coding agents. Agents send a small
+authenticated request; AgentNotify persists it in local history, presents it through the native
+desktop surface available on that platform, and keeps unresolved requests visible in the local web
+interface (and in the Windows tray application).
 
 It is designed for people running several agents across terminals, repositories, windows, and virtual desktops who need a reliable answer to: “Which agents are waiting for me?”
 
@@ -113,7 +116,7 @@ you'd rather read them first or do it by hand.
 
 ### Windows
 
-The distributable is [AgentNotifySetup.exe](artifacts/AgentNotifySetup.exe). Copy that one file to a Windows 11 machine and run it; no separate .NET runtime is required.
+Download `AgentNotifySetup.exe` from the latest tagged [GitHub prerelease](https://github.com/Akash97p/agent-notify/releases/tag/v0.2.0-alpha.2). Copy that one file to a Windows 11 machine and run it; no separate .NET runtime is required. A local packaging run creates the same ignored path at `artifacts/AgentNotifySetup.exe`.
 
 Setup installs per user by default under `%LOCALAPPDATA%\Programs\AgentNotify`, then:
 
@@ -354,13 +357,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for lifecycle and trust-boundar
 
 ## Local data and configuration
 
-Runtime state stays under `%LOCALAPPDATA%\AgentNotify`:
+Runtime state stays under `%LOCALAPPDATA%\AgentNotify` on Windows and
+`$XDG_DATA_HOME/AgentNotify` (normally `~/.local/share/AgentNotify`) on macOS/Linux:
 
 ```text
 config.json                 port, random bearer token, UI/runtime options
-agentnotify.db              SQLite notification history
+agentnotify.db              notifications, interactions, delivery, API accounts, router state
 logs/agentnotify-YYYYMMDD.log
 sounds/                     built-in tones plus user-imported WAV/MP3 files
+secret.key                  Unix fallback only when no supported keyring is available
 resources/SKILL.md
 resources/GettingStarted.html
 ```
@@ -381,7 +386,11 @@ Selected `config.json` defaults:
 
 `authToken` is generated with 256 bits of randomness on first launch. The CLI reads it automatically. `AGENTNOTIFY_PORT` and `AGENTNOTIFY_TOKEN` can override discovery for debugging, but agents should not print or transmit the token.
 
-The SQLite database also contains versioned delivery tables for provider profiles, routing rules, durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations are serialized only into versioned Windows DPAPI current-user envelopes; profile summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, direct WhatsApp Cloud API, Twilio WhatsApp, MQTT 5, or AgentNotify Relay profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
+The SQLite database also contains versioned delivery tables for provider profiles, routing rules,
+durable outbox items, and bounded attempt history. Provider credentials and sensitive destinations
+are encrypted through the platform secret protector: Windows DPAPI in current-user scope, the macOS
+login keychain, Linux Secret Service, or an explicitly warned owner-only key-file fallback. Profile
+summaries expose secret field names but never values or ciphertext. The Channels tab can create, test, enable, and delete hardened generic webhook, authenticated TLS SMTP, Telegram Bot, Discord, Slack, Teams Workflows, Zoho Cliq, Google Chat, Mattermost, Matrix, ntfy, Gotify, Pushover, Pushbullet, paid Twilio SMS, direct WhatsApp Cloud API, Twilio WhatsApp, MQTT 5, or AgentNotify Relay profiles and filtered routes, and shows redacted queue diagnostics. Outbound delivery remains disabled until both a provider and matching route are explicitly enabled. See [Outbound channels](docs/CHANNELS.md).
 
 ### Connect to AgentNotify Relay
 
@@ -409,7 +418,10 @@ Uninstall removes application binaries, shortcuts, startup registration, and the
 - Every `/v1/*` route requires the per-user bearer token.
 - Token comparison uses SHA-256 and fixed-time byte comparison.
 - Request bodies, fields, metadata size, and create rate are bounded.
-- Notification content, database rows, and logs remain local; there is no telemetry or cloud service.
+- Database rows and logs remain local, and there is no telemetry. Notification content leaves the
+  machine only through an explicitly enabled outbound channel or Relay route; prompt content leaves
+  only through an enabled model-router upstream. On-demand quota/API-account checks contact only the
+  selected provider and do not send notification or prompt text.
 - API-to-UI callbacks are isolated so a rendering failure cannot make a persisted API request fail.
 - The unauthenticated `/health` endpoint exposes only `{"status":"ok"}`.
 
@@ -453,8 +465,9 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current development branch has 903 passing automated tests. See the exact build and test
-environments in [VERIFICATION.md](docs/VERIFICATION.md).
+The current development branch has 1,254 passing automated tests in the latest full recorded run.
+See the exact commands, environments, and remaining manual checks in
+[VERIFICATION.md](docs/VERIFICATION.md).
 
 ### Build the single-file installer
 

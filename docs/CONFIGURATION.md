@@ -8,16 +8,27 @@ Source: `src/AgentNotify.Core/Config/AgentNotifyConfig.cs`, `src/AgentNotify.Cor
 
 ## File location and format
 
-Default directory and files (`src/AgentNotify.Core/Config/ConfigStore.cs`):
+Default data directory (`src/AgentNotify.Core/Config/ConfigStore.cs`):
 
-| Path | Purpose |
-|------|---------|
-| `%LOCALAPPDATA%\AgentNotify\config.json` | Typed configuration and bearer token |
-| `%LOCALAPPDATA%\AgentNotify\agentnotify.db` | SQLite notification history |
-| `%LOCALAPPDATA%\AgentNotify\logs\` | Daily log files |
-| `%LOCALAPPDATA%\AgentNotify\sounds\` | Managed WAV/MP3 files |
+| Platform | Directory |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\AgentNotify` |
+| macOS/Linux | `$XDG_DATA_HOME/AgentNotify`, or `~/.local/share/AgentNotify` when `XDG_DATA_HOME` is unset |
 
-`%LOCALAPPDATA%` is `Environment.SpecialFolder.LocalApplicationData`. All four paths are derived from the same config directory.
+Every platform derives the same files from that directory:
+
+| Relative path | Purpose |
+| --- | --- |
+| `config.json` | Typed configuration and bearer token |
+| `agentnotify.db` | SQLite notification, interaction, delivery, API-account, and router state |
+| `logs/` | Daily log files |
+| `sounds/` | Managed WAV/MP3 files (used by the Windows desktop application) |
+| `secret.key` | Unix-only fallback encryption key when no supported keyring is available |
+
+`agentnotifyd --config-dir <path>` selects a different absolute data directory for a headless broker.
+On Unix, the directory and sensitive files are created with owner-only permissions. See
+[INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) and [../SECURITY.md](../SECURITY.md) for keyring and
+fallback-key details.
 
 Format: JSON serialized with `AgentNotify.Protocol.Json.Options` (`System.Text.Json` with `JsonSerializerDefaults.Web`, `PropertyNameCaseInsensitive: true`, `JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower)`). JSON property names are therefore camelCase (`port`, `authToken`, `toastLocation`) while enum strings on the wire are snake_case.
 
@@ -30,7 +41,10 @@ Loading behavior:
 
 Saving is atomic: write to a temporary file then `File.Move(overwrite: true)`.
 
-> Warning: `config.json` contains the local bearer token (`authToken`). This value authenticates any local process that can reach `127.0.0.1:47821`. Do not copy, commit, email, or otherwise share the file. Delete `%LOCALAPPDATA%\AgentNotify` only when intentionally removing the token, history, and logs.
+Warning: `config.json` contains the local bearer token (`authToken`). This value authenticates any
+local process that can reach `127.0.0.1:47821`. Do not copy, commit, email, or otherwise share the
+file. Delete the platform data directory only when intentionally removing the token, configuration,
+history, provider state, and logs.
 
 ---
 
@@ -51,11 +65,11 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `doNotDisturb` | `bool` | `false` | Reserved scheduling stub. Currently only affects sound policy. Editable in Settings → General. |
 | `soundsEnabled` | `bool` | `false` | Master switch for notification sounds. Editable in Settings → Sounds. |
 | `soundVolume` | `double` | `0.8` | Playback volume `0.0–1.0`, clamped with `Math.Clamp`. Edited as `0–100` in Settings → Sounds (`value/100`). |
-| `defaultSoundFile` | `string?` | `null` | Global sound filename. Normalized to `Path.GetFileName` and accepted only when extension is `.wav` or `.mp3` (case-insensitive); otherwise `null`. Stored as a bare filename inside the managed sounds directory. Editable in Settings → Sounds (choose/preview/clear). |
+| `defaultSoundFile` | `string?` | `null` | Global sound filename. Normalized with `SafeFileName.Last` so both Windows and POSIX separators are handled, and accepted only when extension is `.wav` or `.mp3` (case-insensitive); otherwise `null`. Stored as a bare filename inside the managed sounds directory. Editable in Settings → Sounds (choose/preview/clear). |
 | `typeSoundFiles` | `object` | `{}` | Per-type override map: type ID → filename. Keys are normalized with `NotificationTypes.Normalize`; values normalized as for `defaultSoundFile`. Invalid entries are dropped; duplicate normalized keys keep the last value. Case-insensitive. Editable in Settings → Sounds per type. |
 | `playCriticalSoundsDuringDoNotDisturb` | `bool` | `false` | When `true`, critical-priority sounds play even when `doNotDisturb` is `true`. Editable in Settings → Sounds. See Sound policy. |
 | `maxRequestBodyBytes` | `long` | `65536` (`64*1024`) | Kestrel `MaxRequestBodySize`. When `<= 0` reset to `65536`. Not editable in Settings. Bodies larger than this are rejected before routing. |
-| `rateLimitPerSecond` | `int` | `30` | Simple fixed-window limit applied to every `POST` under `/v1/notifications` and to `POST /v1/events` (per token, 1-second window); `GET` and `PATCH` are not limited. When `<= 0` reset to `30`. Not editable in Settings. Env does not override. |
+| `rateLimitPerSecond` | `int` | `30` | Simple fixed-window limit applied to every `POST` under `/v1/notifications` and `/v1/interactions`, and to `POST /v1/events` (per token, 1-second window); `GET` and `PATCH` are not limited. When `<= 0` reset to `30`. Not editable in Settings. Env does not override. |
 | `maxMetadataBytes` | `int` | `8192` | Serialized metadata map size cap. When `<= 0` reset to `8192`. Not editable in Settings. Validation uses `JsonSerializer.SerializeToUtf8Bytes(metadata, Json.Options)`. |
 | `toastDurations` | `object` | see below | Map of type ID → auto-dismiss seconds. `0` means sticky until dismissed/resolved. Backfilled from defaults and normalized. Editable in Settings → Toasts per built-in type (0–86400). |
 | `customNotificationTypes` | `array` | `[]` | User-defined type definitions. See Custom types. Editable in Settings → Custom types. |
@@ -104,7 +118,7 @@ if (!soundsEnabled || pauseNotifications) return false;
 return !doNotDisturb || (priority == critical && playCriticalSoundsDuringDoNotDisturb);
 ```
 
-File resolution uses `ManagedSoundStore.Resolve` against `%LOCALAPPDATA%\AgentNotify\sounds\`. Missing files are logged and no sound plays; the notification itself is unaffected.
+File resolution uses `ManagedSoundStore.Resolve` against the data directory's `sounds/` folder. Missing files are logged and no sound plays; the notification itself is unaffected.
 
 Files imported through Settings → Sounds are validated by `ManagedSoundStore.Import` (`src/AgentNotify.Core/Services/ManagedSoundStore.cs`): must be `.wav`/`.mp3`, `1 byte–10 MB`, copied with a content-addressed safe name `{safeBase}-{hash16}{ext}` where `safeBase` is sanitized to `[A-Za-z0-9_-]` (max 40). Built-in tones (`chime.wav`, `ping.wav`, `alert.wav`, `knock.wav`) are seeded idempotently from embedded resources.
 

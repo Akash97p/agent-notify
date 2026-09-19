@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Security fixes target the latest released AgentNotify version. This repository currently represents prerelease version `0.0.3-alpha.1`; the first mature release is reserved for `1.0.0`.
+Security fixes target the latest released AgentNotify version. This repository currently represents prerelease version `0.2.0-alpha.2`; the first mature release is reserved for `1.0.0`.
 
 ## Reporting a vulnerability
 
 Do not disclose an exploitable issue in a public GitHub issue. Contact the repository owner through a private GitHub contact channel and include:
 
-- affected version and Windows version;
+- affected AgentNotify version and operating-system version;
 - reproduction steps or a minimal proof of concept;
 - expected and observed behavior;
 - impact, especially whether another local process can read or modify notifications; and
@@ -18,7 +18,7 @@ Avoid including real bearer tokens, notification content, database files, or oth
 
 ## Trust boundary
 
-AgentNotify assumes the signed-in Windows user controls processes in that user session. Its API is protected by:
+AgentNotify assumes the signed-in operating-system user controls processes in that user session. Its API is protected by:
 
 - binding exclusively to `127.0.0.1`;
 - a randomly generated per-user bearer token;
@@ -26,9 +26,9 @@ AgentNotify assumes the signed-in Windows user controls processes in that user s
 - a create-request rate limit; and
 - local persistence under the user profile.
 
-The token prevents accidental or unsophisticated calls from unrelated local software. It is not a defense against malware already running as the same Windows user, which can generally read that user’s files and process environment.
+The token prevents accidental or unsophisticated calls from unrelated local software. It is not a defense against malware already running as the same OS user, which can generally read that user’s files and process environment.
 
-`%LOCALAPPDATA%\AgentNotify\config.json` contains the token. Do not attach it to issues, commit it, print it in agent output, or send it to external services. Logs intentionally omit the token.
+`config.json` contains the token: `%LOCALAPPDATA%\AgentNotify\config.json` on Windows and `$XDG_DATA_HOME/AgentNotify/config.json` (normally `~/.local/share/AgentNotify/config.json`) on macOS/Linux. Do not attach it to issues, commit it, print it in agent output, or send it to external services. Logs intentionally omit the token.
 
 ### Web interface
 
@@ -41,12 +41,13 @@ need a custom header and an `Origin` matching that exact loopback host and port;
 security policy applies. Stored channel secrets and question nonces are never sent to the page. The
 `/v1` agent API still requires the bearer token. Details: [docs/WEB_UI.md](docs/WEB_UI.md).
 
-The Usage page reads Claude Code and Codex session logs and OpenCode's SQLite message table as
-local, read-only input. The OpenCode query selects usage scalars only, not prompt or response
-payloads. Its endpoint returns aggregate token counts, model identifiers, project folder names
-with opaque IDs, and a
-published-rate cost estimate. It never returns full project paths, log paths, prompt/response text,
-or provider credentials. It does not contact agent providers or billing APIs.
+The Usage page reads local, read-only activity records from Claude Code, Codex, OpenCode, the
+Kilo CLI, Muse Code, and the Gemini CLI; on Windows it also reads those sources inside running WSL
+distributions. Database queries and file parsers select usage scalars and identifiers, not prompt or
+response payloads. The endpoint returns aggregate token counts, model identifiers, project folder
+names with opaque IDs, and a published-rate cost estimate. It never returns full project paths, log
+paths, prompt/response text, or provider credentials. It does not contact agent providers or billing
+APIs.
 
 Live quota is a separate on-demand feature. Codex quota is requested through the locally
 installed Codex app-server RPC, which owns its authentication. Claude Code quota uses a bounded
@@ -66,19 +67,55 @@ Codex in the selected `CODEX_HOME`. The Claude probe reads the selected agent-ow
 file without copying it into AgentNotify storage. OpenCode Go estimates read only local usage
 scalars and are labeled as incomplete local observations, never provider-confirmed balance.
 
+API-account balance/spend checks are also explicit and on demand. Keys are encrypted, write-only,
+and sent only to the selected provider's fixed official host. Prefer a dedicated least-privilege key:
+OpenAI and Anthropic Admin keys can manage an entire organization, not merely read a personal
+balance, and any process already running as this OS user can ask AgentNotify to use stored
+credentials. The WebUI requires a separate acknowledgement before saving one.
+
+### Provider router
+
+The model router is an optional local proxy and is off by default. When it is off, `/router` returns
+`404` and AgentNotify makes no model-provider request. When enabled it accepts OpenAI Responses,
+OpenAI Chat Completions, and Anthropic Messages shapes on loopback, translates when needed, and sends
+the prompt/conversation content to the configured upstream provider. Enabling it therefore expands
+the trust boundary beyond local notification data: prompts, tool arguments/results, images, and any
+other supported request content necessarily leave the machine for the provider selected by routing.
+
+Router protections are deliberately separate from notification access:
+
+- `/router` remains loopback-only, rejects non-loopback `Host` values, and refuses browser `Origin`
+  requests; its maximum body size is independently bounded.
+- A separate router key grants the ability to spend through configured providers but cannot read the
+  `/v1` notification API or WebUI configuration. Treat it as a local spending credential.
+- Upstream API keys are encrypted with the same platform protector as channel secrets, are
+  write-only, and are decrypted only while creating the upstream request.
+- Upstreams require HTTPS, except explicit loopback HTTP for a local model server. Redirects, cookies,
+  and system proxies are disabled so a credential cannot follow an unexpected destination.
+- The SQLite ledger records routing, model, status, duration, usage, and stable error codes, but never
+  prompts, responses, headers, keys, or provider error bodies.
+- Claude Code's native Anthropic credential is forwarded only to Anthropic for an otherwise-unrouted
+  native Claude model. It is never stored, logged, entered in the ledger, or sent to another upstream.
+- ChatGPT-plan and Muse Code subscription integrations reuse another tool's local sign-in through
+  undocumented provider interfaces. They are clearly labeled unofficial and remain opt-in.
+
+Connecting Codex or Claude Code can modify that agent's configuration only after an explicit local
+UI/CLI action; AgentNotify first creates a restorable copy. See [docs/ROUTER.md](docs/ROUTER.md) for
+the exact routes, formats, failover rules, subscription caveats, and file changes.
+
 ## External-channel requirements
 
-Email, WhatsApp, chat, SMS, push, LAN, and remote transports are not part of the 1.0 baseline. Any implementation must be separately reviewed for:
+The nineteen implemented email, chat, SMS, push, webhook, MQTT, and Relay adapters are opt-in extensions; local-only operation remains the default. Any new adapter or material transport change must be separately reviewed for:
 
 - explicit opt-in and destination verification;
-- provider credential storage using Windows-protected secret storage;
+- provider credential storage using the platform secret protector;
 - notification-content redaction and user-configurable allowlists;
 - retry limits, idempotency, cost controls, and provider rate limits;
 - transport encryption and certificate validation;
 - auditing without logging secrets or sensitive message content; and
 - a clear local-only mode that remains the default.
 
-Provider profiles, routes, outbox state, and delivery attempts may be stored in SQLite. Credentials must first be encrypted with a versioned secret envelope backed by Windows DPAPI in current-user scope. Plaintext secrets must exist only for the minimum time required to configure or call a provider, and must never appear in list responses, exports, exception messages, notification metadata, analytics, or logs.
+Provider profiles, routes, outbox state, and delivery attempts are stored in SQLite. Credentials must first be encrypted with a versioned platform secret envelope (Windows DPAPI or the Unix protections below). Plaintext secrets must exist only for the minimum time required to configure or call a provider, and must never appear in list responses, exports, exception messages, notification metadata, analytics, or logs.
 
 The implemented envelope prefix is `dpapi-user:v1:` and protection uses application-specific optional entropy. See Microsoft’s [ProtectedData documentation](https://learn.microsoft.com/dotnet/api/system.security.cryptography.protecteddata.protect).
 

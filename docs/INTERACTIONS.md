@@ -77,11 +77,11 @@ own equivalent surfaces; see [HARNESS.md](HARNESS.md).
 | `text_max_length` | Answer bound for `text` (default 500, max 2000) |
 | `status` | `pending`, `answered`, `expired`, `cancelled`, `superseded` (terminal states never change) |
 | `request_digest` | SHA-256 hex over the canonical request; every answer must echo it |
-| `nonce` | Single-use secret echoed by relay/mobile answers; bearer-protected on loopback |
+| `nonce` | Single-use secret every answer must echo; bearer-protected on loopback and sealed in Relay requests |
 | `expires_at` | Absolute deadline (TTL 30–3600 s, default 600 s) |
 
 A response carries a client-generated `response_id` (idempotency key), the
-digest, one `choice_id` **or** `text` (never both, never neither), a `source`
+digest and nonce, one `choice_id` **or** `text` (never both, never neither), a `source`
 (`desktop`, `cli`, `relay`, or host id), and an optional `device_id`.
 
 Answer rules, in order:
@@ -91,7 +91,7 @@ Answer rules, in order:
 2. Not pending (`expired`, `cancelled`, `superseded`) → `400`.
 3. Digest mismatch → `400`: the question changed since it was asked, so the
    answer cannot apply.
-4. Nonce mismatch (when both sides present one) → `400`.
+4. Missing or mismatched nonce → `400`.
 5. Wrong shape for the kind (unknown `choice_id`, over-long `text`) → `400`.
 
 Expiry is swept on every read/write; a `wait` that outlives the deadline
@@ -109,12 +109,15 @@ GET  /v1/interactions/{id}
 GET  /v1/interactions/{id}/wait?timeout=60
 POST /v1/interactions/{id}/respond
 POST /v1/interactions/{id}/cancel
+POST /v1/interactions/{id}/publish
 ```
 
 `request` returns `201` on creation and `200` when a repeated key reuses the
 pending interaction. `wait` blocks up to `timeout` seconds (1–300, default
 60) and always returns the current state as JSON — `pending` on timeout, so
-callers poll again. Field names are `snake_case` throughout.
+callers poll again. `publish` manually re-enqueues the question for matching enabled Relay routes and
+returns the number published; it returns `400` when Relay publishing is unavailable. Field names are
+`snake_case` throughout.
 
 ## CLI
 
@@ -126,12 +129,12 @@ agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
 agentnotify interactions list --pending
 agentnotify interactions get <id>
 agentnotify interactions wait <id> --timeout 120
-agentnotify interactions respond <id> --response-id r1 --digest <digest> --choice deny
+agentnotify interactions respond <id> --response-id r1 --digest <digest> --nonce <nonce> --choice deny
 agentnotify interactions cancel <id>
 ```
 
 `--choice` is repeatable as `ID:LABEL`; add `--choice-detail ID:DETAIL` for
-scope/command previews. `respond` needs the digest from `get` and exactly one
+scope/command previews. `respond` needs the digest and nonce from `get` and exactly one
 of `--choice` / `--text`. See `agentnotify help interactions`.
 
 ## Storage and lifecycle
@@ -148,7 +151,7 @@ harness never polls in a loop.
 - The digest binds an answer to the exact displayed request; a changed
   prompt (key reuse with new text) supersedes the old interaction instead of
   inheriting its answer.
-- The nonce binds relay/mobile answers to a request they actually received;
-  never log or forward it beyond the sealed request envelope.
+- The nonce binds every answer to a request the caller actually read. It is returned only by the
+  bearer-protected loopback API or inside the sealed Relay request; never log or forward it elsewhere.
 - Logs record interaction ids, kinds, and outcomes — never prompts, choices,
   answers, digests, or nonces.

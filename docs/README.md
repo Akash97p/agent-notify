@@ -1,7 +1,7 @@
 # AgentNotify documentation
 
 AgentNotify is a local human-attention broker for coding agents. This directory holds the project
-documentation. The current published prerelease is `0.1.0-alpha.2`; the mature `1.0.0`
+documentation. The current published prerelease is `0.2.0-alpha.2`; the mature `1.0.0`
 milestone is intentionally reserved and has not been reached.
 
 ## Platform support
@@ -16,6 +16,7 @@ and shows notifications, questions, usage, costs, and quotas on all three platfo
 
 | Document | What it covers |
 | --- | --- |
+| [INSTALL_WITH_AGENT.md](INSTALL_WITH_AGENT.md) | A step-by-step prompt that lets a terminal-capable agent install and verify AgentNotify |
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
 | [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
 | [WEB_UI.md](WEB_UI.md) | The browser interface for settings, questions, usage, published-rate cost estimates, named-account live quota, and Insights |
@@ -23,7 +24,7 @@ and shows notifications, questions, usage, costs, and quotas on all three platfo
 | [ROUTER.md](ROUTER.md) | The opt-in local provider router: endpoints, upstreams, routes, translation, failover, and its ledger |
 | [CLI.md](CLI.md) | Every `agentnotify` command, flag, output shape, and exit code |
 | [API.md](API.md) | The loopback `/v1` HTTP API: routes, request/response bodies, and errors |
-| [ARC.md](ARC.md) | Attention Request Contract 0.1 lifecycle, schema, and AgentNotify binding |
+| [ARC.md](ARC.md) | Attention Request Contract 0.2 lifecycle, schemas, and AgentNotify binding; 0.1 is retained as history |
 | [CONFIGURATION.md](CONFIGURATION.md) | The on-disk config file, every setting, and custom notification types |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Symptoms, causes, and fixes for common problems |
 

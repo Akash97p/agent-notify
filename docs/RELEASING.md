@@ -12,7 +12,7 @@ The repository is published at [github.com/Akash97p/agent-notify](https://github
 
 The Pages workflow builds the Next.js application in `site/` as a static export after changes reach
 `dev` or `main`. The site uses TypeScript, Tailwind CSS, and checked-in shadcn/ui source components;
-`scripts/build-site.sh` copies the ARC schema and branding assets, runs `npm ci`, type-checks, builds,
+`scripts/build-site.sh` copies the ARC 0.1 and 0.2 schemas and branding assets, runs `npm ci`, type-checks, builds,
 and stages the export in `_site`. GitHub Actions then uploads that directory using the official Pages
 actions and requests only read, Pages, and OIDC permissions.
 

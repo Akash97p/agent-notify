@@ -22,7 +22,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { site } from "@/lib/site";
 
-const channels = ["Desktop", "SMTP", "Telegram", "Discord", "Slack", "Teams", "Zoho Cliq", "Google Chat", "Mattermost", "Matrix", "ntfy", "Gotify", "Pushover", "Pushbullet", "Twilio", "WhatsApp", "MQTT", "Webhook"];
+const channels = [
+  "Webhook",
+  "SMTP",
+  "Telegram",
+  "Discord",
+  "Slack",
+  "Teams",
+  "Zoho Cliq",
+  "Google Chat",
+  "Mattermost",
+  "Matrix",
+  "ntfy",
+  "Gotify",
+  "Pushover",
+  "Pushbullet",
+  "Twilio SMS",
+  "WhatsApp Cloud",
+  "Twilio WhatsApp",
+  "MQTT",
+  "AgentNotify Relay",
+];
 
 export default function Home() {
   return (
@@ -71,7 +91,7 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid divide-y rounded-xl border bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {[['3', 'local usage sources'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
+          {[['6', 'local usage sources'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
             <div className="px-6 py-5" key={label}><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div>
           ))}
         </div>
@@ -103,6 +123,25 @@ export default function Home() {
           <Feature icon={FolderKanban} title="One Insights dashboard">See 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health in one view. Account quota and local usage retain their separate sources.</Feature>
         </div>
         <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota and API accounts are checked on demand, and API keys are stored encrypted and never shown again; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
+      </section>
+
+      <Separator />
+
+      <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6" id="router">
+        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-3xl">
+            <Badge variant="secondary">Provider router · Opt in</Badge>
+            <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Choose the model path without changing the agent.</h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">The local router accepts OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages requests, then selects a provider and model, translates wire formats when needed, and can switch or fail over across configured targets.</p>
+          </div>
+          <Button asChild variant="outline"><Link href="/docs/router/">Read the router guide <ArrowRight /></Link></Button>
+        </div>
+        <div className="mt-12 grid gap-4 md:grid-cols-3">
+          <Feature icon={Route} title="Local and off by default">The router binds to loopback and does nothing until you enable it. Codex and Claude Code connections are explicit and backed up before AgentNotify edits their files.</Feature>
+          <Feature icon={GitBranch} title="Select, switch, and fail over">Use direct provider/model selectors, nicknames, ordered fallback chains, or smart switching across providers that expose the same model.</Feature>
+          <Feature icon={LockKeyhole} title="A separate spending boundary">The router key cannot read notifications. Upstream keys are encrypted and write-only, while the ledger excludes prompts, responses, headers, keys, and provider error bodies.</Feature>
+        </div>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">When enabled, request content is sent to the upstream provider selected by routing. ChatGPT-plan and Muse Code subscription integrations are unofficial, clearly labeled, and opt-in.</p>
       </section>
 
       <Separator />

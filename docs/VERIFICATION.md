@@ -2107,6 +2107,41 @@ interface, skill, four agent accounts, usage, live quota (one Claude account nee
 ❌), router, and Relay. It then listed next steps that were already done, so the prompt now asks for
 only the ones not yet set up. Not run: a fresh install on a clean macOS, Linux, or Windows machine.
 
+## Documentation and GitHub Pages audit (`docs/documentation-audit`, 2026-09-19)
+
+Audited the maintained documentation against the current API routes, configuration normalization,
+interaction DTOs, six local usage sources, nineteen outbound adapters, provider-router behavior,
+release version, and Pages source. Corrected stale release/test references; documented every
+`/v1/interactions` route (including manual Relay publishing), current rate-limit scope, and nonce
+requirements; corrected the built-in CLI interaction help; updated the cross-platform security
+boundary and router/API-account risks; and exposed the install-with-agent, provider-router, and
+security guides on GitHub Pages. The Pages build now
+copies and byte-compares both ARC 0.1 and ARC 0.2 schemas instead of silently dropping the schema the
+homepage links to.
+
+Verified on the owner's Intel MacBook with macOS 26.6.2, Node 22.18.0/npm 10.9.3, and .NET SDK
+10.0.401:
+
+- `git diff --check`: passed.
+- Local Markdown target audit: 47 maintained Markdown files checked; every relative file target
+  exists. The previous broken tracked link to the ignored `artifacts/AgentNotifySetup.exe` was
+  replaced with the tagged prerelease page while retaining the local packaging path as code text.
+- `./scripts/build-site.sh`: passed (`npm ci`, Next type generation, `tsc --noEmit`, and static export;
+  30 static pages generated). `_site/docs/{install-with-agent,router,security}/index.html` exist.
+- Both generated schema files exist and are byte-identical to
+  `src/AgentNotify.Protocol/Schemas/arc-{0.1,0.2}.schema.json`.
+- Generated-site crawl: 4,585 local links/assets across 57 HTML files; every target exists.
+- `AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/build.sh
+  -p:EnableWindowsTargeting=true`: succeeded, 0 warnings and 0 errors.
+- `AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/test.sh
+  -p:EnableWindowsTargeting=true`: 1,254 passed, 0 failed, 0 skipped.
+
+Not verified: a human visual review of the changed homepage/navigation at desktop and narrow widths;
+a Windows runtime/WPF check; or `./scripts/package.sh`, which requires WSL/PowerShell and was not
+required because this branch changes documentation, site sources, and CLI help text rather than
+installer payload, embedded resources, publish settings, or release automation. No application
+behavior or database schema changed.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

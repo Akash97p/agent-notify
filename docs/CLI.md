@@ -39,14 +39,14 @@ All commands that contact the broker use a 10-second HTTP timeout. Connection fa
 
 | Flag | Short | Value | Required | Default |
 |------|-------|-------|----------|---------|
-| `--port` | — | integer | no | `47821` from `%LOCALAPPDATA%\AgentNotify\config.json` `port`, or `AGENTNOTIFY_PORT` when `ConfigStore` is constructed with environment overrides |
+| `--port` | — | integer | no | `47821` from the platform data directory's `config.json` `port`, or `AGENTNOTIFY_PORT` when `ConfigStore` is constructed with environment overrides |
 | `--token` | — | string | no | `authToken` from the same config file, or `AGENTNOTIFY_TOKEN` (see Authentication) |
 
 Token resolution for broker calls (`src/AgentNotify.Cli/Program.cs`):
 
 1. `--token` when supplied.
 2. `AGENTNOTIFY_TOKEN` environment variable when `ConfigStore(applyEnvOverrides: true)` is used.
-3. `authToken` from `%LOCALAPPDATA%\AgentNotify\config.json`.
+3. `authToken` from the platform data directory's `config.json`.
 
 If no token is available a warning is written to stderr but the request is still sent; the broker replies `401`.
 
@@ -252,7 +252,7 @@ agentnotify.exe health --port 47821 --token "$TOKEN"
 agentnotify token
 ```
 
-Reads `ConfigStore().Load()` (default `%LOCALAPPDATA%\AgentNotify\config.json`). On success prints the token to stdout with no additional formatting. Failures:
+Reads `ConfigStore().Load()` (the platform data directory's `config.json`). On success prints the token to stdout with no additional formatting. Failures:
 
 - `No token found. Has AgentNotify run at least once? Look at: {ConfigPath}` to stderr.
 - Any exception message to stderr.
@@ -451,10 +451,10 @@ agentnotify interactions request --prompt TEXT [options]
 agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
 agentnotify interactions get <id>
 agentnotify interactions wait <id> [--timeout SECONDS]
-              agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
-              agentnotify interactions cancel <id>
-              agentnotify interactions publish <id>
-              agentnotify interactions poll-responses [--provider ID] [--json]
+agentnotify interactions respond <id> --response-id R --digest D --nonce N [--choice C | --text T] [--source S] [--device D]
+agentnotify interactions cancel <id>
+agentnotify interactions publish <id>
+agentnotify interactions poll-responses [--provider ID] [--json]
 ```
 
 Opens a durable interaction (permission, single choice, or bounded text) and
@@ -462,7 +462,7 @@ collects the first valid answer. Repeated `--key` reuses the pending
 interaction; a changed question supersedes it. `request` prints the full
 interaction JSON including `request_digest` and `nonce`. `wait` blocks until
 the interaction settles or `--timeout` (1–300 s, default 60) and always prints
-the current state. `respond` needs the digest from `get` and exactly one of
+the current state. `respond` needs the digest and nonce from `get`, plus exactly one of
 `--choice` / `--text`; a repeated `--response-id` replays the original
 outcome, a new one after an answer is a `409`. See
 [INTERACTIONS.md](INTERACTIONS.md).
@@ -474,7 +474,7 @@ agentnotify interactions request --kind permission --prompt "Deploy to prod?" \
   --choice allow-once:"Allow once" --choice deny:"Deny" --agent codex --project shop
 agentnotify interactions list --pending
 agentnotify interactions wait abc123 --timeout 120
-agentnotify interactions respond abc123 --response-id r1 --digest <digest> --choice deny
+agentnotify interactions respond abc123 --response-id r1 --digest <digest> --nonce <nonce> --choice deny
 agentnotify interactions publish abc123
 agentnotify interactions poll-responses
 ```

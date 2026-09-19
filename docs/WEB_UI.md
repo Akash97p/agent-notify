@@ -4,9 +4,9 @@ The broker serves a web interface for everything the Windows Settings window and
 Center manage. It runs wherever the broker runs, so macOS and Linux get the same configuration
 surface as Windows, and nothing extra is installed.
 
-This guide describes the current development source. The tagged `v0.1.0-alpha.2` binaries predate
-the WebUI Insights pages; build the current `main` branch or wait for the next tagged release to
-use Usage, Live quota, and Dashboard.
+This guide describes the current development source. The tagged `v0.2.0-alpha.2` release includes
+the WebUI Insights pages, provider router, Usage, Live quota, and Dashboard. Features merged after
+that tag still require a newer source build until the next release.
 
 ```bash
 agentnotify ui

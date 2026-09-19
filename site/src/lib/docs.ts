@@ -20,13 +20,15 @@ export type DocDefinition = {
 };
 
 export const docs: DocDefinition[] = [
+  { source: "docs/INSTALL_WITH_AGENT.md", slug: "install-with-agent", title: "Install with an agent", section: "Getting started", description: "Let a terminal-capable coding agent install and verify AgentNotify." },
   { source: "docs/INSTALLATION.md", slug: "installation", title: "Install on Windows", section: "Getting started", description: "Install the Windows desktop application and CLI." },
   { source: "docs/INSTALLATION_UNIX.md", slug: "installation-unix", title: "Install on macOS and Linux", section: "Getting started", description: "Run the portable CLI and headless broker." },
   { source: "docs/TROUBLESHOOTING.md", slug: "troubleshooting", title: "Troubleshooting", section: "Getting started", description: "Diagnose common installation, API, and delivery problems." },
   { source: "docs/WEB_UI.md", slug: "web-ui", title: "Web interface", section: "Using AgentNotify", description: "Questions, settings, usage, estimated cost, and live quota in the browser." },
   { source: "docs/CLI.md", slug: "cli", title: "Command line", section: "Using AgentNotify", description: "Commands, flags, output shapes, and exit codes." },
   { source: "docs/API.md", slug: "api", title: "Local REST API", section: "Using AgentNotify", description: "Authenticated loopback endpoints and request contracts." },
-  { source: "docs/ARC.md", slug: "arc", title: "Attention Request Contract", section: "Using AgentNotify", description: "ARC 0.1 lifecycle, schema, and reference binding." },
+  { source: "docs/ARC.md", slug: "arc", title: "Attention Request Contract", section: "Using AgentNotify", description: "ARC 0.2 lifecycle, schemas, and reference binding." },
+  { source: "docs/ROUTER.md", slug: "router", title: "Provider router", section: "Using AgentNotify", description: "Opt-in model routing, translation, switching, failover, and security boundaries." },
   { source: "docs/CONFIGURATION.md", slug: "configuration", title: "Configuration", section: "Using AgentNotify", description: "Configuration files, defaults, and notification types." },
   { source: "docs/CHANNELS.md", slug: "channels", title: "Outbound channels", section: "Using AgentNotify", description: "Nineteen opt-in adapters and their security policies." },
   { source: "docs/RELAY.md", slug: "relay", title: "AgentNotify Relay", section: "Using AgentNotify", description: "The hosted transport from your computers to your phone." },
@@ -37,6 +39,7 @@ export const docs: DocDefinition[] = [
   { source: "docs/RELAY_INTERACTIONS.md", slug: "relay-interactions", title: "Relay interaction sync", section: "Agents", description: "Relay/mobile wire contract for answering from the phone." },
   { source: "docs/BIDIRECTIONAL_AGENT_COMMUNICATION.md", slug: "bidirectional-agent-communication", title: "Bidirectional agent communication", section: "Agents", description: "Shipped answer paths, remaining work, host adapters, and protocol research." },
   { source: "docs/ARCHITECTURE.md", slug: "architecture", title: "Architecture", section: "Project", description: "Process model, components, persistence, and failure behavior." },
+  { source: "SECURITY.md", slug: "security", title: "Security policy", section: "Project", description: "Trust boundaries, secret handling, provider risks, and vulnerability reporting." },
   { source: "docs/CROSS_PLATFORM.md", slug: "cross-platform", title: "Cross-platform plan", section: "Project", description: "Portable boundaries and native-client roadmap." },
   { source: "docs/ROADMAP.md", slug: "roadmap", title: "Roadmap", section: "Project", description: "Current direction and explicitly uncommitted work." },
   { source: "docs/FEATURE_BACKLOG.md", slug: "feature-backlog", title: "Feature backlog", section: "Project", description: "Ordered capabilities and implementation status." },
