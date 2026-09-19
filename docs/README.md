@@ -59,6 +59,7 @@ new guide needs an entry in `site/src/lib/docs.ts` to appear in navigation.
 | [CHANNELS.md](CHANNELS.md) | Every implemented outbound delivery adapter and its security policy |
 | [CROSS_PLATFORM.md](CROSS_PLATFORM.md) | The macOS and Linux plan, its phases, and current status |
 | [../SECURITY.md](../SECURITY.md) | Trust boundaries, secret handling, provider risks, and vulnerability reporting |
+| [../audit_2026-09-19.md](../audit_2026-09-19.md) | The pre-release security audit: assets, data flows, findings, and the controls that hold up |
 
 ## Planning and process
 

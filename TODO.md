@@ -136,6 +136,24 @@
 - [ ] Human multi-monitor/taskbar-position verification
 - [ ] Clean-profile install/uninstall verification on a second Windows user
 
+## Security audit follow-ups
+
+From [audit_2026-09-19.md](audit_2026-09-19.md). Ordered by impact; the audit has the code
+references and fix directions.
+
+- [ ] **H1** — pick the secret-protection store once and share it across processes, and never write a
+      keychain item when a read failed ambiguously (`errSecInteractionNotAllowed` is not
+      `errSecItemNotFound`)
+- [ ] **M3** — rate limit `/ui/api` mutations so credential-backed refresh/test-send routes cannot be
+      driven in a loop
+- [ ] **M2** — decide the `/ui` boundary for shared machines (documented first-run acknowledgement, or
+      an opt-in token)
+- [ ] **L4** — lock file, centralized package versions, and a vulnerable-package check in CI
+- [ ] **M1** — report when owner-only modes could not be applied instead of continuing silently
+- [ ] **L5** — document that the mobile path keeps *content* local, not metadata
+- [ ] **L2** — document that `config.json` and the environment overrides are the token's only protection
+- [ ] **L3** — keep the unauthenticated `/health` probe minimal, and revisit if it ever returns data
+
 ## Future delivery channels
 
 - [x] Hardened generic HTTPS webhook adapter and native provider/route/diagnostics UI
