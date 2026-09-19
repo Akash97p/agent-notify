@@ -5,6 +5,46 @@ Environment: Windows 11 host, WSL workspace, Windows .NET SDK 10.0.302 at `/mnt/
 
 This record distinguishes automated/process verification from visual checks. No result from the inherited `/mnt/d/dev/AgentNotify` documentation was accepted without rerunning it.
 
+## Pre-release security audit, and the repository gates rerun on macOS (2026-09-19)
+
+The pre-release review of the `dev` tree is published as [`audit_2026-09-19.md`](../audit_2026-09-19.md):
+what the product is trusted with, what leaves the machine, findings H1/M1-M3/L1-L5 with code
+references, the controls that hold up, and a suggested fix order. Its open findings are tracked in
+`TODO.md` and it is linked from `SECURITY.md`.
+
+What was actually run, on the owner's Intel Mac against the merged `dev` tree, using the native SDK at
+`~/.dotnet/dotnet` (10.0.401) through the repository scripts:
+
+```bash
+AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/build.sh -p:EnableWindowsTargeting=true
+AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/test.sh
+EnableWindowsTargeting=true dotnet package list --vulnerable --include-transitive
+node /tmp/an-render/layout.mjs "http://127.0.0.1:49002/ui/#/overview"   # headless Chrome over CDP
+npm run typecheck --prefix site && npm exec --yes --package=node@24.21.0 -- \
+  node node_modules/next/dist/bin/next build --webpack
+```
+
+- Release build: succeeded, 0 warnings, 0 errors.
+- `./scripts/test.sh`: 1,263 passed, 0 failed, 0 skipped.
+- Dependency scan, direct and transitive against nuget.org: no known vulnerable packages in any of
+  the 11 projects.
+- WebUI: `/ui/#/overview`, `#/insights`, `#/quota`, `#/usage`, `#/router`, and `#/attention` rendered
+  with live data and no uncaught exception, console error, or browser log error. The same CDP probe
+  reported no horizontal overflow and no clipped element on any of the six, and the overview's four
+  metric cards share one row above a 2x2 panel grid that links to the Attention, Usage, Quota, and
+  Router pages. Screenshots: `/tmp/an-render/p-*.png`.
+- Documentation site: typecheck and static export succeeded, 31 prerendered pages including
+  `/insights/`, `/router/`, and `/docs/install-with-agent/`, with no `/docs/` index route — the topbar
+  Documentation link points straight at the install guide.
+
+Not verified: how any of it looks. The screenshots were captured but the tools available here cannot
+open images, so spacing, contrast, density, and the rendered Pages output remain unchecked, as does
+the Windows-side rendering. `scripts/package.sh` needs PowerShell on Windows, so packaging was not
+run; no installer payload, embedded resource, or publish setting changed in this work. The gates were
+run with a native SDK and `EnableWindowsTargeting=true` because the default `scripts/*.sh` path expects
+a Windows `dotnet.exe`. No penetration test, fuzzing, or static analysis was performed, and the audit's
+keychain finding (H1) was read from the code and the existing reproduction note rather than re-triggered.
+
 ## Overview dashboard rendered in a real browser (2026-09-19)
 
 The Overview page now summarizes notifications, 30-day usage and cost, the lowest live quota window,
