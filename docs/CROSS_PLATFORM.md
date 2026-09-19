@@ -161,10 +161,10 @@ release workflow attaches them.
 
 ## Phase 5 — Native desktop clients (**partly done**)
 
-**Done:** a native Swift/AppKit macOS status item shows the lowest selected Codex/Claude five-hour
-balance and lists every monitored account/window. The broker owns its lifecycle; Live quota in the
-WebUI configures enabled state, refresh interval, and headline accounts. The child receives only the
-loopback port and normalized quota projection.
+**Done:** a native Swift/AppKit macOS client shows one status item per selected Codex/Claude account,
+with its provider mark and five-hour balance, and lists every monitored account/window. The broker
+owns its lifecycle; Live quota in the WebUI configures enabled state, refresh interval, and menu-bar
+accounts. The child receives only the loopback port and normalized quota projection.
 
 **Planned:** a full macOS notification center/settings client and a Linux tray client, both built on
 the same portable broker. Contributors welcome; the earlier phases keep this possible without a

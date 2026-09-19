@@ -29,15 +29,16 @@ build.
 
 ### Added
 
-- **Provider marks in the macOS menu bar.** The quota status item now shows the Claude starburst or
-  the OpenAI knot (Codex) beside the percentage, and every account row in the dropdown carries its
-  provider's mark, dimmed when that account is not in the headline selection. The marks ship as
+- **Provider marks in the macOS menu bar.** Every selected account gets its own status item with the
+  Claude starburst or OpenAI knot (Codex) beside its percentage; clicking any item opens the full
+  quota menu. Every account row carries its provider's mark, dimmed when that account is not selected
+  for the menu bar. The marks ship as
   embedded vector path data with a small in-process parser; no image assets are added to the build.
-- **Native macOS quota menu bar.** The broker starts a thin AppKit status item that shows the lowest
-  selected Codex/Claude five-hour balance like a battery percentage. Its menu lists every monitored
+- **Native macOS quota menu bar.** The broker starts a thin AppKit client with one status item per
+  selected Codex/Claude account, each showing its five-hour balance like a battery percentage. Its menu lists every monitored
   account and quota window, reset times, plan/credit data, stale state, manual refresh, and a link to
   Live quota. The WebUI controls enabled state, a 5–60 minute refresh interval, and which accounts
-  drive the headline; the native child receives no bearer token or provider credential.
+  appear; the native child receives no bearer token or provider credential.
 - macOS release archives now include `agentnotify-menubar`; the installer places and locally signs it
   beside `agentnotifyd`, and portable release packaging runs on macOS so Swift/AppKit can be built for
   Intel and Apple Silicon.

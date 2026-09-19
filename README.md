@@ -90,11 +90,12 @@ Everywhere:
 
 On macOS, additionally:
 
-- A native menu-bar percentage showing the lowest selected Codex/Claude five-hour balance.
+- One native menu-bar item per selected Codex/Claude account, showing its provider mark and
+  five-hour balance.
 - A dropdown listing every monitored Codex and Claude Code account, all returned quota windows,
   reset times, plan/credit data, stale state, and refresh controls.
-- WebUI controls for enabling the status item, choosing a 5–60 minute refresh interval, and deciding
-  which accounts participate in the headline percentage.
+- WebUI controls for enabling the status items, choosing a 5–60 minute refresh interval, and deciding
+  which accounts appear in the menu bar.
 
 On Windows, additionally:
 

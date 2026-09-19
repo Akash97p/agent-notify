@@ -261,8 +261,8 @@ across eleven harnesses.
 - Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
   endpoint feed separately cached windows for the current, secondary (`.codex-*`/`.claude-*`), WSL,
   and up to 16 hand-added profiles. Every account can be renamed, moved, removed, and restored. A
-  native macOS status item now shows the lowest selected five-hour balance and lists every account
-  and returned window; Live quota configures enabled state, 5–60 minute refresh, and headline accounts.
+  native macOS client now shows one status item per selected account and lists every account and
+  returned window; Live quota configures enabled state, 5–60 minute refresh, and menu-bar accounts.
   OpenCode Go has a per-model published-cap estimate whose monthly window can follow the renewal
   day. Add a stable Claude source or statusline bridge, context-tiered Go rates, and opt-in,
   labelled unofficial sources for tools without a public quota API (Gemini CLI/Antigravity, Cursor,

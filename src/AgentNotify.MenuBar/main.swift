@@ -345,10 +345,15 @@ private enum ClientError: LocalizedError {
     }
 }
 
+private struct AccountBalance {
+    let account: QuotaAccount
+    let remainingPercent: Double?
+}
+
 private final class MenuBarApp: NSObject, NSApplicationDelegate {
     private let port: Int
     private let baseURL: URL
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private var statusItems: [NSStatusItem] = []
     private let session: URLSession
     private let decoder: JSONDecoder
     private var refreshTimer: Timer?
@@ -373,11 +378,9 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard let button = statusItem.button else { return }
-        button.title = "--%"
-        button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium)
-        button.toolTip = "AgentNotify five-hour quota"
-        statusItem.menu = loadingMenu("Checking Codex and Claude quotas…")
+        setStatusItemCount(1)
+        configurePlaceholder(statusItems[0], toolTip: "AgentNotify five-hour quota")
+        statusItems[0].menu = loadingMenu("Checking Codex and Claude quotas…")
         load()
     }
 
@@ -476,20 +479,72 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func render(_ projection: MenuBarProjection) {
-        if let headline = projection.headline {
-            let remaining = wholePercent(headline.remainingPercent)
-            statusItem.button?.image = SvgPath.icon(headline.provider == "claude_code" ? .claude : .codex, size: 18, alpha: 1)
-            statusItem.button?.imageScaling = .scaleProportionallyDown
-            statusItem.button?.title = "\(remaining)%"
-            statusItem.button?.contentTintColor = tint(for: headline.remainingPercent)
-            statusItem.button?.toolTip = "\(headline.accountLabel): \(remaining)% of the five-hour quota remaining"
+        let balances = selectedBalances(projection)
+        setStatusItemCount(max(1, balances.count))
+        if balances.isEmpty {
+            configurePlaceholder(statusItems[0], toolTip: "No selected Codex or Claude account is available")
         } else {
-            statusItem.button?.image = nil
-            statusItem.button?.title = "--%"
-            statusItem.button?.contentTintColor = .secondaryLabelColor
-            statusItem.button?.toolTip = "No five-hour quota is available"
+            for (item, balance) in zip(statusItems, balances) {
+                configure(item, balance: balance)
+            }
         }
 
+        for item in statusItems { item.menu = menu(for: projection) }
+    }
+
+    private func selectedBalances(_ projection: MenuBarProjection) -> [AccountBalance] {
+        let selected = Set(projection.settings.accountIds)
+        return projection.accounts
+            .filter { selected.isEmpty || selected.contains($0.accountId) }
+            .map { account in
+                AccountBalance(
+                    account: account,
+                    remainingPercent: account.windows
+                        .filter { $0.durationMinutes == 300 }
+                        .map(\.remainingPercent)
+                        .min())
+            }
+    }
+
+    private func setStatusItemCount(_ wanted: Int) {
+        let count = max(1, wanted)
+        while statusItems.count < count {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.button?.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+            item.button?.imageScaling = .scaleProportionallyDown
+            statusItems.append(item)
+        }
+        while statusItems.count > count {
+            NSStatusBar.system.removeStatusItem(statusItems.removeLast())
+        }
+    }
+
+    private func configure(_ item: NSStatusItem, balance: AccountBalance) {
+        guard let button = item.button else { return }
+        let account = balance.account
+        let provider = account.provider == "claude_code" ? "Claude" : "Codex"
+        button.image = SvgPath.icon(account.provider == "claude_code" ? .claude : .codex, size: 18, alpha: 1)
+        if let remaining = balance.remainingPercent {
+            let percent = wholePercent(remaining)
+            button.title = "\(percent)%"
+            button.contentTintColor = tint(for: remaining)
+            let stale = account.status == "stale" ? " (stale)" : ""
+            button.toolTip = "\(provider) · \(account.accountLabel): \(percent)% of the five-hour quota remaining\(stale)"
+        } else {
+            button.title = "--%"
+            button.contentTintColor = .secondaryLabelColor
+            button.toolTip = "\(provider) · \(account.accountLabel): \(account.message ?? humanized(account.status))"
+        }
+    }
+
+    private func configurePlaceholder(_ item: NSStatusItem, toolTip: String) {
+        item.button?.image = nil
+        item.button?.title = "--%"
+        item.button?.contentTintColor = .secondaryLabelColor
+        item.button?.toolTip = toolTip
+    }
+
+    private func menu(for projection: MenuBarProjection) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
         let title = disabledItem("AgentNotify quota")
@@ -534,7 +589,7 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
         quit.target = self
         quit.isEnabled = true
         menu.addItem(quit)
-        statusItem.menu = menu
+        return menu
     }
 
     private func accountItem(_ account: QuotaAccount, headlineAccountId: String?, selectedIds: [String]) -> NSMenuItem {
@@ -542,7 +597,7 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
         let provider = account.provider == "claude_code" ? "Claude" : "Codex"
         let fiveHour = account.windows.filter { $0.durationMinutes == 300 }.map(\.remainingPercent).min()
         let balance = fiveHour.map { " · \(wholePercent($0))%" } ?? ""
-        let dimmed = considered ? "" : " · not in headline"
+        let dimmed = considered ? "" : " · not in menu bar"
         let parent = NSMenuItem(title: "\(provider) · \(account.accountLabel)\(balance)\(dimmed)", action: nil, keyEquivalent: "")
         parent.isEnabled = true
         parent.image = SvgPath.icon(account.provider == "claude_code" ? .claude : .codex, size: 16, alpha: considered ? 1 : 0.35)
@@ -579,10 +634,8 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func renderError(_ message: String) {
-        statusItem.button?.image = nil
-        statusItem.button?.title = "--%"
-        statusItem.button?.contentTintColor = .secondaryLabelColor
-        statusItem.button?.toolTip = "AgentNotify broker unavailable"
+        setStatusItemCount(1)
+        configurePlaceholder(statusItems[0], toolTip: "AgentNotify broker unavailable")
         let menu = loadingMenu(message)
         menu.addItem(.separator())
         let retry = NSMenuItem(title: "Retry", action: #selector(refreshNow), keyEquivalent: "r")
@@ -593,7 +646,7 @@ private final class MenuBarApp: NSObject, NSApplicationDelegate {
         quit.target = self
         quit.isEnabled = true
         menu.addItem(quit)
-        statusItem.menu = menu
+        statusItems[0].menu = menu
     }
 
     private func loadingMenu(_ message: String) -> NSMenu {

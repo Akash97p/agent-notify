@@ -204,15 +204,17 @@ when the owner disables it. It has no Dock icon and never opens `config.json`, r
 inspects an agent profile, or calls a provider directly.
 
 The child reads a secret-free `contract_version: "1"` projection under `/ui/api/menu-bar`. Core filters
-the Live quota report to Codex and Claude Code, keeps every monitored account and quota window for the
-dropdown, and chooses the lowest selected five-hour (`duration_minutes == 300`) remaining percentage
-for the status title. An empty account selection means every account. Stale snapshots remain visibly
-stale rather than becoming an invented zero. WebUI configuration controls enabled state, a 5–60
-minute polling interval, and headline account selection; only the headline is filtered.
+the Live quota report to Codex and Claude Code and keeps every monitored account and quota window for
+the dropdown. The native child creates one status item per selected account, using that account's
+lowest five-hour (`duration_minutes == 300`) remaining percentage; an empty account selection means
+every account. A selected account without a five-hour value still gets a `--%` item. Stale snapshots
+remain visibly stale rather than becoming an invented zero. WebUI configuration controls enabled
+state, a 5–60 minute polling interval, and which accounts appear in the menu bar.
 
-The status item shows the provider mark of whichever account holds the headline (the Claude starburst
-or the OpenAI knot for Codex) beside the percentage, and each account row in the dropdown carries its
-provider's mark, dimmed when the account is not in the headline selection. Both marks ship as embedded
+Each status item shows its account's provider mark (the Claude starburst or the OpenAI knot for Codex)
+beside the percentage, and each account row in the dropdown carries its provider's mark, dimmed when
+the account is not selected for the menu bar. Every item opens an independent copy of the same full
+dropdown. Both marks ship as embedded
 SVG path data parsed in-process (a small M/L/H/V/C/S/Q/T/A/Z parser); they are template images, so
 they adapt to the menu bar's appearance, and their sourcing is recorded in THIRD_PARTY_NOTICES.md.
 
