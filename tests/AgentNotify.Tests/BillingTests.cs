@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using AgentNotify.Core.Billing;
+using AgentNotify.Insights.Billing;
 using AgentNotify.Core.Delivery;
 
 namespace AgentNotify.Tests;

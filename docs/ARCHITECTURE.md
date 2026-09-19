@@ -30,6 +30,23 @@ type IDs remain compatible while custom IDs are validated and persisted without 
 
 Keyed creation is guarded by a process-wide asynchronous gate in `NotificationService`. AgentNotify is single-instance, so this prevents concurrent callers from creating two active rows with the same logical key.
 
+### Insights and router assemblies
+
+Two read-side/proxy concerns live outside the notification core so the attention path stays small
+and testable on its own:
+
+- `AgentNotify.Insights` owns usage indexing (`Usage`), live account quota (`Quota`), and stored-key
+  billing (`Billing`). It reads agent logs and provider APIs; it never creates, updates, or delivers
+  a notification.
+- `AgentNotify.Router` owns the provider router: upstream definitions, credential resolution, route
+  selection, wire translation, and the proxy itself. It never writes notification history.
+
+Both reference `AgentNotify.Core` and `AgentNotify.Protocol`, never the other way round. Core has no
+compile-time dependency on either, so `INotificationRepository`, the lifecycle rules, and delivery
+dispatch can be built and tested without the usage readers or the proxy. The API and desktop hosts
+reference both; `AgentNotify.Core` grants them `InternalsVisibleTo` for the few shared internals
+(config store paths, JSON conventions) rather than widening its public surface.
+
 ### API
 
 `AgentNotify.Api` builds an embedded ASP.NET Core Minimal API host. Kestrel binds to `127.0.0.1` and all `/v1` routes pass through bearer authentication. The host uses an explicit local content root so Windows test processes launched from WSL UNC paths do not hang while probing the working directory.
@@ -233,7 +250,7 @@ disclosures. Motion is implemented with embedded CSS, includes no external runti
 
 ### Provider router
 
-`AgentNotify.Core/Router` is an opt-in local proxy: an agent points its API base URL at the broker,
+`AgentNotify.Router` is an opt-in local proxy: an agent points its API base URL at the broker,
 and the router chooses an upstream provider and model per request, translates between the OpenAI
 Responses, OpenAI Chat Completions, and Anthropic Messages wire formats, fails over across an ordered
 list of targets, and records what it did. It is off until the owner turns it on, and a broker with it

@@ -1,5 +1,5 @@
 using AgentNotify.Core.Config;
-using AgentNotify.Core.Usage;
+using AgentNotify.Insights.Usage;
 using Microsoft.Data.Sqlite;
 
 namespace AgentNotify.Tests;

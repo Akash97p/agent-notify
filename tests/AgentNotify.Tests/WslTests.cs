@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using AgentNotify.Core.Config;
-using AgentNotify.Core.Quota;
+using AgentNotify.Insights.Quota;
 using AgentNotify.Core.Skills;
-using AgentNotify.Core.Usage;
+using AgentNotify.Insights.Usage;
 using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.Tests;

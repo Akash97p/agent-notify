@@ -1,9 +1,9 @@
-using AgentNotify.Core.Billing;
+using AgentNotify.Insights.Billing;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Router;
-using AgentNotify.Core.Usage;
-using AgentNotify.Core.Quota;
+using AgentNotify.Router;
+using AgentNotify.Insights.Usage;
+using AgentNotify.Insights.Quota;
 using AgentNotify.Core.Wsl;
 
 namespace AgentNotify.Api.WebUi;
@@ -57,7 +57,7 @@ public sealed class WebUiOptions
     public RouterConfigService? RouterConfig { get; init; }
 
     /// <summary>Optional connector that points the agents on this machine at the router.</summary>
-    public AgentNotify.Core.Router.Connect.RouterConnectService? RouterConnect { get; init; }
+    public AgentNotify.Router.Connect.RouterConnectService? RouterConnect { get; init; }
 
     /// <summary>
     /// Raised after the web UI saved configuration, on a thread-pool thread. The host applies

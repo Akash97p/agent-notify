@@ -1,4 +1,4 @@
-using AgentNotify.Core.Router;
+using AgentNotify.Router;
 
 namespace AgentNotify.Tests;
 

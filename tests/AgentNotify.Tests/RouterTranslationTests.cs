@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using AgentNotify.Core.Router;
-using AgentNotify.Core.Router.Translation;
+using AgentNotify.Router;
+using AgentNotify.Router.Translation;
 
 namespace AgentNotify.Tests;
 

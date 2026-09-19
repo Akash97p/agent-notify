@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentNotify.Insights</RootNamespace>
+    <Description>Usage, live quota, and API-account reporting for AgentNotify: local-history indexing, provider quota probes, and balance/spend lookups.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentNotify.Tests" />
+    <InternalsVisibleTo Include="AgentNotify.Api" />
+  </ItemGroup>
+
+</Project>

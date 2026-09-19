@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using AgentNotify.Api;
@@ -30,12 +30,12 @@ public partial class App : System.Windows.Application
     private NotificationSoundService? _sounds;
     private SqliteDeliveryRepository _deliveryRepository = null!;
     private ProviderProfileService _providerProfiles = null!;
-    private AgentNotify.Core.Billing.BillingService? _billingService;
-    private AgentNotify.Core.Router.RouterRepository? _routerRepository;
-    private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
-    private AgentNotify.Core.Router.RouterProxy? _routerProxy;
-    private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
-    private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
+    private AgentNotify.Insights.Billing.BillingService? _billingService;
+    private AgentNotify.Router.RouterRepository? _routerRepository;
+    private AgentNotify.Router.RouterConfigService? _routerConfigService;
+    private AgentNotify.Router.RouterProxy? _routerProxy;
+    private AgentNotify.Router.RouterLedgerPruner? _routerPruner;
+    private AgentNotify.Router.Connect.RouterConnectService? _routerConnect;
     private DeliveryDispatcher? _deliveryDispatcher;
     private AgentNotify.Api.WebUi.WebUiOptions? _webUi;
     private InteractionResponsePoller? _interactionResponsePoller;
@@ -142,22 +142,22 @@ public partial class App : System.Windows.Application
         // On Windows the factory always returns the DPAPI protector; going through it keeps the
         // tray app and the portable host on one code path.
         var secretProtector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var secretProtection);
-        var billingRepository = new AgentNotify.Core.Billing.BillingAccountRepository(_configStore.DbPath);
+        var billingRepository = new AgentNotify.Insights.Billing.BillingAccountRepository(_configStore.DbPath);
         await billingRepository.InitializeAsync();
-        _billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, secretProtector);
-        _routerRepository = new AgentNotify.Core.Router.RouterRepository(_configStore.DbPath);
+        _billingService = new AgentNotify.Insights.Billing.BillingService(billingRepository, secretProtector);
+        _routerRepository = new AgentNotify.Router.RouterRepository(_configStore.DbPath);
         await _routerRepository.InitializeAsync();
-        _routerConfigService = new AgentNotify.Core.Router.RouterConfigService(_routerRepository, secretProtector, _configStore, _config);
-        _routerProxy = new AgentNotify.Core.Router.RouterProxy(_routerConfigService, _routerRepository, _logger);
+        _routerConfigService = new AgentNotify.Router.RouterConfigService(_routerRepository, secretProtector, _configStore, _config);
+        _routerProxy = new AgentNotify.Router.RouterProxy(_routerConfigService, _routerRepository, _logger);
         _routerProxy.Credentials.ApiAccountKey = _billingService.GetKeyAsync;
-        _routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(_routerRepository, _config, TimeProvider.System, _logger);
+        _routerPruner = new AgentNotify.Router.RouterLedgerPruner(_routerRepository, _config, TimeProvider.System, _logger);
         _routerPruner.Start();
-        _routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
+        _routerConnect = new AgentNotify.Router.Connect.RouterConnectService(
             _routerConfigService,
             System.IO.Path.Combine(_configStore.ConfigDir, "router"),
             () => _config.Port,
             // Every account Live quota monitors can be connected, not only the built-in profiles.
-            profiles: () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts(
+            profiles: () => AgentNotify.Router.Connect.RouterAgentProfile.FromAccounts(
                 AgentNotify.Core.Config.QuotaAccountDefinition.Monitored(_config, AgentNotify.Core.Wsl.WslDiscovery.Default,
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)),
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));

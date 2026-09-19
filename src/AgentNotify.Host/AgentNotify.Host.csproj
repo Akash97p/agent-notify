@@ -15,6 +15,8 @@
     <ProjectReference Include="..\AgentNotify.Api\AgentNotify.Api.csproj" />
     <ProjectReference Include="..\AgentNotify.Protocol\AgentNotify.Protocol.csproj" />
     <ProjectReference Include="..\AgentNotify.Core\AgentNotify.Core.csproj" />
+    <ProjectReference Include="..\AgentNotify.Router\AgentNotify.Router.csproj" />
+    <ProjectReference Include="..\AgentNotify.Insights\AgentNotify.Insights.csproj" />
     <ProjectReference Include="..\AgentNotify.Desktop\AgentNotify.Desktop.csproj" />
   </ItemGroup>
 

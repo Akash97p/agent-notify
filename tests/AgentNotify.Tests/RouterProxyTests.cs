@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.Json;
 using AgentNotify.Core.Config;
 using AgentNotify.Core.Delivery;
-using AgentNotify.Core.Router;
-using AgentNotify.Core.Router.Translation;
+using AgentNotify.Router;
+using AgentNotify.Router.Translation;
 using AgentNotify.Protocol;
 
 namespace AgentNotify.Tests;

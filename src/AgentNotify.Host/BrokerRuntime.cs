@@ -33,12 +33,12 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private DeliveryDispatcher? _dispatcher;
     private InteractionResponsePoller? _interactionResponsePoller;
     private IReadOnlyList<IOutboundChannelAdapter>? _adapters;
-    private AgentNotify.Core.Billing.BillingService? _billingService;
-    private AgentNotify.Core.Router.RouterRepository? _routerRepository;
-    private AgentNotify.Core.Router.RouterConfigService? _routerConfigService;
-    private AgentNotify.Core.Router.RouterProxy? _routerProxy;
-    private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
-    private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
+    private AgentNotify.Insights.Billing.BillingService? _billingService;
+    private AgentNotify.Router.RouterRepository? _routerRepository;
+    private AgentNotify.Router.RouterConfigService? _routerConfigService;
+    private AgentNotify.Router.RouterProxy? _routerProxy;
+    private AgentNotify.Router.RouterLedgerPruner? _routerPruner;
+    private AgentNotify.Router.Connect.RouterConnectService? _routerConnect;
     private MacMenuBarController? _macMenuBar;
     private WebApplication? _api;
 
@@ -113,20 +113,20 @@ public sealed class BrokerRuntime : IAsyncDisposable
         var protector = SecretProtectorFactory.Create(_configStore.ConfigDir, _logger, out var protection);
         Protection = protection;
 
-        var billingRepository = new AgentNotify.Core.Billing.BillingAccountRepository(_configStore.DbPath);
+        var billingRepository = new AgentNotify.Insights.Billing.BillingAccountRepository(_configStore.DbPath);
         await billingRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var billingService = new AgentNotify.Core.Billing.BillingService(billingRepository, protector);
+        var billingService = new AgentNotify.Insights.Billing.BillingService(billingRepository, protector);
         _billingService = billingService;
 
-        var routerRepository = new AgentNotify.Core.Router.RouterRepository(_configStore.DbPath);
+        var routerRepository = new AgentNotify.Router.RouterRepository(_configStore.DbPath);
         await routerRepository.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var routerConfigService = new AgentNotify.Core.Router.RouterConfigService(routerRepository, protector, _configStore, _config);
-        var routerProxy = new AgentNotify.Core.Router.RouterProxy(routerConfigService, routerRepository, _logger);
+        var routerConfigService = new AgentNotify.Router.RouterConfigService(routerRepository, protector, _configStore, _config);
+        var routerProxy = new AgentNotify.Router.RouterProxy(routerConfigService, routerRepository, _logger);
         // The router spends through the same keys the API accounts list holds, so a key is entered once.
         routerProxy.Credentials.ApiAccountKey = billingService.GetKeyAsync;
-        var routerPruner = new AgentNotify.Core.Router.RouterLedgerPruner(routerRepository, _config, TimeProvider.System, _logger);
+        var routerPruner = new AgentNotify.Router.RouterLedgerPruner(routerRepository, _config, TimeProvider.System, _logger);
         routerPruner.Start();
-        var routerConnect = new AgentNotify.Core.Router.Connect.RouterConnectService(
+        var routerConnect = new AgentNotify.Router.Connect.RouterConnectService(
             routerConfigService,
             Path.Combine(_configStore.ConfigDir, "router"),
             () => _config.Port,
@@ -324,12 +324,12 @@ public sealed class BrokerRuntime : IAsyncDisposable
     /// a second account added or discovered there can be connected too. A throwaway agent home (the
     /// override used for checks) offers only its own two built-in profiles.
     /// </summary>
-    private Func<IReadOnlyList<AgentNotify.Core.Router.Connect.RouterAgentProfile>> AgentProfiles(string? agentHome)
+    private Func<IReadOnlyList<AgentNotify.Router.Connect.RouterAgentProfile>> AgentProfiles(string? agentHome)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (!string.IsNullOrWhiteSpace(agentHome))
-            return () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts([], agentHome);
-        return () => AgentNotify.Core.Router.Connect.RouterAgentProfile.FromAccounts(
+            return () => AgentNotify.Router.Connect.RouterAgentProfile.FromAccounts([], agentHome);
+        return () => AgentNotify.Router.Connect.RouterAgentProfile.FromAccounts(
             AgentNotify.Core.Config.QuotaAccountDefinition.Monitored(_config, AgentNotify.Core.Wsl.WslDiscovery.Default, home), home);
     }
 }
