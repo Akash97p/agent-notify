@@ -50,7 +50,7 @@ so a profile discovered or added in one appears in all three.
 | Model router → Activity | The router's request ledger and per-model totals |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
 | Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
-| Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
+| Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; configure the macOS quota menu bar; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |
 | About | Version, data folder, and links |
 
 The **Model router** pages configure the opt-in local provider proxy described in
@@ -151,6 +151,27 @@ profile has its own cache and failure state. A balance of 40% or more uses the n
 uses yellow, and 0–19% uses red. OpenCode has no single quota
 because its models can use different provider accounts.
 The local Usage page continues to work without internet or signed-in agent accounts.
+
+### macOS menu bar
+
+On macOS, the broker starts `agentnotify-menubar` when that executable is installed beside
+`agentnotifyd` and **Show five-hour quota in the macOS menu bar** is enabled. The status title is the
+lowest remaining five-hour percentage among the headline accounts selected on Live quota. Select all
+accounts to store an empty filter, meaning every monitored account. Selection affects only that one
+percentage: the dropdown always lists every detected, discovered, or hand-added Codex and Claude Code
+account and every quota window the broker returned, with reset times, plan/credit data, source, and
+stale/unavailable state.
+
+The same card chooses a 5, 10, 15, 30, or 60 minute refresh interval. Scheduled reads use the broker's
+five-minute account cache and existing rate-limit/failure handling; **Refresh now** asks for the
+manual-refresh path and can still be rate-limited. **Disable Menu Bar** in the native menu persists
+the setting and stops the child. **Quit for now** exits only the child; a later menu-bar config save or
+broker restart starts it again while the setting remains enabled. Windows and Linux preserve these
+settings but do not start the AppKit executable.
+
+The native client is deliberately not a credential reader. It talks only to the loopback WebUI
+projection and receives no API bearer token, agent profile path, account email, OAuth/API token, or
+raw provider response. A missing five-hour window displays `--%`, never `0%`.
 
 ### Monitor several Codex or Claude Code accounts
 

@@ -34,10 +34,10 @@ It is designed for people running several agents across terminals, repositories,
 
 ## Platform support
 
-**The native desktop application is Windows-only today.** macOS and Linux run the same broker, CLI
-and API headlessly, and configure it through the broker's **web interface** — `agentnotify ui` opens
-the same settings, channels, routes, questions and history in a browser. The web interface runs on
-Windows too, beside the tray app.
+Windows has the full native desktop application. macOS runs the same broker, CLI, and API plus a
+small native **quota menu-bar client**; Linux remains headless. Both portable platforms configure the
+broker through its **web interface** — `agentnotify ui` opens the same settings, channels, routes,
+questions, history, usage, and quota pages. The web interface runs on Windows too, beside the tray app.
 
 | | Windows 11 x64 | macOS | Linux |
 |---|---|---|---|
@@ -47,13 +47,15 @@ Windows too, beside the tray app.
 | SQLite history, dedup keys, retention | yes | yes | yes |
 | Outbound channels (19 adapters) | yes | yes | yes |
 | Desktop notification | custom AgentNotify toast | Notification Center via `terminal-notifier`/`osascript` | `notify-send` |
-| Tray icon and notification center | yes | **no** | **no** |
-| Settings window | yes | **no** | **no** |
+| Native status surface | tray + notification center | five-hour quota menu bar | **no** |
+| Native Settings window | yes | **no** | **no** |
 | Web interface (`agentnotify ui`) | yes | yes | yes |
 | Verified on real hardware | yes | Intel yes (2026-09-04), Apple Silicon **no** | yes |
 
-Native macOS and Linux clients are a roadmap goal, not a shipped feature; the portable broker exists
-so that they can be built on top of it. See [Cross-platform plan](docs/CROSS_PLATFORM.md).
+The macOS status item is intentionally narrow: it shows Codex/Claude five-hour quota and account
+windows, while configuration and notification history stay in the WebUI. A full macOS notification
+center/settings window and a Linux tray client remain roadmap work. See
+[Cross-platform plan](docs/CROSS_PLATFORM.md).
 
 ## What you get
 
@@ -85,6 +87,14 @@ Everywhere:
   to the local machine, and never receives stored credentials. See [Web interface](docs/WEB_UI.md)
   for the sources and estimate limits.
 - Single-instance behavior and a desktop notification on each supported platform.
+
+On macOS, additionally:
+
+- A native menu-bar percentage showing the lowest selected Codex/Claude five-hour balance.
+- A dropdown listing every monitored Codex and Claude Code account, all returned quota windows,
+  reset times, plan/credit data, stale state, and refresh controls.
+- WebUI controls for enabling the status item, choosing a 5–60 minute refresh interval, and deciding
+  which accounts participate in the headline percentage.
 
 On Windows, additionally:
 
@@ -139,12 +149,14 @@ curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/
 ```
 
 This installs the `agentnotify` CLI and the `agentnotifyd` broker into `~/.local/bin` after verifying
-the published SHA-256 checksum. Start the broker with `agentnotifyd`, then use the same CLI and the
-same `/v1` API as on Windows.
+the published SHA-256 checksum. macOS archives from the current development line also install
+`agentnotify-menubar`; the broker starts and stops it automatically. Start the broker with
+`agentnotifyd`, then use the same CLI and `/v1` API as on Windows.
 
-**There is no native application on macOS or Linux.** `agentnotifyd` is a headless daemon you run
-under systemd or launchd; configure it and answer questions in the browser with `agentnotify ui`. Desktop notifications go to `notify-send` on Linux,
-Notification Center on macOS, or standard output when no desktop session is available.
+Linux remains headless. macOS has a native quota status item but no full notification-center or
+Settings window; configure it and answer questions in the browser with `agentnotify ui`. Desktop
+notifications go to `notify-send` on Linux, Notification Center on macOS, or standard output when no
+desktop session is available.
 
 The macOS build ran on real Intel hardware for the first time on 2026-09-04, and the
 `osascript` notification backend was seen displaying a banner. The binaries are adhoc-signed
@@ -465,7 +477,7 @@ Override the SDK path when necessary:
 AGENTNOTIFY_DOTNET_EXE=/path/to/windows/dotnet.exe ./scripts/build.sh
 ```
 
-The current development branch has 1,254 passing automated tests in the latest full recorded run.
+The current development branch has 1,257 passing automated tests in the latest full recorded run.
 See the exact commands, environments, and remaining manual checks in
 [VERIFICATION.md](docs/VERIFICATION.md).
 
@@ -512,13 +524,14 @@ Content-Type: application/json
 ## Current limitations
 
 - The Windows tray application, notification center, Settings UI, and installer are x64 Windows only.
-- macOS and Linux run the broker headlessly through `agentnotifyd`; there is no tray or Settings UI there yet.
+- macOS has a native quota-only menu-bar client, but no full notification-center or Settings window;
+  Linux still has no tray UI. Both use the WebUI for configuration and history.
 - The macOS Intel build, its `osascript` backend, the launchd unit and the Relay channel have all
   now run on real hardware, including a full question-and-answer round trip from a paired
   device back into a waiting agent. Apple Silicon and `terminal-notifier` have not.
-- The published macOS archives are cross-built on Linux, so macOS `SIGKILL`s them until they are
-  re-signed locally. `scripts/install.sh` does this for you; a manual install needs
-  `codesign --force --sign -` on both binaries. See [Troubleshooting](docs/TROUBLESHOOTING.md).
+- Development macOS archives are packaged on macOS because they include AppKit. `scripts/install.sh`
+  locally ad-hoc-signs the CLI, broker, and menu-bar executable; a manual install should do the same.
+  The binaries are not notarized. See [Troubleshooting](docs/TROUBLESHOOTING.md).
 - Linux's `notify-send` backend has never been seen displaying anything. See
   [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - The installer is not yet Authenticode-signed.
@@ -537,8 +550,8 @@ The transport design keeps the local broker as the source of truth. Completed de
 - Quiet hours, schedules, snooze, escalation, grouping, and per-project rules.
 - Agent heartbeat/status, richer SDKs, and an optional MCP server.
 - Safer terminal/tab activation and virtual-desktop awareness.
-- ARM64 packages, signed releases, automatic updates, and migration tooling.
-- Native macOS menu-bar and Linux tray clients on top of the portable broker that now exists.
+- A full macOS notification center/settings window, a Linux tray client, signed releases, automatic
+  updates, and migration tooling.
 
 External channels are disabled by default and must add provider-specific secret storage, consent, redaction, retry, cost-control, and rate-limit policies. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). No new outbound adapter branch is active; current work is cross-platform support and documentation.
 

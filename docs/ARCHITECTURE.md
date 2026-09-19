@@ -4,8 +4,9 @@
 
 AgentNotify runs one broker per user. On Windows the WPF tray process owns the broker, native
 notification center, Settings window, and custom toasts. On macOS and Linux `agentnotifyd` owns the
-same loopback API, lifecycle, SQLite repository, outbound delivery, and local WebUI without a native
-tray. Portable domain boundaries keep the two hosts aligned.
+same loopback API, lifecycle, SQLite repository, outbound delivery, and local WebUI. macOS also runs
+a thin broker-owned AppKit status item for quota; Linux has no native tray yet. Portable domain
+boundaries keep the hosts aligned.
 
 ## Components
 
@@ -160,8 +161,10 @@ exactly priced models against OpenCode's published per-model dollar caps over ro
 `openCodeGoRenewalDay` (`OpenCodeGoBillingCycle`, local midnight on the renewal day, clamped to short
 months). Each window reports `starts_at`, and a fixed window its `resets_at`; the quota report uses
 `contract_version: "3"`. It is explicitly estimated and has no provider reset or remaining
-balance; unpriced rows suppress a window percentage. The page triggers on-demand
-checks; there is no background network polling or dependency on internet for the rest of the app.
+balance; unpriced rows suppress a window percentage. The WebUI triggers checks on demand. On macOS, the enabled native status item polls the normalized
+projection at its configured 5–60 minute interval (five minutes by default), which can trigger a
+provider check after the cache expires. Disabling it restores fully on-demand quota checks; provider
+failure or no internet never affects notifications, history, Usage, or the rest of the app.
 API accounts are the opt-in exception: pasted provider keys are sealed with the same injected
 protector (DPAPI current user on Windows) before SQLite storage, decrypted only transiently to
 call one fixed `https` URL per provider, and never logged, returned, or embedded in errors or
@@ -191,6 +194,27 @@ run inside that distribution — `wsl.exe --distribution <name> --exec /bin/sh`,
 interactive shell so version-manager PATH setup applies — with `CODEX_HOME` passed through
 `WSLENV`; the probe ignores non-JSON stdout lines a shell rc file may print. Claude's credential file
 is read through the share like any other.
+
+### macOS quota menu bar
+
+`agentnotify-menubar` is a native Swift/AppKit accessory executable shipped only in macOS archives.
+`agentnotifyd` starts it from beside the broker after the loopback API is listening, passes only the
+configured port, restarts it when its WebUI settings change, and stops it during broker shutdown or
+when the owner disables it. It has no Dock icon and never opens `config.json`, reads the bearer token,
+inspects an agent profile, or calls a provider directly.
+
+The child reads a secret-free `contract_version: "1"` projection under `/ui/api/menu-bar`. Core filters
+the Live quota report to Codex and Claude Code, keeps every monitored account and quota window for the
+dropdown, and chooses the lowest selected five-hour (`duration_minutes == 300`) remaining percentage
+for the status title. An empty account selection means every account. Stale snapshots remain visibly
+stale rather than becoming an invented zero. WebUI configuration controls enabled state, a 5–60
+minute polling interval, and headline account selection; only the headline is filtered.
+
+The status item uses the same local-user trust boundary as the WebUI. Its periodic GET can cause a
+provider probe after `LiveQuotaService`'s cache expires; the service still coalesces requests, keeps
+per-account caches/failure state, applies provider rate limits, and sanitizes the result before the
+child receives it. Explicit **Refresh now** and **Disable Menu Bar** actions use the same protected
+state-change header as the browser. Failure leaves the rest of the broker usable and shows `--%`.
 
 The Insights Dashboard is a browser-side composition of the existing Overview, Usage, and Live
 quota projections. It keeps their provenance separate: account quota cannot be attributed to

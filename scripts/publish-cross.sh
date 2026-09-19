@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Publishes the portable AgentNotify binaries — the agentnotify CLI and the agentnotifyd broker —
-# as self-contained single files for every supported runtime, then writes SHA-256 checksums.
+# as self-contained single files for every supported runtime, then writes SHA-256 checksums. macOS
+# archives also include the native AppKit quota menu-bar client.
 #
 # The Windows tray application and its installer are NOT built here; they are Windows-only and are
 # produced by scripts/package.sh.
@@ -31,6 +32,12 @@ if [[ $# -gt 0 ]]; then
   RUNTIMES=("$@")
 else
   RUNTIMES=("${ALL_RUNTIMES[@]}")
+fi
+
+if [[ " ${RUNTIMES[*]} " == *" osx-"* && "$(uname -s)" != "Darwin" ]]; then
+  echo "macOS archives include a native AppKit executable and must be packaged on macOS." >&2
+  echo "Run this script on macOS, or request only win/linux runtimes." >&2
+  exit 1
 fi
 
 PROJECTS=(
@@ -69,6 +76,15 @@ for rid in "${RUNTIMES[@]}"; do
       --nologo --verbosity quiet
   done
 
+  if [[ "$rid" == osx-* ]]; then
+    arch="${rid#osx-}"
+    [[ "$arch" == "x64" ]] && arch=x86_64
+    menu_stage="$OUT/menu-$rid"
+    "$ROOT/scripts/build-macos-menu-bar.sh" "$menu_stage" "$arch"
+    cp "$menu_stage/agentnotify-menubar" "$stage/agentnotify-menubar"
+    rm -rf "$menu_stage"
+  fi
+
   # Ship the licence and the agent skill next to the binaries so a downloaded archive is complete.
   cp "$ROOT/LICENSE" "$stage/LICENSE"
   cp "$ROOT/THIRD_PARTY_NOTICES.md" "$stage/THIRD_PARTY_NOTICES.md"
@@ -95,7 +111,7 @@ with zipfile.ZipFile(root.with_suffix('.zip'), 'w', zipfile.ZIP_DEFLATED) as arc
       exit 1
     fi
   else
-    chmod +x "$stage/agentnotify" "$stage/agentnotifyd" 2>/dev/null || true
+    chmod +x "$stage/agentnotify" "$stage/agentnotifyd" "$stage"/agentnotify-menubar 2>/dev/null || true
     ( cd "$OUT" && tar -czf "agentnotify-$rid.tar.gz" "agentnotify-$rid" )
   fi
 

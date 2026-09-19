@@ -193,6 +193,49 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MacMenuBarProjectionAndSettingsAreSecretFreeAndSameOriginProtected()
+    {
+        using var browser = Page();
+        var projection = await browser.GetFromJsonAsync<JsonElement>("/ui/api/menu-bar");
+        Assert.Equal("1", projection.GetProperty("contract_version").GetString());
+        Assert.Equal(76, projection.GetProperty("headline").GetProperty("remaining_percent").GetDouble());
+        Assert.Equal("codex:default", projection.GetProperty("headline").GetProperty("account_id").GetString());
+        Assert.Single(projection.GetProperty("accounts").EnumerateArray());
+        Assert.DoesNotContain(_config.AuthToken, projection.GetRawText());
+
+        var saved = await browser.PutAsJsonAsync("/ui/api/menu-bar/settings", new
+        {
+            enabled = true,
+            refresh_minutes = 15,
+            account_ids = new[] { "codex:default" }
+        });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var settings = await saved.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(15, settings.GetProperty("refresh_minutes").GetInt32());
+        Assert.Equal("codex:default", Assert.Single(settings.GetProperty("account_ids").EnumerateArray()).GetString());
+        var persisted = new ConfigStore(_dir, applyEnvOverrides: false).Load().MacMenuBar;
+        Assert.Equal(15, persisted.RefreshMinutes);
+        Assert.Equal(["codex:default"], persisted.AccountIds);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await browser.PutAsJsonAsync("/ui/api/menu-bar/settings", new
+        {
+            refresh_minutes = 2,
+            account_ids = new[] { "unknown:account" }
+        })).StatusCode);
+        Assert.Equal(15, new ConfigStore(_dir, applyEnvOverrides: false).Load().MacMenuBar.RefreshMinutes);
+
+        using var otherPage = Browser().Client;
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PutAsJsonAsync("/ui/api/menu-bar/settings", new
+        {
+            enabled = false
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherPage.PostAsync("/ui/api/menu-bar/refresh", JsonContent.Create(new { }))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await browser.PostAsync("/ui/api/menu-bar/disable", JsonContent.Create(new { }))).StatusCode);
+        Assert.False(new ConfigStore(_dir, applyEnvOverrides: false).Load().MacMenuBar.Enabled);
+    }
+
+    [Fact]
     public async Task OpenCodeGoRenewalDayCanBeSetAndCleared()
     {
         using var browser = Page();

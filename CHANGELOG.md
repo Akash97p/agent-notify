@@ -11,6 +11,18 @@ build.
 
 ## [Unreleased]
 
+### Added
+
+- **Native macOS quota menu bar.** The broker starts a thin AppKit status item that shows the lowest
+  selected Codex/Claude five-hour balance like a battery percentage. Its menu lists every monitored
+  account and quota window, reset times, plan/credit data, stale state, manual refresh, and a link to
+  Live quota. The WebUI controls enabled state, a 5–60 minute refresh interval, and which accounts
+  drive the headline; the native child receives no bearer token or provider credential.
+- macOS release archives now include `agentnotify-menubar`; the installer places and locally signs it
+  beside `agentnotifyd`, and portable release packaging runs on macOS so Swift/AppKit can be built for
+  Intel and Apple Silicon.
+
+
 ## [0.2.0-alpha.2] - 2026-09-18
 
 The model router grows up. **Smart routing** is one switch: when a model fails at one provider (a

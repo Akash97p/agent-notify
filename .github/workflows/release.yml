@@ -70,11 +70,11 @@ jobs:
           gh release create @releaseArgs
 
   cross-platform-assets:
-    # The Windows job publishes the installer. This one adds the portable macOS and Linux binaries,
-    # which cross-compile from any host, and attaches them to the same release.
+    # The Windows job publishes the installer. This one adds the portable archives. It runs on
+    # macOS because those archives include the native AppKit quota menu-bar executable.
     needs: package-and-release
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -95,7 +95,7 @@ jobs:
             "agentnotify-win-x64.zip#Portable Windows x64 CLI and broker" \
             "agentnotify-linux-x64.tar.gz#Linux x64 CLI and broker" \
             "agentnotify-linux-arm64.tar.gz#Linux arm64 CLI and broker" \
-            "agentnotify-osx-x64.tar.gz#macOS Intel CLI and broker" \
-            "agentnotify-osx-arm64.tar.gz#macOS Apple Silicon CLI and broker" \
+            "agentnotify-osx-x64.tar.gz#macOS Intel CLI, broker, and quota menu bar" \
+            "agentnotify-osx-arm64.tar.gz#macOS Apple Silicon CLI, broker, and quota menu bar" \
             "SHA256SUMS-portable.txt#SHA-256 checksums for the portable archives" \
             --clobber

@@ -6,11 +6,12 @@ milestone is intentionally reserved and has not been reached.
 
 ## Platform support
 
-The **native graphical application is Windows-only**: the tray icon, notification center, custom toasts and
-Settings window are WPF. macOS and Linux run the same CLI, loopback API, SQLite history and outbound
-adapters through the headless `agentnotifyd` broker. Its local web interface configures the broker
-and shows notifications, questions, usage, costs, and quotas on all three platforms.
-[CROSS_PLATFORM.md](CROSS_PLATFORM.md) describes the plan for native clients.
+The full **native graphical application is Windows-only**: the tray, notification center, custom
+toasts, and Settings window are WPF. macOS and Linux run the same CLI, loopback API, SQLite history,
+and outbound adapters through `agentnotifyd`; macOS additionally has a native quota-only menu-bar
+client. The local web interface configures the broker and shows notifications, questions, usage,
+costs, and quotas on all three platforms. [CROSS_PLATFORM.md](CROSS_PLATFORM.md) describes the
+remaining full-macOS and Linux native-client work.
 
 ## Start here
 
@@ -18,7 +19,7 @@ and shows notifications, questions, usage, costs, and quotas on all three platfo
 | --- | --- |
 | [INSTALL_WITH_AGENT.md](INSTALL_WITH_AGENT.md) | A step-by-step prompt that lets a terminal-capable agent install and verify AgentNotify |
 | [INSTALLATION.md](INSTALLATION.md) | Installing the Windows build, what setup writes, and uninstalling |
-| [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing and running the broker on macOS and Linux |
+| [INSTALLATION_UNIX.md](INSTALLATION_UNIX.md) | Installing the broker on macOS/Linux and the macOS quota menu bar |
 | [WEB_UI.md](WEB_UI.md) | The browser interface for settings, questions, usage, published-rate cost estimates, named-account live quota, and Insights |
 | [RELAY.md](RELAY.md) | Pair a broker and phone with the hosted Relay; send notifications and answer questions |
 | [ROUTER.md](ROUTER.md) | The opt-in local provider router: endpoints, upstreams, routes, translation, failover, and its ledger |

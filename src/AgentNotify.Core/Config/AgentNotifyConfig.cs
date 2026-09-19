@@ -91,6 +91,9 @@ public sealed class AgentNotifyConfig
     /// <summary>Built-in and discovered WSL account IDs the owner removed from Live quota.</summary>
     public List<string> RemovedQuotaAccounts { get; set; } = [];
 
+    /// <summary>Native macOS quota menu-bar presentation and account selection.</summary>
+    public MacMenuBarSettings MacMenuBar { get; set; } = new();
+
     public int ToastDurationSeconds(NotificationType type)
         => ToastDurationSeconds(NotificationTypes.FromBuiltIn(type));
 
@@ -168,6 +171,8 @@ public sealed class AgentNotifyConfig
         if (!Usage.OpenCodeGoBillingCycle.IsValidRenewalDay(OpenCodeGoRenewalDay)) OpenCodeGoRenewalDay = null;
         RemovedQuotaAccounts = (RemovedQuotaAccounts ?? []).Where(QuotaAccountDefinition.IsDetectedAccountId)
             .Distinct(StringComparer.Ordinal).Take(64).ToList();
+        MacMenuBar ??= new();
+        MacMenuBar.ApplyDefaults();
         var normalizedQuotaAccounts = new List<QuotaAccountDefinition>();
         foreach (var account in QuotaAccounts.Take(16))
             if (QuotaAccountDefinition.TryNormalizeExisting(account, normalizedQuotaAccounts, out var normalized))

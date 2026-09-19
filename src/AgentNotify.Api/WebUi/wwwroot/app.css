@@ -588,6 +588,11 @@ input[type="color"].input { padding: 2px; width: 64px; cursor: pointer; }
 .meta-lines { display: flex; gap: 4px 14px; flex-wrap: wrap; }
 .page-disclosure { padding: 0 2px; }
 
+.menu-bar-settings .card-body { padding-top: 15px; }
+.menu-account-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px 14px; padding-top: 4px; }
+.menu-account-picker .check { min-width: 0; }
+.menu-account-picker .check-text { overflow-wrap: anywhere; }
+
 .account-manager > summary { display: flex; align-items: center; justify-content: space-between; padding: 15px 17px; cursor: pointer; list-style: none; }
 .account-manager > summary::-webkit-details-marker { display: none; }
 .account-manager > summary::after { content: "+"; color: var(--muted); font-size: 19px; font-weight: 400; }
