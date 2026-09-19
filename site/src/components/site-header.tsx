@@ -14,9 +14,10 @@ export function SiteHeader() {
           <Image src={`${basePath}/an.png`} alt="" width={26} height={26} className="rounded-md" priority />
           AgentNotify
         </Link>
-        <nav className="ml-8 hidden items-center gap-6 text-sm md:flex" aria-label="Primary navigation">
+        <nav className="ml-8 hidden items-center gap-6 text-sm lg:flex" aria-label="Primary navigation">
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/">Documentation</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/arc/">ARC</Link>
+          <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/router/">Router</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/channels/">Channels</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/relay/">Relay</Link>
           <Link className="text-muted-foreground transition-colors hover:text-foreground" href="/docs/architecture/">Architecture</Link>

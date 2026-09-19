@@ -1414,7 +1414,7 @@ internal static class Program
 
     private static async Task<int> RunInteractionsRespond(string[] args)
     {
-        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions respond requires an <id>. Usage: agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T]");
+        if (args.Length == 0 || args[0].StartsWith('-')) return Fail("interactions respond requires an <id>. Usage: agentnotify interactions respond <id> --response-id R --digest D --nonce N [--choice C | --text T]");
         var id = args[0];
         string? responseId = null, digest = null, choice = null, text = null;
         string? nonce = null, source = null, device = null;
@@ -1932,7 +1932,7 @@ internal static class Program
               agentnotify interactions list [--pending] [--status STATUS] [--agent A] [--project P] [--session S] [--limit N] [--json]
               agentnotify interactions get <id>
               agentnotify interactions wait <id> [--timeout SECONDS]
-              agentnotify interactions respond <id> --response-id R --digest D [--choice C | --text T] [--nonce N] [--source S] [--device D]
+              agentnotify interactions respond <id> --response-id R --digest D --nonce N [--choice C | --text T] [--source S] [--device D]
               agentnotify interactions cancel <id>
               agentnotify interactions publish <id>
               agentnotify interactions poll-responses [--provider ID] [--json]
@@ -1948,7 +1948,7 @@ internal static class Program
               --agent NAME --agent-instance ID --project NAME --session ID --turn ID --native-request ID
 
             The first valid response wins. A repeated --response-id replays the original
-            outcome. Answers must echo the request digest from 'interactions get'.
+            outcome. Answers must echo the request digest and nonce from 'interactions get'.
             'wait' blocks until the interaction settles or --timeout (1-300s, default 60).
             'publish' re-sends the question to Relay-enabled routes (requests auto-publish).
             'poll-responses' fetches mobile answers from Relay into the broker; run it on

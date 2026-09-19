@@ -9,7 +9,9 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 const links = [
   ["Documentation", "/docs/"],
   ["ARC", "/docs/arc/"],
+  ["Router", "/docs/router/"],
   ["Channels", "/docs/channels/"],
+  ["Relay", "/docs/relay/"],
   ["Architecture", "/docs/architecture/"],
 ] as const;
 
@@ -17,7 +19,7 @@ export function MobileNav() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation">
+        <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation">
           <Menu />
         </Button>
       </SheetTrigger>

@@ -109,6 +109,6 @@ Then provide the CLI examples from `docs/AGENT_INTEGRATION.md`.
 - Always include `--project`; include `--agent` and, for concurrent runs, `--agent-instance`.
 - Reuse a stable `--key` while updating one unresolved condition.
 - Treat a missing CLI or stopped broker as non-fatal to the coding task. Report it when relevant and do not retry in a loop.
-- Do not read or disclose `%LOCALAPPDATA%\AgentNotify\config.json` or the bearer token.
+- Do not read or disclose the platform data directory's `config.json` or the bearer token.
 
 As custom notification types and delivery routes are introduced, the built-in values above will remain compatible so existing agents do not need immediate skill changes.

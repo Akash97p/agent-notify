@@ -1,7 +1,10 @@
 # AgentNotify API
 
 Base URL: `http://127.0.0.1:47821` (configurable via `config.json` `port` or `AGENTNOTIFY_PORT`).
-All `/v1/*` routes require `Authorization: Bearer <token>`. The token is generated on first launch and stored at `%LOCALAPPDATA%\AgentNotify\config.json` (`authToken`). It can be overridden by `AGENTNOTIFY_TOKEN` or `--token` on the CLI.
+All `/v1/*` routes require `Authorization: Bearer <token>`. The token is generated on first launch
+and stored as `authToken` in the platform data directory's `config.json` (`%LOCALAPPDATA%\AgentNotify`
+on Windows; `$XDG_DATA_HOME/AgentNotify` or `~/.local/share/AgentNotify` on macOS/Linux). It can be
+overridden by `AGENTNOTIFY_TOKEN` or `--token` on the CLI.
 
 Priority/status enum strings and built-in type IDs are **snake_case** (`input_required`, `permission_required`, etc.). Type IDs may also be user-defined: 1–64 lowercase letters, numbers, or underscores, starting with a letter. CLI input accepts hyphens and normalizes them to underscores.
 
@@ -26,7 +29,7 @@ Authenticated. Returns broker health.
 | Field | Type | Notes |
 |-------|------|-------|
 | `status` | string | `"ok"` |
-| `version` | string | Product informational version, e.g. `"0.1.0-alpha.2"` |
+| `version` | string | Product informational version, e.g. `"0.2.0-alpha.2"` |
 | `pid` | int | Broker process id |
 | `uptimeSeconds` | number | Seconds since start |
 | `activeCount` | int | Count of `status=active` notifications |
@@ -122,6 +125,83 @@ Update status.
 
 Convenience: sets `status=dismissed`. Same responses as PATCH.
 
+### `POST /v1/interactions/request`
+
+Open a durable waiting question or permission. A pending interaction with the same `key` is returned
+instead of duplicated; if the request bound to that key changed, the previous one is superseded and a
+new interaction is created.
+
+**Request** (`CreateInteractionRequest`, snake_case):
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `key` | string | no | Logical deduplication key |
+| `agent` | string | no | Host agent ID; default `unknown` |
+| `agent_instance` | string | no | Per-run agent identity |
+| `project` | string | no | Project/repository name |
+| `session_id` | string | no | Opaque native session ID |
+| `turn_id` | string | no | Opaque native turn/generation ID |
+| `native_request_id` | string | no | Opaque host request ID needed to return the answer |
+| `kind` | enum | no | `permission` (default), `single_choice`, or `text` |
+| `prompt` | string | yes | 1–2000 characters |
+| `choices` | array | for choice kinds | 2–12 `{ "id", "label", "detail"? }` entries |
+| `text_max_length` | int | no | Text-answer limit, 1–2000; default 500 |
+| `ttl_seconds` | int | no | Expiry window, 30–3600; default 600 |
+
+**Response:** `201` with `InteractionDto` when created; `200` when a pending keyed request is reused;
+`400` on validation failure.
+
+### `GET /v1/interactions`
+
+List interactions newest first. Optional query parameters are `pending` (bool), `status`, `agent`,
+`project`, `session`, and `limit` (1–500, default 100). Returns `InteractionDto[]`.
+
+### `GET /v1/interactions/{id}`
+
+Return one `InteractionDto`, or `404` when it does not exist. Reads also sweep an overdue pending
+interaction to `expired`.
+
+### `GET /v1/interactions/{id}/wait`
+
+Long-poll one interaction until it reaches a terminal state or the timeout elapses. `timeout` is
+clamped to 1–300 seconds and defaults to 60. A timeout returns `200` with the current pending
+`InteractionDto`; callers may wait again. Unknown IDs return `404`.
+
+### `POST /v1/interactions/{id}/respond`
+
+Submit the first valid answer.
+
+**Request** (`RespondInteractionRequest`, snake_case):
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `response_id` | string | yes | Client idempotency ID, 1–128 characters |
+| `request_digest` | string | yes | Must equal the current interaction digest |
+| `nonce` | string | yes | Single-use nonce returned in the current `InteractionDto` |
+| `choice_id` | string | choice kinds | Exactly one of `choice_id` or `text` |
+| `text` | string | text kind | Bounded by `text_max_length` |
+| `source` | string | no | `desktop`, `cli`, `relay`, or a host ID |
+| `device_id` | string | no | Responding device identity when known |
+
+Returns the answered `InteractionDto`. An identical `response_id` replays the accepted `200`; a
+different second answer returns `409`. Stale digests/nonces, wrong answer shapes, terminal states, and
+expired requests return `400`; unknown IDs return `404`.
+
+### `POST /v1/interactions/{id}/cancel`
+
+Cancel a pending interaction and wake any waiter. Returns the current `InteractionDto`; unknown IDs
+return `404`. Cancelling an already-terminal interaction is idempotent.
+
+### `POST /v1/interactions/{id}/publish`
+
+Republish the interaction through every matching enabled AgentNotify Relay route whose payload policy
+allows message content. The response is `{ "id": "...", "published": <count> }`. Returns `400` when
+Relay publishing is not configured and `404` for an unknown interaction. Publishing is idempotent per
+interaction and Relay provider.
+
+See [INTERACTIONS.md](INTERACTIONS.md) for lifecycle, first-response-wins, digest/nonce, expiry, host
+capture, and Relay synchronization rules.
+
 ---
 
 ## DTOs
@@ -136,6 +216,19 @@ cwd?, pid?, status, createdAt, updatedAt, resolvedAt?, metadata?
 Timestamps are ISO 8601 (`DateTimeOffset`). `metadata` is `Record<string, JsonElement>?` (arbitrary JSON values, erased to `null` when absent).
 
 Custom type definitions are local presentation policy stored in `config.json`; notification rows persist only the stable identifier. Missing, disabled, or deleted definitions safely fall back to generic info styling and a seven-second lifetime.
+
+### `InteractionDto`
+
+```
+id, key?, agent, agent_instance?, project?, session_id?, turn_id?, native_request_id?,
+kind, prompt, choices, text_max_length, status, request_digest, nonce,
+created_at, updated_at, expires_at, answered_at?, response?
+```
+
+`status` is `pending`, `answered`, `expired`, `cancelled`, or `superseded`. `response`, when present,
+contains `response_id`, `choice_id?`, `text?`, `source`, `device_id?`, and `created_at`. This DTO
+contains the response-binding nonce and is loopback/bearer protected; do not forward it to unrelated
+services or logs.
 
 ### `HealthResponse` — see `GET /v1/health`.
 
@@ -162,7 +255,7 @@ The supplied and expected values are hashed with SHA-256 and compared with a fix
 
 ## Rate limiting
 
-Every `POST` under `/v1/notifications`, plus `POST /v1/events`, is guarded by one sliding
+Every `POST` under `/v1/notifications` or `/v1/interactions`, plus `POST /v1/events`, is guarded by one sliding
 fixed-window counter per token: default **30 requests/second** (`rateLimitPerSecond`). `GET` and
 `PATCH` are not rate limited. When exceeded: `429 { "error": "rate limit exceeded" }` with
 `Retry-After: 1`.
@@ -175,7 +268,7 @@ fixed-window counter per token: default **30 requests/second** (`rateLimitPerSec
 |--------|-------|------|
 | 400 | `{ "error": "<message>" }` | Validation failure, invalid JSON, illegal status transition |
 | 401 | `{ "error": "unauthorized" }` | Missing/invalid bearer token |
-| 404 | `{ "error": "notification not found" }` | Unknown `id` |
+| 404 | `{ "error": "notification not found" }` or `{ "error": "interaction not found" }` | Unknown `id` |
 | 429 | `{ "error": "rate limit exceeded" }` | POST rate limit |
 | 413 | — | Request body exceeds `maxRequestBodyBytes` (Kestrel rejects before routing) |
 
