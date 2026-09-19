@@ -157,11 +157,13 @@ The local Usage page continues to work without internet or signed-in agent accou
 
 On macOS, the broker starts `agentnotify-menubar` when that executable is installed beside
 `agentnotifyd` and **Show five-hour quota in the macOS menu bar** is enabled. The status title is the
-lowest remaining five-hour percentage among the headline accounts selected on Live quota. Select all
+lowest remaining five-hour percentage among the headline accounts selected on Live quota, with the
+Claude starburst or the OpenAI knot (Codex) beside it showing whose balance that is. Select all
 accounts to store an empty filter, meaning every monitored account. Selection affects only that one
 percentage: the dropdown always lists every detected, discovered, or hand-added Codex and Claude Code
 account and every quota window the broker returned, with reset times, plan/credit data, source, and
-stale/unavailable state.
+stale/unavailable state — each row carries its provider's mark, dimmed when the account is not in the
+headline selection.
 
 The same card chooses a 5, 10, 15, 30, or 60 minute refresh interval. Scheduled reads use the broker's
 five-minute account cache and existing rate-limit/failure handling; **Refresh now** asks for the

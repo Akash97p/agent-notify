@@ -210,6 +210,12 @@ for the status title. An empty account selection means every account. Stale snap
 stale rather than becoming an invented zero. WebUI configuration controls enabled state, a 5–60
 minute polling interval, and headline account selection; only the headline is filtered.
 
+The status item shows the provider mark of whichever account holds the headline (the Claude starburst
+or the OpenAI knot for Codex) beside the percentage, and each account row in the dropdown carries its
+provider's mark, dimmed when the account is not in the headline selection. Both marks ship as embedded
+SVG path data parsed in-process (a small M/L/H/V/C/S/Q/T/A/Z parser); they are template images, so
+they adapt to the menu bar's appearance, and their sourcing is recorded in THIRD_PARTY_NOTICES.md.
+
 The status item uses the same local-user trust boundary as the WebUI. Its periodic GET can cause a
 provider probe after `LiveQuotaService`'s cache expires; the service still coalesces requests, keeps
 per-account caches/failure state, applies provider rate limits, and sanitizes the result before the

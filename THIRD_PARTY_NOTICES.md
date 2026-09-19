@@ -15,6 +15,19 @@ AgentNotify incorporates open-source components. This file is informational and 
 
 Build/test-only dependencies such as xUnit, Microsoft.NET.Test.Sdk, and coverlet are not shipped as application runtime libraries. Their package metadata remains available through NuGet restore.
 
+## Provider marks in the macOS menu bar
+
+`agentnotify-menubar` renders two provider marks as embedded vector path data, used only to identify
+the products they belong to:
+
+- The **Claude starburst** path data comes from the [simple-icons](https://github.com/simple-icons/simple-icons)
+  `claude` icon, which is released under CC0 1.0 (public domain). © Anthropic, Claude is a
+  trademark of Anthropic PBC.
+- The **OpenAI knot** (used for Codex accounts) is one segment of the ChatGPT mark from
+  [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:ChatGPT_logo.svg), rotated six times
+  as in the original. It is a trademark of OpenAI; the geometric shape itself is not subject to
+  copyright. Used to identify OpenAI Codex accounts, not to imply endorsement.
+
 ## Documentation site components
 
 The generated GitHub Pages site includes or is built with the following open-source components.
