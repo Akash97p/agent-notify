@@ -2241,3 +2241,19 @@ Families/Per model build.
 Not verified: the menu-bar glyphs and the Effort mapping page as actually rendered on screen (this
 session had no screenshot capability), the Windows/WSL build/test/package gates, a real provider
 request flowing through the new effort mapping, and a GitHub Actions release run.
+
+## macOS one item per selected quota account (2026-09-19)
+
+`feature/menubar-all-accounts` replaced the single lowest-balance status item with one native
+`NSStatusItem` per selected Codex/Claude account. Each item has that account's provider mark and
+five-hour percentage (or `--%` without a current five-hour window), and each owns an independent copy
+of the complete account menu. Live quota's account picker now directly controls which items appear.
+
+Verification actually run: `build-macos-menu-bar.sh` compiled and adhoc-signed the Swift executable;
+`node --check` passed for the updated Live quota module; the complete .NET suite passed **1262/1262**;
+and `publish-cross.sh osx-x64` produced the archive. All three binaries were installed into
+`~/.local/bin`, re-signed, and the LaunchAgent was restarted. `agentnotify health` returned `ok`, the
+new `agentnotify-menubar` child was running, and the live projection contained 4 selected accounts,
+all 4 with five-hour values, so the native client creates 4 status items. The user had already
+visually confirmed the provider marks before this change; the four-item rendering still requires
+their visual confirmation.
