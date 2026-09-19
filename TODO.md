@@ -117,7 +117,7 @@
 - [ ] API accounts: DeepSeek spend derived from balance changes; verify Anthropic cost-report units and OpenAI pagination with real Admin keys; xAI management-key billing
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app (the owner has used Dashboard, Live quota, and API accounts there; no systematic page-by-page or narrow-window check yet)
-- [x] Native macOS quota menu bar: lowest selected five-hour balance, every Codex/Claude account/window, broker lifecycle, WebUI configuration, and per-provider marks (Claude starburst, OpenAI knot) beside the headline and on each account row
+- [x] Native macOS quota menu bar: one provider-marked five-hour item per selected Codex/Claude account, every account/window in each dropdown, broker lifecycle, and WebUI configuration
 - [ ] Linux tray client and full macOS notification-center/settings client
 - [ ] Automatic updates and schema/config migration framework
 

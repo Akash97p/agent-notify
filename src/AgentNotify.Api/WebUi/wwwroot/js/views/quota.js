@@ -91,7 +91,7 @@ function goRenewal(go, reload) {
 
 function menuBarSettings(settings, accounts) {
   const enabled = toggle("Show five-hour quota in the macOS menu bar", settings.enabled,
-    { help: "The percentage is the lowest five-hour balance among the accounts selected below." });
+    { help: "Each selected account gets its own provider icon and five-hour percentage." });
   const refresh = select([[5, "Every 5 minutes"], [10, "Every 10 minutes"], [15, "Every 15 minutes"],
     [30, "Every 30 minutes"], [60, "Every hour"]], settings.refresh_minutes);
   const configured = new Set(settings.account_ids || []);
@@ -107,7 +107,7 @@ function menuBarSettings(settings, accounts) {
   save.addEventListener("click", () => busy(save, async () => {
     const selected = choices.filter(choice => choice.input.checked).map(choice => choice.dataset.accountId);
     if (accounts.length && selected.length === 0) {
-      status.replaceChildren(notice("Select at least one account for the headline percentage.", "danger"));
+      status.replaceChildren(notice("Select at least one account to show in the menu bar.", "danger"));
       return;
     }
     try {
@@ -127,14 +127,14 @@ function menuBarSettings(settings, accounts) {
   return h("section", { class: "card menu-bar-settings" },
     h("div", { class: "card-head" },
       h("div", null, h("h2", { class: "card-title", text: "macOS menu bar" }),
-        h("p", { class: "muted small", text: "A battery-like percentage for live Codex and Claude five-hour limits." })),
+        h("p", { class: "muted small", text: "One provider icon and live five-hour percentage per selected account." })),
       badge(settings.supported ? "This Mac" : "macOS", settings.supported ? "ok" : "info")),
     h("div", { class: "card-body stack" },
       enabled,
       field("Refresh", refresh, { help: "Provider checks remain cached and rate-limited by the broker." }),
       h("div", { class: "field" },
-        h("span", { class: "field-label", text: "Headline accounts" }),
-        h("p", { class: "field-help", text: "The menu lists every account. These choices only decide which five-hour balance appears beside the icon." }),
+        h("span", { class: "field-label", text: "Menu bar accounts" }),
+        h("p", { class: "field-help", text: "Each selected account gets its own item. The dropdown still lists every account." }),
         h("div", { class: "menu-account-picker" }, choices)),
       settings.supported ? null : notice("The native client is packaged only for macOS; Linux and Windows ignore this display setting.", "info"),
       status),

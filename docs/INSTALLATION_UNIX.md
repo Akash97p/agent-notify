@@ -99,7 +99,7 @@ agentnotify send --agent codex --project payments --type input_required \
 Open the broker's local web interface with `agentnotify ui`. It provides settings, channels,
 questions, history, and an Insights area for local usage, API-equivalent cost estimates, and live
 Codex/Claude Code quota. On macOS the broker automatically starts `agentnotify-menubar` after the API
-is ready; configure its enabled state, refresh interval, and headline accounts on Live quota. See
+is ready; configure its enabled state, refresh interval, and menu-bar accounts on Live quota. See
 [WEB_UI.md](WEB_UI.md) for account setup, polling/estimate limits, and SSH forwarding.
 
 ## Run it in the background
