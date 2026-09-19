@@ -13,6 +13,9 @@ build.
 
 ### Changed
 
+- **Smart switching lives on the Routing page.** The Model router's one-card Settings page is folded
+  into Routing, next to the routes and the unknown-model fallback it belongs with, so the group is
+  five pages instead of six.
 - **Effort mapping is one table per model family.** The Effort mapping page now opens on Families:
   every routed model is grouped by vendor family (DeepSeek, GLM, Kimi, Qwen, MiniMax, Grok, Muse,
   OpenAI, Claude), so a hundred models are ten cards instead of a hundred. The **Per model** tab

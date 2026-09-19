@@ -7,10 +7,9 @@ import {
 // Page titles live here so every section shares one voice.
 const TITLES = {
   providers: ["Providers", "Add a provider, tick its models, and they show up in your agents' model pickers."],
-  routing: ["Routing", "Optional nicknames and fallback chains on top of your providers' models."],
+  routing: ["Routing", "Optional nicknames, fallback chains, and how smart switching moves requests between matching providers."],
   agents: ["Agents", "Point an agent's own model picker at the router, and put its settings back."],
   activity: ["Activity", "What the router actually sent, per request and per attempt."],
-  settings: ["Settings", "Choose how smart switching moves requests between matching providers and fallback routes."],
 };
 
 function offBanner() {
@@ -1129,10 +1128,9 @@ export async function renderRouter(page, ctx, section) {
 
     const sections = {
       providers: [statusHost, upstreamsHost],
-      routing: [routesHost, defaultHost],
+      routing: [routesHost, defaultHost, smartHost],
       agents: [agentsHost, connectHost],
       activity: [ledgerHost, summaryHost],
-      settings: [smartHost],
     };
 
     mount(page,
@@ -1145,7 +1143,7 @@ export async function renderRouter(page, ctx, section) {
     );
 
     if (section === "providers") { drawStatus(); drawUpstreams(); }
-    if (section === "routing") { drawRoutes(); drawDefault(); }
+    if (section === "routing") { drawRoutes(); drawDefault(); drawSmart(); }
     if (section === "agents") { drawConnect(); await drawAgents(); }
     if (section === "activity") {
       drawLedger();
@@ -1153,5 +1151,4 @@ export async function renderRouter(page, ctx, section) {
       await loadLedger();
       await loadSummary();
     }
-    if (section === "settings") drawSmart();
 }

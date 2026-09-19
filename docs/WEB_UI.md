@@ -45,9 +45,10 @@ so a profile discovered or added in one appears in all three.
 | Configuration → Sounds | Global and per-type sounds, volume, WAV/MP3 upload, and preview |
 | Configuration → Agents | Every Codex and Claude Code account (the same list as Live quota, including second profiles such as `~/.claude-second`) with its skill state, an install button, and whether its hook harness is installed, with the exact command for that account; then the skill and harness for every other host |
 | Model router → Providers | Turn the router on; add a provider from a gallery, reusing a key from API accounts or OpenCode; the ChatGPT plan adds one provider per signed-in Codex account by itself; tick fetched models |
-| Model router → Routing | The smart routing switch and the models it can move between providers; optional nicknames and fallback chains, and where an unknown model goes |
+| Model router → Routing | The smart routing switch and the models it can move between providers; optional nicknames and fallback chains, where an unknown model goes, and how switching starts each request (ordered, sticky, round-robin) plus Claude Code's cross-model fallback |
 | Model router → Agents | Connect any of those Codex and Claude Code accounts so its own `/model` menu lists routed models, set subagent and review models, disconnect, and restore a saved copy of its configuration |
 | Model router → Activity | The router's request ledger and per-model totals |
+| Model router → Effort mapping | One effort table per model family, with per-model overrides; covers Claude Code's and Codex's efforts |
 | Dashboard | See live account balances, 30-day tokens and cost, agent mix, usage trend, top projects, OpenCode Go estimates, and broker delivery health together |
 | Usage | Read compact local Claude Code, Codex, OpenCode, Kilo CLI, Muse Code, and Gemini CLI activity summaries (including WSL on Windows); expand sessions, projects, models, token buckets, and pricing when needed |
 | Live quota | Check remaining balances for every detected or added Codex and Claude Code profile; configure the macOS quota menu bar; see API account balances and spend; compare a separately labeled local OpenCode Go per-model estimate that can follow your billing cycle |

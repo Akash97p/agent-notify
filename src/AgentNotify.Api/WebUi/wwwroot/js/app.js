@@ -15,7 +15,6 @@ import routerProviders from "./views/router-providers.js";
 import routerRouting from "./views/router-routing.js";
 import routerAgents from "./views/router-agents.js";
 import routerActivity from "./views/router-activity.js";
-import routerSettings from "./views/router-settings.js";
 import routerEffort from "./views/router-effort.js";
 import insights from "./views/insights.js";
 
@@ -40,7 +39,6 @@ const NAV = [
     { path: "router-routing", title: "Routing", icon: "shuffle", view: routerRouting },
     { path: "router-agents", title: "Agents", icon: "bot", view: routerAgents },
     { path: "router-activity", title: "Activity", icon: "pulse", view: routerActivity },
-    { path: "router-settings", title: "Settings", icon: "sliders", view: routerSettings },
     { path: "router-effort", title: "Effort mapping", icon: "gauge", view: routerEffort },
   ] },
   { label: "Insights", items: [

@@ -624,7 +624,7 @@ public sealed class RouterApiTests
         foreach (var module in new[]
                  {
                      "router-shared.js", "router-providers.js", "router-routing.js",
-                     "router-agents.js", "router-activity.js", "router-settings.js", "router-effort.js"
+                     "router-agents.js", "router-activity.js", "router-effort.js"
                  })
         {
             var asset = await browser.GetAsync($"/ui/js/views/{module}");
@@ -634,7 +634,7 @@ public sealed class RouterApiTests
 
         var appJs = await browser.GetStringAsync("/ui/js/app.js");
         Assert.Contains("Model router", appJs);
-        foreach (var path in new[] { "router", "router-routing", "router-agents", "router-activity", "router-settings", "router-effort" })
+        foreach (var path in new[] { "router", "router-routing", "router-agents", "router-activity", "router-effort" })
             Assert.Contains($"path: \"{path}\"", appJs);
     }
 }
