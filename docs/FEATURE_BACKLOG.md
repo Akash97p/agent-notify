@@ -188,10 +188,6 @@ Track live agent instances, projects, working directories, last activity, and wa
 
 ### R05 — Adaptive routing (prompt-to-model selection)
 
-> Competitive landscape, surveyed 2026-09-18: the core idea (prompt-difficulty → cheaper model) is
-> already shipped by several small projects — the open ground is integration quality, a Jev backend,
-> and a local measurement loop. See the notes at the end of this section.
-
 Downshift easy prompts to a cheaper capable model before route resolution, and keep hard ones on the
 user's chosen model. Chosen over renaming the existing feature: "smart routing" already names
 same-model cross-provider failover (see `docs/ROUTER.md`), which routes around a broken or exhausted
@@ -217,39 +213,6 @@ two compose (adaptive selection first, then smart-routing failover on the chosen
   rows beside the proxy ledger, and show the routing page which tier a request would get.
 - Loopback promise intact by default: no request leaves the machine unless Jev (or a later BYOK
   decision model) is enabled with a key.
-
-Competitive notes (surveyed 2026-09-18; star counts are snapshots):
-
-- [BitRouter](https://github.com/bitrouter/bitrouter) (Rust, Apache-2.0, ~228★, 890 commits) — the
-  serious competitor: local proxy + `policy-lock.yaml`, routes LLM calls, tools, and sub-agents per
-  loop step, multi-account failover, spend caps, ACP adapters for Codex/Claude, claims ~33% cost
-  cut on Terminal-Bench 2.1. Enterprise/devops-flavored; our wedge is a single opt-in toggle in a
-  UI the owner already runs. Verify hands-on before committing to this feature's shape.
-- [claude-model-router-hook](https://github.com/tzachbon/claude-model-router-hook) (MIT, ~83★) —
-  Claude Code-only hook; heuristic classifier with optional Haiku fallback, effort-first tiers
-  (mechanical→haiku up to extreme→opus), opt-in autoswitch, fail-open. Validates demand; single
-  harness, no ledger.
-- [pi-litellm-autorouter](https://github.com/CoresoftHQ/pi-litellm-autorouter) (MIT, 0★) — Pi
-  extension; four-tier prompt classifier (heuristic or LLM), adaptive Thompson-sampling selection.
-  A TypeScript port of LiteLLM's Auto Router v2 complexity classifier.
-- [RouteLLM](https://github.com/lm-sys/RouteLLM) (Apache-2.0, ~5.5k★) — LMSYS research routers
-  (matrix factorization, BERT, etc.) between a strong and weak model; up to 85% cost cut at 95%
-  quality in benchmarks. Lab framework; Python/PyTorch runtime does not fit the C# broker.
-- [Autohand Routes](https://github.com/autohandai/routes) (Rust, 4★) — policy-driven OpenAI-
-  compatible routing layer (balanced/fastest/local-first/privacy-first policies); freshly
-  open-sourced internal tooling, claims unverifiable.
-- [spawn-router](https://github.com/Afterbuild/spawn-router) (MIT, 0★) — local DeBERTa-v3-small
-  classifier (complexity/task-type/risk) on ONNX, ~7ms; classifies once per task, then locks the
-  model.
-- Harness built-ins route on availability or phase only (Claude Code `opusplan` and fallback
-  chains, Copilot Auto), never on prompt difficulty — and each hosting vendor is incentivized not
-  to downshift. Not Diamond sells hosted cloud routing for coding agents; prompts leave the machine.
-
-Positioning: RouteLLM proved the idea in the lab, the hook projects shipped it per-harness,
-BitRouter sells policy-driven multi-host routing, and Not Diamond sells it as a cloud API.
-AgentNotify's remaining differentiators: the first decision-model backend (BYOK Jev, a class
-nothing here uses yet), a routing/savings ledger feeding the Usage page, and one loopback toggle
-across eleven harnesses.
 
 ## Product and platform tasks
 

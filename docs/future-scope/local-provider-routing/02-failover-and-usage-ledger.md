@@ -1,11 +1,28 @@
-# Failover and proxy-observed usage in the routing proxy
+# Router: failover and the proxy-observed ledger
 
-`combos` are configured groups of provider/model targets. `pickComboTarget` first excludes disabled/unusable or cooling targets, then applies `failover`, weighted round-robin, weighted random, least-used, or reset-window selection. Selection state commits only for the active config generation. `handleComboResponses` executes attempts, classifies failures, and hops to another eligible target only when the request/stream state permits it. A failed target's cooldown can come from `Retry-After`, a quota reset, or a configured fallback duration (failover state). Request errors are not treated as target health failures.
+## Attempts and failover
 
-The proxy maintains its own append-only `usage.jsonl` ledger, under the the routing proxy config directory. `appendUsageEntry` writes normalized rows with owner-only file mode. A row records request ID/time, selected provider/model, inbound protocol, response status, usage status (`reported`, `estimated`, `unreported`, `unsupported`), token counts when known, route trace, and per-attempt provider/model/status/duration/recovery. It persists only bounded/redacted account labels and route metadata, not raw credentials or request bodies. Usage summaries group those rows by time/provider/model/account and calculate display-time cost.
+A combo attempt list is built from the combo's eligible members in strategy order. A member is
+excluded when it is disabled, unusable, or cooling. A failure is classified before the next hop:
+a request-shape error fails the request, while a target-specific failure moves to the next member.
+A cooling period can come from the upstream's own retry hint, a quota reset, or a configured
+fallback duration. Selection state is committed only for the active configuration generation, so a
+concurrent settings change cannot resurrect a stale target list.
 
-The proxy's cost calculator starts from **inclusive** `OcxUsage.inputTokens` (cache reads/writes included), converts it to mutually exclusive input/cache-read/cache-write buckets, then multiplies each by a per-million-token rate. It applies verified provider/model pricing, context-tier and confirmed Fast-tier rules. For a combo it can sum **each physical attempt's** cost, including failed or retried billable sends; if a required attempt lacks pricing, the estimate remains incomplete. This is more faithful than pricing only the final successful response.
+## Ledger
 
-Proxy-observed usage has a precise blind spot: it covers requests that passed through this proxy, and its status may be estimated or unreported if an upstream did not return usage. It should not replace Claude/Codex local-log totals or account-level quota snapshots. If your mega app also scans those logs, correlate by request/session/time/provider where possible and show source provenance. Avoid blindly adding proxy and local-log counts for the same call.
+The router keeps its own SQLite ledger, separate from Usage and Live quota. One row per logical
+request records request id and time, selected upstream and model, inbound protocol, response status,
+usage status (`reported`, `estimated`, `unreported`, `unsupported`), token counts when the upstream
+reported them, the redacted route trace, and per-attempt upstream/model/status/duration. Prompts,
+responses, headers, keys, and provider error bodies are never stored.
 
-The reusable architecture is `admit request → resolve route and credential → pin attempt → translate/send → record each physical attempt → normalize returned usage → append one logical request row → summarize later`. This makes failover, cost and diagnostics observable without coupling them to the UI.
+Proxy-observed usage has a precise blind spot: it covers requests that passed through the router,
+and its status may be estimated or unreported. It is not a substitute for local-log totals or
+account-level quota snapshots, and the three are shown with their own provenance rather than summed.
+
+## Remaining work
+
+Price ledger rows using the same catalog as the Usage view, correlate router rows with log-derived
+records without double counting, raise spend and quota thresholds as ARC attention requests, and
+extend connector coverage to OpenCode, Kilo, Cursor, and the Gemini CLI.

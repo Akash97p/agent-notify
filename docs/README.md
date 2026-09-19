@@ -13,6 +13,17 @@ client. The local web interface configures the broker and shows notifications, q
 costs, and quotas on all three platforms. [CROSS_PLATFORM.md](CROSS_PLATFORM.md) describes the
 remaining full-macOS and Linux native-client work.
 
+## Published documentation website
+
+The documentation is published to GitHub Pages from `site/` by the repository workflow. The site
+has a project landing page, an [Insights](https://akash97p.github.io/agent-notify/insights/) page for
+the dashboard, a [Model router](https://akash97p.github.io/agent-notify/router/) page, and the guides
+below rendered from the Markdown in this directory. There is no separate documentation landing page:
+the topbar Documentation link opens
+[Install with an agent](https://akash97p.github.io/agent-notify/docs/install-with-agent/), which is
+the first thing a new user needs. Documentation `H1` headings come from each file's own title, so a
+new guide needs an entry in `site/src/lib/docs.ts` to appear in navigation.
+
 ## Start here
 
 | Document | What it covers |
@@ -47,7 +58,7 @@ remaining full-macOS and Linux native-client work.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Project layout, process model, and the boundaries between components |
 | [CHANNELS.md](CHANNELS.md) | Every implemented outbound delivery adapter and its security policy |
 | [CROSS_PLATFORM.md](CROSS_PLATFORM.md) | The macOS and Linux plan, its phases, and current status |
-| [../SECURITY.md](../SECURITY.md) | Trust boundary, secret handling, and reporting a vulnerability |
+| [../SECURITY.md](../SECURITY.md) | Trust boundaries, secret handling, provider risks, and vulnerability reporting |
 
 ## Planning and process
 

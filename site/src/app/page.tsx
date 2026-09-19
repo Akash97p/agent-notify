@@ -6,8 +6,8 @@ import {
   Check,
   Database,
   FolderKanban,
-  GitBranch,
   Gauge,
+  GitBranch,
   LockKeyhole,
   Network,
   Radio,
@@ -16,11 +16,12 @@ import {
 } from "lucide-react";
 
 import { CopyCommand } from "@/components/copy-command";
+import { ProductShot } from "@/components/product-shot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { site } from "@/lib/site";
+import { docsEntry, site, visuals } from "@/lib/site";
 
 const channels = [
   "Webhook",
@@ -44,21 +45,28 @@ const channels = [
   "AgentNotify Relay",
 ];
 
+const facts = [
+  { value: "11", label: "agent hosts with adapters" },
+  { value: "19", label: "opt-in delivery adapters" },
+  { value: "6", label: "local usage sources" },
+  { value: "0", label: "telemetry services" },
+];
+
 export default function Home() {
   return (
     <main>
       <section className="relative overflow-hidden border-b">
         <div className="grid-surface pointer-events-none absolute inset-0" />
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 sm:py-32 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-center lg:py-40">
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 py-24 sm:px-6 sm:py-32 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-center lg:py-36">
           <div className="min-w-0">
             <Badge variant="outline" className="mb-6 border-border bg-background/70 px-3 py-1 text-muted-foreground">Open source · Local first · No telemetry</Badge>
             <h1 className="max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.055em] sm:text-7xl">Know exactly when your agents need you.</h1>
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">AgentNotify turns permissions, questions, blockers, failures, and completions into durable human-attention requests—then routes them to the surfaces you already use, and carries your answer back to the agent that is waiting.</p>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">AgentNotify turns permissions, questions, blockers, failures, and completions into durable human-attention requests — then routes them to the surfaces you already use and carries your answer back to the agent that is waiting.</p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
-              <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
+              <Button asChild size="lg" variant="outline"><Link href={docsEntry}>Read the documentation</Link></Button>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">Windows has the full desktop app. macOS adds native five-hour quota status; every platform gets the CLI, broker, and local web interface.</p>
+            <p className="mt-5 text-sm text-muted-foreground">Windows has the full desktop app. macOS adds native five-hour quota status; every platform gets the CLI, broker, local dashboard, and model router.</p>
           </div>
 
           <Card className="min-w-0 overflow-hidden bg-card/90 shadow-2xl shadow-black">
@@ -91,8 +99,8 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="grid divide-y rounded-xl border bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          {[['6', 'local usage sources'], ['19', 'outbound adapters'], ['3', 'supported OS families'], ['0', 'telemetry services']].map(([value, label]) => (
-            <div className="px-6 py-5" key={label}><p className="text-2xl font-semibold tracking-tight">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div>
+          {facts.map((fact) => (
+            <div className="px-6 py-5" key={fact.label}><p className="text-2xl font-semibold tracking-tight">{fact.value}</p><p className="text-sm text-muted-foreground">{fact.label}</p></div>
           ))}
         </div>
       </section>
@@ -100,9 +108,12 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
         <div className="max-w-2xl"><Badge variant="secondary">Why AgentNotify</Badge><h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">A broker for the human bottleneck.</h2><p className="mt-5 text-lg leading-8 text-muted-foreground">Agents can work for hours without help. The costly moment is when one silently stops at a permission prompt, missing credential, or decision only you can make.</p></div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          <Feature icon={Database} title="Local source of truth">SQLite keeps unresolved state, deduplication keys, history, and delivery attempts on your machine.</Feature>
-          <Feature icon={Route} title="Route after persistence">Desktop delivery is authoritative. Optional remote channels run later through a durable outbox.</Feature>
-          <Feature icon={LockKeyhole} title="Explicit trust boundary">The API stays on loopback behind a random bearer token. External channels are disabled until configured.</Feature>
+          <Feature icon={Database} title="Local source of truth">SQLite keeps unresolved state, deduplication keys, history, and delivery attempts on your machine, so a restart never loses a question.</Feature>
+          <Feature icon={Route} title="Route after persistence">Desktop delivery is authoritative. Optional remote channels run later through a durable outbox with bounded retries.</Feature>
+          <Feature icon={LockKeyhole} title="Explicit trust boundary">The API stays on loopback behind a random bearer token, and every external channel is disabled until you configure and enable it.</Feature>
+        </div>
+        <div className="mt-10">
+          <ProductShot src={visuals.attentionQueue} alt="The AgentNotify attention queue showing permission, input, and blocked requests with their logical keys and delivery routes" caption="Unresolved attention is the home view: one card per logical key, newest state first, and delivery routes that stay optional." />
         </div>
       </section>
 
@@ -111,18 +122,18 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6" id="insights">
         <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="max-w-3xl">
-            <Badge variant="secondary">Web interface · Insights</Badge>
+            <Badge variant="secondary">Local dashboard · Insights</Badge>
             <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">See the work and the runway.</h2>
-            <p className="mt-5 text-lg leading-8 text-muted-foreground">Run <code className="rounded border bg-card px-1.5 py-0.5 font-mono text-base text-foreground">agentnotify ui</code> to open your local dashboard. Review what Claude Code, Codex, OpenCode, Kilo, Muse Code, and the Gemini CLI used — on Windows, inside WSL too — what those tokens would cost at published rates, and how much quota and API balance your accounts have left.</p>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">Run <code className="rounded border bg-card px-1.5 py-0.5 font-mono text-base text-foreground">agentnotify ui</code> to open the dashboard your broker already serves. Review what Claude Code, Codex, OpenCode, Kilo, Muse Code, and the Gemini CLI used — on Windows, inside WSL too — what those tokens would cost at published rates, and how much quota and API balance your accounts have left, next to unresolved attention and router health.</p>
           </div>
-          <Button asChild variant="outline"><Link href="/docs/web-ui/">Explore the web interface <ArrowRight /></Link></Button>
+          <Button asChild variant="outline"><Link href="/insights/">Explore Insights <ArrowRight /></Link></Button>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Each request is priced at its provider's published rate, including long-context and fast tiers; records without a verified rate stay unpriced.</Feature>
-          <Feature icon={Gauge} title="Live quota and macOS status">Codex and Claude Code profiles are found automatically — secondary folders and WSL included. On macOS, the lowest selected five-hour balance stays in the menu bar while every account and window remains one click away.</Feature>
-          <Feature icon={FolderKanban} title="One Insights dashboard">See 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health in one view. Account quota and local usage retain their separate sources.</Feature>
+          <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Each request is priced at its provider&apos;s published rate, including long-context and fast tiers; records without a verified rate stay unpriced.</Feature>
+          <Feature icon={Gauge} title="Live quota and macOS status">Codex and Claude Code profiles are found automatically — secondary folders and WSL included. On macOS, your selected five-hour balances stay in the menu bar while every account and window remains one click away.</Feature>
+          <Feature icon={FolderKanban} title="One dashboard, clear provenance">Attention, 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health share a page while usage and quota keep their separate sources.</Feature>
         </div>
-        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota is checked on demand in the WebUI and periodically while the macOS status item is enabled; provider snapshots remain cached and rate-limited. API keys are encrypted and never shown again; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota is checked on demand in the dashboard and periodically while the macOS status item is enabled; provider snapshots stay cached and rate-limited. API keys are encrypted and never shown again, and OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
       </section>
 
       <Separator />
@@ -130,18 +141,18 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6" id="router">
         <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="max-w-3xl">
-            <Badge variant="secondary">Provider router · Opt in</Badge>
+            <Badge variant="secondary">Model router · Opt in</Badge>
             <h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Choose the model path without changing the agent.</h2>
-            <p className="mt-5 text-lg leading-8 text-muted-foreground">The local router accepts OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages requests, then selects a provider and model, translates wire formats when needed, and can switch or fail over across configured targets.</p>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">The local router accepts OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages requests, then selects a provider and model, translates wire formats when needed, and can switch or fail over across the targets you configure.</p>
           </div>
-          <Button asChild variant="outline"><Link href="/docs/router/">Read the router guide <ArrowRight /></Link></Button>
+          <Button asChild variant="outline"><Link href="/router/">Explore the model router <ArrowRight /></Link></Button>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
-          <Feature icon={Route} title="Local and off by default">The router binds to loopback and does nothing until you enable it. Codex and Claude Code connections are explicit and backed up before AgentNotify edits their files.</Feature>
-          <Feature icon={GitBranch} title="Select, switch, and fail over">Use direct provider/model selectors, nicknames, ordered fallback chains, or smart switching across providers that expose the same model.</Feature>
+          <Feature icon={Route} title="Local and off by default">The router binds to loopback under its own key and does nothing until you enable it. Codex and Claude Code connections are explicit and backed up before AgentNotify edits their files.</Feature>
+          <Feature icon={GitBranch} title="Select, switch, and fail over">Use direct provider/model selectors, nicknames, ordered fallback combos, or smart switching across providers that expose the same model.</Feature>
           <Feature icon={LockKeyhole} title="A separate spending boundary">The router key cannot read notifications. Upstream keys are encrypted and write-only, while the ledger excludes prompts, responses, headers, keys, and provider error bodies.</Feature>
         </div>
-        <p className="mt-6 text-sm leading-6 text-muted-foreground">When enabled, request content is sent to the upstream provider selected by routing. ChatGPT-plan and Muse Code subscription integrations are unofficial, clearly labeled, and opt-in.</p>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">When enabled, request content is sent only to the upstream provider selected by routing. Subscription-plan integrations are unofficial, clearly labelled, and opt-in.</p>
       </section>
 
       <Separator />
@@ -210,7 +221,7 @@ export default function Home() {
       <section className="border-y bg-card/40">
         <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
           <div className="grid gap-10 lg:grid-cols-[.75fr_1.25fr]">
-            <div><Badge variant="outline">Delivery</Badge><h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Your attention, where you want it.</h2><p className="mt-5 leading-7 text-muted-foreground">Every remote destination is opt-in. Credentials are encrypted at rest, payloads are bounded, and provider failures never reject the local request.</p><Button asChild variant="outline" className="mt-7"><Link href="/docs/channels/">Explore channels <ArrowRight /></Link></Button></div>
+            <div><Badge variant="outline">Delivery</Badge><h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Your attention, where you want it.</h2><p className="mt-5 leading-7 text-muted-foreground">Every remote destination is opt-in. Credentials are encrypted at rest, payloads are bounded, and a provider failure never rejects the local request.</p><Button asChild variant="outline" className="mt-7"><Link href="/docs/channels/">Explore channels <ArrowRight /></Link></Button></div>
             <div className="flex content-start flex-wrap gap-2">{channels.map((channel) => <Badge key={channel} variant="secondary" className="px-3 py-1.5 text-sm">{channel}</Badge>)}</div>
           </div>
         </div>
@@ -219,7 +230,7 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
         <div className="text-center"><Badge variant="secondary">Architecture</Badge><h2 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Simple at the boundary. Durable underneath.</h2></div>
         <div className="mt-12 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] lg:items-center">
-          <Flow icon={Terminal} title="Coding agents" detail="CLI · ARC · future adapters" /><ArrowRight className="mx-auto hidden text-muted-foreground lg:block" />
+          <Flow icon={Terminal} title="Coding agents" detail="CLI · ARC · harnesses" /><ArrowRight className="mx-auto hidden text-muted-foreground lg:block" />
           <Flow icon={Radio} title="Loopback API" detail="Bearer auth · validation" /><ArrowRight className="mx-auto hidden text-muted-foreground lg:block" />
           <Flow icon={Database} title="Local lifecycle" detail="SQLite · dedup · history" /><ArrowRight className="mx-auto hidden text-muted-foreground lg:block" />
           <Flow icon={Network} title="Attention routes" detail="Desktop · chat · mail · push" />

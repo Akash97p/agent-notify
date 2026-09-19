@@ -1,0 +1,59 @@
+<svg width="1000" height="640" viewBox="0 0 1000 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentNotify attention queue with unresolved agent requests and delivery routes">
+  <defs>
+    <pattern id="agrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" stroke="#1c1c1c" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1000" height="640" fill="#0b0b0b"/>
+  <rect width="1000" height="640" fill="url(#agrid)" opacity="0.45"/>
+  <rect x="0.5" y="0.5" width="999" height="639" stroke="#262626"/>
+
+  <text x="56" y="72" font-family="Geist, system-ui, sans-serif" font-size="15" font-weight="600" fill="#f5f5f5">Unresolved</text>
+  <text x="56" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">one card per logical key · history kept</text>
+  <rect x="836" y="56" width="108" height="26" rx="13" fill="#171717" stroke="#262626"/>
+  <circle cx="854" cy="69" r="4" fill="#e5e5e5"/>
+  <text x="866" y="73" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">3 open</text>
+
+  <g font-family="Geist, system-ui, sans-serif">
+    <rect x="56" y="116" width="888" height="96" rx="12" fill="#111111" stroke="#2e2e2e"/>
+    <rect x="56" y="116" width="3" height="96" rx="1.5" fill="#e5e5e5"/>
+    <path d="M80 132h14a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H80a8 8 0 0 1-8-8v-14a8 8 0 0 1 8-8Z" fill="none" stroke="#8f8f8f"/>
+    <text x="124" y="148" font-size="14" font-weight="600" fill="#f5f5f5">Deploy approval</text>
+    <text x="124" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#8f8f8f">permission_required · release · codex · priority high</text>
+    <text x="124" y="192" font-size="12" fill="#a3a3a3">May I publish the signed installer to the release page?</text>
+    <rect x="760" y="150" width="160" height="28" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="778" y="169" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">key: release-deploy</text>
+  </g>
+
+  <g font-family="Geist, system-ui, sans-serif">
+    <rect x="56" y="228" width="888" height="96" rx="12" fill="#111111" stroke="#242424"/>
+    <rect x="56" y="228" width="3" height="96" rx="1.5" fill="#8f8f8f"/>
+    <path d="M80 244h14a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H80a8 8 0 0 1-8-8v-14a8 8 0 0 1 8-8Z" fill="none" stroke="#6f6f6f"/>
+    <text x="124" y="260" font-size="14" font-weight="600" fill="#f5f5f5">Which storage shape?</text>
+    <text x="124" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#8f8f8f">input_required · billing · claude-code · priority normal</text>
+    <text x="124" y="304" font-size="12" fill="#a3a3a3">Quote rows as immutable events, or as current state?</text>
+    <rect x="760" y="262" width="160" height="28" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="778" y="281" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">phone · pending</text>
+  </g>
+
+  <g font-family="Geist, system-ui, sans-serif">
+    <rect x="56" y="340" width="888" height="96" rx="12" fill="#111111" stroke="#242424"/>
+    <rect x="56" y="340" width="3" height="96" rx="1.5" fill="#4a4a4a"/>
+    <path d="M80 356h14a8 8 0 0 1 8 8v14a8 8 0 0 1-8 8H80a8 8 0 0 1-8-8v-14a8 8 0 0 1 8-8Z" fill="none" stroke="#4a4a4a"/>
+    <text x="124" y="372" font-size="14" font-weight="600" fill="#d4d4d4">Staging credential missing</text>
+    <text x="124" y="396" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#8f8f8f">blocked · shop · opencode · priority critical</text>
+    <text x="124" y="416" font-size="12" fill="#a3a3a3">Job retried 3 times; waiting on a rotated DATABASE_URL.</text>
+    <rect x="760" y="374" width="160" height="28" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="778" y="393" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">delivered · desktop</text>
+  </g>
+
+  <rect x="56" y="468" width="888" height="120" rx="12" fill="#101010" stroke="#242424"/>
+  <text x="80" y="500" font-family="Geist, system-ui, sans-serif" font-size="12" fill="#8f8f8f">Delivery</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#a3a3a3">
+    <rect x="80" y="516" width="190" height="28" rx="7" fill="#171717" stroke="#262626"/><text x="96" y="535">desktop toast</text>
+    <rect x="284" y="516" width="190" height="28" rx="7" fill="#171717" stroke="#262626"/><text x="300" y="535">tray center</text>
+    <rect x="488" y="516" width="190" height="28" rx="7" fill="#171717" stroke="#262626"/><text x="504" y="535">web interface</text>
+    <rect x="692" y="516" width="228" height="28" rx="7" fill="#171717" stroke="#262626"/><text x="708" y="535">relay · end-to-end to phone</text>
+  </g>
+  <text x="80" y="572" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">delivery runs after the local write · retries bounded · channels off by default</text>
+</svg>

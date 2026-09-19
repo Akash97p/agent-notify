@@ -1,0 +1,139 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentNotify Insights dashboard showing usage, cost, live quota, and broker health">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#1e1e1e" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="720" fill="#0b0b0b"/>
+  <rect width="1200" height="720" fill="url(#grid)" opacity="0.55"/>
+  <rect x="0.5" y="0.5" width="1199" height="719" stroke="#262626"/>
+
+  <!-- window chrome -->
+  <rect x="0" y="0" width="1200" height="56" fill="#0f0f0f"/>
+  <path d="M0 56.5H1200" stroke="#262626"/>
+  <circle cx="28" cy="28" r="5" fill="#2f2f2f"/>
+  <circle cx="46" cy="28" r="5" fill="#2f2f2f"/>
+  <circle cx="64" cy="28" r="5" fill="#2f2f2f"/>
+  <text x="92" y="33" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8f8f8f">127.0.0.1:8787/ui/overview</text>
+  <rect x="1010" y="16" width="164" height="24" rx="6" fill="#151515" stroke="#262626"/>
+  <circle cx="1026" cy="28" r="4" fill="#e5e5e5"/>
+  <text x="1038" y="33" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="#a3a3a3">broker online</text>
+
+  <!-- sidebar -->
+  <path d="M176.5 56V720" stroke="#262626"/>
+  <text x="24" y="96" font-family="Geist, system-ui, sans-serif" font-size="15" font-weight="600" fill="#f5f5f5">AgentNotify</text>
+  <text x="24" y="116" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">loopback · local</text>
+  <g font-family="Geist, system-ui, sans-serif" font-size="13">
+    <rect x="14" y="140" width="148" height="30" rx="7" fill="#191919"/>
+    <text x="30" y="160" fill="#f5f5f5">Overview</text>
+    <text x="30" y="196" fill="#8f8f8f">Notifications</text>
+    <text x="30" y="228" fill="#8f8f8f">Questions</text>
+    <text x="30" y="260" fill="#8f8f8f">Usage</text>
+    <text x="30" y="292" fill="#8f8f8f">Live quota</text>
+    <text x="30" y="324" fill="#8f8f8f">Routing</text>
+    <text x="30" y="356" fill="#8f8f8f">Channels</text>
+    <text x="30" y="388" fill="#8f8f8f">Settings</text>
+  </g>
+  <path d="M14 660H162" stroke="#1e1e1e"/>
+  <text x="30" y="684" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">contract 4</text>
+
+  <!-- header row -->
+  <text x="208" y="102" font-family="Geist, system-ui, sans-serif" font-size="22" font-weight="600" fill="#f5f5f5">Overview</text>
+  <text x="208" y="124" font-family="Geist, system-ui, sans-serif" font-size="13" fill="#8f8f8f">Attention, usage, quota, and routing for this broker.</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">
+    <rect x="900" y="86" width="120" height="28" rx="7" fill="#141414" stroke="#262626"/>
+    <text x="918" y="104" fill="#a3a3a3">last 30 days</text>
+    <rect x="1032" y="86" width="140" height="28" rx="7" fill="#141414" stroke="#262626"/>
+    <text x="1050" y="104" fill="#a3a3a3">refresh 5 min</text>
+  </g>
+
+  <!-- attention row -->
+  <rect x="208" y="152" width="964" height="104" rx="12" fill="#111111" stroke="#242424"/>
+  <text x="232" y="180" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Waiting for you</text>
+  <text x="232" y="200" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">3 unresolved · deduplicated by key</text>
+  <g font-family="Geist, system-ui, sans-serif" font-size="12">
+    <rect x="232" y="214" width="284" height="26" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="244" y="231" fill="#e5e5e5">permission · deploy approval</text>
+    <rect x="528" y="214" width="284" height="26" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="540" y="231" fill="#e5e5e5">input_required · schema choice</text>
+    <rect x="824" y="214" width="284" height="26" rx="7" fill="#191919" stroke="#262626"/>
+    <text x="836" y="231" fill="#e5e5e5">blocked · staging credential</text>
+  </g>
+  <text x="1140" y="180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">phone</text>
+
+  <!-- quota cards -->
+  <g>
+    <rect x="208" y="276" width="308" height="188" rx="12" fill="#111111" stroke="#242424"/>
+    <text x="232" y="306" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Codex · primary</text>
+    <text x="232" y="326" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">five-hour window · resets 21:40</text>
+    <text x="232" y="386" font-family="Geist, system-ui, sans-serif" font-size="40" font-weight="600" fill="#f5f5f5">62<tspan font-size="20" fill="#8f8f8f">% left</tspan></text>
+    <rect x="232" y="410" width="260" height="8" rx="4" fill="#1f1f1f"/>
+    <rect x="232" y="410" width="161" height="8" rx="4" fill="#e5e5e5"/>
+    <text x="232" y="442" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">source: provider probe · fresh 42s</text>
+  </g>
+  <g>
+    <rect x="532" y="276" width="308" height="188" rx="12" fill="#111111" stroke="#242424"/>
+    <text x="556" y="306" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Claude · weekly</text>
+    <text x="556" y="326" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">seven-day window · resets Mon</text>
+    <text x="556" y="386" font-family="Geist, system-ui, sans-serif" font-size="40" font-weight="600" fill="#f5f5f5">41<tspan font-size="20" fill="#8f8f8f">% left</tspan></text>
+    <rect x="556" y="410" width="260" height="8" rx="4" fill="#1f1f1f"/>
+    <rect x="556" y="410" width="107" height="8" rx="4" fill="#a3a3a3"/>
+    <text x="556" y="442" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">2 accounts tracked · menu bar</text>
+  </g>
+  <g>
+    <rect x="856" y="276" width="316" height="188" rx="12" fill="#111111" stroke="#242424"/>
+    <text x="880" y="306" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">OpenCode Go · monthly</text>
+    <text x="880" y="326" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">estimated from published caps</text>
+    <text x="880" y="386" font-family="Geist, system-ui, sans-serif" font-size="40" font-weight="600" fill="#f5f5f5">18<tspan font-size="20" fill="#8f8f8f">% left</tspan></text>
+    <rect x="880" y="410" width="268" height="8" rx="4" fill="#1f1f1f"/>
+    <rect x="880" y="410" width="48" height="8" rx="4" fill="#6f6f6f"/>
+    <text x="880" y="442" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">estimate, not a provider balance</text>
+  </g>
+
+  <!-- usage chart -->
+  <rect x="208" y="488" width="620" height="196" rx="12" fill="#111111" stroke="#242424"/>
+  <text x="232" y="518" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Local usage · 30 days</text>
+  <text x="232" y="538" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#6f6f6f">1.24B tokens · $412.90 estimated at published rates</text>
+  <g fill="#2b2b2b">
+    <rect x="236" y="640" width="16" height="24" rx="3"/><rect x="260" y="628" width="16" height="36" rx="3"/>
+    <rect x="284" y="634" width="16" height="30" rx="3"/><rect x="308" y="616" width="16" height="48" rx="3"/>
+    <rect x="332" y="622" width="16" height="42" rx="3"/><rect x="356" y="600" width="16" height="64" rx="3"/>
+    <rect x="380" y="612" width="16" height="52" rx="3"/><rect x="404" y="588" width="16" height="76" rx="3"/>
+    <rect x="428" y="598" width="16" height="66" rx="3"/><rect x="452" y="576" width="16" height="88" rx="3"/>
+    <rect x="476" y="584" width="16" height="80" rx="3"/><rect x="500" y="566" width="16" height="98" rx="3"/>
+    <rect x="524" y="574" width="16" height="90" rx="3"/><rect x="548" y="556" width="16" height="108" rx="3"/>
+    <rect x="572" y="562" width="16" height="102" rx="3"/><rect x="596" y="546" width="16" height="118" rx="3"/>
+    <rect x="620" y="552" width="16" height="112" rx="3"/><rect x="644" y="536" width="16" height="128" rx="3"/>
+    <rect x="668" y="544" width="16" height="120" rx="3"/><rect x="692" y="566" width="16" height="98" rx="3"/>
+    <rect x="716" y="578" width="16" height="86" rx="3"/><rect x="740" y="592" width="16" height="72" rx="3"/>
+    <rect x="764" y="606" width="16" height="58" rx="3"/><rect x="788" y="620" width="16" height="44" rx="3"/>
+  </g>
+  <g fill="#e5e5e5">
+    <rect x="452" y="576" width="16" height="88" rx="3"/>
+    <rect x="548" y="556" width="16" height="108" rx="3"/>
+    <rect x="644" y="536" width="16" height="128" rx="3"/>
+  </g>
+  <path d="M236 662H812" stroke="#262626"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#6f6f6f">
+    <text x="232" y="676">Aug 21</text><text x="506" y="676">Sep 04</text><text x="762" y="676">Sep 19</text>
+  </g>
+
+  <!-- right column -->
+  <rect x="844" y="488" width="328" height="92" rx="12" fill="#111111" stroke="#242424"/>
+  <text x="868" y="516" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Agent mix</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">
+    <text x="868" y="540" fill="#a3a3a3">Claude Code</text><text x="1096" y="540" fill="#f5f5f5">46%</text>
+    <rect x="868" y="548" width="280" height="6" rx="3" fill="#1f1f1f"/><rect x="868" y="548" width="129" height="6" rx="3" fill="#e5e5e5"/>
+    <text x="868" y="572" fill="#a3a3a3">Codex</text><text x="1096" y="572" fill="#f5f5f5">38%</text>
+  </g>
+  <rect x="844" y="592" width="328" height="92" rx="12" fill="#111111" stroke="#242424"/>
+  <text x="868" y="620" font-family="Geist, system-ui, sans-serif" font-size="13" font-weight="600" fill="#f5f5f5">Routing</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">
+    <text x="868" y="644" fill="#a3a3a3">requests today</text><text x="1096" y="644" fill="#f5f5f5">418</text>
+    <text x="868" y="666" fill="#a3a3a3">failovers</text><text x="1096" y="666" fill="#f5f5f5">3</text>
+  </g>
+</svg>
