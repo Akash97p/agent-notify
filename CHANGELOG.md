@@ -29,6 +29,10 @@ build.
 
 ### Added
 
+- **Provider marks in the macOS menu bar.** The quota status item now shows the Claude starburst or
+  the OpenAI knot (Codex) beside the percentage, and every account row in the dropdown carries its
+  provider's mark, dimmed when that account is not in the headline selection. The marks ship as
+  embedded vector path data with a small in-process parser; no image assets are added to the build.
 - **Native macOS quota menu bar.** The broker starts a thin AppKit status item that shows the lowest
   selected Codex/Claude five-hour balance like a battery percentage. Its menu lists every monitored
   account and quota window, reset times, plan/credit data, stale state, manual refresh, and a link to
