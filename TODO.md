@@ -102,10 +102,11 @@
       routed live on macOS
 - [ ] Router connectors for OpenCode, Kilo, Cursor, and Gemini CLI; per-model context windows in the
       generated catalogue
-- [ ] Router: ordered/sticky/round-robin smart switching, one-way native Claude fallback, and editable
-      per-target effort mappings/defaults are merged but have never been compiled, tested, packaged, or
-      seen in a browser (no .NET SDK on the macOS host) — run the gates on Windows/WSL first, see
-      `docs/VERIFICATION.md`
+- [x] Router: ordered/sticky/round-robin smart switching, one-way native Claude fallback, family-level
+      effort mapping with per-model overrides, and Codex-wire effort translation are compiled and
+      tested (1262 tests on the macOS .NET SDK 10.0.401) and installed live on the owner's Mac. The
+      Windows/WSL build and packaging gates, a human browser pass, and a real-provider request remain
+      unverified — see `docs/VERIFICATION.md`
 - [ ] Router: policy routing scored on quota/health/cost, weighted and least-used combo strategies,
       Codex account pools, cost estimates on ledger rows, and quota thresholds raised as attention
       requests
@@ -116,7 +117,7 @@
 - [ ] API accounts: DeepSeek spend derived from balance changes; verify Anthropic cost-report units and OpenAI pagination with real Admin keys; xAI management-key billing
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app (the owner has used Dashboard, Live quota, and API accounts there; no systematic page-by-page or narrow-window check yet)
-- [x] Native macOS quota menu bar: lowest selected five-hour balance, every Codex/Claude account/window, broker lifecycle, and WebUI configuration
+- [x] Native macOS quota menu bar: lowest selected five-hour balance, every Codex/Claude account/window, broker lifecycle, WebUI configuration, and per-provider marks (Claude starburst, OpenAI knot) beside the headline and on each account row
 - [ ] Linux tray client and full macOS notification-center/settings client
 - [ ] Automatic updates and schema/config migration framework
 

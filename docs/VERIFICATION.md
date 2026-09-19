@@ -2205,3 +2205,39 @@ These need the repository owner and a real machine; nothing in CI can close them
 - Redistribution rights for the four personal MP3s in the ignored `notification-tone/`
   folder. If they are clear, add them under `assets/tones/`, extend `BuiltInTones.All`,
   and record their provenance in `THIRD_PARTY_NOTICES.md`.
+
+## Effort mapping families, Routing page merge, menu-bar provider marks (2026-09-19)
+
+Three `dev` branches, each test-gated before a `--no-ff` merge:
+
+- `feature/effort-family-mapping` — effort mapping grouped by model family with per-model overrides
+  under a Per model tab, family overrides stored in `router_effort_family_overrides`, and the five
+  standard effort levels mapped on the OpenAI wire as they already were on Claude Code's. Automatic
+  tables are identity wherever the target can spell a level, so no client's effort is silently
+  renamed; `minimal` and provider-specific words pass through verbatim when supported.
+- `feature/router-settings-into-routing` — the one-card Settings page folded into Routing (five
+  Model router pages).
+- `feature/menubar-provider-logos` — the Claude starburst and the OpenAI knot (Codex) as template
+  images in the macOS quota status item and per-account rows, parsed in-process from embedded SVG
+  path data; sourcing recorded in THIRD_PARTY_NOTICES.md.
+
+Gates actually run on this Mac (macOS 26.6.2, x86_64, native .NET SDK 10.0.401 at
+`~/.dotnet/dotnet`, Swift 6.3.3 CLT): the full test suite via
+`AGENTNOTIFY_DOTNET_EXE=… ./scripts/test.sh` — **1262 passed, 0 failed** — which also compiles the
+Core/Api/Cli/Host assemblies. This is the first time the router-switching and effort-mapping tests
+have executed anywhere. `scripts/build.sh` and `scripts/package.sh` remain Windows/WSL-only and were
+not run; the Windows tray installer was not rebuilt. `publish-cross.sh osx-x64` produced the archive,
+and the three binaries were installed into `~/.local/bin` (adhoc re-signed; the previous binaries
+were kept as `.agentnotify*-backup-effort-logos-*`). The menu-bar glyphs were additionally smoke-tested
+headlessly: both paths parse and render with pixel coverage matching their source viewBoxes.
+
+Verified live against the owner's configuration: `agentnotify health` reports ok after a
+`launchctl kickstart -k dev.agentnotify.broker`, the new `agentnotify-menubar` child is running, and
+`/ui/api/router/effort-mappings` returns 7 family groups (deepseek, glm, kimi, muse, openai, qwen,
+unknown) covering 28 routed models with the owner's 3 per-model overrides counted. The served
+`app.js` no longer registers `router-settings`, and the served `router-effort.js` is the
+Families/Per model build.
+
+Not verified: the menu-bar glyphs and the Effort mapping page as actually rendered on screen (this
+session had no screenshot capability), the Windows/WSL build/test/package gates, a real provider
+request flowing through the new effort mapping, and a GitHub Actions release run.

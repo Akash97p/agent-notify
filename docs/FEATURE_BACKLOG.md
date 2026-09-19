@@ -177,9 +177,10 @@ Track live agent instances, projects, working directories, last activity, and wa
 - Score candidates on capability, health, quota, cost, and latency evidence (`policy/<id>`), with a
   bounded, redacted decision trace.
 - Status: ordered, sticky-until-failure, and round-robin same-model switching, one-way native Claude
-  fallback, and editable per-target effort mappings/defaults are implemented and merged. They have not
-  been compiled, tested, packaged, or seen in a browser — the work was done on a macOS host with no
-  .NET SDK. See `docs/VERIFICATION.md` before relying on any of it.
+  fallback, family-level effort mapping with per-model overrides, and Codex-wire effort translation
+  are implemented and merged. Compiled and test-gated on macOS (1262 tests) and installed on the
+  owner's Mac; the Windows/WSL gates, a human browser pass, and a real provider request are still
+  outstanding — see `docs/VERIFICATION.md`.
 - Weighted round-robin, weighted random, least-used, and reset-window combo strategies.
 - Pin a Codex account pool; add Gemini and Ollama-native wires.
 - Price ledger rows and correlate them with log-derived Usage records without double counting.
