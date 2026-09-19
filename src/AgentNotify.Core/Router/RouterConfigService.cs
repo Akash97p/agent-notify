@@ -13,7 +13,8 @@ public sealed record RouterSnapshot(
     IReadOnlyList<RouterRoute> Routes,
     RouterSettings Settings,
     long Generation,
-    IReadOnlyList<RouterEffortMapping>? EffortMappings = null);
+    IReadOnlyList<RouterEffortMapping>? EffortMappings = null,
+    IReadOnlyList<RouterEffortFamilyOverride>? EffortFamilyOverrides = null);
 
 /// <summary>
 /// Manages router upstreams, routes, and the default route. Upstream keys are sealed with the same
@@ -92,7 +93,8 @@ public sealed class RouterConfigService
         var routes = await _repository.ListRoutesAsync(ct).ConfigureAwait(false);
         var settings = await _repository.GetSettingsAsync(ct).ConfigureAwait(false);
         var effortMappings = await _repository.ListEffortMappingsAsync(ct).ConfigureAwait(false);
-        var snapshot = new RouterSnapshot(upstreams, routes, settings, generation, effortMappings);
+        var effortFamilyOverrides = await _repository.ListEffortFamilyOverridesAsync(ct).ConfigureAwait(false);
+        var snapshot = new RouterSnapshot(upstreams, routes, settings, generation, effortMappings, effortFamilyOverrides);
 
         lock (_cacheLock)
         {
@@ -527,9 +529,50 @@ public sealed class RouterConfigService
     {
         var snapshot = await GetSnapshotAsync(ct).ConfigureAwait(false);
         var overrides = snapshot.EffortMappings ?? [];
+        var familyOverrides = snapshot.EffortFamilyOverrides ?? [];
         return snapshot.Upstreams.Where(upstream => upstream.Enabled)
-            .SelectMany(upstream => upstream.Models.Select(model => RouterEffortCatalog.Resolve(upstream, model, overrides)))
+            .SelectMany(upstream => upstream.Models.Select(model =>
+                RouterEffortCatalog.Resolve(upstream, model, overrides, familyOverrides)))
             .ToList();
+    }
+
+    /// <summary>
+    /// The routed models grouped by family, with the effective capability each family gets. A family
+    /// override beats the automatic vocabulary; a per-model override beats both and is counted.
+    /// </summary>
+    public async Task<IReadOnlyList<RouterEffortFamily>> ListEffortFamiliesAsync(CancellationToken ct = default)
+    {
+        var snapshot = await GetSnapshotAsync(ct).ConfigureAwait(false);
+        var overrides = snapshot.EffortMappings ?? [];
+        var familyOverrides = snapshot.EffortFamilyOverrides ?? [];
+        var families = new Dictionary<string, RouterEffortFamily>();
+        foreach (var upstream in snapshot.Upstreams.Where(upstream => upstream.Enabled))
+        {
+            foreach (var model in upstream.Models)
+            {
+                var family = RouterEffortCatalog.Family(model);
+                var (supported, map, _) = RouterEffortCatalog.FamilyAutomatic(family);
+                var familyOverride = familyOverrides.FirstOrDefault(item => item.Family == family);
+                if (!families.TryGetValue(family, out var entry))
+                {
+                    families[family] = entry = new RouterEffortFamily(family,
+                        familyOverride is null ? "automatic" : "family",
+                        familyOverride?.SupportedValues ?? supported,
+                        familyOverride?.LevelMap ?? map,
+                        familyOverride?.DefaultValue, [], 0);
+                }
+                var concrete = new RouterEffortFamilyModel(upstream.Id, upstream.Slug, model, upstream.WireFor(model));
+                families[family] = entry with { Models = [.. entry.Models, concrete] };
+            }
+        }
+        foreach (var family in families.Keys.ToList())
+        {
+            var modelOverrides = overrides.Count(mapping =>
+                families[family].Models.Any(concrete =>
+                    concrete.UpstreamId == mapping.UpstreamId && concrete.Model == mapping.Model));
+            families[family] = families[family] with { ModelOverrideCount = modelOverrides };
+        }
+        return families.Values.OrderBy(item => item.Family, StringComparer.Ordinal).ToList();
     }
 
     public async Task SetEffortMappingAsync(string upstreamId, string model,
@@ -552,6 +595,29 @@ public sealed class RouterConfigService
     {
         await _repository.InitializeAsync(ct).ConfigureAwait(false);
         await _repository.DeleteEffortMappingAsync(upstreamId, model, ct).ConfigureAwait(false);
+        Invalidate();
+    }
+
+    public async Task SetEffortFamilyMappingAsync(string family,
+        IReadOnlyList<string>? supportedValues, IReadOnlyList<string>? levelMap, string? defaultValue,
+        CancellationToken ct = default)
+    {
+        family = family.Trim();
+        RouterEffortCatalog.ValidateFamily(family);
+        defaultValue = string.IsNullOrWhiteSpace(defaultValue) ? null : defaultValue.Trim();
+        RouterEffortCatalog.Validate(supportedValues, levelMap, defaultValue);
+        await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        await _repository.SetEffortFamilyOverrideAsync(
+            new RouterEffortFamilyOverride(family, supportedValues!, levelMap!, defaultValue), ct).ConfigureAwait(false);
+        Invalidate();
+    }
+
+    public async Task ResetEffortFamilyMappingAsync(string family, CancellationToken ct = default)
+    {
+        family = family.Trim();
+        RouterEffortCatalog.ValidateFamily(family);
+        await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        await _repository.DeleteEffortFamilyOverrideAsync(family, ct).ConfigureAwait(false);
         Invalidate();
     }
 

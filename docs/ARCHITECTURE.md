@@ -297,12 +297,15 @@ Smart switching is persisted as `off`, `ordered`, `sticky`, or `round_robin`; st
 cursors are process-local because they are scheduling state, not configuration. A native Claude Code
 request may fail outward from the agent's own Anthropic credential to configured equivalent-model and
 cross-model targets, but the native credential target is never introduced into another request.
-Reasoning effort is normalized from Claude Code's five-step `output_config.effort`, then mapped only
-after a concrete provider/model target is selected. Curated/inferred capability defaults and bounded
-per-target overrides determine the emitted provider vocabulary; a target default covers requests that
-carry no effort, and `omit` avoids sending unsupported fields. Because that scale is Claude Code's,
-the map applies only to Anthropic-wire requests: a client already speaking an OpenAI vocabulary keeps
-the effort it sent and takes a default only when it names none.
+Reasoning effort is normalized from Claude Code's five-step `output_config.effort` and from Codex's
+`reasoning.effort`/`reasoning_effort` — the five level names mean the same thing on both scales —
+then mapped only after a concrete provider/model target is selected. Automatic capability tables
+are identity wherever the target can spell a level, so no client's effort is silently renamed; only
+levels above the target's top collapse onto it. Family-level and bounded per-model overrides
+determine the emitted provider vocabulary, a target default covers requests that carry no effort,
+and `omit` avoids sending unsupported fields. A value outside the five names (OpenAI's `minimal`, a
+provider-specific word) is sent verbatim when the target supports it, and otherwise falls back to
+the default.
 
 The ledger is proxy-observed usage and is kept separate from the log-derived Usage view and from Live
 quota. The same physical call appears in both the router ledger and the agent's own log, so the two

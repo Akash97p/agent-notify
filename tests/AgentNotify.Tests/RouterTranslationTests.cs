@@ -390,14 +390,65 @@ public sealed class RouterTranslationTests
         var upstream = new StoredRouterUpstream("up", "aggregator", "Aggregator", RouterWire.OpenAiChat,
             "https://example.com/v1", null, ["deepseek-v4", "gpt-5"], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         var deepseek = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", []);
-        Assert.Equal(["low", "low", "medium", "high", "xhigh"], deepseek.LevelMap);
+        Assert.Equal(["low", "medium", "high", "xhigh", "xhigh"], deepseek.LevelMap);
         Assert.Equal("xhigh", RouterEffortCatalog.Map(deepseek, "max"));
+        Assert.Equal("high", RouterEffortCatalog.Map(deepseek, "high"));
 
         var saved = new RouterEffortMapping("up", "gpt-5", ["low", "high"],
             ["low", "low", "high", "high", "high"], "high");
         var openai = RouterEffortCatalog.Resolve(upstream, "gpt-5", [saved]);
         Assert.Equal("high", RouterEffortCatalog.Map(openai, null));
         Assert.Equal("high", RouterEffortCatalog.Map(openai, "max"));
+    }
+
+    [Fact]
+    public void EffortCatalog_FamilyOverrideServesEveryModelUntilOneOverridesItself()
+    {
+        var upstream = new StoredRouterUpstream("up", "aggregator", "Aggregator", RouterWire.OpenAiChat,
+            "https://example.com/v1", null, ["deepseek-v4", "deepseek-r2"], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var family = new RouterEffortFamilyOverride("deepseek", ["low", "medium", "high"],
+            ["low", "medium", "high", "high", "high"], "medium");
+        var covered = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", [], [family]);
+        Assert.Equal("family", covered.Source);
+        Assert.Equal("medium", RouterEffortCatalog.Map(covered, null));
+        Assert.Equal("high", RouterEffortCatalog.Map(covered, "xhigh"));
+
+        var model = new RouterEffortMapping("up", "deepseek-v4", ["low"], ["low", "low", "low", "low", "low"], "low");
+        var split = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", [model], [family]);
+        Assert.Equal("override", split.Source);
+        Assert.Equal("low", RouterEffortCatalog.Map(split, "max"));
+        var sibling = RouterEffortCatalog.Resolve(upstream, "deepseek-r2", [model], [family]);
+        Assert.Equal("family", sibling.Source);
+    }
+
+    [Fact]
+    public void EffortForRequest_MapsBothWiresWithoutSilentDowngrades()
+    {
+        var upstream = new StoredRouterUpstream("up", "deepseek", "DeepSeek", RouterWire.OpenAiChat,
+            "https://example.com/v1", null, ["deepseek-v4"], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        // The automatic map is identity wherever the target can spell the level, on either wire.
+        var automatic = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", []);
+        Assert.Equal("medium", RouterEffortCatalog.ForRequest(automatic, "medium"));
+        Assert.Equal("high", RouterEffortCatalog.ForRequest(automatic, "HIGH"));
+        Assert.Equal("xhigh", RouterEffortCatalog.ForRequest(automatic, "max"));
+        Assert.Null(RouterEffortCatalog.ForRequest(automatic, (string?)null));
+
+        // An owner override decides for every client, Codex as much as Claude Code.
+        var family = new RouterEffortFamilyOverride("deepseek", ["low", "medium", "high", "xhigh"],
+            ["low", "low", "medium", "high", "xhigh"], "medium");
+        var squashed = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", [], [family]);
+        Assert.Equal("medium", RouterEffortCatalog.ForRequest(squashed, "high"));
+        Assert.Equal("xhigh", RouterEffortCatalog.ForRequest(squashed, "max"));
+
+        // Values outside the five standard levels pass through only when the target accepts them.
+        var openai = new StoredRouterUpstream("o", "openai", "OpenAI", RouterWire.OpenAiChat,
+            "https://example.com/v1", null, ["gpt-5"], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var gpt = RouterEffortCatalog.Resolve(openai, "gpt-5", []);
+        Assert.Equal("minimal", RouterEffortCatalog.ForRequest(gpt, "minimal"));
+        Assert.Equal("low", RouterEffortCatalog.ForRequest(automatic, "minimal"));
+        Assert.Equal("turbo", RouterEffortCatalog.ForRequest(gpt with { SupportedValues = ["turbo", "low"] }, "turbo"));
+        Assert.Equal("medium", RouterEffortCatalog.ForRequest(squashed, "turbo"));
     }
 
     [Fact]

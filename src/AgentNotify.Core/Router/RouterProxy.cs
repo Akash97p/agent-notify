@@ -331,7 +331,7 @@ public sealed class RouterProxy : IDisposable
             byte[] upstreamBody;
             try
             {
-                upstreamBody = BuildUpstreamBody(inbound, target, decoded, snapshot.EffortMappings ?? []);
+                upstreamBody = BuildUpstreamBody(inbound, target, decoded, snapshot.EffortMappings ?? [], snapshot.EffortFamilyOverrides ?? []);
             }
             catch (TranslationException te)
             {
@@ -524,19 +524,20 @@ public sealed class RouterProxy : IDisposable
     }
 
     private byte[] BuildUpstreamBody(RouterInbound inbound, ResolvedTarget target, RouterRequest? decoded,
-        IReadOnlyList<RouterEffortMapping> effortMappings)
+        IReadOnlyList<RouterEffortMapping> effortMappings, IReadOnlyList<RouterEffortFamilyOverride> effortFamilyOverrides)
     {
         if (RouterNative.IsNative(target.Upstream)) return inbound.Body;
         bool isPassthrough = RouterTranslator.IsPassthrough(inbound.Wire, target.Upstream.Wire);
-        var capability = RouterEffortCatalog.Resolve(target.Upstream, target.NativeModel, effortMappings);
+        var capability = RouterEffortCatalog.Resolve(target.Upstream, target.NativeModel, effortMappings, effortFamilyOverrides);
         if (isPassthrough)
         {
-            // A same-wire hop is forwarded as it came. Only a request whose effort has to be
-            // reinterpreted — Claude Code's own scale, or a target with a default to supply — is worth
-            // reading the body a second time for.
-            if (inbound.Wire != RouterWire.AnthropicMessages && capability.DefaultValue is null)
+            // A same-wire hop is forwarded as it came. Effort applies to every wire now, so the body is
+            // read once for the requested value; when mapping leaves it unchanged the bytes are not
+            // rewritten at all.
+            var source = RequestEffort(inbound.Wire, inbound.Body);
+            var effort = RouterEffortCatalog.ForRequest(capability, source);
+            if (effort == source)
                 return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel);
-            var effort = RouterEffortCatalog.ForRequest(capability, inbound.Wire, RequestEffort(inbound.Wire, inbound.Body));
             return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel, effort, inbound.Wire);
         }
         if (decoded == null)
@@ -545,7 +546,7 @@ public sealed class RouterProxy : IDisposable
             decoded = dec.Request;
         }
         return _translator.EncodeRequest(target.Upstream.Wire,
-            RouterEffortCatalog.Apply(decoded!, capability, inbound.Wire), target.NativeModel);
+            RouterEffortCatalog.Apply(decoded!, capability), target.NativeModel);
     }
 
     private static HttpRequestMessage BuildUpstreamRequest(ResolvedTarget target, UpstreamCredential credential, byte[] upstreamBody, RouterInbound inbound, bool stream)

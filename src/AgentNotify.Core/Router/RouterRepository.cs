@@ -113,6 +113,12 @@ public sealed class RouterRepository
                 PRIMARY KEY (upstream_id, model),
                 FOREIGN KEY (upstream_id) REFERENCES router_upstreams(id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS router_effort_family_overrides (
+                family          TEXT PRIMARY KEY,
+                supported_values TEXT NOT NULL,
+                level_map       TEXT NOT NULL,
+                default_value   TEXT
+            );
             """;
         await command.ExecuteNonQueryAsync(ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "auth", "TEXT NOT NULL DEFAULT 'api_key'", ct);
@@ -356,6 +362,47 @@ public sealed class RouterRepository
         command.CommandText = "DELETE FROM router_effort_mappings WHERE upstream_id = $upstream AND model = $model";
         command.Parameters.AddWithValue("$upstream", upstreamId);
         command.Parameters.AddWithValue("$model", model);
+        return await command.ExecuteNonQueryAsync(ct) > 0;
+    }
+
+    public async Task<IReadOnlyList<RouterEffortFamilyOverride>> ListEffortFamilyOverridesAsync(CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT family, supported_values, level_map, default_value FROM router_effort_family_overrides ORDER BY family";
+        var results = new List<RouterEffortFamilyOverride>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            results.Add(new RouterEffortFamilyOverride(
+                reader.GetString(0),
+                JsonSerializer.Deserialize<List<string>>(reader.GetString(1), Json.Options) ?? [],
+                JsonSerializer.Deserialize<List<string>>(reader.GetString(2), Json.Options) ?? [],
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+        return results;
+    }
+
+    public async Task SetEffortFamilyOverrideAsync(RouterEffortFamilyOverride mapping, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "INSERT INTO router_effort_family_overrides(family, supported_values, level_map, default_value) VALUES ($family, $supported, $map, $default) " +
+            "ON CONFLICT(family) DO UPDATE SET supported_values = excluded.supported_values, level_map = excluded.level_map, default_value = excluded.default_value";
+        command.Parameters.AddWithValue("$family", mapping.Family);
+        command.Parameters.AddWithValue("$supported", JsonSerializer.Serialize(mapping.SupportedValues, Json.Options));
+        command.Parameters.AddWithValue("$map", JsonSerializer.Serialize(mapping.LevelMap, Json.Options));
+        command.Parameters.AddWithValue("$default", mapping.DefaultValue is null ? DBNull.Value : mapping.DefaultValue);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<bool> DeleteEffortFamilyOverrideAsync(string family, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM router_effort_family_overrides WHERE family = $family";
+        command.Parameters.AddWithValue("$family", family);
         return await command.ExecuteNonQueryAsync(ct) > 0;
     }
 

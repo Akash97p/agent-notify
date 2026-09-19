@@ -422,28 +422,32 @@ working; routed models keep working too while the router is on.
 
 ## Effort mapping
 
-Claude Code 2.1.277 sends its selected five-step effort as `output_config.effort` (`low`, `medium`,
-`high`, `xhigh`, `max`). The router decodes that into `RouterRequest.reasoningEffort` and maps it only
-after a route resolves to a concrete target. Responses targets receive `reasoning.effort`; Chat
-targets receive `reasoning_effort`. Native Anthropic requests remain byte-for-byte passthrough.
-Anthropic-compatible aggregator hops keep every native field but replace or omit only
-`output_config.effort` when their concrete model's mapping requires it.
+Claude Code sends its selected five-step effort as `output_config.effort` (`low`, `medium`, `high`,
+`xhigh`, `max`); Codex sends its own `low`/`medium`/`high` as `reasoning.effort` or
+`reasoning_effort`. Those five names mean the same thing on both scales, so the router normalizes
+either wire onto them (`RouterRequest.reasoningEffort`) and maps once, after a route resolves to a
+concrete target. Responses targets receive `reasoning.effort`; Chat targets receive
+`reasoning_effort`. Native Anthropic requests remain byte-for-byte passthrough. Anthropic-compatible
+aggregator hops keep every native field but replace or omit only `output_config.effort` when their
+concrete model's mapping requires it. A same-wire hop whose mapped effort equals what the client
+sent is not rewritten at all.
 
-**The level map is Claude Code's vocabulary, so it only applies to the Anthropic wire.** A request
-that arrives on an OpenAI wire — Codex, OpenCode, anything else — already speaks its provider's own
-scale, and remapping its `medium` through Claude's five steps would silently change what it asked
-for. Such a request keeps the effort it sent; only a request that names none takes the target's
-default. That also keeps a same-wire hop to one parse: the body is read a second time only for
-Claude Code's own wire, or when a default has to be supplied.
+A mapping never silently changes a level the target can spell: the automatic tables are identity
+wherever the target has the same name, and only levels above the target's top collapse onto it
+(Claude's `max` becomes a four-level family's `xhigh`). A value outside the five names — OpenAI's
+`minimal`, or a provider-specific word — is sent verbatim when the target supports it, and otherwise
+falls back to the target's default (`minimal` counts as low). An unknown model omits effort
+entirely.
 
-Automatic mappings are capability inference, not provider discovery: known OpenAI and Claude model
-families have curated vocabularies; DeepSeek, GLM, Kimi, Qwen, MiniMax, Grok, and Muse families get a
-conservative inferred four-level map; an unknown model omits effort. Aggregators such as OpenRouter
-and OpenCode are classified from the model ID, not the aggregator name. The Effort mapping page can
-override each concrete `provider/model`: its exact accepted values, the target value for each Claude
-level, and an optional default used when the source request carries no effort. Every map is bounded,
-monotonic, and may explicitly choose `omit`. Overrides live in `router_effort_mappings`; routes and
-combos need no copies because the final target owns the capability.
+**One table per family.** The Effort mapping page groups every routed model by family (DeepSeek,
+GLM, Kimi, Qwen, MiniMax, Grok, Muse, OpenAI, Claude, or other) — a hundred models are ten cards.
+Aggregators such as OpenRouter and OpenCode are classified from the model ID, not the aggregator
+name. Each family card holds the exact accepted values, the target value for each of the five
+levels, and an optional default used when the request carries no effort; the **Per model** tab
+overrides any single `provider/model` the same way. Precedence: per-model override, family override,
+automatic. Every map is bounded, monotonic, and may explicitly choose `omit`. Overrides live in
+`router_effort_mappings` and `router_effort_family_overrides`; routes and combos need no copies
+because the final target owns the capability.
 
 ## Web interface and CLI
 
@@ -456,7 +460,7 @@ The **Model router** group in the navigation holds six pages:
 | Agents | Connect an agent so its own picker lists these models, choose its subagent/review/effort settings, disconnect, and restore a saved copy of its configuration |
 | Activity | The request ledger with per-attempt detail, and totals by model |
 | Settings | Ordered, sticky, or round-robin switching and Claude Code's cross-model fallback |
-| Effort mapping | Automatic and overridden reasoning-effort capabilities/defaults for every concrete provider model |
+| Effort mapping | One effort table per model family (Families tab), with per-model overrides under Per model; applies to Claude Code's and Codex's efforts alike |
 
 The Agents page also shows copyable snippets for configuring a host by hand, for anyone who would
 rather AgentNotify did not touch their files.

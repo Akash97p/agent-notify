@@ -442,9 +442,26 @@ public static class RouterEndpoints
         {
             if (routerConfig is null) return Error("Router is not configured.", 404);
             var mappings = await routerConfig.ListEffortCapabilitiesAsync(ct);
+            var families = await routerConfig.ListEffortFamiliesAsync(ct);
             return Results.Json(new
             {
                 source_levels = RouterEffortCatalog.SourceLevels,
+                families = families.Select(family => new
+                {
+                    family = family.Family,
+                    source = family.Source,
+                    supported_values = family.SupportedValues,
+                    level_map = family.LevelMap,
+                    default_value = family.DefaultValue,
+                    model_override_count = family.ModelOverrideCount,
+                    models = family.Models.Select(model => new
+                    {
+                        upstream_id = model.UpstreamId,
+                        upstream_slug = model.UpstreamSlug,
+                        model = model.Model,
+                        wire = model.Wire,
+                    })
+                }),
                 mappings = mappings.Select(mapping => new
                 {
                     upstream_id = mapping.UpstreamId,
@@ -464,10 +481,23 @@ public static class RouterEndpoints
         {
             if (routerConfig is null) return Error("Router is not configured.", 404);
             var body = await ReadAsync<EffortMappingBody>(http);
-            if (body?.UpstreamId is null || body.Model is null) return Error("The request body is not valid JSON.");
+            if (body?.UpstreamId is null && body?.Family is null) return Error("The request body is not valid JSON.");
+            if (body!.Family is not null)
+            {
+                if (body.UpstreamId is not null || body.Model is not null)
+                    return Error("Choose either a family or one concrete model, not both.");
+                try
+                {
+                    await routerConfig.SetEffortFamilyMappingAsync(body.Family, body.SupportedValues,
+                        body.LevelMap, body.DefaultValue, http.RequestAborted);
+                    return Results.Json(new { saved = true }, WebUiEndpoints.JsonOptions);
+                }
+                catch (ArgumentException ex) { return Error(ex.Message); }
+            }
+            if (body.Model is null) return Error("The request body is not valid JSON.");
             try
             {
-                await routerConfig.SetEffortMappingAsync(body.UpstreamId, body.Model, body.SupportedValues,
+                await routerConfig.SetEffortMappingAsync(body.UpstreamId!, body.Model, body.SupportedValues,
                     body.LevelMap, body.DefaultValue, http.RequestAborted);
                 return Results.Json(new { saved = true }, WebUiEndpoints.JsonOptions);
             }
@@ -478,6 +508,13 @@ public static class RouterEndpoints
         app.MapDelete($"{WebUiEndpoints.BasePath}/api/router/effort-mappings", async (HttpContext http) =>
         {
             if (routerConfig is null) return Error("Router is not configured.", 404);
+            var family = http.Request.Query["family"].ToString();
+            if (family.Length > 0)
+            {
+                try { await routerConfig.ResetEffortFamilyMappingAsync(family, http.RequestAborted); }
+                catch (ArgumentException ex) { return Error(ex.Message); }
+                return Results.Json(new { reset = true }, WebUiEndpoints.JsonOptions);
+            }
             var upstreamId = http.Request.Query["upstream_id"].ToString();
             var model = http.Request.Query["model"].ToString();
             if (string.IsNullOrEmpty(upstreamId) || string.IsNullOrEmpty(model)) return Error("upstream_id and model are required.");
@@ -816,6 +853,7 @@ public static class RouterEndpoints
     {
         public string? UpstreamId { get; set; }
         public string? Model { get; set; }
+        public string? Family { get; set; }
         public IReadOnlyList<string>? SupportedValues { get; set; }
         public IReadOnlyList<string>? LevelMap { get; set; }
         public string? DefaultValue { get; set; }

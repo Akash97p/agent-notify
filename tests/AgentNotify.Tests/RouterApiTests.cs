@@ -543,6 +543,79 @@ public sealed class RouterApiTests
     }
 
     [Fact]
+    public async Task EffortMappings_GroupByFamily_OverrideResetAndPrecedence()
+    {
+        await using var app = await TestApp.CreateAsync(routerEnabled: true);
+        await app.RouterConfig.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-test-12345678", ["deepseek-v4", "deepseek-r2"]);
+        await app.RouterConfig.CreateUpstreamAsync("openai", "OpenAI", RouterWire.OpenAiChat, "https://api.openai.com/v1", "sk-test-12345678", ["gpt-5"]);
+        using var browser = app.Browser();
+
+        var before = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router/effort-mappings");
+        var deepseekFamily = before.GetProperty("families").EnumerateArray().Single(f => f.GetProperty("family").GetString() == "deepseek");
+        Assert.Equal("automatic", deepseekFamily.GetProperty("source").GetString());
+        Assert.Equal(2, deepseekFamily.GetProperty("models").GetArrayLength());
+        Assert.Equal(["low", "medium", "high", "xhigh", "xhigh"],
+            deepseekFamily.GetProperty("level_map").EnumerateArray().Select(v => v.GetString()));
+        var first = before.GetProperty("mappings").EnumerateArray().Single(m => m.GetProperty("model").GetString() == "deepseek-v4");
+        var upstreamId = first.GetProperty("upstream_id").GetString();
+        Assert.Equal("inferred", first.GetProperty("source").GetString());
+
+        var put = await browser.PutAsJsonAsync("/ui/api/router/effort-mappings", new
+        {
+            family = "deepseek",
+            supported_values = new[] { "low", "medium", "high" },
+            level_map = new[] { "low", "low", "medium", "high", "high" },
+            default_value = (string?)null,
+        });
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        var after = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router/effort-mappings");
+        Assert.Equal("family", after.GetProperty("families").EnumerateArray()
+            .Single(f => f.GetProperty("family").GetString() == "deepseek").GetProperty("source").GetString());
+        Assert.Equal("family", after.GetProperty("mappings").EnumerateArray()
+            .Single(m => m.GetProperty("model").GetString() == "deepseek-v4").GetProperty("source").GetString());
+        Assert.Equal("known", after.GetProperty("mappings").EnumerateArray()
+            .Single(m => m.GetProperty("model").GetString() == "gpt-5").GetProperty("source").GetString());
+
+        var modelPut = await browser.PutAsJsonAsync("/ui/api/router/effort-mappings", new
+        {
+            upstream_id = upstreamId,
+            model = "deepseek-v4",
+            supported_values = new[] { "low" },
+            level_map = new[] { "low", "low", "low", "low", "low" },
+            default_value = "low",
+        });
+        Assert.Equal(HttpStatusCode.OK, modelPut.StatusCode);
+        var counted = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router/effort-mappings");
+        Assert.Equal(1, counted.GetProperty("families").EnumerateArray()
+            .Single(f => f.GetProperty("family").GetString() == "deepseek").GetProperty("model_override_count").GetInt32());
+
+        var del = await browser.DeleteAsync("/ui/api/router/effort-mappings?family=deepseek");
+        Assert.Equal(HttpStatusCode.OK, del.StatusCode);
+        var reset = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router/effort-mappings");
+        var backDeepseek = reset.GetProperty("families").EnumerateArray().Single(f => f.GetProperty("family").GetString() == "deepseek");
+        Assert.Equal("automatic", backDeepseek.GetProperty("source").GetString());
+        Assert.Equal(1, backDeepseek.GetProperty("model_override_count").GetInt32());
+
+        var badFamily = await browser.PutAsJsonAsync("/ui/api/router/effort-mappings", new
+        {
+            family = "nosuch",
+            supported_values = new[] { "low" },
+            level_map = new[] { "low", "low", "low", "low", "low" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, badFamily.StatusCode);
+        var both = await browser.PutAsJsonAsync("/ui/api/router/effort-mappings", new
+        {
+            family = "deepseek",
+            upstream_id = upstreamId,
+            model = "deepseek-v4",
+            supported_values = new[] { "low" },
+            level_map = new[] { "low", "low", "low", "low", "low" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
+    }
+
+    [Fact]
     public async Task ModelRouterPageAssetsAreServedAndRegistered()
     {
         await using var app = await TestApp.CreateAsync(routerEnabled: true);
