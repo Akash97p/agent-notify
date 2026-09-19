@@ -1,7 +1,7 @@
 # AgentNotify documentation
 
 AgentNotify is a local human-attention broker for coding agents. This directory holds the project
-documentation. The current published prerelease is `0.2.0-alpha.2`; the mature `1.0.0`
+documentation. The current published prerelease is `0.2.0-alpha.3`; the mature `1.0.0`
 milestone is intentionally reserved and has not been reached.
 
 ## Platform support

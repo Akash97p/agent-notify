@@ -2255,5 +2255,22 @@ and `publish-cross.sh osx-x64` produced the archive. All three binaries were ins
 `~/.local/bin`, re-signed, and the LaunchAgent was restarted. `agentnotify health` returned `ok`, the
 new `agentnotify-menubar` child was running, and the live projection contained 4 selected accounts,
 all 4 with five-hour values, so the native client creates 4 status items. The user had already
-visually confirmed the provider marks before this change; the four-item rendering still requires
-their visual confirmation.
+visually confirmed the provider marks before this change, then confirmed the installed four-item
+rendering works as intended.
+
+## v0.2.0-alpha.3 release preparation (2026-09-19)
+
+The owner visually confirmed the installed macOS menu bar shows all four selected accounts correctly.
+Prepared `v0.2.0-alpha.3` with a dated changelog section and matching `Version` /
+`InformationalVersion`; numeric assembly/file metadata remains `0.2.0.0` as required by Windows.
+`release-notes.sh v0.2.0-alpha.3 v0.2.0-alpha.2` produced the complete prerelease notes and compare
+link.
+
+Local release gates on the Intel Mac: the full .NET suite passed **1262/1262**; the Next.js
+documentation type-check and 30-page static export passed; and `publish-cross.sh` built all five
+portable archives (`win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`). Every checksum in
+`artifacts/cross/SHA256SUMS.txt` verified. Both macOS archives contain `agentnotify-menubar`, both CLI
+and broker binaries in the Intel archive report `0.2.0-alpha.3`, and the menu-bar binary passes strict
+codesign verification. The Windows WPF build, 1262-test run, and installer packaging still must pass
+independently in the tag-triggered Release workflow; they cannot run through the repository's
+Windows/WSL scripts on this macOS host.
