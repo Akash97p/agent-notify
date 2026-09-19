@@ -51,18 +51,21 @@ curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/
 ```
 
 It picks the newest release (prereleases included), verifies the SHA-256 checksum, refuses anything it
-cannot verify, and installs `agentnotify` (CLI) and `agentnotifyd` (broker) into `~/.local/bin`. On
-macOS it also re-signs both binaries, which the kernel requires. Make sure `~/.local/bin` is on `PATH`
+cannot verify, and installs `agentnotify` (CLI) and `agentnotifyd` (broker) into `~/.local/bin`. A
+macOS archive that contains `agentnotify-menubar` installs it too, and the script re-signs every
+installed executable. Make sure `~/.local/bin` is on `PATH`
 for the checks below (or call the binaries by full path).
 
 If a binary exits immediately with status 137 on macOS, re-sign it and clear the quarantine flag:
 
 ```sh
-codesign --force --sign - ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd
-xattr -d com.apple.quarantine ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd 2>/dev/null
+codesign --force --sign - ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd \
+  ~/.local/bin/agentnotify-menubar 2>/dev/null || true
+xattr -d com.apple.quarantine ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd \
+  ~/.local/bin/agentnotify-menubar 2>/dev/null
 ```
 
-**Start the broker so it survives logouts and reboots.** There is no tray app on these platforms.
+**Start the broker so it survives logouts and reboots.** Linux has no tray; on macOS the broker starts the installed quota-only status item.
 
 macOS — a launchd agent (replace the path if `HOME` differs):
 

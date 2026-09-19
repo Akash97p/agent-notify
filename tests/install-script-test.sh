@@ -82,6 +82,7 @@ done
 mkdir -p "$destination/agentnotify-osx-x64"
 printf 'cli\n' > "$destination/agentnotify-osx-x64/agentnotify"
 printf 'broker\n' > "$destination/agentnotify-osx-x64/agentnotifyd"
+printf 'menu bar\n' > "$destination/agentnotify-osx-x64/agentnotify-menubar"
 EOF
 
 chmod +x "$fake_bin/uname" "$fake_bin/curl" "$fake_bin/tar"
@@ -95,6 +96,7 @@ output="$(
 printf '%s\n' "$output" | grep -q 'from v9.8.7-test'
 test -x "$install_root/agentnotify"
 test -x "$install_root/agentnotifyd"
+test -x "$install_root/agentnotify-menubar"
 grep -q '/releases/download/v9.8.7-test/SHA256SUMS-portable.txt$' "$request_log"
 
 : > "$request_log"

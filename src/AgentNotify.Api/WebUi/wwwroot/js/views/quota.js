@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import renderBilling from "./billing.js";
-import { h, mount, pageHead, button, notice, field, input, select, busy, toast, confirmDialog, badge } from "../dom.js";
+import { h, mount, pageHead, button, notice, field, input, select, busy, toast, confirmDialog, badge, toggle, checkbox } from "../dom.js";
 
 const names = { codex: "Codex", claude_code: "Claude Code" };
 const percent = (value) => `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`;
@@ -87,6 +87,58 @@ function goRenewal(go, reload) {
     h("span", { class: "muted small", text: go.renewal_day
       ? "The monthly bar counts this billing cycle, starting at local midnight on that day."
       : "Without it, the monthly bar counts the last 30 days, which is not your billing cycle." }));
+}
+
+function menuBarSettings(settings, accounts) {
+  const enabled = toggle("Show five-hour quota in the macOS menu bar", settings.enabled,
+    { help: "The percentage is the lowest five-hour balance among the accounts selected below." });
+  const refresh = select([[5, "Every 5 minutes"], [10, "Every 10 minutes"], [15, "Every 15 minutes"],
+    [30, "Every 30 minutes"], [60, "Every hour"]], settings.refresh_minutes);
+  const configured = new Set(settings.account_ids || []);
+  const allSelected = configured.size === 0;
+  const choices = accounts.map(account => {
+    const item = checkbox(`${names[account.provider] || account.provider} · ${account.label}`,
+      allSelected || configured.has(account.id));
+    item.dataset.accountId = account.id;
+    return item;
+  });
+  const status = h("div");
+  const save = button("Save menu bar", { variant: "primary" });
+  save.addEventListener("click", () => busy(save, async () => {
+    const selected = choices.filter(choice => choice.input.checked).map(choice => choice.dataset.accountId);
+    if (accounts.length && selected.length === 0) {
+      status.replaceChildren(notice("Select at least one account for the headline percentage.", "danger"));
+      return;
+    }
+    try {
+      const accountIds = selected.length === accounts.length ? [] : selected;
+      const saved = await api.put("menu-bar/settings", {
+        enabled: enabled.input.checked,
+        refresh_minutes: Number(refresh.value),
+        account_ids: accountIds,
+      });
+      status.replaceChildren(notice(saved.supported
+        ? saved.enabled ? "Saved. The native menu-bar client will start or update shortly." : "Saved. The menu-bar client is disabled."
+        : "Saved. These settings take effect when this broker runs on macOS.", "ok", "check"));
+      toast("Menu-bar settings saved.");
+    } catch (error) { status.replaceChildren(notice(error.message, "danger")); }
+  }));
+
+  return h("section", { class: "card menu-bar-settings" },
+    h("div", { class: "card-head" },
+      h("div", null, h("h2", { class: "card-title", text: "macOS menu bar" }),
+        h("p", { class: "muted small", text: "A battery-like percentage for live Codex and Claude five-hour limits." })),
+      badge(settings.supported ? "This Mac" : "macOS", settings.supported ? "ok" : "info")),
+    h("div", { class: "card-body stack" },
+      enabled,
+      field("Refresh", refresh, { help: "Provider checks remain cached and rate-limited by the broker." }),
+      h("div", { class: "field" },
+        h("span", { class: "field-label", text: "Headline accounts" }),
+        h("p", { class: "field-help", text: "The menu lists every account. These choices only decide which five-hour balance appears beside the icon." }),
+        h("div", { class: "menu-account-picker" }, choices)),
+      settings.supported ? null : notice("The native client is packaged only for macOS; Linux and Windows ignore this display setting.", "info"),
+      status),
+    h("div", { class: "card-foot" }, save));
 }
 
 function accountManager(accounts, removed, reload) {
@@ -188,8 +240,8 @@ export default {
     const load = async (force = false) => {
       refresh.disabled = true;
       try {
-        const [report, configured] = await Promise.all([
-          force ? api.post("quota/refresh") : api.get("quota"), api.get("quota/accounts")]);
+        const [report, configured, menuBar] = await Promise.all([
+          force ? api.post("quota/refresh") : api.get("quota"), api.get("quota/accounts"), api.get("menu-bar/settings")]);
         if (!ctx.isCurrent()) return;
         if (report.contract_version !== "3") throw new Error("The broker and page use different quota contracts. Reload the page.");
         const providers = report.providers.filter(item => item.provider !== "opencode");
@@ -198,6 +250,7 @@ export default {
           pageHead("Live quota", "Remaining account balances at a glance.", refresh),
           billing.cards,
           h("div", { class: "quota-grid" }, providers.map(providerCard)),
+          menuBarSettings(menuBar, configured.accounts),
           report.open_code_go?.models?.length ? [
             h("div", { class: "section-heading" },
               h("div", null, h("h2", { text: "OpenCode Go" }),

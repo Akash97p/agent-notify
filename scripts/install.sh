@@ -5,7 +5,7 @@
 #
 # Downloads the release archive for this machine, verifies its SHA-256 against the published
 # portable checksum file, and installs the agentnotify CLI and the agentnotifyd broker into
-# ~/.local/bin.
+# ~/.local/bin. macOS archives also install the native quota menu-bar client beside the broker.
 #
 # Environment:
 #   AGENTNOTIFY_VERSION   Release tag to install (default: newest published release).
@@ -94,7 +94,11 @@ fi
 echo "Installing to ${PREFIX}…"
 mkdir -p "$PREFIX"
 tar -xzf "$tmp/$archive" -C "$tmp"
-for binary in agentnotify agentnotifyd; do
+binaries="agentnotify agentnotifyd"
+if [ "$os" = "osx" ] && [ -f "$tmp/agentnotify-$rid/agentnotify-menubar" ]; then
+    binaries="$binaries agentnotify-menubar"
+fi
+for binary in $binaries; do
     install -m 0755 "$tmp/agentnotify-$rid/$binary" "$PREFIX/$binary" 2>/dev/null \
         || { cp "$tmp/agentnotify-$rid/$binary" "$PREFIX/$binary" && chmod 0755 "$PREFIX/$binary"; }
 done
@@ -105,7 +109,7 @@ done
 # log line, nothing to search for. Re-signing adhoc locally is what makes it
 # runnable; it grants no trust the binary did not already have.
 if [ "$os" = "osx" ] && command -v codesign >/dev/null 2>&1; then
-    for binary in agentnotify agentnotifyd; do
+    for binary in $binaries; do
         codesign --force --sign - "$PREFIX/$binary" >/dev/null 2>&1 \
             || echo "Warning: could not re-sign $binary; if it exits immediately, run: codesign --force --sign - $PREFIX/$binary" >&2
     done
@@ -115,6 +119,9 @@ echo
 echo "Installed:"
 echo "  $PREFIX/agentnotify   command-line client"
 echo "  $PREFIX/agentnotifyd  broker"
+if [ "$os" = "osx" ] && [ -x "$PREFIX/agentnotify-menubar" ]; then
+    echo "  $PREFIX/agentnotify-menubar  native quota menu bar (started by the broker)"
+fi
 echo
 
 case ":$PATH:" in

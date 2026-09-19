@@ -48,6 +48,14 @@ jobs:
       - name: Test Unix installer
         run: ./tests/install-script-test.sh
 
+      - name: Build native macOS menu bar
+        if: runner.os == 'macOS'
+        run: |
+          ./scripts/build-macos-menu-bar.sh "$RUNNER_TEMP/menu-bar" "$(uname -m)"
+          file "$RUNNER_TEMP/menu-bar/agentnotify-menubar"
+          codesign --force --sign - "$RUNNER_TEMP/menu-bar/agentnotify-menubar"
+          codesign --verify --strict "$RUNNER_TEMP/menu-bar/agentnotify-menubar"
+
       # Exercises the paths that only exist off Windows: the key-file secret protector, owner-only
       # file modes, the lock file, the loopback API, signal-driven shutdown, and the actual
       # self-contained binaries users download rather than a framework-dependent `dotnet run`.

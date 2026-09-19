@@ -23,8 +23,9 @@ platform secret store differ.
 ## Non-goals for this plan
 
 - Rewriting in Rust or Go. .NET 10 is already cross-platform; most of the codebase is portable today.
-- A native macOS menu-bar UI or a native Linux tray UI. Those are separate later projects.
-  This plan delivers a headless broker plus native OS notifications on macOS and Linux.
+- A full native macOS notification center/settings application or a native Linux tray UI. The
+  shipped macOS quota status item is deliberately smaller; the portable broker and OS notifications
+  remain the primary desktop path on macOS and Linux.
 - Apple notarization and the Mac App Store. Unsigned binaries are acceptable for a developer tool
   at this stage; an Apple Developer account can wait for adoption.
 
@@ -33,8 +34,9 @@ platform secret store differ.
 ## Historical starting point
 
 The three blockers below describe the state before the portable broker work. Phases 1–3 are now
-done; the WebUI also gives macOS and Linux users browser-based configuration, questions, history,
-usage, and quota without a native tray application. See [WEB_UI.md](WEB_UI.md).
+done; the WebUI gives macOS and Linux users browser-based configuration, questions, history,
+usage, and quota. macOS additionally has a native quota-only status item; Linux has no tray.
+See [WEB_UI.md](WEB_UI.md).
 
 Already portable — these target `net10.0` with no Windows-only API use:
 
@@ -141,12 +143,14 @@ Publish self-contained single-file binaries for `agentnotify` and `agentnotifyd`
 - `osx-x64`
 - `osx-arm64`
 
-These cross-compile from any host, including the Windows SDK used for the WPF build. The portable
-projects must also build and test on a Linux and a macOS CI runner — that, not cross-compilation,
-is what proves the code actually runs off Windows.
+The .NET CLI and broker still cross-compile, but an archive containing `agentnotify-menubar` must
+be packaged on macOS because Swift/AppKit is not built on Linux. The portable projects also build and
+test on Linux and macOS CI runners; the macOS job compiles and strictly verifies the native executable
+before release packaging.
 
-*Done when:* one script produces every archive plus `SHA256SUMS.txt`, CI builds and tests the
-portable projects on Linux and macOS, and the release workflow attaches the archives.
+*Done when:* one macOS run of the script produces every archive plus
+`SHA256SUMS-portable.txt`, CI builds and tests the portable projects on Linux and macOS, and the
+release workflow attaches them.
 
 ## Phase 4 — Distribution (**partly done**)
 
@@ -155,11 +159,16 @@ portable projects on Linux and macOS, and the release workflow attaches the arch
 - A Homebrew tap pointing at the release archives. **Planned**; no Apple Developer account is required for it.
 - A Winget manifest for Windows. **Planned**.
 
-## Phase 5 — Native desktop clients (**planned**, out of scope here)
+## Phase 5 — Native desktop clients (**partly done**)
 
-A macOS menu-bar client and a Linux tray client with the notification center and Settings UI,
-built on the same portable broker. Contributors welcome; the phases above exist to make this
-possible without a rewrite.
+**Done:** a native Swift/AppKit macOS status item shows the lowest selected Codex/Claude five-hour
+balance and lists every monitored account/window. The broker owns its lifecycle; Live quota in the
+WebUI configures enabled state, refresh interval, and headline accounts. The child receives only the
+loopback port and normalized quota projection.
+
+**Planned:** a full macOS notification center/settings client and a Linux tray client, both built on
+the same portable broker. Contributors welcome; the earlier phases keep this possible without a
+rewrite.
 
 ---
 
@@ -176,7 +185,7 @@ made it possible to verify the Linux broker end to end rather than only compile 
 
 | Claim | Status |
 | --- | --- |
-| Portable projects compile for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 | **Verified** by cross-compilation |
+| Portable projects compile for win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64 | **Verified**; macOS archives are now assembled on macOS |
 | Portable logic is correct | **Verified** by the automated test suite |
 | The headless broker runs on Linux and macOS, serves `/v1`, and the CLI drives it | **Verified** in WSL and on both CI runners |
 | Owner-only `0600`/`0700` local state on Unix | **Verified** in WSL on real files |
@@ -188,6 +197,7 @@ made it possible to verify the Linux broker end to end rather than only compile 
 | AgentNotify Relay channel on macOS | **Verified end to end** 2026-09-10 — live discovery, browser approval, protected credential save, catch-all routing, encryption, first-attempt envelope acceptance (`201`), and mobile display all succeeded |
 | macOS Keychain key store | **Verified** on the macOS CI runner |
 | Linux `secret-tool` key store | **Unverified** — not installed on the CI runners; Linux exercises the key-file fallback |
+| Native macOS quota menu bar builds/signs | **Verified** for x86_64 and arm64 targets; the UI has not been visually observed |
 | ARM64 binaries execute | **Unverified** — no ARM64 machine |
 
 Running the Linux binary is what found three defects that no amount of cross-compilation would
@@ -199,6 +209,7 @@ macOS CI jobs are part of Phase 3 rather than an optional extra.
 ## Positioning
 
 AgentNotify is the local attention layer for coding agents across Windows, macOS, and Linux. The
-broker, CLI, API, and browser interface run on all three; native tray/toast settings remain Windows
-only. Some optional agent harnesses invoke Python or a host's own runtime, but the broker and WebUI
+broker, CLI, API, and browser interface run on all three. macOS also has native quota status;
+full notification-center/toast settings remain Windows-only and Linux has no tray. Some optional
+agent harnesses invoke Python or a host's own runtime, but the broker, WebUI, and macOS status item
 need neither Node nor Python at runtime.

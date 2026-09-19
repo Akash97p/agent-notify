@@ -259,7 +259,9 @@ across eleven harnesses.
   treating the numbers as a spend ledger.
 - Live quota: Codex's documented app-server RPC and Claude Code's first-party account-usage
   endpoint feed separately cached windows for the current, secondary (`.codex-*`/`.claude-*`), WSL,
-  and up to 16 hand-added profiles. Every account can be renamed, moved, removed, and restored.
+  and up to 16 hand-added profiles. Every account can be renamed, moved, removed, and restored. A
+  native macOS status item now shows the lowest selected five-hour balance and lists every account
+  and returned window; Live quota configures enabled state, 5–60 minute refresh, and headline accounts.
   OpenCode Go has a per-model published-cap estimate whose monthly window can follow the renewal
   day. Add a stable Claude source or statusline bridge, context-tiered Go rates, and opt-in,
   labelled unofficial sources for tools without a public quota API (Gemini CLI/Antigravity, Cursor,
@@ -279,5 +281,5 @@ across eleven harnesses.
 - Safer terminal/editor activation, Windows Terminal integration, and virtual desktop awareness.
 - Signed x64/ARM64 releases, checksums, schema migration recovery, automatic updates, and rollback.
 - Accessibility, keyboard navigation, localization, high-contrast support, multi-DPI/multi-monitor verification.
-- Portable core extraction followed by native macOS menu-bar and Linux tray/desktop implementations.
+- Native macOS quota menu bar is implemented; extend it into a full notification-center/settings client and add a Linux tray/desktop implementation.
 - Documentation/wiki site, examples, architecture decision records, contributor guides, and integration recipes. GitHub Pages is published by the repository workflow.

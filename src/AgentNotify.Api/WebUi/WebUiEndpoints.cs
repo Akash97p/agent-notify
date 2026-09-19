@@ -11,6 +11,7 @@ using AgentNotify.Core.Domain;
 using AgentNotify.Core.Harness;
 using AgentNotify.Core.Logging;
 using AgentNotify.Core.Persistence;
+using AgentNotify.Core.Quota;
 using AgentNotify.Core.Services;
 using AgentNotify.Core.Skills;
 using AgentNotify.Core.Usage;
@@ -243,6 +244,57 @@ public static class WebUiEndpoints
             Results.Json(await quota.GetReportAsync(cancellationToken: ct), JsonOptions));
         app.MapPost($"{BasePath}/api/quota/refresh", async (CancellationToken ct) =>
             Results.Json(await quota.GetReportAsync(refresh: true, cancellationToken: ct), JsonOptions));
+
+        // The native macOS client receives only normalized quota fields and its presentation
+        // settings. It never reads config.json, the API bearer token, or an agent credential file.
+        app.MapGet($"{BasePath}/api/menu-bar", async (CancellationToken ct) =>
+            Results.Json(MenuBarQuotaProjector.Project(
+                await quota.GetReportAsync(cancellationToken: ct), config.MacMenuBar), JsonOptions));
+        app.MapPost($"{BasePath}/api/menu-bar/refresh", async (CancellationToken ct) =>
+            Results.Json(MenuBarQuotaProjector.Project(
+                await quota.GetReportAsync(refresh: true, cancellationToken: ct), config.MacMenuBar), JsonOptions));
+        app.MapGet($"{BasePath}/api/menu-bar/settings", () =>
+            Results.Json(MenuBarSettingsJson(config), JsonOptions));
+        app.MapPut($"{BasePath}/api/menu-bar/settings", async (HttpContext http) =>
+        {
+            var body = await ReadAsync<MenuBarSettingsBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                lock (quotaAccountsGate)
+                {
+                    var known = MonitoredDetectedAccounts().Concat(config.QuotaAccounts)
+                        .Select(account => account.Id).ToHashSet(StringComparer.Ordinal);
+                    var previous = config.MacMenuBar;
+                    config.MacMenuBar = ValidateMenuBarSettings(previous, body, known);
+                    try { options.ConfigStore.Save(config); }
+                    catch { config.MacMenuBar = previous; throw; }
+                }
+                Notify(options, config, false, logger);
+                return Results.Json(MenuBarSettingsJson(config), JsonOptions);
+            }
+            catch (ArgumentException error) { return Error(error.Message); }
+        });
+        app.MapPost($"{BasePath}/api/menu-bar/disable", () =>
+        {
+            lock (quotaAccountsGate)
+            {
+                if (config.MacMenuBar.Enabled)
+                {
+                    var previous = config.MacMenuBar;
+                    config.MacMenuBar = new MacMenuBarSettings
+                    {
+                        Enabled = false,
+                        RefreshMinutes = previous.RefreshMinutes,
+                        AccountIds = [.. previous.AccountIds]
+                    };
+                    try { options.ConfigStore.Save(config); }
+                    catch { config.MacMenuBar = previous; throw; }
+                }
+            }
+            Notify(options, config, false, logger);
+            return Results.Json(MenuBarSettingsJson(config), JsonOptions);
+        });
 
         static string? WslName(QuotaAccountDefinition account) =>
             QuotaAccountDefinition.DetectedWslDistribution(account.Id);
@@ -922,6 +974,39 @@ public static class WebUiEndpoints
         };
     }
 
+    private static object MenuBarSettingsJson(AgentNotifyConfig config) => new
+    {
+        supported = OperatingSystem.IsMacOS(),
+        enabled = config.MacMenuBar.Enabled,
+        refresh_minutes = config.MacMenuBar.RefreshMinutes,
+        account_ids = config.MacMenuBar.AccountIds
+    };
+
+    private static MacMenuBarSettings ValidateMenuBarSettings(
+        MacMenuBarSettings current,
+        MenuBarSettingsBody body,
+        IReadOnlySet<string> knownAccounts)
+    {
+        var refresh = body.RefreshMinutes ?? current.RefreshMinutes;
+        if (refresh is < 5 or > 60)
+            throw new ArgumentException("Menu-bar refresh must be between 5 and 60 minutes.");
+        var accountIds = body.AccountIds is null ? [.. current.AccountIds] : body.AccountIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (accountIds.Count > 32)
+            throw new ArgumentException("Select at most 32 menu-bar accounts.");
+        var unknown = accountIds.FirstOrDefault(id => !knownAccounts.Contains(id));
+        if (unknown is not null)
+            throw new ArgumentException("A selected menu-bar account is not currently monitored.");
+        return new MacMenuBarSettings
+        {
+            Enabled = body.Enabled ?? current.Enabled,
+            RefreshMinutes = refresh,
+            AccountIds = accountIds
+        };
+    }
+
     private static object SettingsJson(AgentNotifyConfig config) => new
     {
         port = config.Port,
@@ -1061,6 +1146,13 @@ public static class WebUiEndpoints
         public string? Provider { get; set; }
         public string? Label { get; set; }
         public string? Directory { get; set; }
+    }
+
+    private sealed class MenuBarSettingsBody
+    {
+        public bool? Enabled { get; set; }
+        public int? RefreshMinutes { get; set; }
+        public List<string>? AccountIds { get; set; }
     }
 
     private sealed class SettingsBody

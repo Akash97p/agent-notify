@@ -1,10 +1,10 @@
 # Installing on macOS and Linux
 
-Windows gets the tray application and a single-file installer. macOS and Linux get the same broker
-without a graphical tray: a background process called `agentnotifyd`, plus the same `agentnotify`
-command-line client that agents already use. The API, the bearer token, the notification model, and
-`SKILL.md` are identical on all three platforms, so an agent written against the Windows build needs
-no changes.
+Windows gets the full tray application and a single-file installer. macOS and Linux get the same
+background broker (`agentnotifyd`) and `agentnotify` command-line client; macOS archives also contain
+a native quota-only status item (`agentnotify-menubar`) that the broker owns. The API, bearer token,
+notification model, and `SKILL.md` are identical on all three platforms, so an agent written against
+the Windows build needs no changes.
 
 > **Status.** These builds are part of the prerelease line. The broker itself has been run and
 > exercised end to end on Linux and, since 2026-09-04, on real Intel Mac hardware, where the
@@ -22,9 +22,12 @@ curl -fsSL https://raw.githubusercontent.com/Akash97p/agent-notify/main/scripts/
 ```
 
 The script detects your platform, downloads the matching archive from GitHub Releases, **verifies
-its SHA-256 against the published checksum file**, and installs both binaries into `~/.local/bin`.
+its SHA-256 against the published checksum file**, and installs the CLI and broker into
+`~/.local/bin`; a macOS archive that contains `agentnotify-menubar` installs that third executable too.
 It refuses to install anything it cannot verify. With no version override, it selects the newest
-published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an exact tag.
+published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an exact tag. The currently
+tagged `v0.2.0-alpha.2` predates the menu-bar executable; build this development source or use the
+next release to install it.
 
 To install elsewhere or pin a version:
 
@@ -44,6 +47,9 @@ install -m 0755 agentnotify-linux-x64/agentnotify  ~/.local/bin/
 install -m 0755 agentnotify-linux-x64/agentnotifyd ~/.local/bin/
 ```
 
+For macOS, use the matching `agentnotify-osx-*` directory and also install
+`agentnotify-menubar` beside `agentnotifyd`.
+
 Supported archives: `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`, and `win-x64` for a portable
 Windows copy without the installer.
 
@@ -51,7 +57,10 @@ macOS marks downloaded binaries with a quarantine attribute. These builds are no
 the first run needs:
 
 ```sh
-xattr -d com.apple.quarantine ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd
+xattr -d com.apple.quarantine ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd \
+  ~/.local/bin/agentnotify-menubar
+codesign --force --sign - ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd \
+  ~/.local/bin/agentnotify-menubar
 ```
 
 ## Run the broker
@@ -88,9 +97,10 @@ agentnotify send --agent codex --project payments --type input_required \
 ```
 
 Open the broker's local web interface with `agentnotify ui`. It provides settings, channels,
-questions, history, and an Insights area for local usage, API-equivalent cost estimates, and
-on-demand live Codex/Claude Code quota. See [WEB_UI.md](WEB_UI.md) for account setup, estimate
-limits, and SSH forwarding from another computer.
+questions, history, and an Insights area for local usage, API-equivalent cost estimates, and live
+Codex/Claude Code quota. On macOS the broker automatically starts `agentnotify-menubar` after the API
+is ready; configure its enabled state, refresh interval, and headline accounts on Live quota. See
+[WEB_UI.md](WEB_UI.md) for account setup, polling/estimate limits, and SSH forwarding.
 
 ## Run it in the background
 
@@ -184,10 +194,11 @@ Installing `secret-tool` before configuring providers gets you the stronger opti
 
 ## What is missing compared with Windows
 
-There is no tray icon and no native window. Instead, the broker serves the same settings and
-notification center in a browser: run `agentnotify ui` (see [WEB_UI.md](WEB_UI.md)). Toast placement
-and sounds are Windows-app settings; here the platform's notification service decides both. Native
-macOS and Linux desktop clients are planned; see [CROSS_PLATFORM.md](CROSS_PLATFORM.md).
+macOS has a native quota status item, but no native notification center or Settings window. Linux has
+no tray. The broker serves those full surfaces in a browser: run `agentnotify ui` (see
+[WEB_UI.md](WEB_UI.md)). Toast placement and sounds are Windows-app settings; here the platform's
+notification service decides both. A full macOS client and Linux tray remain planned; see
+[CROSS_PLATFORM.md](CROSS_PLATFORM.md).
 
 ## Troubleshooting
 
@@ -200,4 +211,5 @@ Most symptoms and fixes are shared with Windows and live in
 | Broker starts but nothing appears on screen | No `notify-send`, or no graphical session | Install `libnotify-bin`; over SSH the console fallback is expected |
 | `notifications: console` on a desktop machine | `DISPLAY`/`WAYLAND_DISPLAY` not visible to the service | Ensure the user service inherits the graphical session environment |
 | Startup warns about the key file | No keyring found | Install and unlock `secret-tool`, then re-enter provider credentials |
-| macOS refuses to run the binary | Quarantine on an unsigned download | `xattr -d com.apple.quarantine <path>` |
+| macOS refuses to run a binary | Quarantine or an unacceptable ad-hoc signature | Clear quarantine and run `codesign --force --sign -` on the CLI, broker, and menu-bar executable |
+| Broker runs but no quota percentage appears | Menu-bar executable absent/disabled, or no five-hour window | Install it beside `agentnotifyd`; enable it on Live quota; inspect the broker log for the one-time missing-binary warning |

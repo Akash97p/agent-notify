@@ -49,7 +49,7 @@ WhatsApp must use the official business platform rather than browser automation 
 - Secure remote/LAN mode with a separate authentication design.
 - Search, export, audit views, and bounded retention policies.
 - Native Windows Notification Center integration as an optional secondary surface.
-- Extract portable contracts/routing components and build native macOS menu-bar and Linux desktop editions. Contributors for both platforms are explicitly welcome.
+- Extend the shipped macOS quota menu bar into a full notification center/settings client, and build a Linux tray/desktop edition. Contributors for both platforms are explicitly welcome.
 
 The complete provider-by-provider task list and confidence constraints are maintained in `FEATURE_BACKLOG.md`.
 

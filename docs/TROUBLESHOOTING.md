@@ -48,15 +48,20 @@ Symptom: `agentnotifyd` returns instantly, prints nothing, and `echo $?` shows `
 Under launchd, `launchctl list | grep agentnotify` shows a `-9` status and the log has
 no new lines at all. `agentnotify health` then reports connection refused.
 
-Cause: the macOS archives are cross-built on a Linux runner, so the adhoc code
-signature they carry is not one the macOS kernel accepts. It sends `SIGKILL` before any
-of the program runs, which is why nothing is logged anywhere — 137 is 128 + 9.
+Cause: macOS rejected the downloaded binary's quarantine/signature state before any program code
+ran. The release archives are now assembled on macOS, but they are still not notarized and local
+ad-hoc signing may be required. `SIGKILL` explains the empty logs — 137 is 128 + 9.
 
-Fix, for both binaries:
+Fix every installed executable (the menu-bar path exists only in newer macOS archives):
 
 ```sh
 codesign --force --sign - ~/.local/bin/agentnotify
 codesign --force --sign - ~/.local/bin/agentnotifyd
+if [ -f ~/.local/bin/agentnotify-menubar ]; then
+  codesign --force --sign - ~/.local/bin/agentnotify-menubar
+fi
+xattr -dr com.apple.quarantine ~/.local/bin/agentnotify ~/.local/bin/agentnotifyd \
+  ~/.local/bin/agentnotify-menubar 2>/dev/null || true
 ```
 
 `scripts/install.sh` does this automatically; you only need it after a manual install or
@@ -67,6 +72,26 @@ already have — it makes an unsigned local binary runnable, nothing more. Verif
 `spctl -a` will still say `rejected` afterwards. That is expected and unrelated: it
 reports Gatekeeper's opinion of an unsigned binary, and it says the same of a build that
 runs perfectly.
+
+---
+
+## macOS: quota percentage is missing from the menu bar
+
+**Cause**
+
+`agentnotify-menubar` is missing beside `agentnotifyd`, disabled under Live quota, unable to reach the
+broker's configured port, or the selected accounts have no five-hour quota window. The broker logs a
+single warning when the setting is enabled but the executable is absent. `--%` means the projection is
+unavailable; it is not a zero balance.
+
+**Fix**
+
+1. Confirm `~/.local/bin/agentnotify-menubar` exists and is executable, then restart the launchd job.
+2. Open `agentnotify ui` → Live quota → macOS menu bar, enable it, and save.
+3. Check `agentnotify health` and the broker log. If you changed the broker port, restart the broker.
+4. Re-sign/clear quarantine as in the preceding section if launching the executable is refused.
+5. Use **Refresh now** in the menu; provider checks remain cached/rate-limited, so repeated clicks may
+   keep the previous value or a visibly stale value.
 
 ## 401 Unauthorized
 

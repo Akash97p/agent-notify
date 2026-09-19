@@ -116,13 +116,14 @@
 - [ ] API accounts: DeepSeek spend derived from balance changes; verify Anthropic cost-report units and OpenAI pagination with real Admin keys; xAI management-key billing
 - [ ] Move the WPF Channels panel onto the portable `ProviderFormCatalog`, so provider validation exists once
 - [ ] Human visual verification of the web interface on Windows, served by the tray app (the owner has used Dashboard, Live quota, and API accounts there; no systematic page-by-page or narrow-window check yet)
-- [ ] Native macOS menu-bar and Linux tray clients
+- [x] Native macOS quota menu bar: lowest selected five-hour balance, every Codex/Claude account/window, broker lifecycle, and WebUI configuration
+- [ ] Linux tray client and full macOS notification-center/settings client
 - [ ] Automatic updates and schema/config migration framework
 
 ## Quality
 
 - [x] Windows .NET 10 release build: 0 warnings, 0 errors
-- [x] Automated tests: 1,050 passed, 0 failed, 0 skipped
+- [x] Automated tests: 1,257 passed, 0 failed, 0 skipped
 - [x] Installer packaging and embedded skill validation
 - [ ] Human visual verification on 100%, 150%, and 200% DPI
 - [ ] Human multi-monitor/taskbar-position verification

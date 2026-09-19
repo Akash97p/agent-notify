@@ -58,7 +58,7 @@ export default function Home() {
               <Button asChild size="lg"><a href={site.releases}>Download latest release <ArrowRight /></a></Button>
               <Button asChild size="lg" variant="outline"><Link href="/docs/">Read the documentation</Link></Button>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">Windows has the native desktop app. Every platform gets the CLI, the broker, and a local web interface with usage and quota insights.</p>
+            <p className="mt-5 text-sm text-muted-foreground">Windows has the full desktop app. macOS adds native five-hour quota status; every platform gets the CLI, broker, and local web interface.</p>
           </div>
 
           <Card className="min-w-0 overflow-hidden bg-card/90 shadow-2xl shadow-black">
@@ -119,10 +119,10 @@ export default function Home() {
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           <Feature icon={BarChart3} title="Usage and cost">Explore tokens by day, agent, project, model, and recent session. Each request is priced at its provider's published rate, including long-context and fast tiers; records without a verified rate stay unpriced.</Feature>
-          <Feature icon={Gauge} title="Live quota, every account">Codex and Claude Code profiles are found automatically — secondary folders and WSL included — and can be renamed, moved, or removed. Optional API accounts add DeepSeek, Kimi, SiliconFlow, OpenRouter, OpenAI, and Anthropic balances and spend.</Feature>
+          <Feature icon={Gauge} title="Live quota and macOS status">Codex and Claude Code profiles are found automatically — secondary folders and WSL included. On macOS, the lowest selected five-hour balance stays in the menu bar while every account and window remains one click away.</Feature>
           <Feature icon={FolderKanban} title="One Insights dashboard">See 30-day trends, agent mix, top projects, account balances, Go estimates, and broker health in one view. Account quota and local usage retain their separate sources.</Feature>
         </div>
-        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota and API accounts are checked on demand, and API keys are stored encrypted and never shown again; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
+        <p className="mt-6 text-sm leading-6 text-muted-foreground">Usage works offline from local agent records. Live quota is checked on demand in the WebUI and periodically while the macOS status item is enabled; provider snapshots remain cached and rate-limited. API keys are encrypted and never shown again; OpenCode Go percentages are local estimates, not a provider-reported balance.</p>
       </section>
 
       <Separator />

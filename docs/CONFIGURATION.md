@@ -81,6 +81,7 @@ All settings are properties of `AgentNotifyConfig`. The table lists the JSON nam
 | `routerMaxRequestBodyBytes` | `long` | `33554432` (32 MiB) | Per-request body limit for `/router/v1` routes only, clamped to 1 MiB–128 MiB. Agent requests carry whole conversations, so the 64 KiB `maxRequestBodyBytes` limit does not apply to them. Not editable in the interface. |
 | `routerLedgerRetentionDays` | `int` | `30` | How long router request and attempt rows are kept, clamped to 1–365. Older rows are pruned when the broker starts and once a day. Not editable in the interface. |
 | `removedQuotaAccounts` | `array` | `[]` | IDs of built-in (`codex:default`, `claude_code:default`) or discovered accounts (WSL defaults and native/WSL secondary profiles) removed from Live quota. Other values and duplicates are dropped. Removed and restored through Live quota → Manage accounts. |
+| `macMenuBar` | `object` | enabled, 5 minutes, all accounts | macOS quota status settings: `enabled`; `refreshMinutes` clamped to 5–60; and up to 32 Codex/Claude account IDs used for the headline. Empty `accountIds` means all monitored accounts. Edited on WebUI → Live quota; ignored by Windows/Linux hosts. |
 
 ### Toast duration defaults
 
@@ -172,7 +173,8 @@ Example fragment:
 ## Settings window coverage
 
 The [web interface](WEB_UI.md) edits the same properties as the tray Settings window, on every
-platform, except `launchAtStartup`, which stays in the tray menu.
+platform, except `launchAtStartup`, which stays in the Windows tray menu. Live quota also edits
+`macMenuBar`, which has no WPF Settings control because it belongs to the macOS host.
 
 The tray Settings window (`src/AgentNotify.App/SettingsWindow.xaml`, `.xaml.cs`) edits these config properties directly:
 

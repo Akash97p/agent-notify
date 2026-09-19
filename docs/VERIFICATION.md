@@ -2142,6 +2142,51 @@ required because this branch changes documentation, site sources, and CLI help t
 installer payload, embedded resources, publish settings, or release automation. No application
 behavior or database schema changed.
 
+## Native macOS quota menu bar (`feature/macos-quota-menu-bar`, 2026-09-19)
+
+Implemented a native AppKit status item for macOS that shows the lowest selected Codex or Claude
+five-hour remaining balance as a whole percentage, keeps every configured Codex and Claude account
+and every returned quota window in its menu, and marks stale or unavailable data instead of hiding
+it. The child process uses only the loopback broker API and receives only the broker port; it does
+not read the bearer token, configuration file, account profile paths, credentials, or raw provider
+responses. Live Quota in the WebUI now controls enablement, a 5/10/15/30/60-minute refresh
+interval, and which accounts participate in the headline. Disabling the status item also restores
+on-demand quota polling. Packaging, installation, CI, release automation, maintained documentation,
+and the GitHub Pages sources were updated with the same behavior and platform boundaries.
+
+Verified on the owner's Intel MacBook:
+
+- Targeted configuration, quota projection, and WebUI tests: 44 passed, 0 failed.
+- `AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/build.sh
+  -p:EnableWindowsTargeting=true`: succeeded, 0 warnings and 0 errors.
+- `AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/test.sh
+  -p:EnableWindowsTargeting=true`: 1,257 passed, 0 failed, 0 skipped.
+- `tests/install-script-test.sh`: passed, including installation of the native menu executable.
+- `node --check` passed for the changed Live Quota JavaScript; shell syntax checks passed for the
+  changed build, publish, install, and installer-test scripts.
+- `scripts/build-macos-menu-bar.sh` built and ad-hoc signed both `x86_64` and `arm64` Mach-O
+  executables; `codesign --verify --strict` accepted both.
+- A synthetic loopback runtime smoke test kept the native client alive for an enabled projection
+  with a `73%` headline and made it exit cleanly when the projection became disabled. No real account
+  credentials, bearer token, or provider quota probe was used.
+- `./scripts/build-site.sh`: passed (`npm ci`, Next type generation, `tsc --noEmit`, and static
+  export; 30 static pages generated). A generated-site crawl checked 4,585 local links/assets across
+  57 HTML files, and every target existed.
+- A Markdown target audit checked 150 relative targets and found no missing target.
+- `AGENTNOTIFY_DOTNET_EXE="$HOME/.dotnet/dotnet" ./scripts/publish-cross.sh`: produced all five
+  portable archives (`win-x64`, `linux-x64`, `linux-arm64`, `osx-x64`, and `osx-arm64`) plus
+  `SHA256SUMS.txt`; every checksum verified. Both macOS archives contain `agentnotify-menubar`, the
+  extracted binaries report the intended architecture, and strict code-signature verification
+  passed.
+- `git diff --check`: passed before the final commit.
+
+Not verified: human visual inspection of either the AppKit menu or the new WebUI configuration card;
+execution on Apple Silicon; Windows runtime/WPF behavior; or the hosted GitHub Pages and release
+workflows, because this branch was not pushed. `./scripts/package.sh` was not run because it requires
+Windows/WSL/PowerShell; the cross-platform release archives and Unix installer regression were run
+instead. The status item was not tested against real Codex or Claude quota credentials, deliberately
+avoiding provider access during the implementation run.
+
 ## Owner verification still outstanding
 
 These need the repository owner and a real machine; nothing in CI can close them.

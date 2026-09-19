@@ -41,6 +41,27 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void MacMenuBarDefaultsAreBoundedAndDiscardMalformedAccountIds()
+    {
+        var valid = "q_" + Guid.NewGuid().ToString("N");
+        var config = new AgentNotifyConfig
+        {
+            MacMenuBar = new MacMenuBarSettings
+            {
+                Enabled = false,
+                RefreshMinutes = 1,
+                AccountIds = ["codex:default", valid, valid, "bad account", "claude_code:home:work"]
+            }
+        };
+
+        config.ApplyDefaults();
+
+        Assert.False(config.MacMenuBar.Enabled);
+        Assert.Equal(5, config.MacMenuBar.RefreshMinutes);
+        Assert.Equal(["codex:default", valid, "claude_code:home:work"], config.MacMenuBar.AccountIds);
+    }
+
+    [Fact]
     public void ToastDurations_KnownTypes()
     {
         var c = new AgentNotifyConfig();

@@ -45,6 +45,35 @@ public sealed class LiveQuotaTests
     }
 
     [Fact]
+    public void MenuBarProjectionUsesLowestSelectedFiveHourBalanceAndListsEveryAccount()
+    {
+        var now = DateTimeOffset.Parse("2026-09-19T10:00:00Z");
+        var codex = new LiveQuotaSnapshot("codex", "ok", "fixture", now, "pro", null,
+            [new LiveQuotaWindow("primary", "Codex · 5-hour", 35, 65, 300, now.AddHours(2)),
+             new LiveQuotaWindow("weekly", "Codex · 7-day", 10, 90, 10080, now.AddDays(2))], null,
+            "codex:default", "Personal Codex");
+        var claude = new LiveQuotaSnapshot("claude_code", "stale", "fixture", now, null, null,
+            [new LiveQuotaWindow("five_hour", "5-hour", 62, 38, 300, now.AddHours(1))], "temporarily unavailable",
+            "claude_code:default", "Work Claude");
+        var report = new LiveQuotaReport(now, [codex, claude], null);
+
+        var all = MenuBarQuotaProjector.Project(report, new MacMenuBarSettings());
+        Assert.Equal("1", all.ContractVersion);
+        Assert.Equal(2, all.Accounts.Count);
+        Assert.Equal("claude_code:default", all.Headline!.AccountId);
+        Assert.Equal(38, all.Headline.RemainingPercent);
+        Assert.True(all.Headline.Stale);
+
+        var selected = MenuBarQuotaProjector.Project(report, new MacMenuBarSettings
+        {
+            AccountIds = ["codex:default"]
+        });
+        Assert.Equal("codex:default", selected.Headline!.AccountId);
+        Assert.Equal(65, selected.Headline.RemainingPercent);
+        Assert.Equal(2, selected.Accounts.Count);
+    }
+
+    [Fact]
     public void AccountProfileRequiresUniqueDirectoryUnderHome()
     {
         var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex-other");

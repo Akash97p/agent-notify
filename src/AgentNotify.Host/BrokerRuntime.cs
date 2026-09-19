@@ -39,6 +39,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
     private AgentNotify.Core.Router.RouterProxy? _routerProxy;
     private AgentNotify.Core.Router.RouterLedgerPruner? _routerPruner;
     private AgentNotify.Core.Router.Connect.RouterConnectService? _routerConnect;
+    private MacMenuBarController? _macMenuBar;
     private WebApplication? _api;
 
     private BrokerRuntime(
@@ -176,6 +177,7 @@ public sealed class BrokerRuntime : IAsyncDisposable
             }
         };
 
+        _macMenuBar = new MacMenuBarController(_config, _logger);
         var webUi = new WebUiOptions
         {
             ConfigStore = _configStore,
@@ -191,13 +193,15 @@ public sealed class BrokerRuntime : IAsyncDisposable
             // Toast placement and sounds belong to the Windows tray app; the portable broker hands
             // notifications to the platform, which decides both.
             SupportsToastPlacement = false,
-            SupportsSounds = false
+            SupportsSounds = false,
+            ConfigSaved = (_, _) => _macMenuBar.Apply()
         };
 
         _api = ApiHost.Build(_config, _repository, service, _logger, Url, callbacks, interactionService, interactionPublisher, webUi);
         await _api.StartAsync(cancellationToken).ConfigureAwait(false);
         _interactionResponsePoller.Start();
         _logger.Info($"API listening on {Url}");
+        _macMenuBar.Apply();
 
         await PruneHistoryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -262,6 +266,8 @@ public sealed class BrokerRuntime : IAsyncDisposable
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
+        try { _macMenuBar?.Dispose(); } catch { }
+
         if (_interactionResponsePoller is not null)
         {
             try

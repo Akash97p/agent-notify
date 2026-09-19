@@ -59,6 +59,15 @@ Claude endpoint is a first-party implementation dependency without a stable publ
 quota failure never affects notifications or local Usage. Cross-origin pages cannot force manual
 refresh because it is a same-origin-header-protected POST.
 
+The macOS quota status item is a separate same-user local client of that WebUI boundary. The broker
+launches it with only the loopback port. It receives normalized account labels, percentages, reset
+times, plan/credit values, freshness, source, and presentation settings; it receives no bearer token,
+profile path, account email, credential, or provider response. It does not read `config.json` or agent
+credential files. Because it polls periodically while enabled, quota checks on macOS are not purely
+on-demand; the existing per-account cache, request coalescing, timeout, response cap, stale handling,
+and rate limits still apply. Disable the status item under Live quota to stop that background polling.
+Like the WebUI, this is not a boundary against another process already running as the same OS user.
+
 Additional quota profiles store only a label and agent profile directory in the owner-only
 configuration file. The WebUI accepts absolute directories under the broker user's home folder,
 never passwords or token text. The profile-management page returns these paths to its local owner;

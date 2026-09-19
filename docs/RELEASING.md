@@ -94,10 +94,12 @@ The tag workflow independently restores, builds, tests, packages, checks the tag
 - `SHA256SUMS.txt`, covering the installer;
 - the distributable `SKILL.md`;
 - `agentnotify-win-x64.zip` and `agentnotify-{linux,osx}-{x64,arm64}.tar.gz`, the portable CLI and
-  `agentnotifyd` broker archives; and
+  `agentnotifyd` broker archives; macOS archives also contain `agentnotify-menubar`; and
 - `SHA256SUMS-portable.txt`, covering those archives.
 
-The portable archives are produced by a second job on a Linux runner after the Windows job succeeds.
+The portable archives are produced by a second job on a macOS runner after the Windows job succeeds.
+The .NET binaries still target every RID, but macOS packaging must run there because it compiles the
+Swift/AppKit status item separately for x86_64 and arm64.
 The two checksum files are deliberately named differently: two assets sharing one name would replace
 each other rather than sit side by side.
 
