@@ -143,16 +143,16 @@ public sealed class RouterConnectService
                 var claude = Claude(profile);
                 Require(claude.Detected, $"This Claude Code account's directory ({profile.Directory}) was not found.");
                 var slots = new Dictionary<string, string>(StringComparer.Ordinal);
+                var claudeSelectable = selectable.Concat(ClaudeCodeRouterConnector.NativeModels).ToList();
                 var requested = request.ModelSlots ?? new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var slot in ClaudeCodeRouterConnector.Slots.Keys)
                 {
                     if (requested.TryGetValue(slot, out var value) && !string.IsNullOrWhiteSpace(value))
-                        slots[slot] = Validate(value, selectable, $"model for the {slot} slot");
+                        slots[slot] = Validate(value, claudeSelectable, $"model for the {slot} slot");
                 }
 
-                // The default slot is what an unconfigured session sends, so it always gets a value.
                 if (!slots.ContainsKey("default"))
-                    slots["default"] = Validate(request.Model, selectable, "model");
+                    slots["default"] = Validate(request.Model, claudeSelectable, "model");
 
                 var claudeOptions = ValidateOptions(request.Options, selectable, ClaudeCodeRouterConnector.Options);
                 Backup(claude.ConfigPath, state, state.ConnectedAt is null ? "before connecting" : "before reconnecting");
@@ -297,9 +297,13 @@ public sealed class RouterConnectService
             }
             else
             {
-                var slots = agentState.ModelSlots.Count > 0
+                var claudeSelectable = Selectable(snapshot).Concat(ClaudeCodeRouterConnector.NativeModels).ToHashSet(StringComparer.Ordinal);
+                var slots = (agentState.ModelSlots.Count > 0
                     ? agentState.ModelSlots
-                    : new Dictionary<string, string>(StringComparer.Ordinal) { ["default"] = agentState.SelectedModel ?? "" };
+                    : new Dictionary<string, string>(StringComparer.Ordinal) { ["default"] = agentState.SelectedModel ?? "" })
+                    .Where(pair => claudeSelectable.Contains(pair.Value))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+                if (!slots.ContainsKey("default")) slots["default"] = ClaudeCodeRouterConnector.NativeDefault;
                 Claude(profile).Apply(AnthropicBaseUrl, key, slots, PickerRows(snapshot), agentState.Options);
             }
         }
@@ -353,7 +357,9 @@ public sealed class RouterConnectService
             profile.Id, DisplayName(profile), claude.ConfigPath, claude.Detected, claudeConnected,
             claudeConnected ? state?.ConnectedAt : null,
             claudeConnected ? state?.SelectedModel : null,
-            claude.CurrentSlots(), null, 0, backups,
+            // A slot the owner pointed at Claude Code's own model writes no variable, so what was
+            // chosen is AgentNotify's own record rather than what the file happens to carry.
+            claudeConnected && state is { ModelSlots.Count: > 0 } ? state.ModelSlots : claude.CurrentSlots(), null, 0, backups,
             Blocked(claude.Detected, hasModels, "Claude Code", profile.Directory))
         {
             Kind = profile.Kind,

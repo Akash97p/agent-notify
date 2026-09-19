@@ -268,7 +268,7 @@ public sealed class RouteResolverTests
         new($"id_{slug}", slug, slug, RouterWire.OpenAiChat, baseUrl, null, models, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow) { Auth = auth };
 
     private static RouterSnapshot Smart(StoredRouterUpstream[] upstreams, RouterRoute[]? routes = null) =>
-        new(upstreams, routes ?? [], new RouterSettings(null, SmartRouting: true), 0);
+        new(upstreams, routes ?? [], new RouterSettings(null, RouterSwitchStrategy.Ordered), 0);
 
     private static readonly StoredRouterUpstream[] LunaEverywhere =
     [
@@ -278,6 +278,26 @@ public sealed class RouteResolverTests
         Provider("chatgpt-second", "https://chatgpt.com/backend-api/codex", ["gpt-5.6-luna"], RouterAuth.CodexChatGpt),
         Provider("deepseek", "https://api.deepseek.com/v1", ["deepseek-flash"]),
     ];
+
+    [Fact]
+    public void NativeClaude_SmartRoutingStartsNative_ThenSameModel_ThenConfiguredFallback()
+    {
+        var upstreams = new[]
+        {
+            Provider("openrouter", "https://openrouter.ai/api/v1", ["anthropic/claude-opus-5"]),
+            Provider("deepseek", "https://api.deepseek.com/v1", ["deepseek-chat"]),
+        };
+        var settings = new RouterSettings(null, RouterSwitchStrategy.Ordered, "deepseek/deepseek-chat");
+        var snap = new RouterSnapshot(upstreams, [], settings, 0);
+
+        var resolution = RouteResolver.Resolve(snap, "claude-opus-5", nativeAnthropic: true);
+
+        Assert.Equal(["anthropic/claude-opus-5", "openrouter/anthropic/claude-opus-5", "deepseek/deepseek-chat"],
+            resolution.Targets.Select(target => target.Upstream.Slug + "/" + target.NativeModel));
+        Assert.DoesNotContain(resolution.Targets.Skip(1), target => RouterNative.IsNative(target.Upstream));
+        Assert.DoesNotContain(RouteResolver.Resolve(snap, "deepseek/deepseek-chat").Targets,
+            target => RouterNative.IsNative(target.Upstream));
+    }
 
     [Fact]
     public void SmartRouting_PickedModelFirst_ThenTheSameModelElsewhere_PlansBeforePayPerToken()

@@ -201,12 +201,12 @@ requested `model` string. It returns an ordered list of concrete targets `{upstr
 Disabled upstreams are skipped inside a combo, and a combo with no enabled target fails with
 `no_enabled_target`.
 
-### Smart routing
+### Smart switching
 
-One switch on the Routing page (`router_settings.smart_routing`, `PUT /ui/api/router/smart`), off by
-default. When it is on, whatever the rules above resolved to is tried first, and after it **the same
-model at every other enabled provider that lists it**, so a usage limit, an outage, or a refused key
-at one provider hands the request to the same model somewhere else with no route to set up:
+The Settings page stores one strategy in `router_settings.switch_strategy`: `off`, `ordered`,
+`sticky`, or `round_robin`. When enabled, whatever the rules above resolved to is expanded with **the
+same model at every other enabled provider that lists it**, so a usage limit, an outage, or a refused
+key can hand the request to the same model somewhere else with no route to set up:
 
 - **Same model** means the IDs match ignoring case and any vendor path: `deepseek-v4-flash` at
   DeepSeek, `deepseek/deepseek-v4-flash` at OpenRouter, and `DeepSeek-V4-Flash` elsewhere are one model.
@@ -217,11 +217,19 @@ at one provider hands the request to the same model somewhere else with no route
   providers were added.
 - **A bare model name several providers list** is no longer `ambiguous_model`: it goes to all of them in
   that order, starting with the cheapest.
-- **Routes still apply.** A nickname or fallback chain resolves as before; smart routing appends the
-  same-model fallbacks of every target after the chain's own. A native Anthropic request is never
-  expanded.
+- **Routes still apply.** A nickname or fallback chain resolves as before; switching appends the
+  same-model fallbacks of every target after the chain's own.
+- **Strategies.** Ordered begins from the configured first routed target every request. Sticky keeps
+  the last routed target that completed successfully until it fails. Round robin rotates the routed
+  starting target per model/route group, then retains ordinary failover order for that request.
+- **Claude Code is one-way.** A credential-bearing native `claude-*` request starts at Anthropic,
+  then tries the equivalent Claude model at configured providers, then the optional cross-model
+  `claude_fallback_route`. Native Anthropic is never appended to another request or exposed to another
+  harness. Sticky mode remains on a routed fallback after native Claude is exhausted; the other modes
+  retry native Claude after its bounded cooldown. Without a configured fallback target, Anthropic's
+  own errors still pass through unchanged.
 
-The Routing page lists every model more than one provider serves, with the order it would try them in.
+The Settings page lists every model more than one provider serves, with the base order it can use.
 
 ### Every Codex account is a ChatGPT-plan provider
 
@@ -412,9 +420,34 @@ working; routed models keep working too while the router is on.
   agent's generated catalogue and embedded key, and drops a subagent or review model that no longer
   resolves — a picker offering models the router refuses is worse than no picker.
 
+## Effort mapping
+
+Claude Code 2.1.277 sends its selected five-step effort as `output_config.effort` (`low`, `medium`,
+`high`, `xhigh`, `max`). The router decodes that into `RouterRequest.reasoningEffort` and maps it only
+after a route resolves to a concrete target. Responses targets receive `reasoning.effort`; Chat
+targets receive `reasoning_effort`. Native Anthropic requests remain byte-for-byte passthrough.
+Anthropic-compatible aggregator hops keep every native field but replace or omit only
+`output_config.effort` when their concrete model's mapping requires it.
+
+**The level map is Claude Code's vocabulary, so it only applies to the Anthropic wire.** A request
+that arrives on an OpenAI wire — Codex, OpenCode, anything else — already speaks its provider's own
+scale, and remapping its `medium` through Claude's five steps would silently change what it asked
+for. Such a request keeps the effort it sent; only a request that names none takes the target's
+default. That also keeps a same-wire hop to one parse: the body is read a second time only for
+Claude Code's own wire, or when a default has to be supplied.
+
+Automatic mappings are capability inference, not provider discovery: known OpenAI and Claude model
+families have curated vocabularies; DeepSeek, GLM, Kimi, Qwen, MiniMax, Grok, and Muse families get a
+conservative inferred four-level map; an unknown model omits effort. Aggregators such as OpenRouter
+and OpenCode are classified from the model ID, not the aggregator name. The Effort mapping page can
+override each concrete `provider/model`: its exact accepted values, the target value for each Claude
+level, and an optional default used when the source request carries no effort. Every map is bounded,
+monotonic, and may explicitly choose `omit`. Overrides live in `router_effort_mappings`; routes and
+combos need no copies because the final target owns the capability.
+
 ## Web interface and CLI
 
-The **Model router** group in the navigation holds four pages:
+The **Model router** group in the navigation holds six pages:
 
 | Page | What it does |
 | --- | --- |
@@ -422,6 +455,8 @@ The **Model router** group in the navigation holds four pages:
 | Routing | Optional: nicknames (an alias, one model) and fallback chains (a combo, tried in order), each picked from the providers' models, and what an unknown model falls back to. The page says plainly that no route is needed to use a model. |
 | Agents | Connect an agent so its own picker lists these models, choose its subagent/review/effort settings, disconnect, and restore a saved copy of its configuration |
 | Activity | The request ledger with per-attempt detail, and totals by model |
+| Settings | Ordered, sticky, or round-robin switching and Claude Code's cross-model fallback |
+| Effort mapping | Automatic and overridden reasoning-effort capabilities/defaults for every concrete provider model |
 
 The Agents page also shows copyable snippets for configuring a host by hand, for anyone who would
 rather AgentNotify did not touch their files.
@@ -474,7 +509,7 @@ also written to the agent's own log. The Router page shows its own totals with t
 ## Not implemented yet
 
 - Policy routing (`policy/<id>`) scored on quota, health, cost, and latency evidence.
-- Weighted, round-robin, or least-used combo strategies; only ordered failover exists.
+- Weighted, weighted-random, or least-used combo strategies; ordered, sticky, and round-robin smart switching exist.
 - Pinning a Codex account pool; Gemini and Ollama-native wires.
 - Connectors for the other hosts (OpenCode, Kilo, Cursor, Gemini CLI); only Codex and Claude Code
   have one, and each needs that host's own model-list mechanism rather than a generic file edit.

@@ -33,9 +33,10 @@ public static class RouteResolver
     public static RouteResolution Resolve(RouterSnapshot snapshot, string? requestedModel, bool nativeAnthropic = false)
     {
         var resolution = ResolveCore(snapshot, requestedModel, nativeAnthropic);
-        return snapshot.Settings.SmartRouting && resolution.IsSuccess && resolution.RouteKind != RouterRouteKind.Native
-            ? WithSameModelElsewhere(snapshot, resolution)
-            : resolution;
+        if (!snapshot.Settings.SmartRouting || !resolution.IsSuccess) return resolution;
+        return resolution.RouteKind == RouterRouteKind.Native
+            ? WithNativeClaudeFallbacks(snapshot, resolution)
+            : WithSameModelElsewhere(snapshot, resolution);
     }
 
     private static RouteResolution ResolveCore(RouterSnapshot snapshot, string? requestedModel, bool nativeAnthropic)
@@ -185,6 +186,32 @@ public static class RouteResolver
             .Select(item => Target(item.upstream, item.model));
         targets.AddRange(elsewhere);
         return Success(targets, resolution.RouteKind!, resolution.RouteName);
+    }
+
+    private static RouteResolution WithNativeClaudeFallbacks(RouterSnapshot snapshot, RouteResolution resolution)
+    {
+        var targets = resolution.Targets.ToList();
+        var nativeModel = resolution.Targets[0].NativeModel;
+        var wanted = ModelKey(nativeModel);
+        targets.AddRange(snapshot.Upstreams
+            .Select((upstream, order) => (upstream, order))
+            .Where(item => item.upstream.Enabled)
+            .SelectMany(item => item.upstream.Models
+                .Where(model => ModelKey(model) == wanted)
+                .Select(model => (item.upstream, item.order, model)))
+            .OrderBy(item => CostTier(item.upstream))
+            .ThenBy(item => item.order)
+            .Select(item => Target(item.upstream, item.model)));
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Settings.ClaudeFallbackRoute))
+        {
+            var fallback = ResolveCore(snapshot, snapshot.Settings.ClaudeFallbackRoute, nativeAnthropic: false);
+            if (fallback.IsSuccess) targets.AddRange(fallback.Targets);
+        }
+
+        var seen = new HashSet<(string Slug, string Model)>();
+        var unique = targets.Where(target => seen.Add((target.Upstream.Slug, target.NativeModel))).ToList();
+        return Success(unique, resolution.RouteKind!, resolution.RouteName);
     }
 
     /// <summary>A model's identity across providers: its last path segment, ignoring case.</summary>

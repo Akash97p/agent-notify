@@ -57,6 +57,9 @@ public sealed class ClaudeCodeRouterConnector
     ];
 
     public const string DefaultBehavesAs = "claude-sonnet-4-5";
+    public const string NativeDefault = "claude-code/default";
+    public static readonly IReadOnlyList<string> NativeModels =
+        [NativeDefault, "claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"];
 
     /// <summary>The settings key holding the extra rows this connector adds to the picker.</summary>
     private const string PickerKey = "modelPicker";
@@ -124,7 +127,9 @@ public sealed class ClaudeCodeRouterConnector
         env[HeadersVariable] = string.IsNullOrEmpty(ownHeaders) ? keyLine : ownHeaders + "\n" + keyLine;
         foreach (var (slot, variable) in Slots)
         {
-            if (slotModels.TryGetValue(slot, out var model) && !string.IsNullOrWhiteSpace(model))
+            if (slotModels.TryGetValue(slot, out var model) &&
+                !string.IsNullOrWhiteSpace(model) &&
+                model != NativeDefault)
                 env[variable] = model;
             else
                 env.Remove(variable);

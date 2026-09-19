@@ -7,9 +7,10 @@ import {
 // Page titles live here so every section shares one voice.
 const TITLES = {
   providers: ["Providers", "Add a provider, tick its models, and they show up in your agents' model pickers."],
-  routing: ["Routing", "Smart routing, plus optional nicknames and fallback chains on top of your providers' models."],
+  routing: ["Routing", "Optional nicknames and fallback chains on top of your providers' models."],
   agents: ["Agents", "Point an agent's own model picker at the router, and put its settings back."],
   activity: ["Activity", "What the router actually sent, per request and per attempt."],
+  settings: ["Settings", "Choose how smart switching moves requests between matching providers and fallback routes."],
 };
 
 function offBanner() {
@@ -724,37 +725,63 @@ export async function renderRouter(page, ctx, section) {
     // ---- smart routing ---------------------------------------------------------------
 
     function drawSmart() {
-      const sw = toggle("Smart routing", !!state.smart_routing);
+      const strategy = select([
+        ["off", "Off"],
+        ["ordered", "Ordered fallback"],
+        ["sticky", "Sticky until failure or exhaustion"],
+        ["round_robin", "Round robin"],
+      ], state.switch_strategy || "off");
+      const fallback = h("select", { class: "select" }, h("option", { value: "", text: "None — same Claude model only" }));
+      const currentFallback = state.claude_fallback_route || "";
+      if (state.routes.length) {
+        const routes = h("optgroup", { label: "Routes" });
+        for (const route of state.routes) {
+          routes.append(h("option", { value: route.name, text: route.name, selected: route.name === currentFallback }));
+          if (route.kind === "combo") routes.append(h("option", { value: `combo/${route.name}`, text: `combo/${route.name}`, selected: `combo/${route.name}` === currentFallback }));
+        }
+        fallback.append(routes);
+      }
+      for (const group of modelChoices()) {
+        const choices = h("optgroup", { label: group.label });
+        for (const option of group.options) choices.append(h("option", { value: option, text: option, selected: option === currentFallback }));
+        fallback.append(choices);
+      }
+
       const status = h("div", { class: "stack" });
-      sw.input.addEventListener("change", async () => {
-        const enabled = sw.input.checked;
+      const save = button("Save", { variant: "primary", size: "sm" });
+      save.addEventListener("click", () => busy(save, async () => {
         try {
-          await api.put("router/smart", { enabled });
-          state.smart_routing = enabled;
-          toast(enabled ? "Smart routing is on." : "Smart routing is off.");
+          const result = await api.put("router/switch-settings", {
+            strategy: strategy.value,
+            claude_fallback_route: fallback.value || null,
+          });
+          state.switch_strategy = result.switch_strategy;
+          state.smart_routing = result.smart_routing;
+          state.claude_fallback_route = result.claude_fallback_route;
+          toast("Router switching settings saved.");
           clear(status);
         } catch (error) {
-          sw.input.checked = !enabled;
           status.replaceChildren(notice(error.message, "danger"));
         }
-      });
+      }));
 
       const groups = state.smart_groups || [];
       const groupList = groups.length
         ? h("div", { class: "smart-groups" }, groups.map(g => h("div", { class: "smart-group" },
             h("div", { class: "smart-group-model mono small", text: g.model }),
             h("div", { class: "smart-group-chain mono", text: g.targets.join(" → ") }))))
-        : h("p", { class: "muted small", text: "No model is served by more than one provider yet, so there is nothing to switch between. Add the same model from another provider — a second Codex account is added for you — and it appears here." });
+        : h("p", { class: "muted small", text: "No model is served by more than one provider yet. Add the same model to another provider to enable automatic same-model switching." });
 
       mount(smartHost,
         card({
-          title: "Smart routing",
-          description: "When a model fails — a usage limit, an outage, a refused key — use the same model from another provider instead.",
+          title: "Smart switching",
+          description: "Choose how requests start across providers. Qualifying limits, refused credentials, timeouts, and outages still move to the next target before any response bytes reach the agent.",
           body: [
-            sw,
-            h("p", { class: "muted small", text: "The provider you picked is tried first. After it, the same model elsewhere: your plans first (each ChatGPT account, then OpenCode Go), then models on this computer, and pay-per-token APIs last because they cost more with every request. A model name several providers list starts with the cheapest. Your routes still apply; smart routing only adds the fallbacks after them." }),
+            field("Method", strategy, { help: "Ordered starts from the first provider every request. Sticky keeps the last working routed provider until it fails. Round robin rotates the routed starting provider for each request." }),
+            field("When native Claude is exhausted", fallback, { help: "Claude Code first tries Anthropic with its own sign-in, then the same Claude model at configured providers, then this fallback. Native Claude is never used as a fallback target." }),
+            h("div", { class: "row" }, save),
             h("details", { class: "meta-disclosure", open: groups.length > 0 && groups.length <= 6 },
-              h("summary", { text: `Models it can switch (${groups.length})` }),
+              h("summary", { text: `Equivalent models (${groups.length})` }),
               groupList),
             status,
           ],
@@ -951,7 +978,8 @@ export async function renderRouter(page, ctx, section) {
       }
 
       const selectable = agentsData.selectable || [];
-      const cards = agentsData.agents.map(agent => agentCard(agent, selectable));
+      const cards = agentsData.agents.map(agent => agentCard(agent,
+        agent.kind === "claude_code" ? [...(agentsData.claude_native_selectable || []), ...selectable] : selectable));
       mount(agentsHost,
         card({
           title: "Agents on this computer",
@@ -1101,9 +1129,10 @@ export async function renderRouter(page, ctx, section) {
 
     const sections = {
       providers: [statusHost, upstreamsHost],
-      routing: [smartHost, routesHost, defaultHost],
+      routing: [routesHost, defaultHost],
       agents: [agentsHost, connectHost],
       activity: [ledgerHost, summaryHost],
+      settings: [smartHost],
     };
 
     mount(page,
@@ -1116,7 +1145,7 @@ export async function renderRouter(page, ctx, section) {
     );
 
     if (section === "providers") { drawStatus(); drawUpstreams(); }
-    if (section === "routing") { drawSmart(); drawRoutes(); drawDefault(); }
+    if (section === "routing") { drawRoutes(); drawDefault(); }
     if (section === "agents") { drawConnect(); await drawAgents(); }
     if (section === "activity") {
       drawLedger();
@@ -1124,4 +1153,5 @@ export async function renderRouter(page, ctx, section) {
       await loadLedger();
       await loadSummary();
     }
+    if (section === "settings") drawSmart();
 }

@@ -102,6 +102,10 @@
       routed live on macOS
 - [ ] Router connectors for OpenCode, Kilo, Cursor, and Gemini CLI; per-model context windows in the
       generated catalogue
+- [ ] Router: ordered/sticky/round-robin smart switching, one-way native Claude fallback, and editable
+      per-target effort mappings/defaults are merged but have never been compiled, tested, packaged, or
+      seen in a browser (no .NET SDK on the macOS host) — run the gates on Windows/WSL first, see
+      `docs/VERIFICATION.md`
 - [ ] Router: policy routing scored on quota/health/cost, weighted and least-used combo strategies,
       Codex account pools, cost estimates on ledger rows, and quota thresholds raised as attention
       requests

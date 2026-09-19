@@ -12,7 +12,8 @@ public sealed record RouterSnapshot(
     IReadOnlyList<StoredRouterUpstream> Upstreams,
     IReadOnlyList<RouterRoute> Routes,
     RouterSettings Settings,
-    long Generation);
+    long Generation,
+    IReadOnlyList<RouterEffortMapping>? EffortMappings = null);
 
 /// <summary>
 /// Manages router upstreams, routes, and the default route. Upstream keys are sealed with the same
@@ -90,7 +91,8 @@ public sealed class RouterConfigService
         var upstreams = await _repository.ListUpstreamsAsync(ct).ConfigureAwait(false);
         var routes = await _repository.ListRoutesAsync(ct).ConfigureAwait(false);
         var settings = await _repository.GetSettingsAsync(ct).ConfigureAwait(false);
-        var snapshot = new RouterSnapshot(upstreams, routes, settings, generation);
+        var effortMappings = await _repository.ListEffortMappingsAsync(ct).ConfigureAwait(false);
+        var snapshot = new RouterSnapshot(upstreams, routes, settings, generation, effortMappings);
 
         lock (_cacheLock)
         {
@@ -307,6 +309,9 @@ public sealed class RouterConfigService
             if (IsDefaultRouteReferencingSlug(dr, existing.Slug, routes))
                 throw new ArgumentException($"Upstream '{existing.Slug}' is referenced by the default route.");
         }
+        if (settings.ClaudeFallbackRoute is not null &&
+            IsDefaultRouteReferencingSlug(settings.ClaudeFallbackRoute.Trim(), existing.Slug, routes))
+            throw new ArgumentException($"Upstream '{existing.Slug}' is referenced by the Claude fallback route.");
         var deleted = await _repository.DeleteUpstreamAsync(id, ct).ConfigureAwait(false);
         if (!deleted) throw new KeyNotFoundException("That upstream was not found.");
         Invalidate();
@@ -400,6 +405,10 @@ public sealed class RouterConfigService
         if (configured is not null &&
             (configured == existing.Name || configured == "combo/" + existing.Name))
             throw new ArgumentException($"Route '{existing.Name}' is the default route. Change the default first.");
+        var claudeFallback = settings.ClaudeFallbackRoute?.Trim();
+        if (claudeFallback is not null &&
+            (claudeFallback == existing.Name || claudeFallback == "combo/" + existing.Name))
+            throw new ArgumentException($"Route '{existing.Name}' is the Claude fallback route. Change it first.");
         var deleted = await _repository.DeleteRouteAsync(id, ct).ConfigureAwait(false);
         if (!deleted) throw new KeyNotFoundException("That route was not found.");
         Invalidate();
@@ -514,12 +523,55 @@ public sealed class RouterConfigService
             if (!taken.Contains($"{wanted}-{n}")) return $"{wanted}-{n}";
     }
 
-    /// <summary>Turns smart routing on or off; see <see cref="RouterSettings.SmartRouting"/>.</summary>
-    public async Task SetSmartRoutingAsync(bool enabled, CancellationToken ct = default)
+    public async Task<IReadOnlyList<RouterEffortCapability>> ListEffortCapabilitiesAsync(CancellationToken ct = default)
+    {
+        var snapshot = await GetSnapshotAsync(ct).ConfigureAwait(false);
+        var overrides = snapshot.EffortMappings ?? [];
+        return snapshot.Upstreams.Where(upstream => upstream.Enabled)
+            .SelectMany(upstream => upstream.Models.Select(model => RouterEffortCatalog.Resolve(upstream, model, overrides)))
+            .ToList();
+    }
+
+    public async Task SetEffortMappingAsync(string upstreamId, string model,
+        IReadOnlyList<string>? supportedValues, IReadOnlyList<string>? levelMap, string? defaultValue,
+        CancellationToken ct = default)
+    {
+        defaultValue = string.IsNullOrWhiteSpace(defaultValue) ? null : defaultValue.Trim();
+        RouterEffortCatalog.Validate(supportedValues, levelMap, defaultValue);
+        await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        var upstream = await _repository.GetUpstreamAsync(upstreamId, ct).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException("That upstream was not found.");
+        if (!upstream.Models.Contains(model, StringComparer.Ordinal))
+            throw new ArgumentException("That model is not declared by the upstream.");
+        await _repository.SetEffortMappingAsync(
+            new RouterEffortMapping(upstreamId, model, supportedValues!, levelMap!, defaultValue), ct).ConfigureAwait(false);
+        Invalidate();
+    }
+
+    public async Task ResetEffortMappingAsync(string upstreamId, string model, CancellationToken ct = default)
     {
         await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        await _repository.DeleteEffortMappingAsync(upstreamId, model, ct).ConfigureAwait(false);
+        Invalidate();
+    }
+
+    public async Task SetSwitchSettingsAsync(string? strategy, string? claudeFallbackRoute, CancellationToken ct = default)
+    {
+        await _repository.InitializeAsync(ct).ConfigureAwait(false);
+        var normalizedStrategy = RouterSwitchStrategy.Normalize(strategy);
+        var normalizedFallback = string.IsNullOrWhiteSpace(claudeFallbackRoute) ? null : claudeFallbackRoute.Trim();
+        if (normalizedFallback is not null)
+        {
+            ValidateDefaultRoute(normalizedFallback,
+                await _repository.ListUpstreamsAsync(ct).ConfigureAwait(false),
+                await _repository.ListRoutesAsync(ct).ConfigureAwait(false));
+        }
         var current = await _repository.GetSettingsAsync(ct).ConfigureAwait(false);
-        await _repository.SetSettingsAsync(current with { SmartRouting = enabled }, ct).ConfigureAwait(false);
+        await _repository.SetSettingsAsync(current with
+        {
+            SwitchStrategy = normalizedStrategy,
+            ClaudeFallbackRoute = normalizedFallback
+        }, ct).ConfigureAwait(false);
         Invalidate();
     }
 
