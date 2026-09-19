@@ -16,6 +16,14 @@ Do not disclose an exploitable issue in a public GitHub issue. Contact the repos
 
 Avoid including real bearer tokens, notification content, database files, or other personal data.
 
+## Published review
+
+A pre-release source review of this version is published in
+[audit_2026-09-19.md](audit_2026-09-19.md). It records what the product is trusted with, what leaves
+the machine, the then-open findings with code references, and the controls that hold up. It is a
+point-in-time review rather than a certification, and the open findings are tracked in
+[TODO.md](TODO.md).
+
 ## Trust boundary
 
 AgentNotify assumes the signed-in operating-system user controls processes in that user session. Its API is protected by:
