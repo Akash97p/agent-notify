@@ -25,14 +25,13 @@ The script detects your platform, downloads the matching archive from GitHub Rel
 its SHA-256 against the published checksum file**, and installs the CLI and broker into
 `~/.local/bin`; a macOS archive that contains `agentnotify-menubar` installs that third executable too.
 It refuses to install anything it cannot verify. With no version override, it selects the newest
-published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an exact tag. The currently
-tagged `v0.2.0-alpha.2` predates the menu-bar executable; build this development source or use the
-next release to install it.
+published release, including a prerelease; set `AGENTNOTIFY_VERSION` to pin an exact tag. The current
+`v0.2.0-alpha.3` archive includes the native macOS menu-bar executable.
 
 To install elsewhere or pin a version:
 
 ```sh
-AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.2.0-alpha.2 sh install.sh
+AGENTNOTIFY_PREFIX=/usr/local/bin AGENTNOTIFY_VERSION=v0.2.0-alpha.3 sh install.sh
 ```
 
 ### Manual install
