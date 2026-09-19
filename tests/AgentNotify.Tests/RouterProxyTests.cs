@@ -606,6 +606,59 @@ public sealed class RouterProxyTests
     }
 
     [Fact]
+    public async Task OpenAiWire_EffortMapsForCodexClientsToo()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat,
+                "https://api.deepseek.com/v1", "sk-deepseek-12345678", ["deepseek-v4"]);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                model = "deepseek-v4", stream = false, reasoning_effort = "high",
+                messages = new[] { new { role = "user", content = "hi" } }
+            });
+
+            // The automatic map is identity for a level the target can spell: Codex's high stays high.
+            handler.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("ok"), Encoding.UTF8, "application/json") });
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new TestSink(), CancellationToken.None);
+            using var first = JsonDocument.Parse(handler.RequestBodies[0]);
+            Assert.Equal("high", first.RootElement.GetProperty("reasoning_effort").GetString());
+
+            // A family override applies to the OpenAI wire exactly as it does to Claude Code's.
+            await svc.SetEffortFamilyMappingAsync("deepseek", ["low", "medium", "high", "xhigh"],
+                ["low", "low", "medium", "high", "xhigh"], null);
+            handler.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("ok"), Encoding.UTF8, "application/json") });
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new TestSink(), CancellationToken.None);
+            using var second = JsonDocument.Parse(handler.RequestBodies[1]);
+            Assert.Equal("medium", second.RootElement.GetProperty("reasoning_effort").GetString());
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task ResponsesWire_EffortMapsAcrossATranslatedHop()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat,
+                "https://api.deepseek.com/v1", "sk-deepseek-12345678", ["deepseek-v4"]);
+            await svc.SetEffortFamilyMappingAsync("deepseek", ["low", "medium", "high"],
+                ["low", "medium", "high", "high", "high"], "medium");
+            var body = Encoding.UTF8.GetBytes(
+                "{\"model\":\"deepseek-v4\",\"stream\":false,\"reasoning\":{\"effort\":\"max\"},\"input\":[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"hi\"}]}]}");
+            handler.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("ok"), Encoding.UTF8, "application/json") });
+
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiResponses, body), new TestSink(), CancellationToken.None);
+
+            using var routed = JsonDocument.Parse(handler.RequestBodies[0]);
+            Assert.Equal("high", routed.RootElement.GetProperty("reasoning_effort").GetString());
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
     public async Task KeyHeader_OnlyWhenKeyPresent_AndNeverInLedger()
     {
         var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();

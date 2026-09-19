@@ -11,6 +11,19 @@ build.
 
 ## [Unreleased]
 
+### Changed
+
+- **Effort mapping is one table per model family.** The Effort mapping page now opens on Families:
+  every routed model is grouped by vendor family (DeepSeek, GLM, Kimi, Qwen, MiniMax, Grok, Muse,
+  OpenAI, Claude), so a hundred models are ten cards instead of a hundred. The **Per model** tab
+  keeps the exact per-`provider/model` override and wins over the family table.
+- **Codex efforts are mapped too.** Claude Code's and Codex's `low/medium/high/xhigh/max` mean the
+  same thing, so one table now serves either client. The automatic tables are identity wherever the
+  target can spell a level — no client's effort is silently renamed, and only levels above a
+  target's top collapse onto it (Claude's `max` at a four-level family becomes `xhigh`). OpenAI's
+  `minimal` and provider-specific words pass through when the target accepts them, and otherwise
+  fall back to the target's default.
+
 ### Added
 
 - **Native macOS quota menu bar.** The broker starts a thin AppKit status item that shows the lowest

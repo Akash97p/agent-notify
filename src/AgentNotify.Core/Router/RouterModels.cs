@@ -191,6 +191,25 @@ public sealed record RouterEffortMapping(
     IReadOnlyList<string> LevelMap,
     string? DefaultValue = null);
 
+/// <summary>An owner edit that applies to every routed model of one family, before per-model overrides.</summary>
+public sealed record RouterEffortFamilyOverride(
+    string Family,
+    IReadOnlyList<string> SupportedValues,
+    IReadOnlyList<string> LevelMap,
+    string? DefaultValue = null);
+
+/// <summary>One family's effective capability plus the concrete routed models it covers.</summary>
+public sealed record RouterEffortFamily(
+    string Family,
+    string Source,
+    IReadOnlyList<string> SupportedValues,
+    IReadOnlyList<string> LevelMap,
+    string? DefaultValue,
+    IReadOnlyList<RouterEffortFamilyModel> Models,
+    int ModelOverrideCount);
+
+public sealed record RouterEffortFamilyModel(string UpstreamId, string UpstreamSlug, string Model, string Wire);
+
 public sealed record RouterEffortCapability(
     string UpstreamId,
     string UpstreamSlug,
