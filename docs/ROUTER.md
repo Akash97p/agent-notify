@@ -203,7 +203,7 @@ Disabled upstreams are skipped inside a combo, and a combo with no enabled targe
 
 ### Smart switching
 
-The Settings page stores one strategy in `router_settings.switch_strategy`: `off`, `ordered`,
+The Routing page's Smart switching card stores one strategy in `router_settings.switch_strategy`: `off`, `ordered`,
 `sticky`, or `round_robin`. When enabled, whatever the rules above resolved to is expanded with **the
 same model at every other enabled provider that lists it**, so a usage limit, an outage, or a refused
 key can hand the request to the same model somewhere else with no route to set up:
@@ -229,7 +229,7 @@ key can hand the request to the same model somewhere else with no route to set u
   retry native Claude after its bounded cooldown. Without a configured fallback target, Anthropic's
   own errors still pass through unchanged.
 
-The Settings page lists every model more than one provider serves, with the base order it can use.
+The Routing page lists every model more than one provider serves, with the base order it can use.
 
 ### Every Codex account is a ChatGPT-plan provider
 
@@ -451,15 +451,14 @@ because the final target owns the capability.
 
 ## Web interface and CLI
 
-The **Model router** group in the navigation holds six pages:
+The **Model router** group in the navigation holds five pages:
 
 | Page | What it does |
 | --- | --- |
 | Providers | The on/off switch; your providers, each with an on/off switch; and a gallery of presets grouped as subscriptions, pay per token, and this computer. Adding one is: pick it, paste a key (or reuse OpenCode's, or a subscription sign-in), tick models from the fetched list, save. Slug, wire, and base URL sit under Advanced. The base URLs and key regeneration are under a disclosure. |
-| Routing | Optional: nicknames (an alias, one model) and fallback chains (a combo, tried in order), each picked from the providers' models, and what an unknown model falls back to. The page says plainly that no route is needed to use a model. |
+| Routing | Optional: nicknames (an alias, one model) and fallback chains (a combo, tried in order), each picked from the providers' models; what an unknown model falls back to; and Smart switching — ordered, sticky, or round-robin across providers that serve the same model, plus Claude Code's cross-model fallback. The page says plainly that no route is needed to use a model. |
 | Agents | Connect an agent so its own picker lists these models, choose its subagent/review/effort settings, disconnect, and restore a saved copy of its configuration |
 | Activity | The request ledger with per-attempt detail, and totals by model |
-| Settings | Ordered, sticky, or round-robin switching and Claude Code's cross-model fallback |
 | Effort mapping | One effort table per model family (Families tab), with per-model overrides under Per model; applies to Claude Code's and Codex's efforts alike |
 
 The Agents page also shows copyable snippets for configuring a host by hand, for anyone who would
