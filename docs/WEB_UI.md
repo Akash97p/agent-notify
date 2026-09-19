@@ -37,7 +37,7 @@ so a profile discovered or added in one appears in all three.
 
 | Page | What you can do |
 | --- | --- |
-| Overview | Waiting notifications, open questions, delivery totals, and how the broker is running |
+| Overview | The four summaries side by side without duplicating them: waiting notifications, 30-day usage and cost, the lowest live quota window, and the router's state and request totals |
 | Attention | Active notifications and history; resolve or dismiss |
 | Questions | Answer permissions, choices, and text questions agents are waiting on, or withdraw them |
 | Channels | Add, edit, test, and delete all nineteen outbound channels, including connecting a Relay |
@@ -106,6 +106,15 @@ On Windows, Usage, Live quota, and Agents also include each running WSL distribu
 default log locations, a Codex/Claude Code account for each profile directory that exists, and skill
 rows labelled `WSL · <distribution>`. Stopped distributions are not read, because opening their
 files would start them.
+
+Overview reads the same projections but stays a summary: four metric cards, a capacity panel
+(one bar per live account, lowest window first), a router panel (enabled state, upstream and route
+counts, requests recorded today, busiest target), a notification panel (active, questions,
+delivered, queued, failed), and the agent onboarding steps. Every panel links to the page that owns
+the data; the router numbers come from separate requests under Model router → Activity. A footnote
+records when usage was scanned, when quota was last checked, and states that the three sources are
+separate and never added together. Panels that cannot reach their route say so in place instead of
+failing the page.
 
 The Insights **Dashboard** combines the existing 30-day Usage, Live quota, and broker Overview
 responses in the browser. It does not add account percentages to local token totals: local logs do
