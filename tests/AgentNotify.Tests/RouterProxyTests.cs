@@ -488,7 +488,7 @@ public sealed class RouterProxyTests
             await svc.CreateUpstreamAsync("opencode-go", "Go", RouterWire.OpenAiChat, "https://opencode.ai/zen/go/v1", "sk-1-12345678", ["deepseek-v4-flash"]);
             await svc.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-2-12345678", ["deepseek-v4-flash"]);
             await svc.CreateUpstreamAsync("openrouter", "OpenRouter", RouterWire.OpenAiChat, "https://openrouter.ai/api/v1", "sk-3-12345678", ["deepseek/deepseek-v4-flash"]);
-            await svc.SetSmartRoutingAsync(true);
+            await svc.SetSwitchSettingsAsync(RouterSwitchStrategy.Ordered, null);
             var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "opencode-go/deepseek-v4-flash", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
             handler.Enqueue(req => new HttpResponseMessage((HttpStatusCode)429) { Content = new StringContent("{\"error\":{\"code\":\"usage_limit_reached\"}}") });
             handler.Enqueue(req => new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{}") });
@@ -542,6 +542,65 @@ public sealed class RouterProxyTests
             await proxy.ExecuteAsync(Inbound(), again, CancellationToken.None);
             Assert.Equal(200, again.Status);
             Assert.Equal(2, handler.Requests.Count);
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task RoundRobin_StartsEachRequestOnTheNextProvider()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            await svc.CreateUpstreamAsync("first", "First", RouterWire.OpenAiChat, "https://first.example/v1", "sk-1-12345678", ["shared-model"]);
+            await svc.CreateUpstreamAsync("second", "Second", RouterWire.OpenAiChat, "https://second.example/v1", "sk-2-12345678", ["shared-model"]);
+            await svc.SetSwitchSettingsAsync(RouterSwitchStrategy.RoundRobin, null);
+            var body = JsonSerializer.SerializeToUtf8Bytes(new { model = "shared-model", stream = false, messages = new[] { new { role = "user", content = "hi" } } });
+            for (var request = 0; request < 2; request++)
+                handler.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatNonStreamJson("ok"), Encoding.UTF8, "application/json") });
+
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new TestSink(), CancellationToken.None);
+            await proxy.ExecuteAsync(new RouterInbound(RouterWire.OpenAiChat, body), new TestSink(), CancellationToken.None);
+
+            Assert.Equal(["first.example", "second.example"], handler.Requests.Select(request => request.RequestUri!.Host));
+        }
+        finally { proxy.Dispose(); Cleanup(db, cfg); }
+    }
+
+    [Fact]
+    public async Task NativeAnthropic_ExhaustionFallsBackAndMapsEffort()
+    {
+        var (repo, svc, proxy, handler, clock, db, cfg) = CreateProxy();
+        try
+        {
+            var routed = await svc.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat,
+                "https://api.deepseek.com/v1", "sk-deepseek-12345678", ["deepseek-chat"]);
+            await svc.SetSwitchSettingsAsync(RouterSwitchStrategy.Ordered, "deepseek/deepseek-chat");
+            await svc.SetEffortMappingAsync(routed.Id, "deepseek-chat", ["low", "medium", "high", "xhigh"],
+                ["low", "low", "medium", "high", "xhigh"], null);
+            var body = Encoding.UTF8.GetBytes("{\"model\":\"claude-opus-5\",\"max_tokens\":10,\"output_config\":{\"effort\":\"max\"},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}");
+            var inbound = new RouterInbound(RouterWire.AnthropicMessages, body)
+            {
+                ClientCredential = new("Authorization", "Bearer sk-ant-oat01-own")
+            };
+            handler.Enqueue(_ => new HttpResponseMessage((HttpStatusCode)429)
+            {
+                Content = new StringContent("{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}", Encoding.UTF8, "application/json")
+            });
+            handler.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(ChatNonStreamJson("fallback"), Encoding.UTF8, "application/json")
+            });
+
+            var sink = new TestSink();
+            var result = await proxy.ExecuteAsync(inbound, sink, CancellationToken.None);
+
+            Assert.Equal(200, result.Status);
+            Assert.Equal(["anthropic", "deepseek"], result.Attempts.Select(attempt => attempt.UpstreamSlug));
+            Assert.Contains("fallback", sink.WrittenText);
+            using var routedBody = JsonDocument.Parse(handler.RequestBodies[1]);
+            Assert.Equal("xhigh", routedBody.RootElement.GetProperty("reasoning_effort").GetString());
+            Assert.DoesNotContain("sk-ant-oat01-own", handler.Requests[1].Headers.ToString());
         }
         finally { proxy.Dispose(); Cleanup(db, cfg); }
     }

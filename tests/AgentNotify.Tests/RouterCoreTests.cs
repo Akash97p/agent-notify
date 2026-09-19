@@ -543,12 +543,12 @@ public sealed class RouterCoreTests
         try
         {
             await service.CreateUpstreamAsync("deepseek", "DeepSeek", RouterWire.OpenAiChat, "https://api.deepseek.com/v1", "sk-test-12345678", ["deepseek-chat"]);
-            await service.SetSmartRoutingAsync(true);
+            await service.SetSwitchSettingsAsync(RouterSwitchStrategy.Ordered, null);
             await service.SetDefaultRouteAsync("deepseek/deepseek-chat");
-            Assert.Equal(new RouterSettings("deepseek/deepseek-chat", true), await service.GetSettingsAsync());
+            Assert.Equal(new RouterSettings("deepseek/deepseek-chat", RouterSwitchStrategy.Ordered), await service.GetSettingsAsync());
             await service.SetDefaultRouteAsync(null);
             Assert.True((await service.GetSettingsAsync()).SmartRouting);
-            await service.SetSmartRoutingAsync(false);
+            await service.SetSwitchSettingsAsync(RouterSwitchStrategy.Off, null);
             Assert.False((await service.GetSettingsAsync()).SmartRouting);
         }
         finally { Cleanup(db, cfg); }

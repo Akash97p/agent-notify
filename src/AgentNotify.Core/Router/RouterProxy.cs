@@ -87,6 +87,9 @@ public sealed class RouterProxy : IDisposable
     /// <summary>Per target: until when it is skipped, and the status that started the cooldown.</summary>
     private readonly Dictionary<string, (DateTimeOffset Until, int Status)> _cooldowns = new();
     private readonly object _cooldownLock = new();
+    private readonly Dictionary<string, string> _stickyTargets = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _roundRobinOffsets = new(StringComparer.Ordinal);
+    private readonly object _strategyLock = new();
 
     public const int MaxErrorBodyBytes = 64 * 1024;
     public const int MaxResponseBytes = 32 * 1024 * 1024;
@@ -264,9 +267,12 @@ public sealed class RouterProxy : IDisposable
 
         ex.RouteKind = resolution.RouteKind;
         ex.RouteName = resolution.RouteName;
+        var strategyKey = StrategyKey(resolution, requestedModel);
+        resolution = resolution with { Targets = OrderTargets(resolution.Targets, snapshot.Settings.SwitchStrategy, strategyKey) };
 
         RouterRequest? decoded = null;
-        bool hasTranslated = resolution.Targets.Any(t => !RouterTranslator.IsPassthrough(inbound.Wire, t.Upstream.Wire));
+        bool hasTranslated = !RouterNative.IsNative(resolution.Targets[0].Upstream) &&
+            resolution.Targets.Any(t => !RouterTranslator.IsPassthrough(inbound.Wire, t.Upstream.Wire));
         if (hasTranslated)
         {
             var decodeResult = TryDecode(inbound);
@@ -286,6 +292,11 @@ public sealed class RouterProxy : IDisposable
                 ? await FailAsync(sink, ex, 429, "rate_limited", $"Every target of this model is rate limited; try again in {retryAfter}s.", false, retryAfter).ConfigureAwait(false)
                 : await FailAsync(sink, ex, 503, "all_targets_unavailable", $"Every target of this model failed recently; try again in {retryAfter}s.", false, retryAfter).ConfigureAwait(false);
         }
+
+        // Anthropic's own answer — its 401 to renew a sign-in, its 429 and retry-after — goes back to
+        // Claude Code untouched unless the owner configured somewhere for the request to go instead.
+        // Only then may a native failure cool down and hand the turn to a routed target.
+        bool nativeMayFailOver = resolution.Targets.Count > 1;
 
         int ordinal = 0;
         foreach (var target in resolution.Targets)
@@ -320,7 +331,7 @@ public sealed class RouterProxy : IDisposable
             byte[] upstreamBody;
             try
             {
-                upstreamBody = BuildUpstreamBody(inbound, target, decoded);
+                upstreamBody = BuildUpstreamBody(inbound, target, decoded, snapshot.EffortMappings ?? []);
             }
             catch (TranslationException te)
             {
@@ -401,8 +412,9 @@ public sealed class RouterProxy : IDisposable
             {
                 if (attemptErrorCode == null) attemptErrorCode = isTimeout ? "timeout" : "connection_error";
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, null, attemptErrorCode, (long)(_clock.GetUtcNow() - attemptStarted).TotalMilliseconds, false, attemptStarted));
-                if (!RouterNative.IsNative(target.Upstream))
+                if (!RouterNative.IsNative(target.Upstream) || nativeMayFailOver)
                     SetCooldown(cooldownKey, TimeSpan.FromSeconds(15), 503);
+                ForgetStickyTarget(snapshot.Settings.SwitchStrategy, strategyKey, target);
                 ex.ProviderCode = null; // the last failure said nothing of its own
                 httpResp?.Dispose();
                 continue;
@@ -423,13 +435,16 @@ public sealed class RouterProxy : IDisposable
             if (isSuccess)
             {
                 var result = await HandleSuccessAsync(ex, sink, inbound, target, decoded, httpResp, attemptOrdinal, attemptStarted, durationMs, ct);
-                if (result != null) return result;
+                if (result is not null)
+                {
+                    if (result.Outcome == RouterOutcome.Ok)
+                        RememberSuccessfulTarget(snapshot.Settings.SwitchStrategy, strategyKey, target);
+                    return result;
+                }
                 continue;
             }
 
-            // Anthropic's own answer goes back to the agent exactly as given, so it can renew its
-            // sign-in on a 401 or wait out a 429 on Anthropic's retry-after.
-            if (isRetryable && !sink.HasStarted && !RouterNative.IsNative(target.Upstream))
+            if (isRetryable && !sink.HasStarted && (!RouterNative.IsNative(target.Upstream) || nativeMayFailOver))
             {
                 attemptErrorCode = statusCode switch
                 {
@@ -441,6 +456,7 @@ public sealed class RouterProxy : IDisposable
                 ex.ProviderCode = await ReadProviderCodeAsync(httpResp, target, statusCode).ConfigureAwait(false);
                 ex.Attempts.Add(new RouterAttemptRecord(ex.RequestId, attemptOrdinal, target.Upstream.Slug, target.NativeModel, target.Upstream.Wire, attemptStatus, attemptErrorCode, durationMs, false, attemptStarted));
                 SetCooldown(cooldownKey, GetCooldownDuration(httpResp, statusCode), statusCode);
+                ForgetStickyTarget(snapshot.Settings.SwitchStrategy, strategyKey, target);
                 httpResp.Dispose();
                 continue;
             }
@@ -473,6 +489,8 @@ public sealed class RouterProxy : IDisposable
         if (!isCountTokens) return RouteResolver.Resolve(snapshot, requestedModel, nativeAnthropic);
         var baseRes = RouteResolver.Resolve(snapshot, requestedModel, nativeAnthropic);
         if (!baseRes.IsSuccess) return baseRes;
+        if (baseRes.RouteKind == RouterRouteKind.Native)
+            return new RouteResolution([baseRes.Targets[0]], baseRes.RouteKind, baseRes.RouteName, null, null);
         var anthropicTargets = baseRes.Targets.Where(t => t.Upstream.Wire == RouterWire.AnthropicMessages).ToList();
         if (anthropicTargets.Count == 0)
             return new RouteResolution([], null, null, "not_supported", 404);
@@ -505,18 +523,29 @@ public sealed class RouterProxy : IDisposable
         }
     }
 
-    private byte[] BuildUpstreamBody(RouterInbound inbound, ResolvedTarget target, RouterRequest? decoded)
+    private byte[] BuildUpstreamBody(RouterInbound inbound, ResolvedTarget target, RouterRequest? decoded,
+        IReadOnlyList<RouterEffortMapping> effortMappings)
     {
         if (RouterNative.IsNative(target.Upstream)) return inbound.Body;
         bool isPassthrough = RouterTranslator.IsPassthrough(inbound.Wire, target.Upstream.Wire);
+        var capability = RouterEffortCatalog.Resolve(target.Upstream, target.NativeModel, effortMappings);
         if (isPassthrough)
-            return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel);
+        {
+            // A same-wire hop is forwarded as it came. Only a request whose effort has to be
+            // reinterpreted — Claude Code's own scale, or a target with a default to supply — is worth
+            // reading the body a second time for.
+            if (inbound.Wire != RouterWire.AnthropicMessages && capability.DefaultValue is null)
+                return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel);
+            var effort = RouterEffortCatalog.ForRequest(capability, inbound.Wire, RequestEffort(inbound.Wire, inbound.Body));
+            return PassthroughBody.ReplaceModel(inbound.Body, target.NativeModel, effort, inbound.Wire);
+        }
         if (decoded == null)
         {
             var dec = _translator.DecodeRequest(inbound.Wire, inbound.Body);
             decoded = dec.Request;
         }
-        return _translator.EncodeRequest(target.Upstream.Wire, decoded!, target.NativeModel);
+        return _translator.EncodeRequest(target.Upstream.Wire,
+            RouterEffortCatalog.Apply(decoded!, capability, inbound.Wire), target.NativeModel);
     }
 
     private static HttpRequestMessage BuildUpstreamRequest(ResolvedTarget target, UpstreamCredential credential, byte[] upstreamBody, RouterInbound inbound, bool stream)
@@ -967,6 +996,66 @@ public sealed class RouterProxy : IDisposable
             finish ?? (toolCalls.Count > 0 ? FinishEvent.ToolCalls : FinishEvent.Stop), usage);
     }
 
+    /// <summary>
+    /// Which target a request starts on. Ordered keeps the resolver's own order. Sticky starts on the
+    /// routed target that last answered, and leaves out a native Claude the owner has already been moved
+    /// off, so an exhausted account is not retried every turn. Round robin advances the starting routed
+    /// target once per request. The rest of the order is unchanged, so every target is still tried.
+    /// </summary>
+    private IReadOnlyList<ResolvedTarget> OrderTargets(IReadOnlyList<ResolvedTarget> targets, string strategy, string key)
+    {
+        if (targets.Count < 2 || strategy is RouterSwitchStrategy.Off or RouterSwitchStrategy.Ordered)
+            return targets;
+
+        var hasNative = RouterNative.IsNative(targets[0].Upstream);
+        var routed = hasNative ? targets.Skip(1).ToList() : targets.ToList();
+        if (routed.Count == 0) return targets;
+
+        var offset = 0;
+        lock (_strategyLock)
+        {
+            if (strategy == RouterSwitchStrategy.Sticky)
+            {
+                if (_stickyTargets.TryGetValue(key, out var sticky))
+                {
+                    hasNative = false;
+                    var found = routed.FindIndex(target => TargetKey(target) == sticky);
+                    if (found > 0) offset = found;
+                }
+            }
+            else if (strategy == RouterSwitchStrategy.RoundRobin)
+            {
+                offset = _roundRobinOffsets.TryGetValue(key, out var next) ? next % routed.Count : 0;
+                _roundRobinOffsets[key] = (offset + 1) % routed.Count;
+            }
+        }
+
+        if (offset > 0) routed = [.. routed.Skip(offset), .. routed.Take(offset)];
+        return hasNative ? [targets[0], .. routed] : routed;
+    }
+
+    private void RememberSuccessfulTarget(string strategy, string key, ResolvedTarget target)
+    {
+        if (strategy != RouterSwitchStrategy.Sticky || RouterNative.IsNative(target.Upstream)) return;
+        lock (_strategyLock) _stickyTargets[key] = TargetKey(target);
+    }
+
+    private void ForgetStickyTarget(string strategy, string key, ResolvedTarget target)
+    {
+        if (strategy != RouterSwitchStrategy.Sticky) return;
+        lock (_strategyLock)
+        {
+            if (_stickyTargets.TryGetValue(key, out var sticky) && sticky == TargetKey(target))
+                _stickyTargets.Remove(key);
+        }
+    }
+
+    private static string StrategyKey(RouteResolution resolution, string? requestedModel) =>
+        (resolution.RouteName ?? requestedModel ?? "default") + "|" +
+        string.Join(",", resolution.Targets.Where(target => !RouterNative.IsNative(target.Upstream)).Select(TargetKey));
+
+    private static string TargetKey(ResolvedTarget target) => target.Upstream.Slug + "/" + target.NativeModel;
+
     private bool IsAllCooling(IReadOnlyList<ResolvedTarget> targets)
     {
         if (targets.Count == 0) return false;
@@ -1028,6 +1117,31 @@ public sealed class RouterProxy : IDisposable
             total += read;
         }
         return ms.ToArray();
+    }
+
+    private static string? RequestEffort(string wire, byte[] body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (wire == RouterWire.AnthropicMessages &&
+                root.TryGetProperty("output_config", out var output) && output.ValueKind == JsonValueKind.Object &&
+                output.TryGetProperty("effort", out var anthropic) && anthropic.ValueKind == JsonValueKind.String)
+                return anthropic.GetString();
+            if (wire == RouterWire.OpenAiResponses &&
+                root.TryGetProperty("reasoning", out var reasoning) && reasoning.ValueKind == JsonValueKind.Object &&
+                reasoning.TryGetProperty("effort", out var responses) && responses.ValueKind == JsonValueKind.String)
+                return responses.GetString();
+            if (wire == RouterWire.OpenAiChat &&
+                root.TryGetProperty("reasoning_effort", out var chat) && chat.ValueKind == JsonValueKind.String)
+                return chat.GetString();
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            throw new TranslationException("invalid_request", "Invalid JSON.", ex);
+        }
     }
 
     private static (string? model, bool stream) ExtractModelAndStream(byte[] body)

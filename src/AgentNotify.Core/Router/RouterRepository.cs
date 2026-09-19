@@ -104,12 +104,28 @@ public sealed class RouterRepository
                 FOREIGN KEY (request_id) REFERENCES router_requests(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_router_attempts_request_id ON router_attempts(request_id);
+            CREATE TABLE IF NOT EXISTS router_effort_mappings (
+                upstream_id     TEXT NOT NULL,
+                model           TEXT NOT NULL,
+                supported_values TEXT NOT NULL,
+                level_map       TEXT NOT NULL,
+                default_value   TEXT,
+                PRIMARY KEY (upstream_id, model),
+                FOREIGN KEY (upstream_id) REFERENCES router_upstreams(id) ON DELETE CASCADE
+            );
             """;
         await command.ExecuteNonQueryAsync(ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "auth", "TEXT NOT NULL DEFAULT 'api_key'", ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "model_wires", "TEXT", ct);
         await AddColumnIfMissingAsync(connection, "router_upstreams", "credential_ref", "TEXT", ct);
         await AddColumnIfMissingAsync(connection, "router_settings", "smart_routing", "INTEGER NOT NULL DEFAULT 0", ct);
+        await AddColumnIfMissingAsync(connection, "router_settings", "switch_strategy", "TEXT NOT NULL DEFAULT 'off'", ct);
+        await AddColumnIfMissingAsync(connection, "router_settings", "claude_fallback_route", "TEXT", ct);
+        await using (var migrate = connection.CreateCommand())
+        {
+            migrate.CommandText = "UPDATE router_settings SET switch_strategy = 'ordered' WHERE smart_routing = 1 AND switch_strategy = 'off'";
+            await migrate.ExecuteNonQueryAsync(ct);
+        }
         UnixFilePermissions.RestrictFile(_dbPath);
     }
 
@@ -277,10 +293,13 @@ public sealed class RouterRepository
     {
         await using var connection = Open();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT default_route, smart_routing FROM router_settings WHERE id = 1";
+        command.CommandText = "SELECT default_route, switch_strategy, claude_fallback_route FROM router_settings WHERE id = 1";
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (await reader.ReadAsync(ct))
-            return new RouterSettings(reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetInt64(1) != 0);
+            return new RouterSettings(
+                reader.IsDBNull(0) ? null : reader.GetString(0),
+                RouterSwitchStrategy.Normalize(reader.IsDBNull(1) ? null : reader.GetString(1)),
+                reader.IsDBNull(2) ? null : reader.GetString(2));
         return new RouterSettings(null);
     }
 
@@ -288,12 +307,57 @@ public sealed class RouterRepository
     {
         await using var connection = Open();
         await using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE router_settings SET default_route = $route, smart_routing = $smart WHERE id = 1";
+        command.CommandText = "UPDATE router_settings SET default_route = $route, smart_routing = $smart, switch_strategy = $strategy, claude_fallback_route = $claudeFallback WHERE id = 1";
         command.Parameters.AddWithValue("$route", settings.DefaultRoute is null ? DBNull.Value : settings.DefaultRoute);
         command.Parameters.AddWithValue("$smart", settings.SmartRouting ? 1 : 0);
+        command.Parameters.AddWithValue("$strategy", RouterSwitchStrategy.Normalize(settings.SwitchStrategy));
+        command.Parameters.AddWithValue("$claudeFallback", settings.ClaudeFallbackRoute is null ? DBNull.Value : settings.ClaudeFallbackRoute);
         await command.ExecuteNonQueryAsync(ct);
     }
 
+
+    public async Task<IReadOnlyList<RouterEffortMapping>> ListEffortMappingsAsync(CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT upstream_id, model, supported_values, level_map, default_value FROM router_effort_mappings ORDER BY upstream_id, model";
+        var results = new List<RouterEffortMapping>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            results.Add(new RouterEffortMapping(
+                reader.GetString(0), reader.GetString(1),
+                JsonSerializer.Deserialize<List<string>>(reader.GetString(2), Json.Options) ?? [],
+                JsonSerializer.Deserialize<List<string>>(reader.GetString(3), Json.Options) ?? [],
+                reader.IsDBNull(4) ? null : reader.GetString(4)));
+        }
+        return results;
+    }
+
+    public async Task SetEffortMappingAsync(RouterEffortMapping mapping, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "INSERT INTO router_effort_mappings(upstream_id, model, supported_values, level_map, default_value) VALUES ($upstream, $model, $supported, $map, $default) " +
+            "ON CONFLICT(upstream_id, model) DO UPDATE SET supported_values = excluded.supported_values, level_map = excluded.level_map, default_value = excluded.default_value";
+        command.Parameters.AddWithValue("$upstream", mapping.UpstreamId);
+        command.Parameters.AddWithValue("$model", mapping.Model);
+        command.Parameters.AddWithValue("$supported", JsonSerializer.Serialize(mapping.SupportedValues, Json.Options));
+        command.Parameters.AddWithValue("$map", JsonSerializer.Serialize(mapping.LevelMap, Json.Options));
+        command.Parameters.AddWithValue("$default", mapping.DefaultValue is null ? DBNull.Value : mapping.DefaultValue);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<bool> DeleteEffortMappingAsync(string upstreamId, string model, CancellationToken ct = default)
+    {
+        await using var connection = Open();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM router_effort_mappings WHERE upstream_id = $upstream AND model = $model";
+        command.Parameters.AddWithValue("$upstream", upstreamId);
+        command.Parameters.AddWithValue("$model", model);
+        return await command.ExecuteNonQueryAsync(ct) > 0;
+    }
 
     public async Task InsertRequestAsync(RouterRequestRecord request, IReadOnlyList<RouterAttemptRecord> attempts, CancellationToken ct = default)
     {

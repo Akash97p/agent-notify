@@ -251,6 +251,8 @@ public static class RouterEndpoints
                 routes = routes.Select(r => new { id = r.Id, name = r.Name, kind = r.Kind, targets = r.Targets, enabled = r.Enabled, created_at = r.CreatedAt, updated_at = r.UpdatedAt }),
                 default_route = settings.DefaultRoute,
                 smart_routing = settings.SmartRouting,
+                switch_strategy = settings.SwitchStrategy,
+                claude_fallback_route = settings.ClaudeFallbackRoute,
                 smart_groups = SmartGroups(upstreams),
                 presets = PublicPresets(options.Router?.Credentials),
                 accounts = await AccountsAsync(options, ct),
@@ -417,13 +419,70 @@ public static class RouterEndpoints
             catch (ArgumentException ex) { return Error(ex.Message); }
         });
 
-        app.MapPut($"{WebUiEndpoints.BasePath}/api/router/smart", async (HttpContext http) =>
+        app.MapPut($"{WebUiEndpoints.BasePath}/api/router/switch-settings", async (HttpContext http) =>
         {
             if (routerConfig is null) return Error("Router is not configured.", 404);
-            var body = await ReadAsync<EnableBody>(http);
-            if (body?.Enabled is null) return Error("The request body is not valid JSON.");
-            await routerConfig.SetSmartRoutingAsync(body.Enabled.Value, http.RequestAborted);
-            return Results.Json(new { smart_routing = body.Enabled.Value }, WebUiEndpoints.JsonOptions);
+            var body = await ReadAsync<SwitchSettingsBody>(http);
+            if (body is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                await routerConfig.SetSwitchSettingsAsync(body.Strategy, body.ClaudeFallbackRoute, http.RequestAborted);
+                var settings = await routerConfig.GetSettingsAsync(http.RequestAborted);
+                return Results.Json(new
+                {
+                    switch_strategy = settings.SwitchStrategy,
+                    smart_routing = settings.SmartRouting,
+                    claude_fallback_route = settings.ClaudeFallbackRoute
+                }, WebUiEndpoints.JsonOptions);
+            }
+            catch (ArgumentException ex) { return Error(ex.Message); }
+        });
+
+        app.MapGet($"{WebUiEndpoints.BasePath}/api/router/effort-mappings", async (CancellationToken ct) =>
+        {
+            if (routerConfig is null) return Error("Router is not configured.", 404);
+            var mappings = await routerConfig.ListEffortCapabilitiesAsync(ct);
+            return Results.Json(new
+            {
+                source_levels = RouterEffortCatalog.SourceLevels,
+                mappings = mappings.Select(mapping => new
+                {
+                    upstream_id = mapping.UpstreamId,
+                    upstream_slug = mapping.UpstreamSlug,
+                    model = mapping.Model,
+                    wire = mapping.Wire,
+                    family = mapping.Family,
+                    source = mapping.Source,
+                    supported_values = mapping.SupportedValues,
+                    level_map = mapping.LevelMap,
+                    default_value = mapping.DefaultValue
+                })
+            }, WebUiEndpoints.JsonOptions);
+        });
+
+        app.MapPut($"{WebUiEndpoints.BasePath}/api/router/effort-mappings", async (HttpContext http) =>
+        {
+            if (routerConfig is null) return Error("Router is not configured.", 404);
+            var body = await ReadAsync<EffortMappingBody>(http);
+            if (body?.UpstreamId is null || body.Model is null) return Error("The request body is not valid JSON.");
+            try
+            {
+                await routerConfig.SetEffortMappingAsync(body.UpstreamId, body.Model, body.SupportedValues,
+                    body.LevelMap, body.DefaultValue, http.RequestAborted);
+                return Results.Json(new { saved = true }, WebUiEndpoints.JsonOptions);
+            }
+            catch (KeyNotFoundException) { return Error("That upstream was not found.", 404); }
+            catch (ArgumentException ex) { return Error(ex.Message); }
+        });
+
+        app.MapDelete($"{WebUiEndpoints.BasePath}/api/router/effort-mappings", async (HttpContext http) =>
+        {
+            if (routerConfig is null) return Error("Router is not configured.", 404);
+            var upstreamId = http.Request.Query["upstream_id"].ToString();
+            var model = http.Request.Query["model"].ToString();
+            if (string.IsNullOrEmpty(upstreamId) || string.IsNullOrEmpty(model)) return Error("upstream_id and model are required.");
+            await routerConfig.ResetEffortMappingAsync(upstreamId, model, http.RequestAborted);
+            return Results.Json(new { reset = true }, WebUiEndpoints.JsonOptions);
         });
 
         app.MapPut($"{WebUiEndpoints.BasePath}/api/router/default", async (HttpContext http) =>
@@ -476,6 +535,7 @@ public static class RouterEndpoints
                 selectable = snapshot is null
                     ? Array.Empty<string>()
                     : RouterConnectService.Selectable(snapshot).ToArray(),
+                claude_native_selectable = ClaudeCodeRouterConnector.NativeModels,
                 slots = ClaudeCodeRouterConnector.Slots.Keys,
                 openai_base_url = connect.OpenAiBaseUrl,
                 anthropic_base_url = connect.AnthropicBaseUrl
@@ -747,4 +807,17 @@ public static class RouterEndpoints
     }
     private sealed class RouteBody { public string? Name { get; set; } public string? Kind { get; set; } public IReadOnlyList<string>? Targets { get; set; } public bool? Enabled { get; set; } }
     private sealed class DefaultRouteBody { public string? Route { get; set; } }
+    private sealed class SwitchSettingsBody
+    {
+        public string? Strategy { get; set; }
+        public string? ClaudeFallbackRoute { get; set; }
+    }
+    private sealed class EffortMappingBody
+    {
+        public string? UpstreamId { get; set; }
+        public string? Model { get; set; }
+        public IReadOnlyList<string>? SupportedValues { get; set; }
+        public IReadOnlyList<string>? LevelMap { get; set; }
+        public string? DefaultValue { get; set; }
+    }
 }

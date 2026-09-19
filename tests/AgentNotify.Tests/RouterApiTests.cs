@@ -513,10 +513,11 @@ public sealed class RouterApiTests
         Assert.Equal(["opencode-go/deepseek-v4-flash", "deepseek/deepseek-v4-flash"],
             group.GetProperty("targets").EnumerateArray().Select(t => t.GetString()));
 
-        var put = await browser.PutAsJsonAsync("/ui/api/router/smart", new { enabled = true });
+        var put = await browser.PutAsJsonAsync("/ui/api/router/switch-settings", new { strategy = "ordered", claude_fallback_route = (string?)null });
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         var after = await browser.GetFromJsonAsync<JsonElement>("/ui/api/router");
         Assert.True(after.GetProperty("smart_routing").GetBoolean());
+        Assert.Equal("ordered", after.GetProperty("switch_strategy").GetString());
     }
 
     [Fact]
@@ -550,7 +551,7 @@ public sealed class RouterApiTests
         foreach (var module in new[]
                  {
                      "router-shared.js", "router-providers.js", "router-routing.js",
-                     "router-agents.js", "router-activity.js"
+                     "router-agents.js", "router-activity.js", "router-settings.js", "router-effort.js"
                  })
         {
             var asset = await browser.GetAsync($"/ui/js/views/{module}");
@@ -560,7 +561,7 @@ public sealed class RouterApiTests
 
         var appJs = await browser.GetStringAsync("/ui/js/app.js");
         Assert.Contains("Model router", appJs);
-        foreach (var path in new[] { "router", "router-routing", "router-agents", "router-activity" })
+        foreach (var path in new[] { "router", "router-routing", "router-agents", "router-activity", "router-settings", "router-effort" })
             Assert.Contains($"path: \"{path}\"", appJs);
     }
 }

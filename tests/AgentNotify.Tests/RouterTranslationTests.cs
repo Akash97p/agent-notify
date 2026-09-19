@@ -377,6 +377,30 @@ public sealed class RouterTranslationTests
     }
 
     [Fact]
+    public void Anthropic_DecoderReadsClaudeCodeOutputEffort()
+    {
+        var body = Encoding.UTF8.GetBytes("{\"model\":\"claude-opus-5\",\"max_tokens\":10,\"output_config\":{\"effort\":\"xhigh\"},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}");
+        var decoded = new RouterTranslator().DecodeRequest(RouterWire.AnthropicMessages, body);
+        Assert.Equal("xhigh", decoded.Request.ReasoningEffort);
+    }
+
+    [Fact]
+    public void EffortCatalogMapsAndDefaultsByModelFamily()
+    {
+        var upstream = new StoredRouterUpstream("up", "aggregator", "Aggregator", RouterWire.OpenAiChat,
+            "https://example.com/v1", null, ["deepseek-v4", "gpt-5"], true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var deepseek = RouterEffortCatalog.Resolve(upstream, "deepseek-v4", []);
+        Assert.Equal(["low", "low", "medium", "high", "xhigh"], deepseek.LevelMap);
+        Assert.Equal("xhigh", RouterEffortCatalog.Map(deepseek, "max"));
+
+        var saved = new RouterEffortMapping("up", "gpt-5", ["low", "high"],
+            ["low", "low", "high", "high", "high"], "high");
+        var openai = RouterEffortCatalog.Resolve(upstream, "gpt-5", [saved]);
+        Assert.Equal("high", RouterEffortCatalog.Map(openai, null));
+        Assert.Equal("high", RouterEffortCatalog.Map(openai, "max"));
+    }
+
+    [Fact]
     public void Anthropic_Encoder_DefaultsMaxTokens()
     {
         var req = new RouterRequest("m", null, [new RouterMessage(RouterMessage.User, [new RouterTextPart("hi")])], [], null, null, null, null, null, false, null, null, new HashSet<string>());

@@ -269,6 +269,17 @@ including a recorded "none", because what it finds in their place are AgentNotif
 key is written into those files deliberately, so a connected agent needs no environment variable; that
 key can spend through the router and nothing more.
 
+Smart switching is persisted as `off`, `ordered`, `sticky`, or `round_robin`; sticky and round-robin
+cursors are process-local because they are scheduling state, not configuration. A native Claude Code
+request may fail outward from the agent's own Anthropic credential to configured equivalent-model and
+cross-model targets, but the native credential target is never introduced into another request.
+Reasoning effort is normalized from Claude Code's five-step `output_config.effort`, then mapped only
+after a concrete provider/model target is selected. Curated/inferred capability defaults and bounded
+per-target overrides determine the emitted provider vocabulary; a target default covers requests that
+carry no effort, and `omit` avoids sending unsupported fields. Because that scale is Claude Code's,
+the map applies only to Anthropic-wire requests: a client already speaking an OpenAI vocabulary keeps
+the effort it sent and takes a default only when it names none.
+
 The ledger is proxy-observed usage and is kept separate from the log-derived Usage view and from Live
 quota. The same physical call appears in both the router ledger and the agent's own log, so the two
 are never added together.

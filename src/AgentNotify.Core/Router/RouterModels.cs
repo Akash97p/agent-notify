@@ -155,12 +155,52 @@ public sealed record RouterRoute(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
+public static class RouterSwitchStrategy
+{
+    public const string Off = "off";
+    public const string Ordered = "ordered";
+    public const string Sticky = "sticky";
+    public const string RoundRobin = "round_robin";
+
+    public static bool IsValid(string? strategy) =>
+        strategy is Off or Ordered or Sticky or RoundRobin;
+
+    public static string Normalize(string? strategy)
+    {
+        var value = string.IsNullOrWhiteSpace(strategy) ? Off : strategy.Trim().ToLowerInvariant();
+        if (!IsValid(value))
+            throw new ArgumentException("Switch strategy must be off, ordered, sticky, or round_robin.");
+        return value;
+    }
+}
+
 /// <summary>Router-level settings.</summary>
-/// <param name="SmartRouting">
-/// When on, a request that fails on one provider moves on to the same model at another provider, cheapest
-/// kind first: see <see cref="RouteResolver"/>.
-/// </param>
-public sealed record RouterSettings(string? DefaultRoute, bool SmartRouting = false);
+public sealed record RouterSettings(
+    string? DefaultRoute,
+    string SwitchStrategy = RouterSwitchStrategy.Off,
+    string? ClaudeFallbackRoute = null)
+{
+    /// <summary>Whether any switching strategy is on; the strategy itself says which.</summary>
+    public bool SmartRouting => SwitchStrategy != RouterSwitchStrategy.Off;
+}
+
+public sealed record RouterEffortMapping(
+    string UpstreamId,
+    string Model,
+    IReadOnlyList<string> SupportedValues,
+    IReadOnlyList<string> LevelMap,
+    string? DefaultValue = null);
+
+public sealed record RouterEffortCapability(
+    string UpstreamId,
+    string UpstreamSlug,
+    string Model,
+    string Wire,
+    string Family,
+    string Source,
+    IReadOnlyList<string> SupportedValues,
+    IReadOnlyList<string> LevelMap,
+    string? DefaultValue);
 
 /// <summary>Ledger row for a logical router request.</summary>
 public sealed record RouterRequestRecord(

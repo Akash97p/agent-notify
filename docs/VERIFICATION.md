@@ -5,6 +5,29 @@ Environment: Windows 11 host, WSL workspace, Windows .NET SDK 10.0.302 at `/mnt/
 
 This record distinguishes automated/process verification from visual checks. No result from the inherited `/mnt/d/dev/AgentNotify` documentation was accepted without rerunning it.
 
+## Router switching and effort mapping: unverified (2026-09-19)
+
+Ordered/sticky/round-robin switching, one-way native-Claude fallback, and editable per-target effort
+mappings/defaults were merged to `dev` **without the required gates**. This work was done on a macOS
+host with no .NET SDK: `./scripts/build.sh`, `./scripts/test.sh`, and `./scripts/package.sh` all stop
+at the configured Windows SDK `/mnt/d/dev/dotnet/dotnet.exe`, which does not exist there. Nothing in
+this change has been compiled, tested, packaged, or seen in a browser.
+
+What was actually checked: a line-by-line source audit, `node --check` on every changed web module,
+and `git diff --check`. The audit found and fixed five defects before merge — a
+`System.Text.Json.Nodes` reassignment that would have thrown on any same-wire effort rewrite, a
+cooldown that would have made native Anthropic errors stop passing through when no fallback is
+configured, a failover gate that would have dropped cooldowns for single-target upstreams, Claude's
+five-step map being applied to OpenAI-wire clients (silently downgrading Codex's own effort), and a
+nullable-reference warning in target ordering.
+
+Required before this is trusted: run all three scripts on the Windows/WSL toolchain, exercise the
+Settings and Effort mapping pages in a browser, and drive a real Claude Code session through a
+scripted exhaustion to confirm the silent switch and the mapped effort vocabulary. New automated
+coverage exists but has never executed: native-Claude fallback ordering (`RouteResolverTests`),
+round-robin start rotation and native exhaustion with effort mapping (`RouterProxyTests`), and
+`output_config.effort` decoding plus family inference (`RouterTranslationTests`).
+
 ## Verified
 
 ### Release build

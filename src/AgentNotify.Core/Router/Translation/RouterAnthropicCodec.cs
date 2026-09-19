@@ -52,6 +52,11 @@ internal static class RouterAnthropicCodec
                 else throw new TranslationException("invalid_request", "Invalid top_p.");
             }
 
+            string? reasoningEffort = null;
+            if (root.TryGetProperty("output_config", out var outputConfig) && outputConfig.ValueKind == JsonValueKind.Object &&
+                outputConfig.TryGetProperty("effort", out var effort) && effort.ValueKind == JsonValueKind.String)
+                reasoningEffort = effort.GetString();
+
             IReadOnlyList<string>? stop = null;
             if (root.TryGetProperty("stop_sequences", out var stopEl) && stopEl.ValueKind != JsonValueKind.Null)
             {
@@ -281,7 +286,7 @@ internal static class RouterAnthropicCodec
                 TopP: topP,
                 StopSequences: stop,
                 Stream: stream,
-                ReasoningEffort: null, // anthropic ignores
+                ReasoningEffort: reasoningEffort,
                 ParallelToolCalls: null,
                 CustomToolNames: customToolNames
             );
