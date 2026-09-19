@@ -640,6 +640,25 @@ public sealed class WebUiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OverviewSummarizesNotificationsUsageQuotaAndRouting()
+    {
+        var (browser, _) = Browser();
+        var response = await browser.GetAsync("/ui/js/views/overview.js");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var source = await response.Content.ReadAsStringAsync();
+
+        // The first page is a summary: it reads each projection over the local API and links to the
+        // page that owns it, so nothing here becomes a second copy of Attention, Usage, or Router.
+        Assert.Contains("api.get(\"usage?days=30\")", source);
+        Assert.Contains("api.get(\"quota\")", source);
+        Assert.Contains("api.get(\"router\")", source);
+        Assert.Contains("#/attention", source);
+        Assert.Contains("#/usage", source);
+        Assert.Contains("#/quota", source);
+        Assert.Contains("#/router", source);
+    }
+
+    [Fact]
     public async Task UploadedSoundsAreImportedAndPlayable()
     {
         var browser = Page();

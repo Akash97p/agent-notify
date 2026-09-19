@@ -5,6 +5,30 @@ Environment: Windows 11 host, WSL workspace, Windows .NET SDK 10.0.302 at `/mnt/
 
 This record distinguishes automated/process verification from visual checks. No result from the inherited `/mnt/d/dev/AgentNotify` documentation was accepted without rerunning it.
 
+## Overview dashboard rendered in a real browser (2026-09-19)
+
+The Overview page now summarizes notifications, 30-day usage and cost, the lowest live quota window,
+and the router instead of only the notification counts. Verified by running the freshly built broker
+on a scratch config directory and driving headless Chrome over the DevTools protocol:
+
+```bash
+dotnet exec agentnotifyd.dll --config-dir /tmp/an-render/config --port 48999 --no-desktop
+# then, over CDP: navigate to /ui/#/overview, /ui/#/insights, /ui/#/quota and read document.body.innerText
+```
+
+All three pages rendered with live data (16.7 KB, 22.0 KB, and 28.5 KB of DOM), and the CDP session
+reported no uncaught exception, console error, or browser log error on any of them. `/ui/`,
+`/ui/api/overview`, `/ui/api/usage?days=30`, `/ui/api/quota`, `/ui/api/router`, and
+`/ui/api/router/summary?days=1` all answered 200 from that instance. The first headless run caught a
+real defect — a missing `}` in the router panel's busy-target line, which stopped every page from
+rendering — so the pass above is the post-fix run.
+
+Not verified: how the page looks. No human or model inspected the screenshots (`screenshot` output at
+`/tmp/an-render/*.png` was not viewed), so spacing, contrast, and density on a real display remain
+unchecked, as does the Windows-side rendering. The macOS broker that was already running on the
+owner's machine (PID 65275, port 47821, installed build) was left untouched; this used a separate
+config directory and port.
+
 ## Router and Insights split out of Core; oversized files split (2026-09-19)
 
 `AgentNotify.Router` (router, translation, connectors) and `AgentNotify.Insights` (usage, quota,
